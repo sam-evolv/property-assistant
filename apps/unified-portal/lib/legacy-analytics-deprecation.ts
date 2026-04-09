@@ -21,14 +21,9 @@ export const LEGACY_DEPRECATION_ERROR = {
 };
 
 export function createLegacyAnalyticsResponse(): NextResponse {
-  console.error('[LEGACY ANALYTICS] Deprecated endpoint called. Caller must migrate to /api/analytics/summary');
   return NextResponse.json(LEGACY_DEPRECATION_ERROR, { status: 410 });
 }
 
-export function logLegacyAnalyticsUsage(endpoint: string, caller?: string): void {
-  console.error(
-    `[LEGACY ANALYTICS WARNING] Deprecated endpoint "${endpoint}" was called` +
-    (caller ? ` by "${caller}"` : '') +
-    `. This endpoint will be removed. Migrate to /api/analytics/summary.`
-  );
+export function logLegacyAnalyticsUsage(_endpoint: string, _caller?: string): void {
+  // Intentionally empty - legacy usage tracking without console output
 }

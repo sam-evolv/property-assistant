@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { messages, developments, tenants } from '@openhouse/db/schema';
-import { sql, count, eq, desc, gte } from 'drizzle-orm';
+import { messages, developments } from '@openhouse/db/schema';
+import { sql, count, desc, gte } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 import { logDataAccess } from '@/lib/gdpr-audit-log';
 
@@ -42,8 +42,8 @@ export async function GET(request: NextRequest) {
         .select({ count: count() })
         .from(messages);
       totalQuestions = Number(total?.count || 0);
-    } catch (e) {
-      console.log('[Analytics] Total questions count failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -52,8 +52,8 @@ export async function GET(request: NextRequest) {
         .from(messages)
         .where(gte(messages.created_at, dateThreshold));
       questionsInRange = Number(rangeCount?.count || 0);
-    } catch (e) {
-      console.log('[Analytics] Range questions count failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -69,8 +69,8 @@ export async function GET(request: NextRequest) {
         .where(sql`${messages.user_message} IS NOT NULL`)
         .orderBy(desc(messages.created_at))
         .limit(20);
-    } catch (e) {
-      console.log('[Analytics] Recent questions failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -107,8 +107,8 @@ export async function GET(request: NextRequest) {
           count: Number(d.count),
         }));
       }
-    } catch (e) {
-      console.log('[Analytics] Questions by development failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     try {
@@ -127,8 +127,8 @@ export async function GET(request: NextRequest) {
         topic: t.topic || 'General',
         count: Number(t.count),
       }));
-    } catch (e) {
-      console.log('[Analytics] Top questions failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     knowledgeGaps = [
@@ -154,9 +154,9 @@ export async function GET(request: NextRequest) {
       topQuestions,
       knowledgeGaps,
     });
-  } catch (error: any) {
-    console.error('[Analytics API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });

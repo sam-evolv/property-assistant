@@ -40,7 +40,6 @@ export async function GET(request: NextRequest) {
       count: results.length,
     });
   } catch (error) {
-    console.error('[Solar Troubleshooting API] error:', error);
     return NextResponse.json(
       { error: 'Failed to search troubleshooting KB' },
       { status: 500 }

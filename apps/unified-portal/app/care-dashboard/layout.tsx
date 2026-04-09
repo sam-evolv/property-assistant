@@ -9,6 +9,7 @@ import {
   LayoutDashboard, Sparkles, ClipboardList, Wrench, Shield,
   FolderArchive, BookOpen, Menu, X, ChevronDown, LogOut,
 } from 'lucide-react';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 /* ── SE Systems Logo (inline SVG — no external deps) ── */
 function SESystemsLogo({ width = 160 }: { width?: number }) {
@@ -203,7 +204,9 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
 
         {/* Content Area */}
         <div className="flex-1 overflow-auto bg-gradient-to-br from-white via-grey-50 to-white">
-          {children}
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
         </div>
       </div>
     </div>

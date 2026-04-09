@@ -340,7 +340,6 @@ export default function BetaControlRoomClient() {
         setHealth(result);
       }
     } catch (err) {
-      console.error('Failed to fetch analytics health:', err);
     }
   }, []);
 

@@ -27,7 +27,6 @@ async function getFirebaseAdmin() {
     if (!admin.apps.length) {
       const serviceAccountJson = process.env.FIREBASE_SERVICE_ACCOUNT;
       if (!serviceAccountJson) {
-        console.warn('[FCM] FIREBASE_SERVICE_ACCOUNT not set — push notifications disabled');
         return null;
       }
 
@@ -39,8 +38,7 @@ async function getFirebaseAdmin() {
 
     firebaseAdmin = admin;
     return admin;
-  } catch (error) {
-    console.warn('[FCM] firebase-admin not available — push notifications disabled:', error);
+  } catch {
     return null;
   }
 }
@@ -67,7 +65,6 @@ function getSupabaseServiceClient() {
 export async function sendPush(token: string, payload: PushPayload): Promise<boolean> {
   const admin = await getFirebaseAdmin();
   if (!admin) {
-    console.log('[FCM] Push skipped — Firebase not configured');
     return false;
   }
 
@@ -107,7 +104,6 @@ export async function sendPush(token: string, payload: PushPayload): Promise<boo
     ) {
       await deactivateToken(token);
     }
-    console.error('[FCM] Push send failed:', error.message || error);
     return false;
   }
 }
@@ -167,8 +163,7 @@ export async function sendPushBatch(
 
       totalSuccess += response.successCount;
       totalFailure += response.failureCount;
-    } catch (error) {
-      console.error('[FCM] Batch send failed:', error);
+    } catch {
       totalFailure += batch.length;
     }
   }
@@ -192,8 +187,8 @@ async function deactivateToken(token: string) {
       .from('push_device_tokens')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq('token', token);
-  } catch (error) {
-    console.error('[FCM] Failed to deactivate token:', error);
+  } catch {
+    // token deactivation failed — non-critical
   }
 }
 
@@ -204,7 +199,7 @@ async function deactivateTokens(tokens: string[]) {
       .from('push_device_tokens')
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .in('token', tokens);
-  } catch (error) {
-    console.error('[FCM] Failed to deactivate tokens:', error);
+  } catch {
+    // tokens deactivation failed — non-critical
   }
 }

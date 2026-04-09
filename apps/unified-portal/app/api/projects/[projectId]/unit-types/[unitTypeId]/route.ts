@@ -58,14 +58,11 @@ export async function PUT(
       .single();
 
     if (error) {
-      console.error('[Unit Types] Error updating:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log('[Unit Types] Updated:', unitType.name, 'for project:', params.projectId);
     return NextResponse.json({ unitType });
   } catch (error) {
-    console.error('[Unit Types] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update unit type' },
       { status: 500 }
@@ -101,14 +98,11 @@ export async function DELETE(
       .eq('project_id', params.projectId);
 
     if (error) {
-      console.error('[Unit Types] Error deleting:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log('[Unit Types] Deleted unit type:', params.unitTypeId);
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Unit Types] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete unit type' },
       { status: 500 }

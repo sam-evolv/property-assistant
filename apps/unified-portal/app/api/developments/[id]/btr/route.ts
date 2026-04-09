@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { developments, btrTenancies, maintenanceRequests, complianceSchedule } from '@openhouse/db/schema';
-import { eq, and, sql, desc } from 'drizzle-orm';
+import { developments, btrTenancies, complianceSchedule } from '@openhouse/db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export async function GET(
@@ -97,11 +97,10 @@ export async function GET(
       recentMaintenance: maintenance.slice(0, 5),
       complianceAlerts: [...overdueComp, ...dueSoonComp].slice(0, 5),
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed to load BTR data' }, { status: 500 });
   }
 }

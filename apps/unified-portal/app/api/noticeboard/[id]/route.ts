@@ -46,7 +46,6 @@ export async function PATCH(
 
     return NextResponse.json({ post });
   } catch (error) {
-    console.error('[Noticeboard PATCH Error]:', error);
     return NextResponse.json(
       { error: 'Failed to update post' },
       { status: 500 }
@@ -82,7 +81,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Noticeboard DELETE Error]:', error);
     return NextResponse.json(
       { error: 'Failed to delete post' },
       { status: 500 }

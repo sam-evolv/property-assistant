@@ -144,7 +144,6 @@ Summary stats: ${summary.summary}`;
       generatedAt: new Date().toISOString(),
     });
   } catch (error) {
-    console.error('[SchemeIntel Briefing] Error:', error);
     return Response.json(
       { error: error instanceof Error ? error.message : 'Internal server error' },
       { status: 500 }

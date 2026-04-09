@@ -46,9 +46,7 @@ export default function DisciplineDetailPage() {
   const disciplineInfo = DISCIPLINES[discipline as DisciplineType];
 
   const loadDocuments = useCallback(async () => {
-    console.log('[Archive Page] loadDocuments called:', { tenantId, developmentId, discipline });
     if (!tenantId) {
-      console.log('[Archive Page] No tenantId, skipping load');
       return;
     }
     
@@ -61,30 +59,20 @@ export default function DisciplineDetailPage() {
       
       if (developmentId) {
         urlParams.set('developmentId', developmentId);
-        console.log('[Archive Page] Fetching documents for developmentId:', developmentId);
-      } else {
-        console.log('[Archive Page] No developmentId - will show "Select a Development" message');
       }
       
       let response = await fetch(`/api/archive/documents?${urlParams}`);
-      console.log('[Archive Page] Primary API response status:', response.status);
-      
+
       if (!response.ok) {
-        console.log('[Archive Page] Primary endpoint not available, using disciplines endpoint...');
         urlParams.set('action', 'documents');
         response = await fetch(`/api/archive/disciplines?${urlParams}`);
-        console.log('[Archive Page] Disciplines API response status:', response.status);
       }
       
       if (response.ok) {
         const data = await response.json();
-        console.log('[Archive Page] Loaded documents:', data.documents?.length || 0);
         setAllDocuments(data.documents || []);
-      } else {
-        console.error('[Archive Page] API error:', response.status);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load documents:', error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -99,8 +87,7 @@ export default function DisciplineDetailPage() {
         const data = await response.json();
         setHouseTypes(data.houseTypes || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load house types:', error);
+    } catch {
     }
   }, [tenantId, developmentId]);
 
@@ -121,8 +108,7 @@ export default function DisciplineDetailPage() {
         const data = await response.json();
         setCustomFolders(data.folders || []);
       }
-    } catch (error) {
-      console.error('[Archive] Failed to load folders:', error);
+    } catch {
     }
   }, [tenantId, developmentId, discipline, selectedFolder]);
 
@@ -197,11 +183,8 @@ export default function DisciplineDetailPage() {
       
       if (response.ok) {
         loadDocuments();
-      } else {
-        console.error('Failed to move document');
       }
-    } catch (error) {
-      console.error('Error moving document:', error);
+    } catch {
     } finally {
       setMovingDocument(null);
       setShowMoveModal(false);

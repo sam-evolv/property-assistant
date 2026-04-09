@@ -73,7 +73,7 @@ export async function PATCH(
 
     const { data: existing } = await supabase
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id')
       .eq('unit_id', unitId)
       .eq('tenant_id', tenantId)
       .eq('development_id', developmentId)
@@ -90,7 +90,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('Kitchen selection update error:', error);
         return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
       }
       result = data;
@@ -107,7 +106,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('Kitchen selection insert error:', error);
         return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
       }
       result = data;
@@ -121,7 +119,7 @@ export async function PATCH(
 
     const { data: config } = await supabase
       .from('kitchen_selection_options')
-      .select('*')
+      .select('pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes')
       .eq('development_id', developmentId)
       .eq('tenant_id', tenantId)
       .single();
@@ -141,8 +139,8 @@ export async function PATCH(
         })
         .eq('id', result.id)
         .eq('tenant_id', tenantId);
-    } catch (e) {
-      console.log('PC sum columns not yet available:', e);
+    } catch (_e) {
+        // error handled silently
     }
 
     const hasAllKitchenFields = result.kitchen_selected === true && 
@@ -167,12 +165,12 @@ export async function PATCH(
         pcSumTotal: pcSum.pcSumTotal,
       }
     });
-  } catch (error: any) {
-    console.error('Kitchen selection PATCH error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -37,7 +37,6 @@ export function HomeownersDirectory() {
       })
       .then((data) => setHomeowners(data.homeowners || []))
       .catch((err) => {
-        console.error('Homeowners error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

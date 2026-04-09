@@ -39,7 +39,6 @@ export function UnitsExplorer() {
       })
       .then((data) => setUnits(data.units || []))
       .catch((err) => {
-        console.error('Units error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));

@@ -22,7 +22,7 @@ class DatabaseCache<T> {
           updated_at = CURRENT_TIMESTAMP
       `);
     } catch (error) {
-      console.error('Cache set error:', error);
+      // Cache set failed silently
     }
   }
 
@@ -40,7 +40,6 @@ class DatabaseCache<T> {
 
       return null;
     } catch (error) {
-      console.error('Cache get error:', error);
       return null;
     }
   }
@@ -55,7 +54,6 @@ class DatabaseCache<T> {
 
       return result.rows && result.rows.length > 0;
     } catch (error) {
-      console.error('Cache has error:', error);
       return false;
     }
   }
@@ -64,7 +62,7 @@ class DatabaseCache<T> {
     try {
       await db.execute(sql`DELETE FROM api_cache WHERE cache_key = ${key}`);
     } catch (error) {
-      console.error('Cache delete error:', error);
+      // Cache delete failed silently
     }
   }
 
@@ -72,7 +70,7 @@ class DatabaseCache<T> {
     try {
       await db.execute(sql`DELETE FROM api_cache WHERE cache_key ~ ${pattern}`);
     } catch (error) {
-      console.error('Cache invalidate pattern error:', error);
+      // Cache invalidate failed silently
     }
   }
 
@@ -96,7 +94,7 @@ class DatabaseCache<T> {
     try {
       await db.execute(sql`DELETE FROM api_cache`);
     } catch (error) {
-      console.error('Cache clear error:', error);
+      // Cache clear failed silently
     }
   }
 }

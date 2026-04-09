@@ -68,7 +68,6 @@ export function UnitTypesClient({ projectId }: UnitTypesClientProps) {
         setUnitsCount(statusData.unitsCount || 0);
       }
     } catch (error) {
-      console.error('Error fetching data:', error);
       toast.error('Failed to load data');
     } finally {
       setIsLoading(false);

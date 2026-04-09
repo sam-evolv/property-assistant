@@ -40,7 +40,7 @@ function getSupabaseClient() {
   );
 }
 
-function parseNumericValue(value: any): number | null {
+function parseNumericValue(value: unknown): number | null {
   if (typeof value === 'number') return value;
   if (typeof value === 'string') {
     const match = value.match(/(\d+)/);
@@ -56,7 +56,6 @@ export async function GET(request: NextRequest) {
 
   const rateCheck = checkRateLimit(clientIP, '/api/purchaser/profile');
   if (!rateCheck.allowed) {
-    console.log(`[Profile] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
     return NextResponse.json(
       { error: 'Too many requests', retryAfterMs: rateCheck.resetMs },
       { status: 429, headers: { 'x-request-id': requestId, 'retry-after': String(Math.ceil(rateCheck.resetMs / 1000)) } }
@@ -79,7 +78,6 @@ export async function GET(request: NextRequest) {
     const cacheKey = `profile:${unitUid}`;
     const cached = globalCache.get(cacheKey);
     if (cached) {
-      console.log(`[Profile] Cache hit for ${unitUid} requestId=${requestId} duration=${Date.now() - startTime}ms`);
       return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
     }
 
@@ -88,8 +86,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401, headers: { 'x-request-id': requestId } });
     }
 
-    console.log('[Profile] Fetching unit from Supabase:', unitUid, `requestId=${requestId}`);
-    
     const supabase = getSupabaseClient();
     const { data: supabaseUnit, error } = await supabase
       .from('units')
@@ -98,11 +94,8 @@ export async function GET(request: NextRequest) {
       .single();
     
     if (error || !supabaseUnit) {
-      console.error('[Profile] Unit not found:', error?.message);
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
-
-    console.log('[Profile] Found unit:', supabaseUnit.id, 'Address:', supabaseUnit.address, 'unit_type_id:', supabaseUnit.unit_type_id);
 
     const { data: project } = await supabase
       .from('projects')
@@ -113,8 +106,6 @@ export async function GET(request: NextRequest) {
     const developmentName = project?.name || 'Unknown Development';
     const developmentAddress = formatSchemeAddress(developmentName, project?.address || null);
     
-    console.log('[Profile] Project data:', { name: developmentName, address: project?.address, formatted: developmentAddress });
-
     const development = {
       id: supabaseUnit.project_id,
       name: developmentName,
@@ -138,20 +129,18 @@ export async function GET(request: NextRequest) {
         houseTypeCode = unitType.name || '';
         houseTypeName = unitType.name || '';
         
-        const specs = unitType.specification_json as any;
+        const specs = unitType.specification_json as Record<string, unknown>;
         if (specs) {
           bedrooms = parseNumericValue(specs.bedrooms);
           bathrooms = parseNumericValue(specs.bathrooms);
           floorAreaSqm = parseNumericValue(specs.floor_area_sqm) || parseNumericValue(specs.floor_area);
           if (specs.property_type) {
-            houseTypeName = specs.property_type;
+            houseTypeName = specs.property_type as string;
           }
         }
       }
     }
     
-    console.log('[Profile] Unit type data - bedrooms:', bedrooms, 'bathrooms:', bathrooms, 'from unit_type_id:', supabaseUnit.unit_type_id);
-
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
     
     const unitNumber = supabaseUnit.address || '';
@@ -160,9 +149,7 @@ export async function GET(request: NextRequest) {
       ? `Unit ${unitNumber}, ${developmentAddress}`
       : (supabaseUnit.address || developmentAddress || 'Address not available');
     
-    console.log('[Profile] Address composition - unitNumber:', unitNumber, 'isJustNumber:', isJustNumber, 'fullAddress:', fullAddress);
-
-    const documents: any[] = [];
+    const documents: { id: string; title: string; file_url: string | null; mime_type: string; category: string }[] = [];
     try {
       const { data: docSections } = await supabase
         .from('document_sections')
@@ -170,15 +157,15 @@ export async function GET(request: NextRequest) {
         .eq('project_id', supabaseUnit.project_id);
 
       if (docSections && docSections.length > 0) {
-        const uniqueDocs = new Map<string, any>();
+        const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
         const houseCodeLower = houseTypeCode.toLowerCase();
         
         for (const section of docSections) {
-          const meta = section.metadata as any;
+          const meta = section.metadata as Record<string, unknown>;
           if (!meta) continue;
           
-          const fileName = meta.file_name || meta.source || 'Unknown';
-          const fileUrl = meta.file_url || null;
+          const fileName = (meta.file_name as string | undefined) || (meta.source as string | undefined) || 'Unknown';
+          const fileUrl = (meta.file_url as string | undefined) || null;
           const fileNameLower = fileName.toLowerCase();
           
           const isThisHouseType = fileNameLower.includes(houseCodeLower);
@@ -205,12 +192,9 @@ export async function GET(request: NextRequest) {
         documents.push(...Array.from(uniqueDocs.values()).slice(0, 10));
       }
       
-      console.log('[Profile] Found', documents.length, 'floor plans for house type:', houseTypeCode);
-    } catch (docErr) {
-      console.error('[Profile] Error fetching documents:', docErr);
+    } catch (_docErr) {
+        // error handled silently
     }
-
-    console.log('[Profile] Built profile for:', purchaserName, 'HouseType:', houseTypeCode, 'Beds:', bedrooms, 'Baths:', bathrooms);
 
     const profile = {
       unit: {
@@ -238,10 +222,8 @@ export async function GET(request: NextRequest) {
     };
 
     globalCache.set(cacheKey, profile, 60000);
-    console.log(`[Profile] Cached result for ${unitUid} requestId=${requestId} duration=${Date.now() - startTime}ms`);
     return NextResponse.json(profile, { headers: { 'x-request-id': requestId, 'x-cache': 'MISS' } });
   } catch (error) {
-    console.error('[Purchaser Profile Error]:', error);
     return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500, headers: { 'x-request-id': requestId } });
   }
 }

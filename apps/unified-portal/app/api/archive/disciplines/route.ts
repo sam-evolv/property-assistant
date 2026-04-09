@@ -59,7 +59,6 @@ const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
 function getSupabaseProjectId(developmentId: string): string {
   const mapped = DEVELOPMENT_TO_SUPABASE_PROJECT[developmentId];
   if (mapped) {
-    console.log('[Disciplines API] Mapped developmentId', developmentId, 'to Supabase project_id', mapped);
     return mapped;
   }
   return developmentId;
@@ -70,10 +69,6 @@ function getSupabaseClient() {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
-    console.error('[Disciplines API] Missing Supabase environment variables:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-    });
     throw new Error('Supabase configuration missing. Please check environment variables.');
   }
   
@@ -117,12 +112,10 @@ async function fetchDocuments(params: {
   
   // SECURITY: Tenant filtering is mandatory
   if (!tenantId) {
-    console.error('[Disciplines API] SECURITY: tenantId is required');
     return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
   }
   
   try {
-    console.log('[Disciplines API] Fetching documents for tenant:', tenantId, 'scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
     // SECURITY: Get allowed project IDs for this tenant
@@ -138,7 +131,6 @@ async function fetchDocuments(params: {
         .single();
       
       if (!devCheck) {
-        console.error('[Disciplines API] SECURITY: Development does not belong to tenant');
         return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
       }
       
@@ -167,7 +159,6 @@ async function fetchDocuments(params: {
         .eq('tenant_id', tenantId);
       
       if (!tenantDevs || tenantDevs.length === 0) {
-        console.log('[Disciplines API] No developments found for tenant');
         return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
       }
       
@@ -185,10 +176,7 @@ async function fetchDocuments(params: {
     
     const { data: sections, error } = await query;
     
-    console.log('[Disciplines API] Query for project_ids:', allowedProjectIds.length, '- Found sections:', sections?.length || 0);
-
     if (error) {
-      console.error('[Disciplines API] Supabase error:', error.message);
       return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
     }
 
@@ -230,8 +218,6 @@ async function fetchDocuments(params: {
     const offset = (page - 1) * pageSize;
     const paginatedDocs = filteredDocs.slice(offset, offset + pageSize);
     
-    console.log('[Disciplines API] Found:', filteredDocs.length, 'documents, returning', paginatedDocs.length);
-
     return {
       documents: paginatedDocs,
       totalCount,
@@ -240,7 +226,6 @@ async function fetchDocuments(params: {
       totalPages,
     };
   } catch (error) {
-    console.error('[Disciplines API] Error fetching documents:', error);
     return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
   }
 }
@@ -253,7 +238,6 @@ async function fetchDisciplines(params: {
   
   // SECURITY: Tenant filtering is mandatory
   if (!tenantId) {
-    console.error('[Disciplines API] SECURITY: tenantId is required');
     return [];
   }
   
@@ -273,7 +257,6 @@ async function fetchDisciplines(params: {
         .single();
       
       if (!devCheck) {
-        console.error('[Disciplines API] SECURITY: Development does not belong to tenant');
         return [];
       }
       
@@ -289,12 +272,10 @@ async function fetchDisciplines(params: {
           .maybeSingle();
         
         if (project?.id) {
-          console.log('[Disciplines API] Found project by name lookup:', devCheck.name, '->', project.id);
           supabaseProjectId = project.id;
         }
       }
       
-      console.log('[Disciplines API] Fetching disciplines for SCHEME:', developmentId, '-> project_id:', supabaseProjectId);
       allowedProjectIds = [supabaseProjectId];
     } else {
       // Get all developments for this tenant
@@ -304,17 +285,14 @@ async function fetchDisciplines(params: {
         .eq('tenant_id', tenantId);
       
       if (!tenantDevs || tenantDevs.length === 0) {
-        console.log('[Disciplines API] No developments found for tenant');
         return [];
       }
       
       allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
-      console.log('[Disciplines API] Fetching disciplines for ALL_SCHEMES (filtered by tenant):', allowedProjectIds.length, 'projects');
     }
     
     // Query documents with server-side filtering
     // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
-    console.log('[Disciplines API] Querying document_sections with project_ids:', JSON.stringify(allowedProjectIds));
     
     let query = supabase.from('document_sections').select('id, metadata, project_id');
     if (allowedProjectIds.length === 1) {
@@ -326,11 +304,8 @@ async function fetchDisciplines(params: {
     const { data: sections, error } = await query;
 
     if (error) {
-      console.error('[Disciplines API] Supabase error:', error.message, error);
       return [];
     }
-
-    console.log('[Disciplines API] Found', sections?.length || 0, 'document sections for', allowedProjectIds.length, 'project_ids');
 
     const documentMap = new Map<string, { source: string; discipline: string }>();
     
@@ -341,8 +316,6 @@ async function fetchDisciplines(params: {
         documentMap.set(source, { source, discipline });
       }
     }
-
-    console.log('[Disciplines API] Found', documentMap.size, 'unique documents from Supabase');
 
     const disciplineMap = new Map<string, { count: number; lastUpdated: Date | null }>();
     Object.keys(DISCIPLINES).forEach(disc => {
@@ -376,7 +349,6 @@ async function fetchDisciplines(params: {
     
     return summaries;
   } catch (error) {
-    console.error('[Disciplines API] Error fetching disciplines:', error);
     return [];
   }
 }
@@ -402,8 +374,6 @@ export async function GET(request: NextRequest) {
       const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
       const searchQuery = searchParams.get('searchQuery') || undefined;
 
-      console.log('[Disciplines API] action=documents, fetching documents:', { tenantId, developmentId, discipline });
-
       if (!discipline && !folderId) {
         return NextResponse.json(
           { error: 'discipline or folderId is required when action=documents' },
@@ -428,8 +398,6 @@ export async function GET(request: NextRequest) {
     const schemeId = searchParams.get('schemeId');
     const legacyDevelopmentId = searchParams.get('developmentId');
 
-    console.log('[Disciplines API] Request received:', { tenantId, mode, schemeId, legacyDevelopmentId });
-
     if (!mode) {
       return NextResponse.json(
         { error: 'mode is required. Must be "ALL_SCHEMES" or "SCHEME"' },
@@ -453,18 +421,13 @@ export async function GET(request: NextRequest) {
 
     const developmentId = mode === 'SCHEME' ? schemeId : (legacyDevelopmentId || null);
 
-    console.log('[Disciplines API] Fetching with:', { mode: mode || 'LEGACY', developmentId });
-
     const disciplines = await fetchDisciplines({
       tenantId,
       developmentId,
     });
 
-    console.log('[Disciplines API] Response status: 200, disciplines count:', disciplines.length);
-
     return NextResponse.json({ disciplines });
   } catch (error) {
-    console.error('[Disciplines API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch data' },
       { status: 500 }

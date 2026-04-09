@@ -194,7 +194,6 @@ export async function findProjectsNeedingBackfill(
     .select('id, name');
 
   if (error || !projects) {
-    console.error('Failed to fetch projects:', error);
     return [];
   }
 

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { onboardingSubmissions, tenants, admins } from '@openhouse/db/schema';
-import { eq, sql, desc } from 'drizzle-orm';
+import { onboardingSubmissions, tenants } from '@openhouse/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -50,9 +50,9 @@ export async function GET() {
       submissions,
       stats,
     });
-  } catch (error: any) {
-    console.error('[Super Onboarding Submissions API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch submissions' }, { status: 500 });

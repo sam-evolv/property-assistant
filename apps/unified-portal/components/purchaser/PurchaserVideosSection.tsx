@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Video, Play, X, Loader2, ExternalLink } from 'lucide-react';
+import { Video, Play, X, ExternalLink } from 'lucide-react';
 import { getEffectiveToken } from '../../lib/purchaserSession';
 
 interface VideoResource {
@@ -45,7 +45,6 @@ export default function PurchaserVideosSection({ unitUid, isDarkMode }: Purchase
         const data = await res.json();
         setVideos(data.videos || []);
       } catch (err) {
-        console.error('[PurchaserVideosSection] Error:', err);
         setError('Unable to load videos');
       } finally {
         setLoading(false);
@@ -157,7 +156,6 @@ export default function PurchaserVideosSection({ unitUid, isDarkMode }: Purchase
                     : 'bg-white border-gray-200 hover:border-gold-400'
                 }`}
                 onClick={() => {
-                  console.log('[Videos Analytics] video_started', { videoId: video.id, provider: video.provider });
                   setPlayingVideo(video);
                   setEmbedError(false);
                 }}
@@ -199,7 +197,6 @@ export default function PurchaserVideosSection({ unitUid, isDarkMode }: Purchase
                     className="mt-2 text-xs font-medium text-gold-500 hover:text-gold-400 transition-colors flex items-center gap-1"
                     onClick={(e) => {
                       e.stopPropagation();
-                      console.log('[Videos Analytics] video_started', { videoId: video.id, provider: video.provider });
                       setPlayingVideo(video);
                       setEmbedError(false);
                     }}

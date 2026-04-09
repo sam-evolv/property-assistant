@@ -281,8 +281,7 @@ function SettingsModal({
     try {
       setLocalOptions(options || defaultOptions);
       setError(null);
-    } catch (err) {
-      console.error('Error loading settings:', err);
+    } catch {
       setError('Failed to load settings');
     }
   }, [options, open]);
@@ -506,8 +505,6 @@ export default function KitchenSelectionsPage() {
 
     try {
       setLoading(true);
-      console.log('[Kitchen Selections] Fetching for development:', developmentId, 'name:', developmentName);
-      
       const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
       const res = await fetch(`/api/kitchen-selections/${developmentId}${nameParam}`, {
         credentials: 'include',
@@ -523,9 +520,9 @@ export default function KitchenSelectionsPage() {
       setUnits(data.units || []);
       setOptions(data.options || defaultOptions);
       setError(null);
-    } catch (err: any) {
-      console.error('Error fetching kitchen selections:', err);
-      setError(err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage);
     } finally {
       setLoading(false);
     }
@@ -597,8 +594,8 @@ export default function KitchenSelectionsPage() {
         credentials: 'include',
         body: JSON.stringify({ unitId, field, value }),
       });
-    } catch (err) {
-      console.error('Error updating kitchen selection:', err);
+    } catch {
+      // update failed
     }
   };
 
@@ -972,14 +969,12 @@ export default function KitchenSelectionsPage() {
           });
           if (!res.ok) {
             const errorData = await res.json().catch(() => ({}));
-            console.error('Failed to save options:', errorData.error || 'Unknown error');
             alert('Failed to save settings. Please try again.');
             return;
           }
           const data = await res.json();
           setOptions(data.options || newOptions);
         } catch (err) {
-          console.error('Error saving options:', err);
           alert('Failed to save settings. Please try again.');
         }
       }} />

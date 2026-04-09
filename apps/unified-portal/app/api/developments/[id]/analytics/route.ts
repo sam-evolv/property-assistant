@@ -38,8 +38,6 @@ export async function GET(
       resourceDescription: `Viewed chat analytics for ${dev?.name || 'development'}`,
     });
     
-    console.log('[Analytics] Fetching for project:', REAL_PROJECT_ID);
-
     // Simple count query without join
     const { count: houseCount, error } = await supabaseAdmin
       .from('units')
@@ -47,10 +45,7 @@ export async function GET(
       .eq('project_id', REAL_PROJECT_ID);
 
     if (error) {
-      console.error('[Analytics] Error:', error);
     }
-
-    console.log('[Analytics] Houses:', houseCount);
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -94,7 +89,6 @@ export async function GET(
       chatCosts,
     });
   } catch (error) {
-    console.error('[Analytics] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

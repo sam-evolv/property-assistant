@@ -187,7 +187,7 @@ export class GoogleSheetsAdapter implements SpreadsheetAdapter {
   async renewSubscription(subscriptionId: string): Promise<void> {
     // Google Drive watch channels can't be renewed — they must be stopped and recreated.
     // Caller should stop the old channel and register a new subscription.
-    console.warn('[Google Sheets] Channel renewal not supported — create a new subscription instead');
+    // Google Drive watch channels can't be renewed — caller must create a new subscription
   }
 
   // --- Batch Update (for enrichment columns) ---

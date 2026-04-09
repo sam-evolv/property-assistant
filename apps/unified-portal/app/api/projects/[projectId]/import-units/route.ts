@@ -195,7 +195,6 @@ export async function POST(
       .eq('project_id', projectId);
 
     if (typesError) {
-      console.error('[Import Units] Error fetching unit types:', typesError);
       return NextResponse.json({ error: 'Failed to fetch unit types' }, { status: 500 });
     }
 
@@ -214,7 +213,6 @@ export async function POST(
 
     let createdTypesCount = 0;
     if (missingTypes.length > 0) {
-      console.log('[Import Units] Creating missing unit types:', missingTypes);
       
       for (const typeName of missingTypes) {
         const { data: insertedType, error: insertTypeError } = await supabaseAdmin
@@ -230,9 +228,7 @@ export async function POST(
 
         if (insertTypeError) {
           if (insertTypeError.code === '23505') {
-            console.log('[Import Units] Unit type already exists (concurrent creation):', typeName);
           } else {
-            console.error('[Import Units] Fatal error creating unit type:', insertTypeError);
             return NextResponse.json({
               success: false,
               error: `Failed to create unit type "${typeName}": ${insertTypeError.message}`,
@@ -253,7 +249,6 @@ export async function POST(
         unitTypeMap.set(normalizeTypeName(ut.name), ut.id);
       }
 
-      console.log('[Import Units] Created', createdTypesCount, 'new unit types');
     }
 
     const validRows: Array<{ address: string; unit_type_id: string; purchaser_name: string }> = [];
@@ -278,7 +273,6 @@ export async function POST(
     }
 
     if (unmappedTypes.length > 0) {
-      console.error('[Import Units] Failed to map unit types:', unmappedTypes);
       return NextResponse.json({
         success: false,
         error: `Failed to resolve unit types: ${Array.from(new Set(unmappedTypes)).join(', ')}`,
@@ -305,14 +299,11 @@ export async function POST(
       .select();
 
     if (insertError) {
-      console.error('[Import Units] Insert error:', insertError);
       return NextResponse.json({
         success: false,
         error: `Insert failed: ${insertError.message}`,
       }, { status: 500 });
     }
-
-    console.log('[Import Units] Inserted:', insertedUnits?.length || 0, 'units for project:', project.name);
 
     // POST-IMPORT VALIDATION: Verify units are queryable via service role
     let verifiedCount = 0;
@@ -325,13 +316,11 @@ export async function POST(
       if (!error) {
         verifiedCount = count || 0;
       }
-      console.log(`[Import Units] Post-import verification: ${verifiedCount} total units in project, error: ${error?.message || 'none'}`);
       
       if (verifiedCount < (insertedUnits?.length || 0)) {
-        console.warn('[Import Units] WARNING: Verified count is less than inserted count - possible RLS issue');
       }
-    } catch (verifyError) {
-      console.error('[Import Units] Post-import verification error:', verifyError);
+    } catch (_verifyError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -343,10 +332,10 @@ export async function POST(
       skipped: 0,
       unitTypesCreated: createdTypesCount,
     });
-  } catch (error: any) {
-    console.error('[Import Units] Error:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Import failed' },
+      { error: errorMessage || 'Import failed' },
       { status: 500 }
     );
   }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { assertEnterpriseUser, enforceTenantScope, enforceDevelopmentScope } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
 import { messages } from '@openhouse/db/schema';
-import { eq, and, gte, sql } from 'drizzle-orm';
+import { eq, and, gte } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 
 export const dynamic = 'force-dynamic';
@@ -71,7 +71,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(gapAnalysis);
   } catch (error) {
-    console.error('[API] /api/analytics/knowledge-gaps error:', error);
     
     if (error instanceof Error && (error.message.includes('Unauthorized') || error.message.includes('Forbidden'))) {
       return NextResponse.json(

@@ -10,7 +10,6 @@ export const dynamic = 'force-dynamic';
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  console.log('[Important Docs] Supabase URL:', url?.slice(0, 30) + '...', 'Key exists:', !!key);
   return createClient(url!, key!);
 }
 
@@ -42,7 +41,6 @@ export async function GET(request: NextRequest) {
       .single();
     
     if (unitError || !unitData?.project_id) {
-      console.log('[Important Docs] Could not find unit project_id for supabaseUnitId:', supabaseUnitId);
       return NextResponse.json({
         requiresConsent: false,
         importantDocuments: [],
@@ -51,7 +49,6 @@ export async function GET(request: NextRequest) {
     }
     
     const projectId = unitData.project_id;
-    console.log('[Important Docs] Using project_id:', projectId, 'for supabaseUnitId:', supabaseUnitId);
 
     // Check if user has already agreed using the purchaserAgreements table
     // Wrap in try-catch in case table doesn't exist in current database
@@ -63,7 +60,6 @@ export async function GET(request: NextRequest) {
         .limit(1);
 
       if (existingAgreement.length > 0) {
-        console.log('[Important Docs] User has existing agreement:', existingAgreement[0].agreed_at);
         return NextResponse.json({
           requiresConsent: false,
           hasAgreed: true,
@@ -74,11 +70,9 @@ export async function GET(request: NextRequest) {
       }
     } catch (agreementErr) {
       // Table may not exist in current database - continue to check documents
-      console.log('[Important Docs] Could not check agreements (table may not exist), continuing...');
     }
 
     // Fetch important documents from Supabase document_sections for THIS unit's project
-    console.log('[Important Docs] Fetching sections for project_id:', projectId);
     
     // Use direct REST API call to bypass any client caching issues
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -96,7 +90,6 @@ export async function GET(request: NextRequest) {
     );
     
     if (!response.ok) {
-      console.error('[Important Docs] REST API error:', response.status, response.statusText);
       return NextResponse.json({
         requiresConsent: false,
         importantDocuments: [],
@@ -104,7 +97,6 @@ export async function GET(request: NextRequest) {
     }
     
     const sections = await response.json();
-    console.log('[Important Docs] REST API returned:', sections?.length || 0, 'sections');
 
     // Find unique documents marked as important AND in public disciplines only
     const importantDocsMap = new Map<string, {
@@ -137,8 +129,6 @@ export async function GET(request: NextRequest) {
     const importantDocuments = Array.from(importantDocsMap.values())
       .sort((a, b) => (a.important_rank || 999) - (b.important_rank || 999));
     
-    console.log('[Important Docs Status] Found', importantDocuments.length, 'important documents for unit:', unitUid);
-
     return NextResponse.json({
       requiresConsent: importantDocuments.length > 0,
       hasAgreed: false,
@@ -147,7 +137,6 @@ export async function GET(request: NextRequest) {
       importantDocuments,
     });
   } catch (error) {
-    console.error('[Important Docs Status Error]:', error);
     return NextResponse.json({ error: 'Failed to check status' }, { status: 500 });
   }
 }

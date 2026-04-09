@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { 
-  PillDefinition, 
-  selectPillsForSession, 
-  generateSessionId,
+import {
+  PillDefinition,
+  selectPillsForSession,
   PILL_DEFINITIONS
 } from '@/lib/assistant/suggested-pills';
 
@@ -32,10 +31,6 @@ function getStorageKey(schemeId: string): string {
   return `${PILLS_KEY_PREFIX}:${schemeId}`;
 }
 
-function isDev(): boolean {
-  return typeof window !== 'undefined' && window.location.hostname.includes('localhost');
-}
-
 export function useSuggestedPills(
   enabled: boolean = true,
   schemeId?: string
@@ -57,10 +52,6 @@ export function useSuggestedPills(
     const effectiveSchemeId = schemeId || 'global';
     const storageKey = getStorageKey(effectiveSchemeId);
 
-    if (isDev()) {
-      console.log('[SuggestedPills] Loading for scheme:', effectiveSchemeId, 'key:', storageKey);
-    }
-
     if (lastSchemeIdRef.current !== effectiveSchemeId) {
       lastSchemeIdRef.current = effectiveSchemeId;
     }
@@ -78,9 +69,6 @@ export function useSuggestedPills(
           parsed.pillIds.length === 4 &&
           parsed.schemeId === effectiveSchemeId
         ) {
-          if (isDev()) {
-            console.log('[SuggestedPills] Reusing session pills:', parsed.pillIds, 'seed:', parsed.sessionId);
-          }
           setSessionData(parsed);
           setIsLoading(false);
           return;
@@ -99,18 +87,9 @@ export function useSuggestedPills(
         schemeId: effectiveSchemeId
       };
 
-      if (isDev()) {
-        console.log('[SuggestedPills] Generated new pills:', {
-          schemeId: effectiveSchemeId,
-          seed: newSessionId,
-          pillIds: newSessionData.pillIds
-        });
-      }
-
       storage?.setItem(storageKey, JSON.stringify(newSessionData));
       setSessionData(newSessionData);
-    } catch (error) {
-      console.error('Failed to load/generate suggested pills:', error);
+    } catch {
       const fallbackPills = selectPillsForSession({ count: 4 });
       setSessionData({
         sessionId: 'fallback',
@@ -152,7 +131,7 @@ export function clearPillSession(schemeId?: string): void {
       }
       keysToRemove.forEach(key => storage.removeItem(key));
     }
-  } catch (error) {
-    console.error('Failed to clear pill session:', error);
+  } catch {
+    // Failed to clear pill session
   }
 }

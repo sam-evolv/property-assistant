@@ -6,7 +6,7 @@ import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logSecurityViolation } from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
 import { video_resources } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 
@@ -71,14 +71,12 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (unitError || !supabaseUnit) {
-      console.error('[PurchaserVideosAPI] Unit not found:', unitUid, unitError?.message);
       return NextResponse.json({ videos: [], requestId });
     }
 
     const supabaseProjectId = supabaseUnit.project_id;
 
     if (!supabaseProjectId) {
-      console.warn('[PurchaserVideosAPI] Unit has no project_id:', unitUid);
       return NextResponse.json({ videos: [], requestId });
     }
 
@@ -92,8 +90,6 @@ export async function GET(request: NextRequest) {
       orderBy: [desc(video_resources.sort_order), desc(video_resources.created_at)],
     });
 
-    console.log(`[PurchaserVideosAPI] Found ${videos.length} videos for unit ${unitUid}, project ${supabaseProjectId}`);
-
     const safeVideos = videos.map(v => ({
       id: v.id,
       title: v.title,
@@ -105,7 +101,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ videos: safeVideos, requestId });
   } catch (error) {
-    console.error('[PurchaserVideosAPI] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch videos', requestId }, { status: 500 });
   }
 }

@@ -45,9 +45,9 @@ export async function GET() {
       users: formattedAdmins,
       stats,
     });
-  } catch (error: any) {
-    console.error('[Super Admins API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch admins' }, { status: 500 });

@@ -34,8 +34,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[Developer Developments API] Fetching for tenant:', tenantId, 'role:', role);
-
     let drizzleDevs: any[] = [];
     try {
       drizzleDevs = await db.select({
@@ -50,10 +48,8 @@ export async function GET(request: NextRequest) {
         .from(developments)
         .where(eq(developments.tenant_id, tenantId))
         .orderBy(sql`name ASC`);
-      console.log('[Developer Developments API] Drizzle:', drizzleDevs.length);
-    } catch (drizzleErr) {
-      console.warn('[Developer Developments API] Drizzle fetch failed:', 
-        drizzleErr instanceof Error ? drizzleErr.message : 'Unknown error');
+    } catch (_drizzleErr) {
+        // error handled silently
     }
 
     // SECURITY: Only return developments from Drizzle that are properly tenant-filtered
@@ -74,15 +70,12 @@ export async function GET(request: NextRequest) {
     // Only use tenant-isolated developments from Drizzle
     const allDevelopments = normalizedDrizzleDevs;
 
-    console.log('[Developer Developments API] Total:', allDevelopments.length);
-
     return NextResponse.json({
       success: true,
       developments: allDevelopments,
       count: allDevelopments.length,
     });
   } catch (error) {
-    console.error('[Developer Developments API] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch developments' },
       { status: 500 }

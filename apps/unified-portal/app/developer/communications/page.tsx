@@ -33,7 +33,6 @@ import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
 import type { Alert } from '@/components/ui/ProactiveAlerts';
 import { ActivityFeedWidget } from '@/components/ui/ActivityFeed';
 import type { Activity } from '@/components/ui/ActivityFeed';
-import { EmptyState } from '@/components/ui/EmptyState';
 import { SlideOver } from '@/components/ui/SlideOver';
 
 // Types
@@ -581,7 +580,7 @@ export default function CommunicationsHubPage() {
                         setSelectedTemplate(template);
                         setShowComposeModal(true);
                       }}
-                      onEdit={() => console.log('Edit template:', template.id)}
+                      onEdit={() => {}}
                     />
                   ))}
               </div>
@@ -598,12 +597,12 @@ export default function CommunicationsHubPage() {
                 {
                   label: 'Resend',
                   icon: Send,
-                  onClick: (ids) => console.log('Resend to', ids),
+                  onClick: () => {},
                 },
                 {
                   label: 'Delete',
                   icon: Trash2,
-                  onClick: (ids) => console.log('Delete', ids),
+                  onClick: () => {},
                   variant: 'danger',
                 },
               ]}

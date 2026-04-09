@@ -246,15 +246,6 @@ export async function chunkText(
       return acc;
     }, {} as Record<string, number>);
 
-    console.log(`  ✂️  Split into ${chunks.length} chunks (avg ~${Math.round(tokens.length / Math.max(1, chunks.length))} tokens each)`);
-    if (Object.keys(topicCounts).length > 0) {
-      const topTopics = Object.entries(topicCounts)
-        .sort(([,a], [,b]) => b - a)
-        .slice(0, 5)
-        .map(([topic]) => topic);
-      console.log(`  📋 Main topics: ${topTopics.join(', ')}`);
-    }
-
     return chunks;
   } finally {
     encoder.free();
@@ -267,11 +258,8 @@ export async function chunkTrainingItems(
   overlap: number = DEFAULT_OVERLAP
 ): Promise<Array<{ item: TrainingItem; chunks: TextChunk[] }>> {
   if (items.length === 0) {
-    console.log('   ⚠️  No items to chunk');
     return [];
   }
-
-  console.log(`\n✂️  Chunking ${items.length} training items...`);
 
   const results = [];
 
@@ -312,9 +300,6 @@ export async function chunkTrainingItems(
     r.chunks.flatMap(c => c.metadata?.topics || [])
   );
   const uniqueTopics = [...new Set(allTopics)];
-
-  console.log(`✅ Created ${totalChunks} total chunks from ${items.length} items`);
-  console.log(`📊 Topics detected: ${uniqueTopics.length} unique topics across ${allTopics.length} topic tags`);
 
   return results;
 }

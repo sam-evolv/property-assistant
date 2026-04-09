@@ -155,7 +155,6 @@ export async function syncEnrichmentColumns(integration: Integration): Promise<v
   try {
     credentials = decryptCredentials(integration.tenant_id, integration.credentials);
   } catch {
-    console.error('[Enrichment] Failed to decrypt credentials for integration:', integration.id);
     return;
   }
 
@@ -243,8 +242,8 @@ export async function syncEnrichmentColumns(integration: Integration): Promise<v
             col: colIndex,
             value,
           });
-        } catch (err: any) {
-          console.error(`[Enrichment] Error computing ${enrichment.header} for unit ${unit.id}:`, err.message);
+        } catch {
+          // enrichment computation failed for this unit — skip
         }
       }
 
@@ -268,7 +267,6 @@ export async function syncEnrichmentColumns(integration: Integration): Promise<v
       total_cell_updates: updates.length,
     });
   } catch (err: any) {
-    console.error('[Enrichment] Error syncing enrichment columns:', err.message);
     await logAudit(integration.tenant_id, 'enrichment.failed', 'system', {
       integration_id: integration.id,
       error: err.message,

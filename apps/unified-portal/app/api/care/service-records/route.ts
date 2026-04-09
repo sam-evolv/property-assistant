@@ -37,7 +37,6 @@ export async function GET(request: NextRequest) {
       .order('service_date', { ascending: false });
 
     if (error) {
-      console.error('[Care API] GET /service-records error:', error);
       return NextResponse.json(
         { error: 'Failed to fetch service records' },
         { status: 500 }
@@ -49,7 +48,6 @@ export async function GET(request: NextRequest) {
       count: records?.length || 0,
     });
   } catch (error) {
-    console.error('[Care API] GET /service-records error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch service records' },
       { status: 500 }

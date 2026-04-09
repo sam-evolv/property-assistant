@@ -34,7 +34,6 @@ export function withAPIMiddleware<T>(
     if (rateLimit) {
       const rateLimitResult = checkRateLimit(clientIP, route);
       if (!rateLimitResult.allowed) {
-        console.log(`[API] Rate limit exceeded: ${clientIP} on ${route}`);
         return NextResponse.json(
           { 
             error: ErrorCodes.RATE_LIMITED, 
@@ -60,8 +59,6 @@ export function withAPIMiddleware<T>(
       const duration = Date.now() - startTime;
       const status = result.status;
       
-      console.log(`[API] ${request.method} ${route} ${status} ${duration}ms requestId=${requestId}`);
-
       const headers = new Headers(result.headers);
       headers.set('x-request-id', requestId);
       headers.set('x-response-time', `${duration}ms`);
@@ -73,8 +70,7 @@ export function withAPIMiddleware<T>(
       });
     } catch (error: any) {
       const duration = Date.now() - startTime;
-      console.error(`[API] ${request.method} ${route} ERROR ${duration}ms requestId=${requestId}:`, error.message);
-      
+
       return NextResponse.json(
         { 
           error: ErrorCodes.INTERNAL, 

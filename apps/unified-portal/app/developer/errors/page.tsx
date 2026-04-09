@@ -66,8 +66,8 @@ export default function ErrorDashboardPage() {
         setErrors(data.errors || []);
         setStats(data.stats || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch errors:', error);
+    } catch {
+      // failed to fetch errors
     } finally {
       setLoading(false);
     }
@@ -87,8 +87,8 @@ export default function ErrorDashboardPage() {
       if (res.ok) {
         fetchErrors();
       }
-    } catch (error) {
-      console.error('Failed to resolve error:', error);
+    } catch {
+      // failed to resolve error
     }
   };
 

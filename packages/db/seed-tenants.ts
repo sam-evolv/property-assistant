@@ -8,9 +8,8 @@ dotenv.config();
 
 async function seedTenants() {
   const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  
+
   if (!connectionString) {
-    console.error('❌ DATABASE_URL or POSTGRES_URL not found in environment variables');
     process.exit(1);
   }
 
@@ -20,11 +19,8 @@ async function seedTenants() {
 
   try {
     await client.connect();
-    console.log('✅ Connected to database');
 
     const db = drizzle(client, { schema });
-
-    console.log('🌱 Seeding additional tenants...\n');
 
     const tenantData = [
       {
@@ -51,7 +47,6 @@ async function seedTenants() {
         .limit(1);
 
       if (existing.length > 0) {
-        console.log(`⚠️  Tenant "${tenantInfo.name}" already exists. Skipping...`);
         continue;
       }
 
@@ -59,8 +54,6 @@ async function seedTenants() {
         .insert(schema.tenants)
         .values(tenantInfo)
         .returning();
-
-      console.log(`✅ Created tenant: ${tenant.name} (slug: ${tenant.slug})`);
 
       const [admin] = await db
         .insert(schema.admins)
@@ -70,8 +63,6 @@ async function seedTenants() {
           role: 'admin',
         })
         .returning();
-
-      console.log(`   └─ Created admin: ${admin.email}`);
 
       await db.insert(schema.pois).values([
         {
@@ -91,20 +82,9 @@ async function seedTenants() {
           meta: { address: 'Ground Floor' },
         },
       ]);
-
-      console.log(`   └─ Created 2 sample POIs\n`);
     }
 
-    console.log('🎉 Additional tenants seeded successfully!');
-    console.log('\n📋 All Tenants:');
-    
-    const allTenants = await db.select().from(schema.tenants);
-    allTenants.forEach(t => {
-      console.log(`   • ${t.name} - http://localhost:5000?tenant=${t.slug}`);
-    });
-    
   } catch (error) {
-    console.error('❌ Error seeding tenants:', error);
     process.exit(1);
   } finally {
     await client.end();

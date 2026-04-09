@@ -32,8 +32,8 @@ export function DeveloperFormClient() {
         const data = await response.json();
         setTenants(data.tenants || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch tenants:', error);
+    } catch {
+      // Failed to fetch tenants
     }
   }
 

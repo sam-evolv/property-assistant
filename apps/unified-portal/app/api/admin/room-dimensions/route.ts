@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
     // Build query for room dimensions
     let query = supabase
       .from('unit_room_dimensions')
-      .select('*')
+      .select('id, tenant_id, development_id, house_type_id, unit_id, room_name, room_key, floor, length_m, width_m, area_sqm, ceiling_height_m, source, verified, notes, created_at, updated_at')
       .eq('tenant_id', session.tenantId);
 
     if (developmentId) {
@@ -125,7 +125,6 @@ export async function GET(request: NextRequest) {
 
     if (dimError) {
       // Table might not exist in Supabase - return empty list gracefully
-      console.log('[API] GET /api/admin/room-dimensions - table may not exist:', dimError.message);
       return NextResponse.json({
         dimensions: [],
         stats: { total: 0, verified: 0, unverified: 0 },
@@ -157,7 +156,7 @@ export async function GET(request: NextRequest) {
     const { count: verifiedCount } = await verifiedQuery;
 
     // Transform dimension field names for API compatibility
-    const transformedDimensions = (dimensions || []).map((d: any) => ({
+    const transformedDimensions = (dimensions || []).map((d) => ({
       id: d.id,
       tenant_id: d.tenant_id,
       development_id: d.development_id,
@@ -189,7 +188,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[API] GET /api/admin/room-dimensions error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch room dimensions' },
       { status: 500 }
@@ -248,7 +246,6 @@ export async function POST(request: NextRequest) {
 
     if (insertError) {
       // Table might not exist in Supabase - provide helpful message
-      console.error('[API] POST /api/admin/room-dimensions error:', insertError);
       if (insertError.message?.includes('does not exist') || insertError.code === 'PGRST205') {
         return NextResponse.json({
           error: 'Room dimensions feature requires database setup. Please run the migration to create the unit_room_dimensions table.',
@@ -261,14 +258,11 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`[ROOM-DIMENSIONS] Created dimension ${newDimension.id} for room ${body.room_key} by ${session.email}`);
-
     return NextResponse.json({
       success: true,
       dimension: newDimension
     });
   } catch (error) {
-    console.error('[API] POST /api/admin/room-dimensions error:', error);
     return NextResponse.json(
       { error: 'Failed to create room dimension' },
       { status: 500 }
@@ -296,7 +290,7 @@ export async function PUT(request: NextRequest) {
     // Check existing dimension exists and belongs to tenant
     const { data: existing, error: existingError } = await supabase
       .from('unit_room_dimensions')
-      .select('*')
+      .select('id, unit_id, development_id')
       .eq('id', body.id)
       .eq('tenant_id', session.tenantId)
       .single();
@@ -321,7 +315,7 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
     };
 
@@ -346,18 +340,14 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (updateError) {
-      console.error('[API] PUT /api/admin/room-dimensions error:', updateError);
       return NextResponse.json({ error: 'Failed to update room dimension' }, { status: 500 });
     }
-
-    console.log(`[ROOM-DIMENSIONS] Updated dimension ${body.id} by ${session.email}, verified=${body.verified}`);
 
     return NextResponse.json({
       success: true,
       dimension: updated
     });
   } catch (error) {
-    console.error('[API] PUT /api/admin/room-dimensions error:', error);
     return NextResponse.json(
       { error: 'Failed to update room dimension' },
       { status: 500 }
@@ -405,15 +395,11 @@ export async function DELETE(request: NextRequest) {
       .eq('tenant_id', session.tenantId);
 
     if (deleteError) {
-      console.error('[API] DELETE /api/admin/room-dimensions error:', deleteError);
       return NextResponse.json({ error: 'Failed to delete room dimension' }, { status: 500 });
     }
 
-    console.log(`[ROOM-DIMENSIONS] Deleted dimension ${id} by ${session.email}`);
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[API] DELETE /api/admin/room-dimensions error:', error);
     return NextResponse.json(
       { error: 'Failed to delete room dimension' },
       { status: 500 }

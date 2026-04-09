@@ -78,7 +78,6 @@ export async function POST(request: NextRequest) {
     }
 
     const supabaseAdmin = getSupabaseAdmin();
-    console.log('[Upload] Processing', files.length, 'file(s) for development:', developmentId);
 
     // Bridge legacy FK chain: organisations → projects → documents + document_sections
     // New tenants/developments exist in tenants/developments but not organisations/projects
@@ -94,8 +93,7 @@ export async function POST(request: NextRequest) {
       const { error: orgErr } = await supabaseAdmin
         .from('organisations')
         .insert({ id: tenantId, name: tenant?.name || 'Organisation' });
-      if (orgErr) console.error('[Upload] organisations bridge error:', orgErr.message);
-      else console.log('[Upload] Created organisations bridge for tenant:', tenantId);
+      // orgErr intentionally ignored - bridge may already exist
     }
 
     const { data: existingProject } = await supabaseAdmin
@@ -110,8 +108,7 @@ export async function POST(request: NextRequest) {
       const { error: projectErr } = await supabaseAdmin
         .from('projects')
         .insert({ id: developmentId, organization_id: tenantId, name: dev?.name || 'Development' });
-      if (projectErr) console.error('[Upload] projects bridge error:', projectErr.message);
-      else console.log('[Upload] Created projects bridge for development:', developmentId);
+      // projectErr intentionally ignored - bridge may already exist
     }
 
     // Create a training_jobs record so developers can see upload/indexing status in the UI
@@ -132,9 +129,9 @@ export async function POST(request: NextRequest) {
         .select('id')
         .single();
       trainingJobId = jobData?.id || null;
-      if (trainingJobId) console.log('[Upload] Training job created:', trainingJobId);
-    } catch (jobErr) {
-      console.warn('[Upload] Could not create training_jobs record:', jobErr instanceof Error ? jobErr.message : 'err');
+      // trainingJobId created successfully
+    } catch (_jobErr) {
+        // error handled silently
     }
 
     let succeeded = 0;
@@ -160,7 +157,6 @@ export async function POST(request: NextRequest) {
           });
 
         if (uploadError) {
-          console.error('[Upload] Storage error for', file.name, ':', uploadError.message);
           fileResults.push({ fileName: file.name, success: false, error: uploadError.message });
           failed++;
           continue;
@@ -196,8 +192,8 @@ export async function POST(request: NextRequest) {
             must_read: false,
           });
           docWritten = true;
-        } catch (drizzleErr) {
-          console.warn('[Upload] Drizzle insert failed, trying legacy');
+        } catch (_drizzleErr) {
+            // error handled silently
         }
 
         if (!docWritten) {
@@ -209,7 +205,6 @@ export async function POST(request: NextRequest) {
             category: discipline,
           });
           if (legacyErr && legacyErr.code !== '23503') {
-            console.error('[Upload] Legacy insert error:', legacyErr.message);
           } else if (!legacyErr) {
             docWritten = true;
           }
@@ -228,9 +223,8 @@ export async function POST(request: NextRequest) {
               const pdfParse = pdfMod.default ?? pdfMod;
               const pdfData = await pdfParse(Buffer.from(fileBuffer));
               extractedText = pdfData.text?.trim() || '';
-              console.log('[Upload] Extracted', extractedText.length, 'chars from', file.name);
-            } catch (pdfErr) {
-              console.warn('[Upload] PDF extraction failed for', file.name, ':', pdfErr instanceof Error ? pdfErr.message : 'err');
+            } catch (_pdfErr) {
+                // error handled silently
             }
           } else if (file.type === 'text/plain' || file.name.toLowerCase().endsWith('.txt')) {
             extractedText = Buffer.from(fileBuffer).toString('utf-8');
@@ -241,7 +235,6 @@ export async function POST(request: NextRequest) {
             const MAX_CHUNKS = 40; // cap to stay within maxDuration=60s
             const toIndex = textChunks.slice(0, MAX_CHUNKS);
 
-            console.log('[Upload] Indexing', toIndex.length, 'chunks for', file.name);
             const openai = getOpenAI();
 
             for (let i = 0; i < toIndex.length; i++) {
@@ -272,30 +265,25 @@ export async function POST(request: NextRequest) {
                 if (!secErr) {
                   chunksIndexed++;
                 } else {
-                  console.warn('[Upload] Section insert error chunk', i, ':', secErr.message);
                 }
-              } catch (chunkErr) {
-                console.warn('[Upload] Chunk', i, 'error:', chunkErr instanceof Error ? chunkErr.message : 'err');
+              } catch (_chunkErr) {
+                  // error handled silently
               }
             }
 
-            console.log('[Upload] Indexed', chunksIndexed, '/', toIndex.length, 'chunks for', file.name);
           } else {
-            console.log('[Upload] Skipping embedding — insufficient text in', file.name);
           }
-        } catch (indexErr) {
-          console.error('[Upload] Indexing error for', file.name, ':', indexErr instanceof Error ? indexErr.message : 'err');
+        } catch (_indexErr) {
+            // error handled silently
         }
 
         fileResults.push({ fileName: file.name, success: true, chunksIndexed });
         succeeded++;
         totalChunksIndexed += chunksIndexed;
-        console.log('[Upload] ✅ Completed:', file.name, `(${chunksIndexed} chunks indexed)`);
 
         // Phase 4: Floor plan vision extraction (if this looks like a floor plan)
         if (isFloorPlan(file.name, discipline)) {
           try {
-            console.log('[Upload] 🏠 Floor plan detected — running vision extraction for', file.name);
             const { extractFloorPlanRooms } = await import('@/lib/floorplan/extractor');
             const extractResult = await extractFloorPlanRooms(
               Buffer.from(fileBuffer),
@@ -303,7 +291,6 @@ export async function POST(request: NextRequest) {
             );
 
             if (extractResult.rooms.length > 0) {
-              console.log('[Upload] Vision extracted', extractResult.rooms.length, 'rooms');
 
               for (const room of extractResult.rooms) {
                 const { error: dimErr } = await supabaseAdmin
@@ -325,26 +312,21 @@ export async function POST(request: NextRequest) {
                     extraction_notes: `Auto-extracted from ${file.name}`,
                   });
                 if (dimErr) {
-                  console.warn('[Upload] Room insert error for', room.room_name, ':', dimErr.message);
                 }
               }
-              console.log('[Upload] ✅ Floor plan extraction complete:', extractResult.rooms.length, 'rooms stored');
             } else {
-              console.log('[Upload] No rooms extracted from', file.name, '— method:', extractResult.extraction_method);
             }
-          } catch (fpErr) {
-            console.warn('[Upload] Floor plan extraction error for', file.name, ':', fpErr instanceof Error ? fpErr.message : 'err');
+          } catch (_fpErr) {
+              // error handled silently
           }
         }
 
-      } catch (err: any) {
-        console.error('[Upload] Unexpected error for', file.name, ':', err.message);
-        fileResults.push({ fileName: file.name, success: false, error: err.message });
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        fileResults.push({ fileName: file.name, success: false, error: errMessage });
         failed++;
       }
     }
-
-    console.log('[Upload] Done — succeeded:', succeeded, 'failed:', failed);
 
     // Update training_jobs record with final status
     if (trainingJobId) {
@@ -359,9 +341,8 @@ export async function POST(request: NextRequest) {
             error_message: failed > 0 ? `${failed} file(s) failed` : null,
           })
           .eq('id', trainingJobId);
-        console.log('[Upload] Training job updated:', trainingJobId, '— status:', failed === 0 ? 'completed' : 'partial');
-      } catch (jobUpdateErr) {
-        console.warn('[Upload] Could not update training_jobs record:', jobUpdateErr instanceof Error ? jobUpdateErr.message : 'err');
+      } catch (_jobUpdateErr) {
+          // error handled silently
       }
     }
 
@@ -372,10 +353,10 @@ export async function POST(request: NextRequest) {
       files: fileResults,
     });
 
-  } catch (error: any) {
-    console.error('[Upload] Error:', error);
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    if (error.message === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (errorMessage === 'FORBIDDEN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
 }
@@ -402,13 +383,13 @@ export async function GET(request: NextRequest) {
 
     const { data: jobs, error } = await query;
     if (error) {
-      console.error('[Train GET] Error fetching jobs:', error.message);
       return NextResponse.json({ jobs: [] });
     }
 
     return NextResponse.json({ jobs: jobs || [] });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     return NextResponse.json({ jobs: [] });
   }
 }

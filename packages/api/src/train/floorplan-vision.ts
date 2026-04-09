@@ -17,7 +17,6 @@ async function loadCanvas(): Promise<CreateCanvasFn | null> {
     cachedCreateCanvas = canvasModule.createCanvas;
     return cachedCreateCanvas;
   } catch (error) {
-    console.warn('[floorplan-vision] Canvas library not available:', error);
     return null;
   }
 }
@@ -155,8 +154,6 @@ async function callVisionForFloorplan(
   fileName: string,
   unit_type_code: string
 ): Promise<FloorplanVisionOutput> {
-  console.log(`  Calling OpenAI Vision for floorplan: ${fileName}...`);
-  
   const response = await getOpenAI().chat.completions.create({
     model: 'gpt-4o',
     messages: [
@@ -199,8 +196,7 @@ async function callVisionForFloorplan(
   }
   
   const parsed = JSON.parse(content) as FloorplanVisionOutput;
-  console.log(`  ✅ Vision extraction successful: ${parsed.levels.reduce((acc, l) => acc + l.rooms.length, 0)} rooms found`);
-  
+
   return parsed;
 }
 
@@ -218,28 +214,14 @@ export async function extractRoomDimensionsFromFloorplan(
 ): Promise<RoomDimensionExtractionResult> {
   const { tenant_id, development_id, house_type_id, unit_type_code, document_id, buffer, fileName } = input;
   
-  console.log(`\n${'='.repeat(80)}`);
-  console.log(`🏗️  VISION FLOORPLAN EXTRACTION STARTED`);
-  console.log(`${'='.repeat(80)}`);
-  console.log(`📁 File: ${fileName}`);
-  console.log(`🏢 Tenant ID: ${tenant_id}`);
-  console.log(`🏗️  Development ID: ${development_id}`);
-  console.log(`🏠 House Type ID: ${house_type_id}`);
-  console.log(`🔖 House Type Code: ${unit_type_code}`);
-  console.log(`📄 Document ID: ${document_id}`);
-  
   try {
     const uint8Array = new Uint8Array(buffer);
     const pdf = await getDocumentProxy(uint8Array);
     const totalPages = pdf.numPages;
     
-    console.log(`  📄 PDF has ${totalPages} page(s)`);
-    
     const allLevels: FloorplanVisionOutput['levels'] = [];
     
     for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-      console.log(`  🔍 Processing page ${pageNum}/${totalPages}...`);
-      
       const base64Image = await renderPDFPageToBase64(pdf, pageNum);
       const visionResult = await callVisionForFloorplan(
         base64Image,
@@ -262,8 +244,6 @@ export async function extractRoomDimensionsFromFloorplan(
         const normalizedRoomName = normalizeRoomName(room.room_name);
         const roomKey = normalizeToCanonicalRoomName(room.room_name);
         const floorName = level.level_name || null;
-        
-        console.log(`    🏷️  ${room.room_name} → room_key: ${roomKey}`);
         
         const existing = await db
           .select()
@@ -303,7 +283,6 @@ export async function extractRoomDimensionsFromFloorplan(
             .set(roomData)
             .where(eq(unitRoomDimensions.id, existing[0].id));
           
-          console.log(`  ✏️  Updated: ${normalizedRoomName} (${room.area_m2} m²) - ${level.level_name}`);
         } else {
           await db
             .insert(unitRoomDimensions)
@@ -312,14 +291,11 @@ export async function extractRoomDimensionsFromFloorplan(
               createdAt: new Date(),
             });
           
-          console.log(`  ➕ Inserted: ${normalizedRoomName} (${room.area_m2} m²) - ${level.level_name}`);
         }
-        
+
         roomsExtracted++;
       }
     }
-    
-    console.log(`✅ Extracted ${roomsExtracted} room dimensions from ${totalPages} page(s) in ${fileName}`);
     
     return {
       success: true,
@@ -327,7 +303,6 @@ export async function extractRoomDimensionsFromFloorplan(
       rawPayload: aggregatedResult,
     };
   } catch (error) {
-    console.error('❌ Floorplan vision extraction failed:', error);
     return {
       success: false,
       roomsExtracted: 0,
@@ -361,12 +336,6 @@ export function isLikelyFloorplan(fileName: string, documentType?: string): bool
   const filenameMatch = floorplanKeywords.some(kw => lowerName.includes(kw));
   
   const isFloorplan = categoryMatch || filenameMatch;
-  
-  if (isFloorplan) {
-    console.log(`   🎯 FLOORPLAN DETECTED: ${fileName}`);
-    console.log(`      Category match: ${categoryMatch} (type: "${documentType || 'none'}")`);
-    console.log(`      Filename match: ${filenameMatch}`);
-  }
   
   return isFloorplan;
 }

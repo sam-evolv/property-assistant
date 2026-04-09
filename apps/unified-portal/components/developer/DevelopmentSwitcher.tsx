@@ -49,17 +49,14 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
           ? `/api/developments?tenant_id=${encodeURIComponent(tenantFilter)}`
           : '/api/developments';
 
-        console.log('[DevelopmentSwitcher] Fetching developments...', { tenantFilter, url });
         const response = await fetch(url);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          console.error('[DevelopmentSwitcher] API error:', response.status, errorData);
           throw new Error(errorData.error || 'Failed to fetch developments');
         }
 
         const data = await response.json();
-        console.log('[DevelopmentSwitcher] Loaded developments:', data.developments?.length || 0, data.meta);
         
         // Clean and dedupe developments
         let devs: Development[] = data.developments || [];
@@ -88,22 +85,18 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
         // Sort alphabetically by name
         devs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         
-        console.log('[DevelopmentSwitcher] After cleanup:', devs.length, devs.map(d => d.name));
         setDevelopments(devs);
         setError(null);
 
         if (developmentId && data.developments) {
           const currentDev = devs.find((d: Development) => d.id === developmentId);
           if (!currentDev) {
-            console.log('[DevelopmentSwitcher] Current development not in filtered list, resetting to All Schemes');
             setDevelopmentId(null);
           } else if (currentDev.project_type) {
-            console.log('[DevelopmentSwitcher] Syncing project_type for hydrated dev:', currentDev.project_type);
             setDevelopmentId(developmentId, currentDev.name, currentDev.project_type);
           }
         }
       } catch (err) {
-        console.error('[DevelopmentSwitcher] Error fetching developments:', err);
         setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
         setIsLoading(false);
@@ -130,7 +123,6 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
   const displayName = currentDevelopment?.name || 'All Schemes';
 
   const handleSelect = (id: string | null, name?: string | null, projectType?: string | null) => {
-    console.log('[DevelopmentSwitcher] Selecting development:', id || 'All Schemes', 'name:', name, 'project_type:', projectType);
     setDevelopmentId(id, name, projectType);
     setIsOpen(false);
   };

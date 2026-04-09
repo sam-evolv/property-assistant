@@ -89,12 +89,12 @@ export async function GET(
       },
       chunks,
     });
-  } catch (error: any) {
-    console.error('[Document API] GET error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to fetch document' }, { status: 500 });
@@ -144,12 +144,12 @@ export async function PATCH(
       .where(eq(documents.id, documentId));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[Document API] PATCH error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
@@ -185,12 +185,12 @@ export async function DELETE(
     await db.delete(documents).where(eq(documents.id, documentId));
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[Document API] DELETE error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to delete document' }, { status: 500 });

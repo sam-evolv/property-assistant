@@ -50,7 +50,7 @@ export async function syncConnection(connectionId: string): Promise<{ filesIndex
     // Load connection
     const { data: connection, error: connError } = await supabase
       .from('storage_connections')
-      .select('*')
+      .select('id, tenant_id, provider, credentials, status')
       .eq('id', connectionId)
       .single()
 
@@ -86,7 +86,7 @@ export async function syncConnection(connectionId: string): Promise<{ filesIndex
     // Load watched folders
     const { data: watchedFolders } = await supabase
       .from('watched_folders')
-      .select('*')
+      .select('id, folder_id, development_id')
       .eq('connection_id', connectionId)
       .eq('is_active', true)
 

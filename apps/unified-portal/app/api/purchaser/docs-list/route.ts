@@ -101,7 +101,6 @@ interface AuditLogEntry {
 }
 
 function logAuditEvent(entry: AuditLogEntry) {
-  console.log('[DocsAudit]', JSON.stringify(entry));
 }
 
 export async function GET(request: NextRequest) {
@@ -137,8 +136,6 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    console.log(`[DocsListAPI] Token validated for unit ${unitUid} (showhouse: ${tokenResult.isShowhouse})`);
-    
     // STEP 1: Resolve unit's project_id and house_type_code from Supabase
     const { data: supabaseUnit, error: unitError } = await supabase
       .from('units')
@@ -147,7 +144,6 @@ export async function GET(request: NextRequest) {
       .single();
     
     if (unitError || !supabaseUnit) {
-      console.error('[DocsListAPI] Unit not found:', unitUid, unitError?.message);
       logAuditEvent({
         requestId,
         unitUid,
@@ -172,17 +168,8 @@ export async function GET(request: NextRequest) {
     const houseTypeCode = unitType?.name || null;
     const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
     
-    console.log('[DocsListAPI] Unit resolved:', {
-      requestId,
-      unitUid,
-      projectId,
-      houseTypeCode,
-      unitTypeId: supabaseUnit.unit_type_id,
-    });
-
     // FAIL CLOSED: If no project_id, return empty (do NOT fallback to a default project)
     if (!projectId) {
-      console.warn('[DocsListAPI] Unit has no project_id, failing closed:', unitUid);
       logAuditEvent({
         requestId,
         unitUid,
@@ -216,7 +203,6 @@ export async function GET(request: NextRequest) {
       .eq('project_id', projectId);
 
     if (sectionsError) {
-      console.error('[DocsListAPI] Supabase sections error:', sectionsError.message);
       return NextResponse.json(
         { error: 'Failed to fetch documents', requestId, details: sectionsError.message },
         { status: 500 }
@@ -224,14 +210,24 @@ export async function GET(request: NextRequest) {
     }
 
     const totalSections = sections?.length || 0;
-    console.log('[DocsListAPI] Total sections for project:', totalSections);
 
     // STEP 3: SERVER-SIDE FILTERING - CRITICAL SECURITY
     // Only include documents that:
     // 1. Have no house_type_code (project-wide docs) OR
     // 2. Match the unit's house_type_code exactly
     const filteredReasons: string[] = [];
-    const documentMap = new Map<string, any>();
+    const documentMap = new Map<string, {
+      id: string;
+      title: string;
+      file_name: string;
+      file_url: string | null;
+      discipline: string;
+      is_important: boolean;
+      must_read: boolean;
+      category: string;
+      created_at: string;
+      house_type_code: string | null;
+    }>();
     let filteredOutCount = 0;
     
     for (const section of sections || []) {
@@ -375,14 +371,11 @@ export async function GET(request: NextRequest) {
             unitId: unitUid,
           });
         }
-        console.log(`[DocsListAPI] Tracked ${formattedDocs.length} documents served`);
-      } catch (trackErr) {
-        console.error('[DocsListAPI] Failed to track documents served:', trackErr);
+      } catch (_trackErr) {
+          // error handled silently
       }
     }
 
-    console.log(`[DocsListAPI] OK: unit=${unitUid}, project=${projectId}, houseType=${houseTypeCode}, total=${totalSections}, filtered=${filteredOutCount}, returned=${formattedDocs.length}`);
-    
     return NextResponse.json({ 
       documents: formattedDocs,
       requestId,
@@ -395,7 +388,6 @@ export async function GET(request: NextRequest) {
       }
     });
   } catch (error) {
-    console.error('[DocsListAPI] ERROR:', error);
     return NextResponse.json(
       { 
         error: 'Failed to fetch documents', 

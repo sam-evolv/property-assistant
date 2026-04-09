@@ -140,8 +140,9 @@ export function MapLocationPicker({ latitude, longitude, address, onLocationChan
           }
         });
       }
-    } catch (err: any) {
-      setMapError(err.message || 'Failed to initialize map');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setMapError(errMessage || 'Failed to initialize map');
     }
   }, [isOpen, latitude, longitude, address]);
 

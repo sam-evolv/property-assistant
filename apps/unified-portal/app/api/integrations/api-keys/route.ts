@@ -64,7 +64,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[API Keys] Create error:', error);
       return NextResponse.json({ error: 'Failed to create API key' }, { status: 500 });
     }
 
@@ -82,14 +81,14 @@ export async function POST(request: NextRequest) {
       key: rawKey,
       message: 'Save this key securely. It will not be shown again.',
     });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    console.error('[API Keys] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -112,16 +111,15 @@ export async function GET(request: NextRequest) {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('[API Keys] List error:', error);
       return NextResponse.json({ error: 'Failed to fetch API keys' }, { status: 500 });
     }
 
     return NextResponse.json({ api_keys: data || [] });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[API Keys] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -168,11 +166,11 @@ export async function DELETE(request: NextRequest) {
     }, request);
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[API Keys] Delete error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

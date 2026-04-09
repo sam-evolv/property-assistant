@@ -28,7 +28,6 @@ export async function GET(
 
     const url = new URL(request.url);
     const devName = url.searchParams.get('name');
-    console.log('[Compliance API] GET request for development:', developmentId, 'name param:', devName);
 
     const { data: allDevs } = await supabaseAdmin
       .from('developments')
@@ -41,13 +40,11 @@ export async function GET(
     if (!development && devName && allDevs) {
       development = allDevs.find(d => d.name.toLowerCase() === devName.toLowerCase());
       if (development) {
-        console.log('[Compliance API] Found development by name:', development.name);
         actualDevelopmentId = development.id;
       }
     }
     
     if (!development && allDevs && allDevs.length > 0) {
-      console.log('[Compliance API] Using first available development');
       development = allDevs[0];
       actualDevelopmentId = allDevs[0].id;
     }
@@ -56,9 +53,6 @@ export async function GET(
       return NextResponse.json({ error: 'No developments found' }, { status: 404 });
     }
 
-    console.log('[Compliance API] Using development:', development.name, '(', actualDevelopmentId, ')');
-    console.log('[Compliance API] Querying units for tenant:', tenantId, 'development:', actualDevelopmentId);
-
     const { data: units, error: unitsError } = await supabaseAdmin
       .from('units')
       .select('id, unit_number, purchaser_name, house_type_code, bedrooms, address')
@@ -66,9 +60,7 @@ export async function GET(
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
     
-    console.log('[Compliance API] Units query result:', units?.length || 0, 'units, error:', unitsError?.message || 'none');
     if (units?.length) {
-      console.log('[Compliance API] Sample unit:', units[0]?.unit_number, units[0]?.purchaser_name);
     }
 
     const { data: documentTypes } = await supabaseAdmin
@@ -100,12 +92,12 @@ export async function GET(
       documents: documents || [],
       stats,
     });
-  } catch (error: any) {
-    console.error('[Compliance API] Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -176,7 +168,6 @@ export async function POST(
           .single();
 
         if (error) {
-          console.error('[Compliance API] Error adding document type:', error);
           return NextResponse.json({ error: 'Failed to add document type' }, { status: 500 });
         }
 
@@ -203,7 +194,6 @@ export async function POST(
           .eq('tenant_id', tenantId);
 
         if (error) {
-          console.error('[Compliance API] Error removing document type:', error);
           return NextResponse.json({ error: 'Failed to remove document type' }, { status: 500 });
         }
 
@@ -230,7 +220,6 @@ export async function POST(
           .single();
 
         if (error) {
-          console.error('[Compliance API] Error updating document:', error);
           return NextResponse.json({ error: 'Failed to update document' }, { status: 500 });
         }
 
@@ -265,7 +254,6 @@ export async function POST(
           .single();
 
         if (error) {
-          console.error('[Compliance API] Error creating document:', error);
           return NextResponse.json({ error: 'Failed to create document' }, { status: 500 });
         }
 
@@ -275,12 +263,12 @@ export async function POST(
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
-  } catch (error: any) {
-    console.error('[Compliance API] POST Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

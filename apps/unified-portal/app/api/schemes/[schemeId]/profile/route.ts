@@ -23,23 +23,19 @@ async function verifySchemeOwnership(schemeId: string, tenantId: string): Promis
       .single();
     
     if (error || !data) {
-      console.error('[verifySchemeOwnership] Project not found:', schemeId);
       return false;
     }
     
     if (!data.organization_id) {
-      console.error('[verifySchemeOwnership] Project has no organization_id:', schemeId);
       return false;
     }
     
     if (data.organization_id !== tenantId) {
-      console.error('[verifySchemeOwnership] Tenant mismatch:', data.organization_id, '!==', tenantId);
       return false;
     }
     
     return true;
   } catch (error) {
-    console.error('[verifySchemeOwnership] Error:', error);
     return false;
   }
 }
@@ -142,7 +138,6 @@ export async function GET(
     
     return NextResponse.json({ profile });
   } catch (error) {
-    console.error('[GET /api/schemes/[schemeId]/profile] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -219,7 +214,6 @@ export async function PUT(
       });
     }
   } catch (error) {
-    console.error('[PUT /api/schemes/[schemeId]/profile] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -284,7 +278,6 @@ export async function POST(
       message: 'Profile created successfully'
     });
   } catch (error) {
-    console.error('[POST /api/schemes/[schemeId]/profile] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

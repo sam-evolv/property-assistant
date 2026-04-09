@@ -478,7 +478,7 @@ function BriefingModal({
         setItems(data.items || []);
         setBriefingText(data.briefingText || '');
       })
-      .catch(console.error)
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [open, developmentId]);
 
@@ -651,7 +651,7 @@ export default function SchemeIntelligencePage() {
     fetch(`/api/scheme-intelligence/insights?${params}`)
       .then((res) => res.json())
       .then((data) => setInsights(data.insights || []))
-      .catch(console.error);
+      .catch(() => {});
   }, [developmentId]);
 
   // Rotate pills every 5 seconds
@@ -928,8 +928,7 @@ export default function SchemeIntelligencePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: finalMessages }),
         }).catch(() => {});
-      } catch (err) {
-        console.error('[SchemeIntel] Chat error:', err);
+      } catch {
         updateSessionMessages(sessionId!, [
           ...prevMessages,
           userMessage,

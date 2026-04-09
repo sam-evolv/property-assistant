@@ -48,18 +48,13 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
     }
 
     if (!supabaseUnit) {
-      console.log('[UnitLookup] Not found in Supabase by unit_uid or id for:', unitUid);
       return null;
     }
-
-    console.log('[UnitLookup] Found in Supabase:', supabaseUnit.id, 'unit_uid:', supabaseUnit.unit_uid);
 
     const unitType = supabaseUnit.unit_types as any;
     // Prefer house_type_code directly on the unit row (already populated), fall back to unit_types.name
     const houseTypeCode = (supabaseUnit as any).house_type_code || unitType?.name || null;
     const supabaseProjectId = supabaseUnit.project_id;
-
-    console.log('[UnitLookup] House type from Supabase:', houseTypeCode);
 
     let drizzleDevelopmentId: string | null = null;
     let tenantId: string | null = null;
@@ -73,7 +68,6 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
         .single();
       
       if (supabaseProject) {
-        console.log('[UnitLookup] Supabase project name:', supabaseProject.name);
         developmentName = supabaseProject.name;
         
         try {
@@ -87,10 +81,9 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
             drizzleDevelopmentId = dev.id;
             tenantId = dev.tenant_id;
             developmentName = dev.name;
-            console.log('[UnitLookup] Matched Drizzle development by name:', dev.name);
           }
         } catch (dbError) {
-          console.log('[UnitLookup] Drizzle lookup failed (expected in dev), using fallback IDs');
+          // Drizzle lookup failed, using fallback IDs
         }
       }
     }
@@ -99,14 +92,11 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       // Use the IDs directly from the unit row — more accurate than hardcoded fallback
       drizzleDevelopmentId = (supabaseUnit as any).development_id || '34316432-f1e8-4297-b993-d9b5c88ee2d8';
       tenantId = (supabaseUnit as any).tenant_id || 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
-      console.log('[UnitLookup] Using unit-row fallback IDs — tenant:', tenantId, 'dev:', drizzleDevelopmentId);
     }
 
     const specJson = unitType?.specification_json || {};
     const bedrooms = specJson.bedrooms ? parseInt(specJson.bedrooms) || null : null;
     const bathrooms = specJson.bathrooms ? parseInt(specJson.bathrooms) || null : null;
-
-    console.log('[UnitLookup] Returning unit with house_type:', houseTypeCode, 'project_id:', supabaseProjectId);
 
     return {
       id: supabaseUnit.id,
@@ -121,7 +111,6 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       development_name: developmentName || undefined,
     };
   } catch (err) {
-    console.error('[UnitLookup] Error:', err);
     return null;
   }
 }

@@ -38,7 +38,6 @@ export function FolderBrowser({ connectionId, onFolderToggle, watchedFolderIds }
       )
       setRootLoaded(true)
     } catch (err) {
-      console.error('Failed to load root folders:', err)
     } finally {
       setRootLoading(false)
     }
@@ -72,7 +71,6 @@ export function FolderBrowser({ connectionId, onFolderToggle, watchedFolderIds }
         }))
         updateNode(path, { ...node, children: childNodes, loading: false, expanded: true })
       } catch (err) {
-        console.error('Failed to load folder:', err)
         updateNode(path, { ...node, loading: false })
       }
     },

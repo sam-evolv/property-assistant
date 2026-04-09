@@ -184,8 +184,7 @@ export function SchemeSetupForm({ schemeId }: { schemeId: string }) {
         } else {
           setIsNew(true);
         }
-      } catch (err) {
-        console.error('Failed to load profile:', err);
+      } catch {
         setError('Failed to load profile data');
       } finally {
         setLoading(false);

@@ -11,7 +11,7 @@ interface AuditLog {
   type: string;
   action: string;
   actor: string | null;
-  metadata: any;
+  metadata: Record<string, unknown>;
   created_at: string;
 }
 
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     const result = await db.execute(query);
 
-    const logs: AuditLog[] = (result.rows || []).map((row: any) => ({
+    const logs: AuditLog[] = (result.rows || []).map((row: Record<string, unknown>) => ({
       id: row.id || String(Math.random()),
       type: row.type || 'event',
       action: row.action || row.type || 'system',
@@ -105,13 +105,11 @@ export async function GET(request: NextRequest) {
       created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
     }));
 
-    console.log(`[SystemLogs] Returning ${logs.length} logs for last ${hours}h`);
-
     return NextResponse.json({ logs });
-  } catch (error: any) {
-    console.error('[SystemLogs] Error:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch logs', logs: [] },
+      { error: errorMessage || 'Failed to fetch logs', logs: [] },
       { status: 500 }
     );
   }

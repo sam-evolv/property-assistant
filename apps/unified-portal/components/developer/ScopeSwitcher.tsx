@@ -23,7 +23,6 @@ export function ScopeSwitcher() {
   const isSuperAdmin = userRole === 'super_admin';
 
   const handleTenantChange = (tenantId: string | null) => {
-    console.log('[ScopeSwitcher] Tenant changed:', tenantId || 'All Developers');
     setSelectedTenantId(tenantId);
   };
 

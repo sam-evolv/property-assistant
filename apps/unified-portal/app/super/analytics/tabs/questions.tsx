@@ -44,7 +44,6 @@ export function QuestionsTab({ tenantId, days }: QuestionsTabProps) {
         const json = await res.json();
         setData(json);
       } catch (error) {
-        console.error('Failed to load question analysis:', error);
       } finally {
         setLoading(false);
       }

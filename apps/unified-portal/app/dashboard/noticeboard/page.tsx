@@ -49,8 +49,7 @@ export default function NoticeboardPage() {
         const data = await res.json();
         setPosts(data.posts || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch posts:', error);
+    } catch {
       toast.error('Failed to load noticeboard posts');
     } finally {
       setLoading(false);
@@ -81,8 +80,7 @@ export default function NoticeboardPage() {
       setEditingPost(null);
       resetForm();
       fetchPosts();
-    } catch (error) {
-      console.error('Failed to save post:', error);
+    } catch {
       toast.error('Failed to save post');
     }
   };
@@ -99,8 +97,7 @@ export default function NoticeboardPage() {
 
       toast.success(post.active ? 'Post unpublished' : 'Post published');
       fetchPosts();
-    } catch (error) {
-      console.error('Failed to toggle post:', error);
+    } catch {
       toast.error('Failed to update post status');
     }
   };
@@ -117,8 +114,7 @@ export default function NoticeboardPage() {
 
       toast.success('Post deleted successfully');
       fetchPosts();
-    } catch (error) {
-      console.error('Failed to delete post:', error);
+    } catch {
       toast.error('Failed to delete post');
     }
   };

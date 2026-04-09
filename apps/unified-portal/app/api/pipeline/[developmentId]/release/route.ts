@@ -130,8 +130,9 @@ export async function POST(
           unitNumber: unit.unitNumber,
           address: unit.address,
         });
-      } catch (err: any) {
-        errors.push(`Error processing unit ${unit.unitNumber}: ${err.message}`);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        errors.push(`Error processing unit ${unit.unitNumber}: ${errMessage}`);
       }
     }
 
@@ -141,8 +142,8 @@ export async function POST(
       units: createdUnits,
       errors: errors.length > 0 ? errors : undefined,
     });
-  } catch (error: any) {
-    console.error('Error releasing units:', error);
-    return NextResponse.json({ error: error.message || 'Failed to release units' }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: errorMessage || 'Failed to release units' }, { status: 500 });
   }
 }

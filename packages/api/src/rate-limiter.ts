@@ -53,7 +53,6 @@ class RateLimiter {
 
       return { allowed: true, remaining: this.maxRequests - 1, resetTime: newResetTime.getTime() };
     } catch (error) {
-      console.error('Rate limiter error:', error);
       return { allowed: true, remaining: this.maxRequests, resetTime: newResetTime.getTime() };
     }
   }
@@ -62,7 +61,7 @@ class RateLimiter {
     try {
       await db.execute(sql`DELETE FROM rate_limits WHERE key = ${key}`);
     } catch (error) {
-      console.error('Rate limiter reset error:', error);
+      // Rate limiter reset failed silently
     }
   }
 }

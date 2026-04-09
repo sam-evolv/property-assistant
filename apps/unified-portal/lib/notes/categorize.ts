@@ -139,7 +139,6 @@ export async function categorizeWithAI(content: string): Promise<NoteCategory> {
     clearTimeout(timeout);
 
     if (!res.ok) {
-      console.warn('[Notes] AI categorization failed, falling back to keywords');
       return categorizeByKeywords(content);
     }
 
@@ -152,8 +151,7 @@ export async function categorizeWithAI(content: string): Promise<NoteCategory> {
 
     // AI returned something unexpected, fall back
     return categorizeByKeywords(content);
-  } catch (err) {
-    console.warn('[Notes] AI categorization error, falling back to keywords:', err);
+  } catch {
     return categorizeByKeywords(content);
   }
 }

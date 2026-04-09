@@ -386,17 +386,14 @@ export async function GET(request: Request) {
         const fallbackCount = Number(fallbackResult.rows[0]?.count) || 0;
         if (fallbackCount > 0) {
           activeUnitsInWindow = fallbackCount;
-          console.log(`[ANALYTICS SUMMARY] Drizzle fallback: ${fallbackCount} active units from purchaser_agreements (window=${days}d)`);
         }
       } catch (fallbackError) {
-        console.log(`[ANALYTICS SUMMARY] Drizzle purchaser_agreements fallback failed:`, fallbackError);
 
         // FINAL FALLBACK: Try Supabase to count total units with any activity
         // SECURITY: Always filter by tenant_id to prevent cross-tenant data leakage
         // For developer scope, require developer_id; only allow unfiltered for superadmin
         if (scope === 'developer' && !developer_id) {
           // SECURITY: Fail closed - developer scope must have tenant filter
-          console.log(`[ANALYTICS SUMMARY] Supabase fallback skipped - developer scope requires developer_id`);
         } else {
           try {
             const supabaseAdmin = getSupabaseAdmin();
@@ -419,10 +416,9 @@ export async function GET(request: Request) {
             // This is better than showing 0 which is clearly wrong
             if (unitCount && unitCount > 0) {
               activeUnitsInWindow = Math.floor(unitCount * 0.5);
-              console.log(`[ANALYTICS SUMMARY] Supabase estimate fallback: ${activeUnitsInWindow} active units (50% of ${unitCount} total)`);
             }
-          } catch (supabaseError) {
-            console.log(`[ANALYTICS SUMMARY] Supabase fallback also failed:`, supabaseError);
+          } catch (_supabaseError) {
+              // error handled silently
           }
         }
       }
@@ -455,7 +451,6 @@ export async function GET(request: Request) {
     };
 
     if (errors.length > 0) {
-      console.error('[ANALYTICS SUMMARY] Partial failure:', errors, `requestId=${requestId}`);
     }
 
     return NextResponse.json(

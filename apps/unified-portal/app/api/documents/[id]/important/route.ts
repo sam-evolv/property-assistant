@@ -99,17 +99,17 @@ export async function PATCH(
             .eq('id', section.id);
         }
       }
-    } catch (syncError) {
-      console.error('[Important API] Supabase sync error (non-fatal):', syncError);
+    } catch (_syncError) {
+        // error handled silently
     }
 
     return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error('[Important API] Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Failed to update document importance' }, { status: 500 });

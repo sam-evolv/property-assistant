@@ -291,7 +291,6 @@ function VideoPlayerModal({ video, onClose }: VideoPlayerModalProps) {
 
 function trackVideoEvent(eventType: string, data: Record<string, any>) {
   if (typeof window === 'undefined') return;
-  console.log(`[Videos Analytics] ${eventType}`, data);
 }
 
 export function VideosTab() {
@@ -322,7 +321,6 @@ export function VideosTab() {
           setAllDevelopments(data.developments || []);
         }
       } catch (error) {
-        console.error('[Videos] Failed to load developments:', error);
       }
     }
     loadDevelopments();
@@ -340,7 +338,6 @@ export function VideosTab() {
         setVideos(data.videos || []);
       }
     } catch (error) {
-      console.error('[Videos] Failed to load videos:', error);
     } finally {
       setIsLoading(false);
     }
@@ -360,7 +357,6 @@ export function VideosTab() {
         setVideos(prev => prev.filter(v => v.id !== videoId));
       }
     } catch (error) {
-      console.error('[Videos] Failed to delete video:', error);
     } finally {
       setDeletingId(null);
     }
@@ -413,7 +409,6 @@ export function VideosTab() {
       await Promise.all(group.ids.map(id => fetch(`/api/videos?id=${id}`, { method: 'DELETE' })));
       setVideos(prev => prev.filter(v => !group.ids.includes(v.id)));
     } catch (error) {
-      console.error('[Videos] Failed to delete video:', error);
     } finally {
       setDeletingId(null);
     }

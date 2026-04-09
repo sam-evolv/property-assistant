@@ -108,7 +108,6 @@ export async function GET(
       floorplanUrl,
     });
   } catch (error) {
-    console.error('[Floorplan by Unit API Error]:', error);
     return NextResponse.json(
       { error: 'Failed to fetch floorplan data' },
       { status: 500 }

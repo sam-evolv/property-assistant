@@ -31,10 +31,6 @@ function getSupabaseClient() {
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   
   if (!supabaseUrl || !supabaseKey) {
-    console.error('[Archive] Missing Supabase environment variables:', {
-      hasUrl: !!supabaseUrl,
-      hasKey: !!supabaseKey,
-    });
     throw new Error('Supabase configuration missing. Please check environment variables.');
   }
   
@@ -63,7 +59,6 @@ const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
 function getSupabaseProjectId(developmentId: string): string {
   const mapped = DEVELOPMENT_TO_SUPABASE_PROJECT[developmentId];
   if (mapped) {
-    console.log('[Archive] Mapped developmentId', developmentId, 'to Supabase project_id', mapped);
     return mapped;
   }
   // If not in mapping, assume it's already a valid Supabase project ID
@@ -92,22 +87,19 @@ export async function fetchArchiveDisciplines({
     
     if (developmentId) {
       const supabaseProjectId = getSupabaseProjectId(developmentId);
-      console.log('[Archive] Fetching disciplines for SCHEME:', developmentId, '-> project_id:', supabaseProjectId);
       query = query.eq('project_id', supabaseProjectId);
     } else {
-      console.log('[Archive] Fetching disciplines for ALL_SCHEMES (no filter)');
     }
     
     const { data: sections, error } = await query;
 
     if (error) {
-      console.error('[Archive] Supabase error:', error.message);
       return [];
     }
 
     // Group by unique source documents
     const documentMap = new Map<string, { source: string; discipline: string }>();
-    
+
     for (const section of sections || []) {
       const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
       if (!documentMap.has(source)) {
@@ -116,8 +108,6 @@ export async function fetchArchiveDisciplines({
         documentMap.set(source, { source, discipline });
       }
     }
-
-    console.log('[Archive] Found', documentMap.size, 'unique documents from Supabase');
 
     // Initialize all disciplines with 0 count
     const disciplineMap = new Map<string, { count: number; lastUpdated: Date | null }>();
@@ -155,7 +145,6 @@ export async function fetchArchiveDisciplines({
     
     return summaries;
   } catch (error) {
-    console.error('[Archive] Error fetching disciplines:', error);
     return [];
   }
 }
@@ -219,7 +208,6 @@ export async function fetchDocumentsByDiscipline({
   const effectiveLimit = pageSize || limit || 50;
   
   try {
-    console.log('📂 Fetching documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
     let query = supabase
@@ -234,7 +222,6 @@ export async function fetchDocumentsByDiscipline({
     const { data: sections, error } = await query;
 
     if (error) {
-      console.error('[Archive] Supabase error:', error.message);
       return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
     }
 
@@ -280,8 +267,6 @@ export async function fetchDocumentsByDiscipline({
     const offset = (page - 1) * effectiveLimit;
     const paginatedDocs = filteredDocs.slice(offset, offset + effectiveLimit);
     
-    console.log('✅ Found:', filteredDocs.length, 'documents, returning', paginatedDocs.length);
-
     return {
       documents: paginatedDocs,
       totalCount,
@@ -290,7 +275,6 @@ export async function fetchDocumentsByDiscipline({
       totalPages,
     };
   } catch (error) {
-    console.error('[Archive] Error fetching documents:', error);
     return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
   }
 }
@@ -307,7 +291,6 @@ export async function countArchiveDocuments({
   developmentId?: string | null;
 }): Promise<{ total: number; indexed: number; errors: number }> {
   try {
-    console.log('[Archive] Counting documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
     let query = supabase
@@ -322,7 +305,6 @@ export async function countArchiveDocuments({
     const { data: sections, error } = await query;
 
     if (error) {
-      console.error('[Archive] Supabase error:', error.message);
       return { total: 0, indexed: 0, errors: 0 };
     }
 
@@ -334,16 +316,13 @@ export async function countArchiveDocuments({
     }
 
     const total = uniqueDocs.size;
-    
-    console.log('[Archive] Count from Supabase:', total, 'documents');
-    
+
     return { 
       total, 
       indexed: total,  // All documents in Supabase are indexed
       errors: 0 
     };
   } catch (error) {
-    console.error('[Archive] Error counting documents:', error);
     return { total: 0, indexed: 0, errors: 0 };
   }
 }
@@ -367,13 +346,11 @@ export async function fetchDocumentById({
       .single();
 
     if (error || !section) {
-      console.error('[Archive] Document not found:', documentId);
       return null;
     }
 
     return createArchiveDocument(section, section.project_id || 'unknown');
   } catch (error) {
-    console.error('[Archive] Error fetching document:', error);
     return null;
   }
 }
@@ -397,7 +374,6 @@ export async function updateDocumentMetadata({
 }): Promise<boolean> {
   // For now, Supabase document_sections don't have editable metadata
   // This would need to update all sections with matching source
-  console.log('[Archive] Update metadata not yet implemented for Supabase');
   return false;
 }
 
@@ -418,7 +394,6 @@ export async function searchArchiveDocuments({
   limit?: number;
 }): Promise<FetchDocumentsResult> {
   try {
-    console.log('[Archive] Searching documents for scheme:', developmentId || 'ALL');
     const supabase = getSupabaseClient();
     
     let dbQuery = supabase
@@ -433,7 +408,6 @@ export async function searchArchiveDocuments({
     const { data: sections, error } = await dbQuery;
 
     if (error) {
-      console.error('[Archive] Supabase error:', error.message);
       return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
     }
 
@@ -469,7 +443,6 @@ export async function searchArchiveDocuments({
       totalPages,
     };
   } catch (error) {
-    console.error('[Archive] Error searching documents:', error);
     return { documents: [], totalCount: 0, page, pageSize: limit, totalPages: 0 };
   }
 }
@@ -489,7 +462,6 @@ export async function deleteDocument({
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   try {
     const supabase = getSupabaseClient();
-    console.log('[Archive] Deleting document:', { documentId, fileName, schemeId });
 
     if (!documentId && !fileName) {
       return { success: false, deletedCount: 0, error: 'Either documentId or fileName is required' };
@@ -510,16 +482,13 @@ export async function deleteDocument({
     const { data, error } = await query.select('id');
 
     if (error) {
-      console.error('[Archive] Supabase delete error:', error.message);
       return { success: false, deletedCount: 0, error: error.message };
     }
 
     const deletedCount = data?.length || 0;
-    console.log('[Archive] Deleted', deletedCount, 'document sections');
 
     return { success: true, deletedCount };
   } catch (error) {
-    console.error('[Archive] Error deleting document:', error);
     return { success: false, deletedCount: 0, error: 'Failed to delete document' };
   }
 }
@@ -541,7 +510,6 @@ export async function updateDocumentFlags({
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
     const supabase = getSupabaseClient();
-    console.log('[Archive] Updating document flags:', { fileName, isImportant, mustRead, schemeId });
 
     // Fetch sections then filter in JS (handles special characters)
     let fetchQuery = supabase
@@ -555,7 +523,6 @@ export async function updateDocumentFlags({
     const { data: allSections, error: fetchError } = await fetchQuery;
 
     if (fetchError) {
-      console.error('[Archive] Supabase fetch error:', fetchError.message);
       return { success: false, updatedCount: 0, error: fetchError.message };
     }
 
@@ -567,7 +534,6 @@ export async function updateDocumentFlags({
     });
 
     if (sections.length === 0) {
-      console.log('[Archive] No matching sections found for:', fileName);
       return { success: false, updatedCount: 0, error: 'Document not found' };
     }
 
@@ -589,10 +555,8 @@ export async function updateDocumentFlags({
       }
     }
 
-    console.log('[Archive] Updated', updatedCount, 'document sections');
     return { success: true, updatedCount };
   } catch (error) {
-    console.error('[Archive] Error updating document:', error);
     return { success: false, updatedCount: 0, error: 'Failed to update document' };
   }
 }
@@ -611,7 +575,6 @@ export async function assignDocumentToFolder({
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
     const supabase = getSupabaseClient();
-    console.log('[Archive] Assigning document to folder:', { fileName, folderId, schemeId });
 
     let fetchQuery = supabase
       .from('document_sections')
@@ -624,7 +587,6 @@ export async function assignDocumentToFolder({
     const { data: allSections, error: fetchError } = await fetchQuery;
 
     if (fetchError) {
-      console.error('[Archive] Supabase fetch error:', fetchError.message);
       return { success: false, updatedCount: 0, error: fetchError.message };
     }
 
@@ -635,7 +597,6 @@ export async function assignDocumentToFolder({
     });
 
     if (sections.length === 0) {
-      console.log('[Archive] No matching sections found for:', fileName);
       return { success: false, updatedCount: 0, error: 'Document not found' };
     }
 
@@ -656,10 +617,8 @@ export async function assignDocumentToFolder({
       }
     }
 
-    console.log('[Archive] Updated', updatedCount, 'document sections');
     return { success: true, updatedCount };
   } catch (error) {
-    console.error('[Archive] Error assigning document to folder:', error);
     return { success: false, updatedCount: 0, error: 'Failed to assign document to folder' };
   }
 }

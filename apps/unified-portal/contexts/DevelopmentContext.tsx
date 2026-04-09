@@ -21,7 +21,6 @@ interface DevelopmentContextType {
 const DEFAULT_DEVELOPMENT_STATE: DevelopmentContextType = {
   developmentId: null,
   setDevelopmentId: () => {
-    console.warn('[DevelopmentContext] setDevelopmentId called before provider initialized');
   },
   isHydrated: false,
 };
@@ -41,18 +40,10 @@ export function DevelopmentProvider({
   const [isHydrated, setIsHydrated] = useState(false);
 
   useEffect(() => {
-    console.log('[DevelopmentContext] Hydrating', { 
-      initialDevelopmentId,
-      currentDevelopmentId: developmentId,
-    });
     setIsHydrated(true);
   }, [initialDevelopmentId, developmentId]);
 
   const setDevelopmentId = (id: string | null) => {
-    console.log('[DevelopmentContext] Development ID changed', { 
-      from: developmentId, 
-      to: id 
-    });
     setDevelopmentIdState(id);
   };
 
@@ -73,7 +64,6 @@ export function useDevelopment(): DevelopmentContextType {
   const context = useContext(DevelopmentContext);
   
   if (!context) {
-    console.warn('[DevelopmentContext] useDevelopment called outside provider - returning safe defaults');
     return DEFAULT_DEVELOPMENT_STATE;
   }
   
@@ -87,7 +77,6 @@ export function useSafeDevelopment(): DevelopmentContextType {
   const development = useDevelopment();
   
   if (!development.isHydrated) {
-    console.log('[DevelopmentContext] Waiting for hydration');
     return DEFAULT_DEVELOPMENT_STATE;
   }
   
@@ -101,12 +90,10 @@ export function useRequireDevelopment(): Exclude<DevelopmentContextType, { devel
   const development = useSafeDevelopment();
   
   if (!development.isHydrated) {
-    console.log('[DevelopmentContext] Waiting for hydration in protected route');
     throw new Error('Development context not hydrated');
   }
   
   if (!development.developmentId) {
-    console.warn('[DevelopmentContext] No development selected');
     throw new Error('Development selection required');
   }
   

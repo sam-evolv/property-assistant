@@ -1,11 +1,6 @@
 const BASE = process.env.PUBLIC_UPLOAD_BASE_URL ?? '';
 
-if (!BASE) {
-  console.warn(
-    "[resolve-upload-url] PUBLIC_UPLOAD_BASE_URL is not set. " +
-      "Relative /uploads/... URLs will fail."
-  );
-}
+// PUBLIC_UPLOAD_BASE_URL must be set for relative /uploads/... URLs to work
 
 export function resolveUploadUrl(path: string): string {
   if (!path) {

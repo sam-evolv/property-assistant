@@ -48,7 +48,6 @@ export async function GET(request: NextRequest) {
     const { data: units, count, error } = await query;
 
     if (error) {
-      console.error('[UNIT COUNTS] Error fetching units:', error);
       return NextResponse.json({ error: 'Failed to fetch units' }, { status: 500 });
     }
 
@@ -71,13 +70,6 @@ export async function GET(request: NextRequest) {
     // Count with email (considered "active" or "registered")
     const withEmail = (units || []).filter(u => u.purchaser_email).length;
 
-    console.log('[UNIT COUNTS] Results:', {
-      total: totalHomeowners,
-      onboardedThisMonth,
-      withEmail,
-      developmentId: developmentId || 'all'
-    });
-
     return NextResponse.json({
       success: true,
       total: totalHomeowners,
@@ -95,7 +87,6 @@ export async function GET(request: NextRequest) {
       } : {})
     });
   } catch (error) {
-    console.error('[UNIT COUNTS] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch unit counts' }, { status: 500 });
   }
 }

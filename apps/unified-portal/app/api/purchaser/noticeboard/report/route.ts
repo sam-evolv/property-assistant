@@ -177,14 +177,11 @@ export async function POST(request: NextRequest) {
       status: 'pending',
     });
 
-    console.log('[Report] Created report for', noticeId ? `notice ${noticeId}` : `comment ${commentId}`);
-
     return NextResponse.json({
       success: true,
       message: 'Thank you for your report. Our team will review it shortly.',
     });
   } catch (error) {
-    console.error('[Report POST Error]:', error);
     return NextResponse.json(
       { error: 'Failed to submit report' },
       { status: 500 }

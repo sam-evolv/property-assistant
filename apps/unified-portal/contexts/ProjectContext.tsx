@@ -25,7 +25,6 @@ const DEFAULT_PROJECT_STATE: ProjectContextValue = {
   projects: [],
   selectedProjectId: null,
   setSelectedProjectId: () => {
-    console.warn('[ProjectContext] setSelectedProjectId called before provider initialized');
   },
   selectedProject: null,
   isLoading: true,
@@ -54,7 +53,6 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
     async function fetchProjects() {
       try {
         setIsLoading(true);
-        console.log('[ProjectContext] Fetching projects...');
         
         const data = await fetchWithDedup(
           'projects:list',
@@ -71,17 +69,14 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
         
         const projectList = data.projects || [];
         const idRemapping: Record<string, string> = data.idRemapping || {};
-        console.log('[ProjectContext] Loaded projects:', projectList.length);
         setProjects(projectList);
         
         const urlProjectId = searchParams.get('projectId');
         
         if (urlProjectId && projectList.find((p: Project) => p.id === urlProjectId)) {
           setSelectedProjectIdState(urlProjectId);
-          console.log('[ProjectContext] Using projectId from URL:', urlProjectId);
         } else if (urlProjectId && idRemapping[urlProjectId]) {
           const canonicalId = idRemapping[urlProjectId];
-          console.log('[ProjectContext] Remapping suppressed project', urlProjectId, 'to canonical', canonicalId);
           setSelectedProjectIdState(canonicalId);
           
           const params = new URLSearchParams(searchParams.toString());
@@ -90,7 +85,6 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
         } else if (projectList.length > 0) {
           const firstProjectId = projectList[0].id;
           setSelectedProjectIdState(firstProjectId);
-          console.log('[ProjectContext] Defaulting to first project:', firstProjectId);
           
           const params = new URLSearchParams(searchParams.toString());
           params.set('projectId', firstProjectId);
@@ -99,7 +93,6 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
         
         setError(null);
       } catch (err) {
-        console.error('[ProjectContext] Error fetching projects:', err);
         setError(err instanceof Error ? err.message : 'Failed to load projects');
       } finally {
         setIsLoading(false);
@@ -111,7 +104,6 @@ export function ProjectContextProvider({ children }: ProjectContextProviderProps
   }, []);
 
   const setSelectedProjectId = useCallback((id: string | null) => {
-    console.log('[ProjectContext] Project changed:', { from: selectedProjectId, to: id });
     setSelectedProjectIdState(id);
     
     const params = new URLSearchParams(searchParams.toString());

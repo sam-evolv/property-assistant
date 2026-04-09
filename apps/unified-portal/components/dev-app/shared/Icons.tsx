@@ -1,6 +1,6 @@
 'use client';
 
-import { TEXT_1, TEXT_2, TEXT_3, GOLD, GREEN, BLUE, RED } from '@/lib/dev-app/design-system';
+import { TEXT_1, TEXT_2, TEXT_3, GOLD, GREEN, BLUE } from '@/lib/dev-app/design-system';
 
 // Tab bar icons
 export const PulseIcon = ({ active }: { active?: boolean }) => (

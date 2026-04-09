@@ -217,9 +217,9 @@ export function FloorPlanWithDimensions({
         if (!data.dimensions || Object.keys(data.dimensions).length === 0) {
           setShowFloorplan(true);
         }
-      } catch (err: any) {
-        console.error('Failed to fetch floor plan data:', err);
-        setError(err.message || 'Failed to load floor plan');
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage || 'Failed to load floor plan');
       } finally {
         setLoading(false);
       }

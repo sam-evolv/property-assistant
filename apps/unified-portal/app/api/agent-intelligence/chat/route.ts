@@ -43,8 +43,8 @@ export async function POST(request: NextRequest) {
       const { data: usersData } = await supabase.auth.admin.listUsers();
       const matchedUser = usersData?.users?.find((u: any) => u.email === adminContext.email);
       if (matchedUser?.id) authUserId = matchedUser.id;
-    } catch (err) {
-      console.error('[AgentIntel] Failed to resolve auth user ID, using admin ID as fallback:', err);
+    } catch (_err) {
+        // error handled silently
     }
 
     // 2. Load agent context (profile + assigned schemes)
@@ -163,9 +163,9 @@ export async function POST(request: NextRequest) {
               params,
               result_summary: result.summary,
             });
-          } catch (err: any) {
-            console.error(`[AgentIntel] Tool ${toolCall.function.name} failed:`, err);
-            toolResult = JSON.stringify({ error: err.message, summary: `Tool execution failed: ${err.message}` });
+          } catch (err: unknown) {
+            const errMessage = err instanceof Error ? err.message : 'Unknown error';
+            toolResult = JSON.stringify({ error: errMessage, summary: `Tool execution failed: ${errMessage}` });
           }
         } else {
           toolResult = JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` });
@@ -196,12 +196,12 @@ export async function POST(request: NextRequest) {
     // 7. Store conversation memory (async, non-blocking)
     const currentSessionId = sessionId || `session_${Date.now()}`;
     storeConversationMemory(supabase, agentContext, currentSessionId, message, responseText, toolsCalled).catch(
-      (err) => console.error('[AgentIntel] Failed to store conversation memory:', err)
+      () => { /* memory storage failure is non-blocking */ }
     );
 
     // 8. Log intelligence interaction (async, non-blocking)
     logInteraction(supabase, tenantId, authUserId, message, responseText, toolsCalled, startTime).catch(
-      (err) => console.error('[AgentIntel] Failed to log interaction:', err)
+      () => { /* interaction logging failure is non-blocking */ }
     );
 
     // 9. Stream the response
@@ -275,7 +275,6 @@ EXAMPLES by context:
           );
           controller.close();
         } catch (err) {
-          console.error('[AgentIntel] Stream error:', err);
           controller.enqueue(
             encoder.encode(JSON.stringify({ type: 'error', message: 'Stream failed' }) + '\n')
           );
@@ -292,7 +291,6 @@ EXAMPLES by context:
       },
     });
   } catch (error) {
-    console.error('[AgentIntel Chat] Error:', error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Internal server error',

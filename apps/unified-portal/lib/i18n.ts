@@ -65,8 +65,8 @@ export function getStoredLocale(): Locale | null {
     if (stored && SUPPORTED_LOCALES.includes(stored as Locale)) {
       return stored as Locale;
     }
-  } catch (e) {
-    console.warn('Failed to read locale from localStorage:', e);
+  } catch {
+    // localStorage read failed
   }
   
   return null;
@@ -77,8 +77,8 @@ export function setLocale(locale: Locale): void {
   
   try {
     localStorage.setItem(LOCALE_STORAGE_KEY, locale);
-  } catch (e) {
-    console.warn('Failed to store locale in localStorage:', e);
+  } catch {
+    // localStorage write failed
   }
 }
 
@@ -95,7 +95,6 @@ export function getTranslations(locale: Locale = DEFAULT_LOCALE) {
     if (!value) {
       const fallback = getNestedValue(translations.en, key);
       if (!fallback) {
-        console.warn(`Missing translation for key: ${key}`);
         return key;
       }
       return interpolate(fallback, variables);

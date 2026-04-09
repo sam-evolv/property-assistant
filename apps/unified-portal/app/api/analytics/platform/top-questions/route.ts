@@ -43,7 +43,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ topQuestions });
   } catch (error) {
-    console.error('[API] /api/analytics/platform/top-questions error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch top questions' },
       { status: 500 }

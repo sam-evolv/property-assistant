@@ -54,8 +54,6 @@ export async function resolveDevelopment(
     return cached;
   }
 
-  console.log('[DevelopmentResolver] Resolving development for project_id:', supabaseProjectId, 'address:', address);
-
   // Fast path: direct lookup of developments table by ID (most reliable, avoids name/word matching)
   if (supabaseProjectId) {
     try {
@@ -74,17 +72,15 @@ export async function resolveDevelopment(
           logoUrl: (directDev as any).logo_url || null,
         };
         setCachedDevelopment(cacheKey, resolved);
-        console.log('[DevelopmentResolver] Direct development lookup succeeded:', resolved.developmentName);
         return resolved;
       }
     } catch (directErr) {
-      console.warn('[DevelopmentResolver] Direct lookup failed, falling through:', directErr);
+      // Direct lookup failed, falling through to other methods
     }
   }
 
   if (supabaseProjectId && KNOWN_ID_MAPPINGS[supabaseProjectId]) {
     const mapping = KNOWN_ID_MAPPINGS[supabaseProjectId];
-    console.log('[DevelopmentResolver] Known mapping found, querying DB for drizzleId:', mapping.drizzleId);
     try {
       const { rows } = await db.execute(sql`
         SELECT id, name, tenant_id, logo_url FROM developments WHERE id = ${mapping.drizzleId} LIMIT 1
@@ -99,11 +95,10 @@ export async function resolveDevelopment(
           logoUrl: dev.logo_url || null,
         };
         setCachedDevelopment(cacheKey, resolved);
-        console.log('[DevelopmentResolver] Resolved from DB via known mapping:', resolved.developmentName, 'logo:', resolved.logoUrl);
         return resolved;
       }
     } catch (err) {
-      console.error('[DevelopmentResolver] DB lookup for known mapping failed:', err);
+      // DB lookup for known mapping failed
     }
   }
 
@@ -117,11 +112,7 @@ export async function resolveDevelopment(
         .select('id, name, logo_url')
         .eq('id', supabaseProjectId)
         .single();
-      if (error) {
-        console.error('[DevelopmentResolver] Supabase query error:', error.message);
-      }
       supabaseProject = data;
-      console.log('[DevelopmentResolver] Supabase project:', supabaseProject?.name || 'not found');
     }
 
     if (supabaseProject) {
@@ -142,7 +133,6 @@ export async function resolveDevelopment(
           logoUrl: dev.logo_url || supabaseProject.logo_url || null,
         };
         setCachedDevelopment(cacheKey, resolved);
-        console.log('[DevelopmentResolver] Matched by name:', resolved.developmentName, 'Drizzle ID:', resolved.drizzleDevelopmentId);
         return resolved;
       }
     }
@@ -168,17 +158,14 @@ export async function resolveDevelopment(
               logoUrl: dev.logo_url,
             };
             setCachedDevelopment(cacheKey, resolved);
-            console.log('[DevelopmentResolver] Matched by address pattern:', resolved.developmentName);
             return resolved;
           }
         }
       }
     }
 
-    console.log('[DevelopmentResolver] Could not resolve development');
     return null;
   } catch (error) {
-    console.error('[DevelopmentResolver] Error:', error);
     return null;
   }
 }

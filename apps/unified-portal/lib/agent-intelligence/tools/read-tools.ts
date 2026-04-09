@@ -37,7 +37,7 @@ export async function getUnitStatus(
   // Get pipeline data
   const { data: pipeline } = await supabase
     .from('unit_sales_pipeline')
-    .select('*')
+    .select('purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, drawdown_date, handover_date, release_date, mortgage_expiry_date, kitchen_selected, estimated_close_date, comments')
     .eq('tenant_id', tenantId)
     .eq('unit_id', unit.id)
     .maybeSingle();
@@ -113,7 +113,7 @@ export async function getBuyerDetails(
   // Search across unit_sales_pipeline for buyer name
   const { data: matches } = await supabase
     .from('unit_sales_pipeline')
-    .select('*, unit_id')
+    .select('unit_id, purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date')
     .eq('tenant_id', tenantId)
     .ilike('purchaser_name', `%${params.buyer_name}%`);
 
@@ -238,7 +238,7 @@ export async function getSchemeOverview(
   // Get pipeline data
   const { data: pipeline } = await supabase
     .from('unit_sales_pipeline')
-    .select('*')
+    .select('unit_id, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, deposit_date')
     .eq('tenant_id', tenantId)
     .eq('development_id', dev.id);
 
@@ -333,7 +333,7 @@ export async function getOutstandingItems(
   // Get pipeline data for unsigned contracts, overdue selections
   let pipelineQuery = supabase
     .from('unit_sales_pipeline')
-    .select('*, unit_id')
+    .select('unit_id, purchaser_name, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_selected')
     .eq('tenant_id', tenantId);
 
   if (developmentId) pipelineQuery = pipelineQuery.eq('development_id', developmentId);
@@ -406,7 +406,7 @@ export async function getOutstandingItems(
   // Get overdue agent tasks
   const { data: tasks } = await supabase
     .from('agent_tasks')
-    .select('*')
+    .select('title, description, due_date, priority, status, related_buyer_name')
     .eq('tenant_id', tenantId)
     .in('status', ['pending', 'in_progress'])
     .lte('due_date', futureDate);
@@ -475,7 +475,7 @@ export async function getCommunicationHistory(
 
   let query = supabase
     .from('communication_events')
-    .select('*')
+    .select('created_at, type, direction, actor_name, counterparty_name, summary, outcome, follow_up_required, follow_up_date')
     .eq('tenant_id', tenantId)
     .neq('visibility', 'private')
     .order('created_at', { ascending: false })

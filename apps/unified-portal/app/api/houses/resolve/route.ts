@@ -72,7 +72,6 @@ function getCoordinatesFromAddress(address: string): { lat: number; lng: number 
   // Check for known location keywords in the address
   for (const [keyword, coords] of Object.entries(IRISH_LOCATIONS)) {
     if (lowerAddress.includes(keyword)) {
-      console.log("[Resolve] Matched location keyword:", keyword, "->", coords);
       return coords;
     }
   }
@@ -85,7 +84,6 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
   // First try known locations fallback (faster and doesn't require API)
   const knownCoords = getCoordinatesFromAddress(address);
   if (knownCoords) {
-    console.log("[Resolve] Using known coordinates for:", address);
     return knownCoords;
   }
   
@@ -103,13 +101,10 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
     
     if (data.status === 'OK' && data.results?.[0]?.geometry?.location) {
       const location = data.results[0].geometry.location;
-      console.log("[Resolve] Geocoded address:", address, "->", location);
       return { lat: location.lat, lng: location.lng };
     }
-    console.log("[Resolve] Geocoding failed for:", address, "Status:", data.status);
     return null;
   } catch (error) {
-    console.error("[Resolve] Geocoding error:", error);
     return null;
   }
 }
@@ -121,7 +116,6 @@ export async function POST(req: Request) {
 
   const rateCheck = checkRateLimit(clientIP, '/api/houses/resolve');
   if (!rateCheck.allowed) {
-    console.log(`[Resolve] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
     return NextResponse.json(
       createStructuredError('Too many requests', requestId, {
         error_code: 'RATE_LIMITED',
@@ -137,14 +131,13 @@ export async function POST(req: Request) {
     
     try {
       body = await req.json();
-    } catch (e) {
-      console.log("[Resolve] Failed to parse body:", e);
+    } catch (_e) {
+        // error handled silently
     }
     
     const token = body?.token || body?.unitId || body?.unit_id;
 
     if (!token) {
-      console.log("[Resolve] No token provided", `requestId=${requestId}`);
       return NextResponse.json(
         createStructuredError('No token provided', requestId, { error_code: 'MISSING_TOKEN' }),
         { status: 400, headers: getResponseHeaders(requestId) }
@@ -154,7 +147,6 @@ export async function POST(req: Request) {
     const cacheKey = `resolve:${token}`;
     const cached = globalCache.get(cacheKey);
     if (cached) {
-      console.log(`[Resolve] Cache hit for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
       recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(
         { ...cached, request_id: requestId },
@@ -162,8 +154,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log("[Resolve] Looking up unit:", token, `requestId=${requestId}`);
-    
     // Track if we hit a database connection error vs actual not found
     let dbConnectionError = false;
 
@@ -248,9 +238,9 @@ export async function POST(req: Request) {
             WHERE u.unit_uid = ${token}
             LIMIT 1
           `);
-    } catch (dbErr: any) {
-      console.error("[Resolve] Database error during unit lookup:", dbErr.message);
-      if (dbErr.message?.includes('MaxClients') || dbErr.message?.includes('pool') || dbErr.code === 'XX000') {
+    } catch (dbErr: unknown) {
+      const dbErrObj = dbErr instanceof Error ? dbErr as Error & { code?: unknown } : new Error(String(dbErr));
+      if (dbErrObj.message?.includes('MaxClients') || dbErrObj.message?.includes('pool') || dbErrObj.code === 'XX000') {
         dbConnectionError = true;
       }
       unitResult = { rows: [] };
@@ -263,13 +253,10 @@ export async function POST(req: Request) {
       const fullAddress = unit.address_line_1 || unit.dev_address || '';
       const unitIdentifier = unit.unit_uid || unit.id;
 
-      console.log("[Resolve] Found unit:", unitIdentifier, "Purchaser:", unit.purchaser_name, "Address:", fullAddress, "DevID:", unit.development_id);
-
       // Coordinate resolution order: PROJECT OVERRIDE -> geocode address -> unit lat/lng -> development lat/lng
       // Priority 1: Hard override by project/development ID (SOURCE OF TRUTH for known schemes)
       let coordinates = getProjectCoordinates(unit.development_id);
       if (coordinates) {
-        console.log("[Resolve] Using project coordinate override for development:", unit.development_id, "->", coordinates);
       }
       // Priority 2: Geocode from address
       if (!coordinates && fullAddress) {
@@ -281,7 +268,6 @@ export async function POST(req: Request) {
       }
       // Priority 4: Development-level coordinates from DB
       if (!coordinates && unit.dev_latitude && unit.dev_longitude) {
-        console.log("[Resolve] Using development coordinates as fallback:", unit.dev_latitude, unit.dev_longitude);
         coordinates = { lat: unit.dev_latitude, lng: unit.dev_longitude };
       }
 
@@ -314,8 +300,6 @@ export async function POST(req: Request) {
         handover: unit.pipeline_handover_date || null,
       };
       
-      console.log("[Resolve] Unit handover status:", { handover_date: unit.pipeline_handover_date, isComplete: isHandoverComplete, currentMilestone });
-
       const responseData = {
         success: true,
         unitId: unitIdentifier,
@@ -353,7 +337,6 @@ export async function POST(req: Request) {
       };
 
       globalCache.set(cacheKey, responseData, 60000);
-      console.log(`[Resolve] Cached result for ${token} requestId=${requestId} duration=${Date.now() - startTime}ms`);
       recordCircuitBreakerSuccess('/api/houses/resolve');
       return NextResponse.json(
         { ...responseData, request_id: requestId },
@@ -362,7 +345,6 @@ export async function POST(req: Request) {
     }
 
     // Second try: Check Supabase units table (legacy data source)
-    console.log("[Resolve] Not found in Drizzle units, checking Supabase units table...");
     
     try {
       // Try by unit_uid first (e.g., LV-PARK-021), then by UUID id
@@ -378,7 +360,6 @@ export async function POST(req: Request) {
 
       if (byUid && !uidError) {
         supabaseUnit = byUid;
-        console.log("[Resolve] Found by unit_uid:", byUid.unit_uid, "handover_date:", byUid.handover_date);
       } else if (isUuid) {
         // Fallback to id lookup for UUID tokens
         const { data: byId, error: idError } = await supabase
@@ -391,7 +372,6 @@ export async function POST(req: Request) {
       }
       
       if (supabaseUnit && !supabaseError) {
-        console.log("[Resolve] Found in Supabase units:", supabaseUnit.id, "Address:", supabaseUnit.address, "ProjectID:", supabaseUnit.project_id);
         
         const fullAddress = supabaseUnit.address || '';
         
@@ -399,7 +379,6 @@ export async function POST(req: Request) {
         // Priority 1: Hard override by project ID (SOURCE OF TRUTH for known schemes)
         let coordinates = getProjectCoordinates(supabaseUnit.project_id);
         if (coordinates) {
-          console.log("[Resolve] Using project coordinate override for:", supabaseUnit.project_id, "->", coordinates);
         }
         // Priority 2: Geocode from address
         if (!coordinates && fullAddress) {
@@ -414,17 +393,12 @@ export async function POST(req: Request) {
             .single();
           
           if (project?.latitude && project?.longitude) {
-            console.log("[Resolve] Using project coordinates from DB:", project.latitude, project.longitude);
             coordinates = { lat: project.latitude, lng: project.longitude };
           }
         }
         
         // Use development resolver to get both Supabase and Drizzle IDs
         const resolved = await resolveDevelopment(supabaseUnit.project_id, fullAddress);
-        
-        console.log("[Resolve] Resolved development:", resolved?.developmentName, 
-          "Supabase ID:", resolved?.supabaseProjectId, 
-          "Drizzle ID:", resolved?.drizzleDevelopmentId);
         
         // Cross-reference with Drizzle units to get full purchaser name
         // Supabase may only have surnames, Drizzle has full names
@@ -451,12 +425,11 @@ export async function POST(req: Request) {
               
               const drizzleUnit = drizzleUnitResult.rows[0] as any;
               if (drizzleUnit?.purchaser_name) {
-                console.log("[Resolve] Cross-referenced full name from Drizzle:", drizzleUnit.purchaser_name);
                 fullPurchaserName = drizzleUnit.purchaser_name;
               }
             }
-          } catch (crossRefErr: any) {
-            console.log("[Resolve] Drizzle cross-reference failed:", crossRefErr.message);
+          } catch (_crossRefErr: unknown) {
+              // error handled silently
           }
         }
         
@@ -471,7 +444,7 @@ export async function POST(req: Request) {
           const supabase = getSupabaseClient();
           const { data: pipeline } = await supabase
             .from('unit_sales_pipeline')
-            .select('*')
+            .select('sale_agreed_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
             .eq('unit_id', supabaseUnit.id)
             .single();
           
@@ -502,14 +475,11 @@ export async function POST(req: Request) {
               handover: pipeline.handover_date || null,
             };
             
-            console.log("[Resolve] Pipeline data found, milestone:", currentMilestone);
           }
-        } catch (pipelineErr: any) {
-          console.log("[Resolve] Pipeline lookup failed (non-critical):", pipelineErr.message);
+        } catch (_pipelineErr: unknown) {
+            // error handled silently
         }
         
-        console.log("[Resolve] Unit handover status:", { handover_date: supabaseUnit.handover_date, isComplete: isHandoverComplete, currentMilestone });
-
         const responseData = {
           success: true,
           unitId: supabaseUnit.id,
@@ -549,12 +519,11 @@ export async function POST(req: Request) {
         recordCircuitBreakerSuccess('/api/houses/resolve');
         return NextResponse.json(responseData, { headers: getResponseHeaders(requestId) });
       }
-    } catch (supabaseErr: any) {
-      console.log("[Resolve] Supabase lookup failed:", supabaseErr.message, `requestId=${requestId}`);
+    } catch (_supabaseErr: unknown) {
+        // error handled silently
     }
 
     // Third try: Check homeowners table by unique_qr_token OR id using Drizzle
-    console.log("[Resolve] Not found in Supabase, checking homeowners table...");
     
     try {
       const homeownerResult = isUuid 
@@ -605,9 +574,7 @@ export async function POST(req: Request) {
       const homeowner = homeownerResult.rows[0] as any;
 
       if (!homeowner) {
-        console.log("[Resolve] No unit or homeowner found for:", token);
         if (dbConnectionError) {
-          console.log("[Resolve] Returning service unavailable due to earlier DB connection issues", `requestId=${requestId}`);
           recordCircuitBreakerFailure('/api/houses/resolve');
           return NextResponse.json(
             createStructuredError('Service temporarily unavailable', requestId, {
@@ -626,13 +593,10 @@ export async function POST(req: Request) {
       // Found in homeowners table
       const fullAddress = homeowner.address || homeowner.dev_address || '';
 
-      console.log("[Resolve] Found homeowner:", homeowner.id, "Name:", homeowner.name, "Address:", fullAddress, "DevID:", homeowner.development_id);
-
       // Coordinate resolution: PROJECT OVERRIDE -> geocode -> development fallback
       // Priority 1: Hard override by development ID (SOURCE OF TRUTH for known schemes)
       let coordinates = getProjectCoordinates(homeowner.development_id);
       if (coordinates) {
-        console.log("[Resolve] Using project coordinate override for:", homeowner.development_id, "->", coordinates);
       }
       // Priority 2: Geocode from address
       if (!coordinates && fullAddress) {
@@ -640,7 +604,6 @@ export async function POST(req: Request) {
       }
       // Priority 3: Development coordinates from DB
       if (!coordinates && homeowner.dev_latitude && homeowner.dev_longitude) {
-        console.log("[Resolve] Using development coordinates from DB:", homeowner.dev_latitude, homeowner.dev_longitude);
         coordinates = { lat: homeowner.dev_latitude, lng: homeowner.dev_longitude };
       }
 
@@ -675,8 +638,7 @@ export async function POST(req: Request) {
         },
         { headers: getResponseHeaders(requestId) }
       );
-    } catch (homeownerErr: any) {
-      console.error("[Resolve] Homeowner lookup error:", homeownerErr.message, `requestId=${requestId}`);
+    } catch (homeownerErr: unknown) {
       if (isConnectionPoolError(homeownerErr) || dbConnectionError) {
         recordCircuitBreakerFailure('/api/houses/resolve');
         return NextResponse.json(
@@ -693,10 +655,11 @@ export async function POST(req: Request) {
       );
     }
 
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
     recordCircuitBreakerFailure('/api/houses/resolve');
     logCritical('Resolve', 'Server error during unit resolution', requestId, {
-      error: err.message || 'Unknown error',
+      error: errMessage || 'Unknown error',
     });
     if (isConnectionPoolError(err)) {
       return NextResponse.json(
@@ -708,7 +671,7 @@ export async function POST(req: Request) {
       );
     }
     return NextResponse.json(
-      createStructuredError(err.message || 'Server error', requestId, {
+      createStructuredError(errMessage || 'Server error', requestId, {
         error_code: 'SERVER_ERROR',
         retryable: true,
       }),

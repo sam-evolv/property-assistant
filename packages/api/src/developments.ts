@@ -57,7 +57,6 @@ export async function handleGetDevelopments(req: NextRequest) {
 
     return NextResponse.json({ success: true, developments: devs });
   } catch (error) {
-    console.error('Error fetching developments:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch developments' },
       { status: 500 }
@@ -167,16 +166,12 @@ export async function handleCreateDevelopment(req: NextRequest) {
       toolbar_logo_url: toolbar_logo_url || null,
     }).returning();
 
-    console.log(`[DEVELOPMENT] Created: ${name} (code: ${developmentCode}) for tenant ${tenantId}, developer: ${assignedDeveloperId || 'none'}`);
-
     return NextResponse.json({ 
       success: true, 
       developmentId: result[0].id,
       code: developmentCode,
     }, { status: 201 });
   } catch (error: any) {
-    console.error('Error creating development:', error);
-    
     // Provide clearer error messages based on database errors
     let errorMessage = 'Failed to create development';
     let statusCode = 500;
@@ -239,7 +234,6 @@ export async function handleGetDevelopment(req: NextRequest, developmentId: stri
       development: development[0] 
     });
   } catch (error) {
-    console.error('Error fetching development:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to fetch development' },
       { status: 500 }
@@ -287,7 +281,6 @@ export async function handleUpdateDevelopment(req: NextRequest, developmentId: s
       development: result[0],
     });
   } catch (error) {
-    console.error('Error updating development:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to update development' },
       { status: 500 }
@@ -318,7 +311,6 @@ export async function handleDeleteDevelopment(req: NextRequest, developmentId: s
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting development:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to delete development' },
       { status: 500 }

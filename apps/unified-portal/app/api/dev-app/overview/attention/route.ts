@@ -139,7 +139,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ items });
   } catch (error) {
-    console.error('[dev-app/overview/attention] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

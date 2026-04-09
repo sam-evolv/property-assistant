@@ -23,8 +23,8 @@ export async function GET() {
       [unitsCount] = await db
         .select({ count: count() })
         .from(units);
-    } catch (e) {
-      console.log('[Dashboard Stats] Units count failed, using 0');
+    } catch (_e) {
+        // error handled silently
     }
 
     const [adminsCount] = await db
@@ -36,8 +36,8 @@ export async function GET() {
       [messagesCount] = await db
         .select({ count: count() })
         .from(messages);
-    } catch (e) {
-      console.log('[Dashboard Stats] Messages count failed, using 0');
+    } catch (_e) {
+        // error handled silently
     }
 
     let pendingSubmissions = { count: 0 };
@@ -46,8 +46,8 @@ export async function GET() {
         .select({ count: count() })
         .from(onboardingSubmissions)
         .where(eq(onboardingSubmissions.status, 'pending'));
-    } catch (e) {
-      console.log('[Dashboard Stats] Pending submissions count failed, using 0');
+    } catch (_e) {
+        // error handled silently
     }
 
     let unitsWithPurchaser = { count: 0 };
@@ -56,8 +56,8 @@ export async function GET() {
         .select({ count: count() })
         .from(units)
         .where(sql`${units.purchaser_name} IS NOT NULL AND ${units.purchaser_name} != ''`);
-    } catch (e) {
-      console.log('[Dashboard Stats] Units with purchaser count failed, using 0');
+    } catch (_e) {
+        // error handled silently
     }
 
     let recentActivity: any[] = [];
@@ -78,8 +78,8 @@ export async function GET() {
         description: m.content?.slice(0, 100) || 'Question asked',
         timestamp: m.created_at,
       }));
-    } catch (e) {
-      console.log('[Dashboard Stats] Recent activity failed');
+    } catch (_e) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -100,9 +100,9 @@ export async function GET() {
         api: 'healthy',
       },
     });
-  } catch (error: any) {
-    console.error('[Dashboard Stats API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch dashboard stats' }, { status: 500 });

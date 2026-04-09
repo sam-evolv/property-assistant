@@ -73,7 +73,6 @@ export async function GET(
     return NextResponse.json({ notes });
 
   } catch (error) {
-    console.error('[Pipeline Notes] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch notes' }, { status: 500 });
   }
 }
@@ -122,7 +121,6 @@ export async function POST(
     return NextResponse.json({ note: newNote });
 
   } catch (error) {
-    console.error('[Pipeline Notes] Error creating:', error);
     return NextResponse.json({ error: 'Failed to create note' }, { status: 500 });
   }
 }
@@ -179,7 +177,6 @@ export async function PATCH(
     return NextResponse.json({ note: updated });
 
   } catch (error) {
-    console.error('[Pipeline Notes] Error updating:', error);
     return NextResponse.json({ error: 'Failed to update note' }, { status: 500 });
   }
 }

@@ -46,7 +46,6 @@ export async function GET(request: NextRequest) {
     const { data: units, error } = await query;
 
     if (error) {
-      console.error('[QR Bulk] Error fetching units:', error);
       return NextResponse.json(
         { error: 'Failed to fetch units' },
         { status: 500 }
@@ -93,7 +92,6 @@ export async function GET(request: NextRequest) {
           zip.file(`${safeName}.png`, pngBuffer);
         }
       } catch (qrError) {
-        console.error(`[QR Bulk] Error generating QR for unit ${unit.id}:`, qrError);
         // Continue with other units
       }
     }
@@ -115,7 +113,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[QR Bulk] Error:', error);
     return NextResponse.json(
       { error: 'Failed to generate QR codes' },
       { status: 500 }

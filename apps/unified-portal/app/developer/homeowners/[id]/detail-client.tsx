@@ -132,8 +132,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
       } else {
         setError('Failed to load homeowner details');
       }
-    } catch (err) {
-      console.error('Failed to fetch homeowner details:', err);
+    } catch {
       setError('An error occurred while loading homeowner details');
     } finally {
       setLoading(false);
@@ -147,8 +146,8 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         const result = await response.json();
         setDevelopments(result.developments || []);
       }
-    } catch (err) {
-      console.error('Failed to fetch developments:', err);
+    } catch {
+      // failed to fetch developments
     }
   }
 
@@ -168,8 +167,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         const errorData = await response.json();
         alert(errorData.error || 'Failed to save changes');
       }
-    } catch (err) {
-      console.error('Failed to save:', err);
+    } catch {
       alert('An error occurred while saving');
     } finally {
       setSaving(false);
@@ -189,8 +187,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         const errorData = await response.json();
         alert(errorData.error || 'Failed to delete homeowner');
       }
-    } catch (err) {
-      console.error('Failed to delete:', err);
+    } catch {
       alert('An error occurred while deleting');
     } finally {
       setDeleting(false);
@@ -225,8 +222,8 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         document.body.removeChild(a);
         window.URL.revokeObjectURL(url);
       }
-    } catch (err) {
-      console.error('Failed to download QR code:', err);
+    } catch {
+      // failed to download QR code
     }
   }
 

@@ -20,14 +20,11 @@ function getSupabaseClient() {
 }
 
 export async function GET(request: NextRequest) {
-  console.log("[docs-list/download] GET handler invoked");
   try {
     const { searchParams } = new URL(request.url);
     const token = searchParams.get('token');
     const unitUid = searchParams.get('unitUid');
     const docId = searchParams.get('docId');
-
-    console.log('[docs-list/download] Request:', { unitUid, docId, tokenProvided: !!token });
 
     if (!unitUid || !docId) {
       return NextResponse.json(
@@ -43,7 +40,6 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
-    console.log('[docs-list/download] Token validated (showhouse:', tokenResult.isShowhouse, ')');
 
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isUuid = uuidPattern.test(unitUid);
@@ -94,7 +90,6 @@ export async function GET(request: NextRequest) {
           unitId: unitUid,
         });
       } catch (err) {
-        console.error('[docs-list/download] Failed to track download:', err);
         // Do not throw - continue to serve file
       }
     };
@@ -110,7 +105,6 @@ export async function GET(request: NextRequest) {
         .single();
       
       if (error || !section) {
-        console.error('[docs-list/download] Supabase section not found:', error);
         return NextResponse.json(
           { error: 'Document not found' },
           { status: 404 }
@@ -125,7 +119,6 @@ export async function GET(request: NextRequest) {
         );
       }
       
-      console.log('[docs-list/download] Redirecting to Supabase file:', fileUrl);
       // Fire and forget - don't block the redirect
       trackDownload(section.metadata?.title || sectionId).catch(() => {});
       return NextResponse.redirect(fileUrl);
@@ -152,12 +145,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('[docs-list/download] Redirecting to Drizzle file:', fileUrl);
     // Fire and forget - don't block the redirect
     trackDownload(doc[0].title || docId).catch(() => {});
     return NextResponse.redirect(fileUrl);
   } catch (error) {
-    console.error('[docs-list/download] ERROR:', error);
     return NextResponse.json(
       { error: 'Failed to download document', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

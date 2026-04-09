@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db, dataAccessLog, admins } from '@openhouse/db';
-import { desc, eq, gte, lte, sql, ilike, or, and, type SQL } from 'drizzle-orm';
+import { db, dataAccessLog } from '@openhouse/db';
+import { desc, eq, gte, sql, ilike, or, and, type SQL } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
@@ -79,9 +79,9 @@ export async function GET(request: NextRequest) {
       limit,
       offset,
     });
-  } catch (error: any) {
-    console.error('[Audit Log API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch audit logs' }, { status: 500 });

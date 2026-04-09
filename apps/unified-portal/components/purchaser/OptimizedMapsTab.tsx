@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Store, X, Phone, Globe, Clock, Star, MapPin, Loader2 } from 'lucide-react';
+import { Building2, Beer, Coffee, Hammer, Dog, School, Zap, Fuel as FuelIcon, ShoppingCart, Trees, Store, Star, MapPin, Loader2 } from 'lucide-react';
 
 interface OptimizedMapsTabProps {
   address: string;
@@ -41,7 +41,6 @@ const FILTER_CATEGORIES: FilterCategory[] = [
   { id: 'restaurants', label: 'Restaurants', icon: <Store className="w-4 h-4" />, placeType: 'restaurant' },
   { id: 'gyms', label: 'Gyms', icon: <Trees className="w-4 h-4" />, placeType: 'gym' },
 ];
-
 
 // Module-level promise — ensures we only load the script once even if called multiple times
 let _mapsLoadPromise: Promise<void> | null = null;
@@ -159,7 +158,6 @@ export default function OptimizedMapsTab({
       try {
         setFavorites(JSON.parse(savedFavorites));
       } catch (e) {
-        console.error('Failed to load favorites:', e);
       }
     }
   }, []);
@@ -177,7 +175,6 @@ export default function OptimizedMapsTab({
         if (!mounted) return;
         setScriptLoaded(true);
       } catch (error) {
-        console.error('[Maps] Failed to load script:', error);
         if (mounted) setMapError(true);
       }
     };
@@ -248,7 +245,6 @@ export default function OptimizedMapsTab({
       homeMarkerRef.current = homeMarker;
       setMapLoaded(true);
     } catch (error) {
-      console.error('[Maps] Error:', error);
       setMapError(true);
     }
   }, [scriptLoaded, latitude, longitude, developmentName, isDarkMode]);
@@ -286,7 +282,6 @@ export default function OptimizedMapsTab({
 
   const searchNearbyPlaces = useCallback((category: FilterCategory, filterId: string) => {
     if (!mapInstanceRef.current || !placesServiceRef.current) {
-      console.log('[Maps] Search skipped - no map or places service');
       return;
     }
 
@@ -306,7 +301,6 @@ export default function OptimizedMapsTab({
         const { results: cachedResults, timestamp } = JSON.parse(cached);
         const AGE_LIMIT = 24 * 60 * 60 * 1000; // 24 hours
         if (Date.now() - timestamp < AGE_LIMIT && Array.isArray(cachedResults) && cachedResults.length > 0) {
-          console.log('[Maps] Cache hit for', category.placeType, '—', cachedResults.length, 'places');
           setLocations(cachedResults);
           // Re-render markers from cached data
           cachedResults.forEach((place: any, index: number) => {
@@ -335,7 +329,6 @@ export default function OptimizedMapsTab({
     }
 
     setLocations([]); // Clear list while fetching live results
-    console.log('[Maps] Fetching live Places data for', category.placeType, 'near', mapLat, mapLng);
 
     const request = {
       location: new window.google.maps.LatLng(mapLat, mapLng),
@@ -344,7 +337,6 @@ export default function OptimizedMapsTab({
     };
 
     placesServiceRef.current.nearbySearch(request, (results: any[], status: any) => {
-      console.log('[Maps] Search results:', status, results?.length || 0, 'places');
       
       // Only update if this filter is still selected (prevent race conditions)
       if (status === window.google.maps.places.PlacesServiceStatus.OK && results) {
@@ -364,7 +356,6 @@ export default function OptimizedMapsTab({
         } catch (e) { /* storage quota exceeded — skip caching */ }
 
         setLocations(newLocations);
-        console.log('[Maps] Updated locations list with', newLocations.length, 'places for', filterId);
 
         // Create gold markers for each result
         results.forEach((place, index) => {
@@ -421,9 +412,7 @@ export default function OptimizedMapsTab({
           }
         });
         
-        console.log('[Maps] Created', placeMarkersRef.current.length, 'gold markers');
       } else if (status === window.google.maps.places.PlacesServiceStatus.ZERO_RESULTS) {
-        console.log('[Maps] No results found for', category.placeType);
         setLocations([]);
       }
     });

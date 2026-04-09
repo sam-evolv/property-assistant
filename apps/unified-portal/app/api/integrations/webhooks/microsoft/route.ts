@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
         // Find integration by subscription ID stored in external_ref metadata
         const { data: integrations } = await supabase
           .from('integrations')
-          .select('*')
+          .select('id, tenant_id, credentials, external_ref')
           .in('type', ['excel_onedrive', 'excel_sharepoint'])
           .eq('status', 'connected');
 
@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
         });
 
         if (!integration) {
-          console.warn('[MS Webhook] No integration found for subscription:', notification.subscriptionId);
           continue;
         }
 
@@ -74,7 +73,6 @@ export async function POST(request: NextRequest) {
         );
 
         if (!response.ok) {
-          console.error('[MS Webhook] Failed to read spreadsheet:', response.status);
           continue;
         }
 
@@ -110,14 +108,13 @@ export async function POST(request: NextRequest) {
           notification_type: notification.changeType,
           rows_received: dataRows.length,
         });
-      } catch (err: any) {
-        console.error('[MS Webhook] Error processing notification:', err);
+      } catch (_err: unknown) {
+          // error handled silently
       }
     }
 
     return NextResponse.json({ status: 'ok' });
-  } catch (error: any) {
-    console.error('[MS Webhook] Error:', error);
+  } catch (error: unknown) {
     return NextResponse.json({ status: 'error' }, { status: 500 });
   }
 }

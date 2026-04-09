@@ -147,11 +147,7 @@ export async function extractFloorPlanRooms(
     const pdfParse = pdfMod.default ?? pdfMod;
     const pdfData = await pdfParse(pdfBuffer);
     extractedText = pdfData.text?.trim() || '';
-  } catch (err) {
-    console.warn(
-      '[FloorPlan] PDF text extraction failed:',
-      err instanceof Error ? err.message : 'err',
-    );
+  } catch {
     return {
       rooms: [],
       house_type_code: null,
@@ -253,11 +249,7 @@ export async function extractFloorPlanRooms(
       confidence: Math.round(avgConfidence * 1000) / 1000,
       raw_text_length: extractedText.length,
     };
-  } catch (err) {
-    console.error(
-      '[FloorPlan] GPT extraction failed:',
-      err instanceof Error ? err.message : 'err',
-    );
+  } catch {
     return {
       rooms: [],
       house_type_code: null,

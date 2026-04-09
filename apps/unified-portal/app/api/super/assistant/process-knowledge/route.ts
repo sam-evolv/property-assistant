@@ -97,7 +97,6 @@ Guidelines:
     try {
       parsed = JSON.parse(responseText);
     } catch (e) {
-      console.error('Failed to parse GPT response:', responseText);
       return NextResponse.json({ 
         error: 'Failed to parse AI response',
         raw: responseText 
@@ -131,7 +130,6 @@ Guidelines:
       }
     });
   } catch (err) {
-    console.error('Error processing knowledge:', err);
     return NextResponse.json({ error: 'Failed to process content' }, { status: 500 });
   }
 }

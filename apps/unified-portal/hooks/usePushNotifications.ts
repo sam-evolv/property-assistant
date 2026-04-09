@@ -34,8 +34,8 @@ export function usePushNotifications({ unitUid, token, enabled = true }: UsePush
         // Fallback to Web Push
         await tryWebPush(unitUid, token!);
         registered.current = true;
-      } catch (error) {
-        console.log('[PushNotifications] Init failed (non-critical):', error);
+      } catch {
+        // Init failed (non-critical)
       }
     }
 
@@ -62,7 +62,6 @@ async function tryCapacitorPush(unitUid: string, token: string): Promise<boolean
     // Request permission
     const permResult = await PushNotifications.requestPermissions();
     if (permResult.receive !== 'granted') {
-      console.log('[PushNotifications] Permission not granted');
       return true; // Still native, just no permission
     }
 
@@ -75,13 +74,13 @@ async function tryCapacitorPush(unitUid: string, token: string): Promise<boolean
     });
 
     // Listen for registration errors
-    PushNotifications.addListener('registrationError', (error: any) => {
-      console.error('[PushNotifications] Registration error:', error);
+    PushNotifications.addListener('registrationError', (_error: any) => {
+      // Registration error handled silently
     });
 
     // Foreground notifications
-    PushNotifications.addListener('pushNotificationReceived', (notification: any) => {
-      console.log('[PushNotifications] Received in foreground:', notification.title);
+    PushNotifications.addListener('pushNotificationReceived', (_notification: any) => {
+      // Received in foreground
     });
 
     // Notification taps
@@ -112,7 +111,6 @@ async function tryWebPush(unitUid: string, token: string): Promise<void> {
     const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
 
     if (!vapidPublicKey) {
-      console.log('[PushNotifications] VAPID public key not configured');
       return;
     }
 
@@ -132,8 +130,8 @@ async function tryWebPush(unitUid: string, token: string): Promise<void> {
       subscriptionJson.keys?.p256dh,
       subscriptionJson.keys?.auth
     );
-  } catch (error) {
-    console.log('[PushNotifications] Web push setup failed:', error);
+  } catch {
+    // Web push setup failed
   }
 }
 
@@ -160,9 +158,9 @@ async function registerDeviceToken(
         auth_key: authKey,
       }),
     });
-    console.log(`[PushNotifications] Device registered (${platform})`);
-  } catch (error) {
-    console.error('[PushNotifications] Failed to register device:', error);
+    // Device registered
+  } catch {
+    // Failed to register device
   }
 }
 

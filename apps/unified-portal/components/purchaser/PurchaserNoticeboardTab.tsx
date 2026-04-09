@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Bell, Calendar, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
+import { Bell, Plus, X, MessageCircle, Send, Trash2, ChevronLeft } from 'lucide-react';
 import NoticeboardTermsModal from './NoticeboardTermsModal';
 import SessionExpiredModal from './SessionExpiredModal';
 import { getEffectiveToken } from '../../lib/purchaserSession';
@@ -575,7 +575,6 @@ export default function PurchaserNoticeboardTab({
         setTermsAccepted(data.termsAccepted);
       }
     } catch (error) {
-      console.error('Failed to check terms status:', error);
       setTermsAccepted(false);
     }
   };
@@ -605,7 +604,6 @@ export default function PurchaserNoticeboardTab({
         setPendingAction(null);
       }
     } catch (error) {
-      console.error('Failed to accept terms:', error);
     } finally {
       setAcceptingTerms(false);
     }
@@ -624,15 +622,6 @@ export default function PurchaserNoticeboardTab({
     try {
       const token = propToken || getEffectiveToken(unitUid);
 
-      console.log('[Noticeboard] fetchNotices called', {
-        propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-        effectiveToken: token ? `${token.substring(0, 8)}...` : 'undefined',
-        unitUid,
-        tokenSource: propToken ? 'prop' : 'storage',
-        isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(token || ''),
-        isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
-      });
-
       const res = await fetch(
         `/api/purchaser/noticeboard?unitUid=${unitUid}&token=${encodeURIComponent(token)}`
       );
@@ -645,7 +634,6 @@ export default function PurchaserNoticeboardTab({
         setNotices(data.notices || []);
       }
     } catch (error) {
-      console.error('Failed to fetch notices:', error);
     } finally {
       setLoading(false);
     }
@@ -668,7 +656,6 @@ export default function PurchaserNoticeboardTab({
         setComments(data.comments || []);
       }
     } catch (error) {
-      console.error('Failed to fetch comments:', error);
     } finally {
       setLoadingComments(false);
     }
@@ -713,7 +700,6 @@ export default function PurchaserNoticeboardTab({
         alert(t.commentFailed);
       }
     } catch (error) {
-      console.error('Failed to submit comment:', error);
       alert(t.commentFailed);
     } finally {
       setSubmittingComment(false);
@@ -738,7 +724,6 @@ export default function PurchaserNoticeboardTab({
         setComments((prev) => prev.filter((c) => c.id !== commentId));
       }
     } catch (error) {
-      console.error('Failed to delete comment:', error);
     }
   };
 
@@ -776,12 +761,10 @@ export default function PurchaserNoticeboardTab({
         setNoticeAuthorName('');
         fetchNotices();
       } else {
-        console.error('[Noticeboard POST] Server error:', res.status, data);
         const errorMsg = data?.error || t.submitFailed;
         alert(errorMsg);
       }
     } catch (error) {
-      console.error('[Noticeboard POST] Network error:', error);
       alert(t.submitFailed);
     } finally {
       setCreating(false);

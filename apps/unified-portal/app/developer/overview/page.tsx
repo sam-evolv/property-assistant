@@ -323,7 +323,6 @@ export default function DeveloperOverviewPage() {
 
   const handleExport = () => {
     // TODO: Implement export functionality
-    console.log('Export clicked');
   };
 
   const handleSendEmail = () => {

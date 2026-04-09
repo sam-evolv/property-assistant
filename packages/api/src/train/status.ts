@@ -21,7 +21,6 @@ export async function createJob(
   }).returning({ id: training_jobs.id });
   
   const jobId = result[0].id;
-  console.log(`📋 Created training job: ${jobId}`);
   return jobId;
 }
 
@@ -57,7 +56,6 @@ export async function updateJobStatus(
     .set(updates)
     .where(eq(training_jobs.id, jobId));
   
-  console.log(`📊 Job ${jobId} status: ${status} (progress: ${updates.progress}%)`);
 }
 
 export async function updateJobProgress(

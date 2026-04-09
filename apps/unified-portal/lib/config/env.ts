@@ -14,7 +14,6 @@ const envSchema = z.object({
 function parseEnv() {
   const result = envSchema.safeParse(process.env);
   if (!result.success) {
-    console.error('[ENV CONFIG] Invalid environment configuration:', result.error.format());
     return {
       APP_ENV: 'dev' as AppEnv,
       DB_WRITE_ENABLED: undefined,
@@ -82,18 +81,10 @@ export function validateStagingProdConfig(): { valid: boolean; errors: string[] 
 }
 
 export function logEnvConfig(): void {
-  console.log('[ENV CONFIG] Environment:', APP_ENV);
-  console.log('[ENV CONFIG] Feature Flags:', {
-    DB_WRITE_ENABLED: FEATURE_FLAGS.DB_WRITE_ENABLED,
-    ALLOW_DESTRUCTIVE_DB: FEATURE_FLAGS.ALLOW_DESTRUCTIVE_DB,
-    ENABLE_RATE_LIMITS: FEATURE_FLAGS.ENABLE_RATE_LIMITS,
-    ENABLE_AUDIT_LOGS: FEATURE_FLAGS.ENABLE_AUDIT_LOGS,
-  });
-  
   if (IS_STAGING || IS_PROD) {
     const validation = validateStagingProdConfig();
     if (!validation.valid) {
-      console.error('[ENV CONFIG] Validation errors:', validation.errors);
+      // validation errors exist but logging is removed
     }
   }
 }

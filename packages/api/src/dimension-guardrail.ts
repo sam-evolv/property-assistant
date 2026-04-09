@@ -37,7 +37,6 @@ export async function getRoomDimensionSettings(tenantId: string): Promise<RoomDi
 
     return DEFAULT_DIMENSION_SETTINGS;
   } catch (error) {
-    console.log('[DIMENSION-SETTINGS] Failed to fetch settings, using defaults:', error);
     return DEFAULT_DIMENSION_SETTINGS;
   }
 }
@@ -189,10 +188,6 @@ export async function getCanonicalRoomDimension(
 ): Promise<DimensionLookupResult> {
   const canonicalRoomName = normalizeToCanonicalRoomName(roomKey);
   
-  console.log(`\n🔍 DIMENSION GUARDRAIL: Looking up "${roomKey}" for ${houseTypeCode}`);
-  console.log(`   📌 Canonical room name: ${canonicalRoomName}`);
-  console.log(`   📌 Unit ID: ${unitId || 'not specified'}`);
-  
   if (unitId) {
     const verifiedUnitResult = await db.execute<{
       room_name: string;
@@ -218,8 +213,7 @@ export async function getCanonicalRoomDimension(
     
     if (verifiedUnitResult.rows && verifiedUnitResult.rows.length > 0) {
       const room = verifiedUnitResult.rows[0];
-      console.log(`   ✅ PRIORITY 1: Found verified unit-level dimension: ${room.area_sqm} m²`);
-      
+
       return {
         found: true,
         room: {
@@ -264,8 +258,7 @@ export async function getCanonicalRoomDimension(
   
   if (verifiedHouseTypeResult.rows && verifiedHouseTypeResult.rows.length > 0) {
     const room = verifiedHouseTypeResult.rows[0];
-    console.log(`   ✅ PRIORITY 2: Found verified house-type-level dimension: ${room.area_sqm} m²`);
-    
+
     return {
       found: true,
       room: {
@@ -308,8 +301,7 @@ export async function getCanonicalRoomDimension(
   
   if (unverifiedVisionResult.rows && unverifiedVisionResult.rows.length > 0) {
     const room = unverifiedVisionResult.rows[0];
-    console.log(`   ⚠️ PRIORITY 3: Found unverified vision extraction: ${room.area_sqm} m² (needs verification)`);
-    
+
     return {
       found: true,
       room: {
@@ -349,8 +341,7 @@ export async function getCanonicalRoomDimension(
     
     if (rooms[roomKey] && (rooms[roomKey].length_m || rooms[roomKey].area_sqm)) {
       const room = rooms[roomKey];
-      console.log(`   ⚠️ PRIORITY 4: Found in intelligence profile: ${room.length_m}m × ${room.width_m}m`);
-      
+
       return {
         found: true,
         room: {
@@ -371,7 +362,6 @@ export async function getCanonicalRoomDimension(
     const normalizedKey = normalizeRoomKey(roomKey);
     for (const [key, value] of Object.entries(rooms)) {
       if (normalizeRoomKey(key) === normalizedKey && value && (value.length_m || value.area_sqm)) {
-        console.log(`   ⚠️ PRIORITY 4: Found in profile (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
         return {
           found: true,
           room: {
@@ -409,8 +399,7 @@ export async function getCanonicalRoomDimension(
     const dims = ht.dimensions || {};
     if (dims[roomKey] && (dims[roomKey].length || dims[roomKey].area)) {
       const room = dims[roomKey];
-      console.log(`   ✅ PRIORITY 5a: Found in house_types.dimensions: ${room.length}m × ${room.width}m`);
-      
+
       return {
         found: true,
         room: {
@@ -430,7 +419,6 @@ export async function getCanonicalRoomDimension(
     const normalizedKeyDims = normalizeRoomKey(roomKey);
     for (const [key, value] of Object.entries(dims)) {
       if (normalizeRoomKey(key) === normalizedKeyDims && value && (value.length || value.area)) {
-        console.log(`   ✅ PRIORITY 5a: Found in house_types.dimensions (fuzzy): ${value.length}m × ${value.width}m`);
         return {
           found: true,
           room: {
@@ -452,8 +440,7 @@ export async function getCanonicalRoomDimension(
     
     if (roomDims[roomKey] && (roomDims[roomKey].length_m || roomDims[roomKey].area_sqm)) {
       const room = roomDims[roomKey];
-      console.log(`   ⚠️ PRIORITY 5: Found in house_types: ${room.length_m}m × ${room.width_m}m`);
-      
+
       return {
         found: true,
         room: {
@@ -473,7 +460,6 @@ export async function getCanonicalRoomDimension(
     const normalizedKey = normalizeRoomKey(roomKey);
     for (const [key, value] of Object.entries(roomDims)) {
       if (normalizeRoomKey(key) === normalizedKey && value && (value.length_m || value.area_sqm)) {
-        console.log(`   ⚠️ PRIORITY 5: Found in house_types (fuzzy match): ${value.length_m}m × ${value.width_m}m`);
         return {
           found: true,
           room: {
@@ -492,7 +478,6 @@ export async function getCanonicalRoomDimension(
     }
   }
   
-  console.log(`   ❌ No dimension data found for "${roomKey}" - will suggest floorplan fallback`);
   return {
     found: false,
     reason: `No verified dimension data found for "${formatRoomNameForDisplay(roomKey)}" in ${houseTypeCode}`,
@@ -783,19 +768,16 @@ export function containsFabricatedDimensions(
   
   const dimensionMatches = text.match(DIMENSION_REGEX);
   if (dimensionMatches && dimensionMatches.length >= 2) {
-    console.log(`⚠️  DIMENSION VALIDATOR: Detected potential fabrication - ${dimensionMatches.length} dimension values found`);
     return true;
   }
   
   const crossMatches = text.match(DIMENSION_CROSS_REGEX);
   if (crossMatches) {
-    console.log(`⚠️  DIMENSION VALIDATOR: Detected potential fabrication - "X by Y" pattern found`);
     return true;
   }
   
   const areaPatterns = /approximately\s+\d+(?:\.\d+)?\s*m²|floor\s+area\s+of\s+(?:about\s+)?\d+(?:\.\d+)?/gi;
   if (areaPatterns.test(text)) {
-    console.log(`⚠️  DIMENSION VALIDATOR: Detected potential fabrication - area measurement found`);
     return true;
   }
   
@@ -827,7 +809,6 @@ export async function applyDimensionGuardrail(
 
   // If the feature is disabled, don't intercept - let it fall through to RAG
   if (!settings.enabled) {
-    console.log('⚠️  DIMENSION GUARDRAIL: Feature disabled for tenant - falling back to floor plan suggestion');
     return {
       shouldIntercept: true,
       groundedAnswer: settings.attach_floorplans
@@ -846,7 +827,6 @@ export async function applyDimensionGuardrail(
   }
 
   if (!houseTypeCode) {
-    console.log('⚠️  DIMENSION GUARDRAIL: No house type code - cannot lookup dimensions');
     return {
       shouldIntercept: true,
       groundedAnswer: SAFE_DIMENSION_FALLBACK,
@@ -869,7 +849,6 @@ export async function applyDimensionGuardrail(
         lookupSuccessful: true,
       };
     } else {
-      console.log(`⚠️  DIMENSION GUARDRAIL: Low confidence (${confidence}) - using safe fallback`);
       return {
         shouldIntercept: true,
         groundedAnswer: SAFE_DIMENSION_FALLBACK_SPECIFIC(lookup.room.room_name, houseTypeCode),
@@ -903,7 +882,6 @@ export function validateLLMResponseForDimensions(
   }
   
   if (containsFabricatedDimensions(llmResponse, wasCanonicalLookupSuccessful)) {
-    console.log('❌ DIMENSION VALIDATOR: Discarding LLM response with fabricated dimensions');
     return {
       isValid: false,
       sanitizedResponse: "I don't have the exact dimensions for that room in my database yet. Your official floor plan shows all room measurements clearly - you can find it in your Documents section under 'Floor Plans'.",

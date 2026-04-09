@@ -39,8 +39,9 @@ export function HomeownerEditForm({
 
     try {
       await updateHomeowner(homeowner.id, formData);
-    } catch (err: any) {
-      setError(err.message || 'Failed to update homeowner');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage || 'Failed to update homeowner');
       setLoading(false);
     }
   }
@@ -55,8 +56,9 @@ export function HomeownerEditForm({
 
     try {
       await deleteHomeowner(homeowner.id);
-    } catch (err: any) {
-      setError(err.message || 'Failed to delete homeowner');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage || 'Failed to delete homeowner');
       setDeleting(false);
     }
   }

@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { btrAmenities, amenityBookings } from '@openhouse/db/schema';
-import { eq, and, desc } from 'drizzle-orm';
+import { btrAmenities } from '@openhouse/db/schema';
+import { eq, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export async function GET(
@@ -21,11 +21,10 @@ export async function GET(
       .orderBy(desc(btrAmenities.created_at));
 
     return NextResponse.json({ amenities });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -48,11 +47,10 @@ export async function POST(
       .returning();
 
     return NextResponse.json({ amenity }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

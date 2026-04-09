@@ -9,7 +9,6 @@ import { eq } from 'drizzle-orm';
 function getBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
   if (!baseUrl) {
-    console.error('[QR Generate] NEXT_PUBLIC_APP_URL is not set - QR codes will not work correctly');
     throw new Error('NEXT_PUBLIC_APP_URL environment variable is required for QR code generation');
   }
   return baseUrl.trim().replace(/\/+$/, '');
@@ -74,7 +73,6 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error('[QR Generate] Error:', error);
     return NextResponse.json(
       { error: 'Failed to generate QR code' },
       { status: 500 }

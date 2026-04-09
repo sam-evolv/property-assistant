@@ -92,7 +92,6 @@ export async function GET(request: NextRequest) {
       handover_ready: handoverReady,
     });
   } catch (error) {
-    console.error('[dev-app/overview/stats] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

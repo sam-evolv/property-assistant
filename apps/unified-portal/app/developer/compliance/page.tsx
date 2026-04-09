@@ -380,8 +380,7 @@ export default function CompliancePage() {
       });
       
       setUnits(transformedUnits);
-    } catch (err) {
-      console.error('[Compliance] Fetch error:', err);
+    } catch {
       setError('Failed to load compliance data');
       setUnits([]);
     } finally {
@@ -409,10 +408,9 @@ export default function CompliancePage() {
     setUploadModal({ doc, unit });
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = async (_file: File) => {
     if (!uploadModal) return;
     
-    console.log('Uploading file:', file.name, 'for', uploadModal.doc.name, 'at', uploadModal.unit.address);
     setUploadModal(null);
     fetchData();
   };
@@ -433,8 +431,8 @@ export default function CompliancePage() {
         setNewDocType({ name: '', category: 'Certification' });
         fetchData();
       }
-    } catch (err) {
-      console.error('Error adding document type:', err);
+    } catch {
+      // add document type failed
     }
   };
 
@@ -453,8 +451,8 @@ export default function CompliancePage() {
       if (res.ok) {
         fetchData();
       }
-    } catch (err) {
-      console.error('Error removing document type:', err);
+    } catch {
+      // remove document type failed
     }
   };
 

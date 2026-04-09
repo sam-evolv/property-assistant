@@ -61,7 +61,6 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
         setCurrentVersion(devData.development?.important_docs_version || 1);
       }
     } catch (error) {
-      console.error('[ImportantDocs] Failed to load:', error);
       toast.error('Failed to load documents');
     } finally {
       setIsLoading(false);
@@ -102,8 +101,9 @@ export function ImportantDocsTab({ onRefresh }: ImportantDocsTabProps) {
 
       toast.success(isCurrentlyImportant ? 'Removed from must-read list' : 'Added to must-read list');
       loadDocuments();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update document');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      toast.error(errorMessage || 'Failed to update document');
     } finally {
       setUpdatingId(null);
     }

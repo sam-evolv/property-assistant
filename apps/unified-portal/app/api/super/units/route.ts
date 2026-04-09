@@ -46,7 +46,6 @@ export async function GET(request: NextRequest) {
     const { data: unitsData, error: unitsError, count } = await query;
 
     if (unitsError) {
-      console.error('[Units API] Query error:', unitsError);
       return NextResponse.json({ error: unitsError.message }, { status: 500 });
     }
 
@@ -119,13 +118,13 @@ export async function GET(request: NextRequest) {
         pending: totalCount - handedOver,
       },
     });
-  } catch (error: any) {
-    console.error('[API] /api/super/units error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch units' },
+      { error: errorMessage || 'Failed to fetch units' },
       { status: 500 }
     );
   }

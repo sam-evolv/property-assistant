@@ -36,8 +36,6 @@ export async function findDrawingForQuestion(
   unitUid: string,
   questionTopic: string
 ): Promise<DrawingResolverResult> {
-  console.log('[DrawingResolver] Finding drawing for:', { unitUid, questionTopic });
-  
   const drawingTypes = getDrawingTypeForQuestion(questionTopic);
   
   if (drawingTypes.length === 0) {
@@ -51,7 +49,6 @@ export async function findDrawingForQuestion(
   const houseTypeCode = await getUnitHouseType(unitUid);
   
   if (!houseTypeCode) {
-    console.log('[DrawingResolver] No house type found for unit:', unitUid);
     return {
       found: false,
       drawing: null,
@@ -59,7 +56,6 @@ export async function findDrawingForQuestion(
     };
   }
   
-  console.log('[DrawingResolver] House type:', houseTypeCode, 'Looking for:', drawingTypes);
   const supabase = getSupabaseClient();
   
   const { data: sections, error } = await supabase
@@ -70,7 +66,6 @@ export async function findDrawingForQuestion(
     .limit(50);
   
   if (error) {
-    console.error('[DrawingResolver] Supabase query error:', error);
     return {
       found: false,
       drawing: null,
@@ -79,7 +74,6 @@ export async function findDrawingForQuestion(
   }
   
   if (!sections || sections.length === 0) {
-    console.log('[DrawingResolver] No drawings found for house type:', houseTypeCode);
     return {
       found: false,
       drawing: null,
@@ -146,15 +140,13 @@ export async function findDrawingForQuestion(
           downloadUrl = downloadData.signedUrl;
         }
       }
-    } catch (urlError) {
-      console.error('[DrawingResolver] Error creating signed URL:', urlError);
+    } catch {
+      // signed URL creation failed — fall back to raw file URL
     }
   }
   
   const drawingType = matchedDrawing.drawing_type || 'floor_plan';
   const explanation = generateDrawingExplanation(drawingType, houseTypeCode, questionTopic);
-  
-  console.log('[DrawingResolver] Found drawing:', matchedDrawing.file_name);
   
   return {
     found: true,

@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ notes });
   } catch (error) {
-    console.error('[Notes GET] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch notes' },
       { status: 500 }
@@ -162,11 +161,8 @@ export async function POST(request: NextRequest) {
         updated_at: homeNotes.updated_at,
       });
 
-    console.log('[Notes POST] Created note:', note.id, 'category:', category, 'for unit:', unitUid);
-
     return NextResponse.json({ note }, { status: 201 });
   } catch (error) {
-    console.error('[Notes POST] Error:', error);
     return NextResponse.json(
       { error: 'Failed to create note' },
       { status: 500 }
@@ -222,7 +218,6 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ note: updated });
   } catch (error) {
-    console.error('[Notes PATCH] Error:', error);
     return NextResponse.json(
       { error: 'Failed to update note' },
       { status: 500 }

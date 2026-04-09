@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSession, isDeveloper, isSuperAdmin, canAccessDevelopment } from '@openhouse/api/session';
 import { db } from '@openhouse/db/client';
-import { homeowners, developments, messages, purchaserAgreements } from '@openhouse/db/schema';
-import { eq, and, inArray, sql, desc } from 'drizzle-orm';
+import { homeowners, developments, messages } from '@openhouse/db/schema';
+import { eq, and, inArray, sql } from 'drizzle-orm';
 import { randomBytes } from 'crypto';
 import { nanoid } from 'nanoid';
 
@@ -15,7 +15,6 @@ function generateRequestId(): string {
 }
 
 function errorResponse(error: string, status: number, requestId: string, details?: string) {
-  console.error(`[HOMEOWNERS][${requestId}] Error (${status}): ${error}${details ? ` - ${details}` : ''}`);
   return NextResponse.json(
     { error, requestId, details },
     { 
@@ -197,7 +196,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ homeowners: homeownersList });
   } catch (error) {
-    console.error('[HOMEOWNERS] Error fetching:', error);
     return NextResponse.json(
       { error: 'Failed to fetch homeowners' },
       { status: 500 }
@@ -266,8 +264,6 @@ export async function POST(request: NextRequest) {
       })
       .returning();
 
-    console.log(`[HOMEOWNERS][${requestId}] Created: ${cleanName} for development ${development.name} (${developmentId})`);
-
     return NextResponse.json(
       { homeowner, requestId }, 
       { 
@@ -275,7 +271,7 @@ export async function POST(request: NextRequest) {
         headers: { 'x-request-id': requestId }
       }
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     const errorMsg = error?.message || 'Unknown error';
     const errorCode = error?.code || 'UNKNOWN';
     

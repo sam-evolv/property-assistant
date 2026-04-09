@@ -249,7 +249,6 @@ export function UploadModal({
         });
       }
     } catch (error) {
-      console.error('[Upload] Error:', error);
       setFiles(prev => prev.map(f => 
         f.status === 'uploading'
           ? { ...f, status: 'failed' as const, error: error instanceof Error ? error.message : 'Upload failed' }

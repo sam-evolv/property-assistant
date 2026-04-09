@@ -23,8 +23,8 @@ export default function PreHandoverPage() {
         const res = await fetch('/api/purchaser/pre-handover');
         const json = await res.json();
         setData(json);
-      } catch (err) {
-        console.error('Failed to load pre-handover data:', err);
+      } catch {
+        // Failed to load pre-handover data
       } finally {
         setIsLoading(false);
       }

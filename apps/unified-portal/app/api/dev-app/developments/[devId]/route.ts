@@ -189,7 +189,6 @@ export async function GET(
       ...sectionData,
     });
   } catch (error) {
-    console.error('[dev-app/developments/[devId]] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

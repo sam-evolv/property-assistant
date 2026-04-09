@@ -8,9 +8,8 @@ dotenv.config();
 
 async function seed() {
   const connectionString = process.env.POSTGRES_URL || process.env.DATABASE_URL;
-  
+
   if (!connectionString) {
-    console.error('❌ DATABASE_URL or POSTGRES_URL not found in environment variables');
     process.exit(1);
   }
 
@@ -20,19 +19,14 @@ async function seed() {
 
   try {
     await client.connect();
-    console.log('✅ Connected to database');
 
     const db = drizzle(client, { schema });
 
-    console.log('🌱 Seeding database...');
-
     const existingTenants = await db.select().from(schema.tenants).limit(1);
-    
+
     let tenant;
     if (existingTenants.length > 0) {
-      console.log('⚠️  Tenant already exists. Using existing tenant...');
       tenant = existingTenants[0];
-      console.log(`✅ Using tenant: ${tenant.name} (ID: ${tenant.id})`);
     } else {
       [tenant] = await db
         .insert(schema.tenants)
@@ -42,8 +36,6 @@ async function seed() {
           logo_url: 'https://via.placeholder.com/200x80?text=Seaview+Estates',
         })
         .returning();
-
-      console.log(`✅ Created tenant: ${tenant.name} (ID: ${tenant.id})`);
     }
 
     const existingAdmins = await db
@@ -54,7 +46,6 @@ async function seed() {
 
     let admin;
     if (existingAdmins.length > 0) {
-      console.log('⚠️  Admin already exists. Skipping admin creation...');
       admin = existingAdmins[0];
     } else {
       [admin] = await db
@@ -65,7 +56,6 @@ async function seed() {
           role: 'admin',
         })
         .returning();
-      console.log(`✅ Created admin: ${admin.email}`);
     }
 
     const existingDocuments = await db.select().from(schema.documents).limit(1);
@@ -90,9 +80,6 @@ async function seed() {
         version: 2,
       },
       ]);
-      console.log('✅ Created 3 sample documents');
-    } else {
-      console.log('⚠️  Documents already exist. Skipping...');
     }
 
     const existingPois = await db.select().from(schema.pois).limit(1);
@@ -131,9 +118,6 @@ async function seed() {
         meta: { address: 'Lobby, Building A' },
       },
       ]);
-      console.log('✅ Created 4 sample POIs');
-    } else {
-      console.log('⚠️  POIs already exist. Skipping...');
     }
 
     const existingPosts = await db.select().from(schema.noticeboard_posts).limit(1);
@@ -152,22 +136,9 @@ async function seed() {
         author_id: admin.id,
       },
       ]);
-      console.log('✅ Created 2 sample noticeboard posts');
-    } else {
-      console.log('⚠️  Noticeboard posts already exist. Skipping...');
     }
 
-    console.log('\n🎉 Database seeded successfully!');
-    console.log('\n📋 Demo Tenant Details:');
-    console.log(`   Name: ${tenant.name}`);
-    console.log(`   Slug: ${tenant.slug}`);
-    console.log(`   Admin Email: ${admin.email}`);
-    console.log(`\n🔗 Access the app:`);
-    console.log(`   Resident App: http://localhost:5000`);
-    console.log(`   Master Admin: http://localhost:3000`);
-    
   } catch (error) {
-    console.error('❌ Error seeding database:', error);
     process.exit(1);
   } finally {
     await client.end();

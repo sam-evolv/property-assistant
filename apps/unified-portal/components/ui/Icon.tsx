@@ -193,7 +193,6 @@ export function Icon({
   const IconComponent = iconMap[name];
 
   if (!IconComponent) {
-    console.warn(`Icon "${name}" not found in icon map`);
     return null;
   }
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { C, TYPE, RADIUS, SHADOW, EASE, DURATION } from './tokens';
+import { C, TYPE, RADIUS, EASE, DURATION } from './tokens';
 
 function rv(on: boolean, delay: number, y = 14): React.CSSProperties {
   return {

@@ -39,7 +39,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ ragLatency });
   } catch (error) {
-    console.error('[API] /api/analytics-v2/rag-latency error:', error);
     return NextResponse.json({ error: 'Failed to fetch RAG latency' }, { status: 500 });
   }
 }

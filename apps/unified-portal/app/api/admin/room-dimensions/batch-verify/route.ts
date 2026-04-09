@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const updateData: Record<string, any> = {
+    const updateData: Record<string, unknown> = {
       verified: body.verified,
       updatedAt: new Date(),
     };
@@ -72,15 +72,12 @@ export async function POST(request: NextRequest) {
       )
       .returning({ id: unitRoomDimensions.id });
 
-    console.log(`[ROOM-DIMENSIONS] Batch verified ${updated.length} dimensions by ${session.email}, verified=${body.verified}`);
-
     return NextResponse.json({
       success: true,
       updated_count: updated.length,
       ids: updated.map(d => d.id),
     });
   } catch (error) {
-    console.error('[API] POST /api/admin/room-dimensions/batch-verify error:', error);
     return NextResponse.json(
       { error: 'Failed to batch verify room dimensions' },
       { status: 500 }

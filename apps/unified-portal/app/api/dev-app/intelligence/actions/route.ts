@@ -50,7 +50,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ actions: enriched });
   } catch (error) {
-    console.error('[dev-app/intelligence/actions] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

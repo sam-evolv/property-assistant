@@ -131,8 +131,8 @@ export default function KnowledgeBasePage() {
         const data = await requestsRes.json();
         setInfoRequests(data.requests || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
+    } catch {
+      // failed to fetch data
     } finally {
       setLoading(false);
     }
@@ -161,8 +161,7 @@ export default function KnowledgeBasePage() {
       setSelectedRequest(null);
       setResponseText('');
       fetchData();
-    } catch (error) {
-      console.error('Failed to respond:', error);
+    } catch {
       toast.error('Failed to save response');
     } finally {
       setSubmittingResponse(false);
@@ -192,8 +191,7 @@ export default function KnowledgeBasePage() {
       setEditingFaq(null);
       resetForm();
       fetchData();
-    } catch (error) {
-      console.error('Failed to save FAQ:', error);
+    } catch {
       toast.error('Failed to save FAQ');
     }
   };
@@ -207,8 +205,7 @@ export default function KnowledgeBasePage() {
 
       toast.success('FAQ deleted successfully');
       fetchData();
-    } catch (error) {
-      console.error('Failed to delete FAQ:', error);
+    } catch {
       toast.error('Failed to delete FAQ');
     }
   };

@@ -31,7 +31,6 @@ async function getAcknowledgedUnits(): Promise<Map<string, number>> {
     }
     return map;
   } catch (error) {
-    console.log('[HomeownersPage] Could not fetch purchaser_agreements (table may not exist)');
     return new Map();
   }
 }
@@ -53,7 +52,6 @@ export default async function HomeownersPage({
   
   // SECURITY: Require tenant context
   if (!tenantId) {
-    console.error('[HomeownersPage] SECURITY: No tenant context');
     redirect('/unauthorized');
   }
 
@@ -114,14 +112,13 @@ export default async function HomeownersPage({
     const { data: units, error: unitsError } = await unitsQuery;
     
     if (unitsError) {
-      console.error('Failed to fetch units from Supabase:', unitsError);
+      // failed to fetch units
     } else {
       unitsData = units || [];
     }
     
     // Fetch acknowledged unit data from purchaser_agreements table
     const acknowledgedUnits = await getAcknowledgedUnits();
-    console.log(`[HomeownersPage] Found ${acknowledgedUnits.size} acknowledged units in purchaser_agreements`);
     
     // Enrich units with development info, acknowledgement status, and purchaser name from pipeline
     unitsData = unitsData.map((u: any) => {
@@ -156,9 +153,8 @@ export default async function HomeownersPage({
       developmentData = unitsData[0].development;
     }
     
-    console.log(`[HomeownersPage] Loaded ${unitsData.length} units from Supabase, ${allProjects.length} projects`);
-  } catch (error) {
-    console.error('Failed to fetch units:', error);
+  } catch {
+    // failed to fetch units
   }
 
   return (

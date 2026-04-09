@@ -25,7 +25,6 @@ export function getBuildInfo() {
 
 export function incrementCriticalError(): void {
   criticalErrorCount++;
-  console.error(`[CRITICAL ERROR] Count incremented to ${criticalErrorCount}`);
 }
 
 export function getCriticalErrorCount(): number {

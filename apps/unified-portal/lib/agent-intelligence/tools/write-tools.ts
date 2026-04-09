@@ -244,7 +244,7 @@ export async function generateDeveloperReport(
     // Get pipeline data
     const { data: pipeline } = await supabase
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('unit_id, purchaser_name, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, kitchen_selected')
       .eq('tenant_id', tenantId)
       .eq('development_id', dev.id);
 

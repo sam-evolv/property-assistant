@@ -134,7 +134,7 @@ export async function getFieldMappings(integrationId: string): Promise<FieldMapp
 
   const { data, error } = await supabase
     .from('integration_field_mappings')
-    .select('*')
+    .select('id, integration_id, external_field, external_field_label, oh_table, oh_field, direction, transform_rule, is_active')
     .eq('integration_id', integrationId)
     .eq('is_active', true);
 
@@ -358,8 +358,8 @@ export async function syncInbound(
 
     // After successful inbound sync, refresh enrichment columns
     // (fire-and-forget — enrichment failure shouldn't block the sync result)
-    syncEnrichmentColumns(ctx.integration).catch(err => {
-      console.error('[Sync] Enrichment column refresh failed:', err.message);
+    syncEnrichmentColumns(ctx.integration).catch(() => {
+      // enrichment refresh failed — non-critical
     });
 
     return {
@@ -608,7 +608,6 @@ async function syncOutboundCRM(
       stats.records_updated++;
     } catch (err: any) {
       stats.records_errored++;
-      console.error('[Sync Outbound CRM] Error:', err.message);
     }
   }
 }
@@ -636,7 +635,7 @@ export async function triggerOutboundSync(
     // Find active integrations for this development with outbound/bidirectional sync
     const { data: integrations } = await supabase
       .from('integrations')
-      .select('*')
+      .select('id, tenant_id, development_id, type, name, status, credentials, sync_direction, sync_frequency, external_ref, last_sync_at')
       .eq('development_id', developmentId)
       .in('status', ['connected', 'syncing'])
       .in('sync_direction', ['outbound', 'bidirectional']);
@@ -674,15 +673,13 @@ export async function triggerOutboundSync(
           changes
         );
       } catch (err: any) {
-        console.error(`[Outbound Sync] Error for integration ${integration.id}:`, err.message);
         await logAudit(integration.tenant_id, 'sync.outbound_failed', 'system', {
           integration_id: integration.id,
           error: err.message,
         });
       }
     }
-  } catch (err: any) {
+  } catch {
     // Fire-and-forget: don't throw
-    console.error('[Outbound Sync] Trigger error:', err.message);
   }
 }

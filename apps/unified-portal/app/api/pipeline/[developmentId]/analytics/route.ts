@@ -144,7 +144,6 @@ export async function GET(
       .order('unit_number');
 
     if (unitsError) {
-      console.error('[Analytics API] Error fetching units:', unitsError);
       return NextResponse.json({ error: 'Failed to fetch analytics data' }, { status: 500 });
     }
 
@@ -522,7 +521,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Analytics API] Error:', error);
     return NextResponse.json({ error: 'Failed to calculate analytics' }, { status: 500 });
   }
 }

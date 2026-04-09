@@ -19,7 +19,6 @@ export async function initializeApiInfrastructure(): Promise<void> {
       initializeJobQueue();
       initialized = true;
     } catch (error) {
-      console.error('[API Init] Failed to start infrastructure:', error);
       // Don't throw - allow the app to continue without background workers
     }
   }

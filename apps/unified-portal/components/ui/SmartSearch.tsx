@@ -94,7 +94,6 @@ export function SmartSearch({
         const searchResults = await onSearch(searchQuery, activeFilters);
         setResults(searchResults.slice(0, maxResults));
       } catch (error) {
-        console.error('Search error:', error);
         setResults([]);
       } finally {
         setIsLoading(false);

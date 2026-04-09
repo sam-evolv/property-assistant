@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
-import { sql, and, gte, isNotNull, eq } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +93,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json(analysis);
   } catch (error) {
-    console.error('[API] /api/analytics-v2/question-analysis error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch question analysis' },
       { status: 500 }

@@ -115,8 +115,8 @@ export default function DataHubPage() {
 
       setConnections(connData.connections || [])
       setStats(statsData)
-    } catch (err) {
-      console.error('Failed to fetch data hub data:', err)
+    } catch {
+      // failed to fetch data hub data
     } finally {
       setLoading(false)
     }
@@ -153,8 +153,8 @@ export default function DataHubPage() {
       if (data.auth_url) {
         window.location.href = data.auth_url
       }
-    } catch (err) {
-      console.error('Failed to initiate OAuth:', err)
+    } catch {
+      // failed to initiate OAuth
     } finally {
       setConnecting(null)
     }
@@ -165,8 +165,8 @@ export default function DataHubPage() {
     try {
       await fetch(`/api/data-hub/sync?connectionId=${connectionId}`, { method: 'POST' })
       await fetchData()
-    } catch (err) {
-      console.error('Sync failed:', err)
+    } catch {
+      // sync failed
     } finally {
       setSyncingIds((prev) => {
         const next = new Set(prev)
@@ -180,8 +180,8 @@ export default function DataHubPage() {
     try {
       await fetch(`/api/data-hub/connections?id=${connectionId}`, { method: 'DELETE' })
       await fetchData()
-    } catch (err) {
-      console.error('Disconnect failed:', err)
+    } catch {
+      // disconnect failed
     }
   }
 
@@ -242,8 +242,8 @@ export default function DataHubPage() {
           }
         }
       })
-    } catch (err) {
-      console.error('Failed to toggle folder watch:', err)
+    } catch {
+      // failed to toggle folder watch
     }
   }
 
@@ -512,8 +512,8 @@ export default function DataHubPage() {
                                   : f
                               ),
                             }))
-                          } catch (err) {
-                            console.error('Failed to update development mapping:', err)
+                          } catch {
+                            // failed to update development mapping
                           }
                         }}
                       >

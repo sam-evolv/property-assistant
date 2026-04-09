@@ -85,8 +85,9 @@ export default function BTRUnitsPage() {
           const tenancyJson = await tenancyRes.json();
           setAllTenancies(tenancyJson.tenancies || []);
         }
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }
@@ -187,8 +188,8 @@ export default function BTRUnitsPage() {
       if (res.ok) {
         window.location.reload();
       }
-    } catch (err) {
-      console.error('Failed to end tenancy:', err);
+    } catch {
+      // failed to end tenancy
     } finally {
       setSubmitting(false);
     }
@@ -216,8 +217,8 @@ export default function BTRUnitsPage() {
         setNewTenancy({ tenant_name: '', tenant_email: '', tenant_phone: '', monthly_rent: '', lease_start: '' });
         window.location.reload();
       }
-    } catch (err) {
-      console.error('Failed to create tenancy:', err);
+    } catch {
+      // failed to create tenancy
     } finally {
       setSubmitting(false);
     }

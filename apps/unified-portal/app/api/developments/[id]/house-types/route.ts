@@ -37,11 +37,8 @@ export async function GET(
       .single();
 
     if (projectError || !project) {
-      console.error('[HouseTypes API] Project not found:', developmentId, projectError);
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
-
-    console.log(`[HouseTypes API] Fetching unit_types for project: ${project.name} (${developmentId})`);
 
     // Get unit types directly from the unit_types table
     // This is where house types are stored - units reference them via unit_type_id
@@ -52,12 +49,8 @@ export async function GET(
       .order('name');
 
     if (unitTypesError) {
-      console.error('[HouseTypes API] Error fetching unit_types:', unitTypesError);
       return NextResponse.json({ error: 'Failed to fetch unit types' }, { status: 500 });
     }
-
-    console.log(`[HouseTypes API] Found ${unitTypes?.length || 0} unit_types:`,
-      unitTypes?.map(ut => ut.name) || []);
 
     // Return unit types as house types
     if (unitTypes && unitTypes.length > 0) {
@@ -75,11 +68,9 @@ export async function GET(
     }
 
     // No unit types found
-    console.log(`[HouseTypes API] No unit_types found for development ${developmentId}`);
     return NextResponse.json({ houseTypes: [] });
 
   } catch (error) {
-    console.error('[HouseTypes API] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch house types' },
       { status: 500 }

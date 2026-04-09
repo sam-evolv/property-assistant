@@ -169,7 +169,6 @@ export default function HomeResidentPage() {
           // MAX_RETRIES = 3 means attempts 1, 2, 3 (not 0-indexed for user display)
           if (validateRes.status === 503 && attempt + 1 < MAX_RETRIES) {
             const nextAttempt = attempt + 1;
-            console.log(`[Home] Service temporarily unavailable, retrying in ${RETRY_DELAY_MS}ms (attempt ${nextAttempt + 1}/${MAX_RETRIES})`);
             setIsRetrying(true);
             setRetryCount(nextAttempt + 1);
             await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
@@ -202,15 +201,6 @@ export default function HomeResidentPage() {
           const effectiveToken = qrToken || unitUid;
           storeToken(unitUid, effectiveToken);
           setValidatedToken(effectiveToken);
-          
-          console.log('[Parent] Token validated and set', {
-            qrToken: qrToken ? `${qrToken.substring(0, 8)}...` : 'undefined',
-            effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 8)}...` : 'undefined',
-            unitUid,
-            tokenSource: qrToken ? 'qrToken' : 'unitUid fallback',
-            isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(effectiveToken || ''),
-            isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(effectiveToken || ''),
-          });
           
           // Map response format to HouseContext
           const houseData: HouseContext = {
@@ -266,13 +256,7 @@ export default function HomeResidentPage() {
               development_id: houseData.development_id,
               tenant_id: houseData.tenant_id,
             }),
-          }).then((res) => {
-            if (!res.ok) {
-              console.error('[ANALYTICS CRITICAL] qr_scan API returned non-OK status:', res.status);
-            }
-          }).catch((err) => {
-            console.error('[ANALYTICS CRITICAL] Failed to emit qr_scan event:', err);
-          });
+          }).catch(() => {});
 
           // Check important docs consent status
           checkImportantDocsConsent(unitId, qrToken || unitUid);
@@ -284,8 +268,7 @@ export default function HomeResidentPage() {
         } else {
           setError('Home not found.');
         }
-      } catch (error) {
-        console.error('Failed to fetch house:', error);
+      } catch {
         setError('Failed to load your home. Please try again.');
       } finally {
         setLoading(false);
@@ -320,25 +303,15 @@ export default function HomeResidentPage() {
       
       if (res.ok) {
         const data = await res.json();
-        console.log('[Purchaser] Important Docs Response:', {
-          requiresConsent: data.requiresConsent,
-          importantDocsCount: data.importantDocuments?.length || 0,
-          importantDocs: data.importantDocuments?.map((d: any) => ({ id: d.id, title: d.title })),
-        });
         setConsentRequired(data.requiresConsent);
         setImportantDocs(data.importantDocuments || []);
         
         if (data.requiresConsent && data.importantDocuments && data.importantDocuments.length > 0) {
-          console.log('[Purchaser] SHOWING CONSENT MODAL');
           setShowConsentModal(true);
-        } else {
-          console.log('[Purchaser] NOT showing modal - requiresConsent:', data.requiresConsent, 'docsLength:', data.importantDocuments?.length);
         }
-      } else {
-        console.error('[Purchaser] API returned non-OK status:', res.status);
       }
-    } catch (error) {
-      console.error('Failed to check important docs consent:', error);
+    } catch {
+      // Failed to check important docs consent
     }
   };
 
@@ -362,8 +335,7 @@ export default function HomeResidentPage() {
       } else {
         alert('Failed to record agreement. Please try again.');
       }
-    } catch (error) {
-      console.error('Failed to agree to important docs:', error);
+    } catch {
       alert('An error occurred. Please try again.');
     } finally {
       setAgreeingToDocs(false);

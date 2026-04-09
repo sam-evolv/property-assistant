@@ -152,15 +152,7 @@ export function dedupeAndFillAmenities(
     }
   }
   
-  if (debug) {
-    console.log('[POI] Dedupe - after min reservation:', {
-      supermarket: deduped.supermarket.length,
-      pharmacy: deduped.pharmacy.length,
-      gp: deduped.gp.length,
-      transport: deduped.transport.length,
-      cafe: deduped.cafe.length,
-    });
-  }
+  // debug: after min reservation counts available in deduped
   
   for (const cat of categoryOrder) {
     for (const item of rawCandidates[cat]) {
@@ -171,15 +163,7 @@ export function dedupeAndFillAmenities(
     }
   }
   
-  if (debug) {
-    console.log('[POI] Dedupe - final counts:', {
-      supermarket: deduped.supermarket.length,
-      pharmacy: deduped.pharmacy.length,
-      gp: deduped.gp.length,
-      transport: deduped.transport.length,
-      cafe: deduped.cafe.length,
-    });
-  }
+  // debug: final counts available in deduped
   
   return {
     supermarket: deduped.supermarket,
@@ -303,8 +287,6 @@ export interface SchemeLocationResult {
 }
 
 async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocationResult | null> {
-  console.log('[POI] Looking up location for supabaseProjectId:', supabaseProjectId);
-  
   // SINGLE SOURCE OF TRUTH: scheme_profile is the authoritative source for amenity locations
   // This ensures deterministic, scheme-scoped resolution
   const schemes = await db
@@ -319,12 +301,6 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     .limit(1);
 
   if (schemes.length > 0 && schemes[0].lat && schemes[0].lng) {
-    console.log('[POI] Found location in scheme_profile:', {
-      id: schemes[0].id,
-      lat: schemes[0].lat,
-      lng: schemes[0].lng,
-      address: schemes[0].address,
-    });
     return {
       lat: schemes[0].lat,
       lng: schemes[0].lng,
@@ -334,7 +310,6 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     };
   }
 
-  console.log('[POI] No location found in scheme_profile for:', supabaseProjectId);
   return null;
 }
 
@@ -354,8 +329,8 @@ async function geocodeAddress(address: string): Promise<{ lat: number; lng: numb
       const loc = data.results[0].geometry.location;
       return { lat: loc.lat, lng: loc.lng };
     }
-  } catch (err) {
-    console.error('[POI] Geocoding failed:', err);
+  } catch {
+    // geocoding failed
   }
   return null;
 }
@@ -387,13 +362,7 @@ function isCacheContentValid(results: POIResult[], category: POICategory): boole
     return keywords.some(kw => name.includes(kw.toLowerCase()));
   });
   
-  if (!hasValidResult && results.length > 0) {
-    console.warn(`[POI] Cache content validation failed for ${category}`, {
-      category,
-      expectedKeywords: keywords,
-      actualNames: results.slice(0, 3).map(r => r.name),
-    });
-  }
+  // validation result is returned via hasValidResult
   
   return hasValidResult;
 }
@@ -512,13 +481,6 @@ async function fetchFromGooglePlaces(
       lastHttpStatus = response.status;
       const data = await response.json();
 
-      console.log('[POI] Places API response:', {
-        type: placeType,
-        status: data.status,
-        resultCount: data.results?.length || 0,
-        httpStatus: response.status,
-      });
-
       if (data.status === 'OK' && data.results) {
         allResults.push(...data.results);
         lastErrorCode = 'OK';
@@ -528,17 +490,6 @@ async function fetchFromGooglePlaces(
         lastErrorCode = data.status as PlacesErrorCode;
         lastErrorMessage = data.error_message || `Google Places returned ${data.status}`;
         lastFailureReason = mapGoogleStatusToFailureReason(data.status);
-        
-        console.error('[POI] Google Places API error:', {
-          timestamp: new Date().toISOString(),
-          schemeId: 'unknown',
-          category,
-          lat,
-          lng,
-          httpStatus: response.status,
-          status: data.status,
-          errorMessage: lastErrorMessage,
-        });
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
@@ -551,14 +502,6 @@ async function fetchFromGooglePlaces(
         lastFailureReason = 'google_places_network_error';
       }
       
-      console.error('[POI] Places fetch error:', {
-        timestamp: new Date().toISOString(),
-        category,
-        lat,
-        lng,
-        errorType: error.name,
-        errorMessage: error.message,
-      });
     }
   }
 
@@ -593,11 +536,6 @@ async function fetchFromGooglePlaces(
     filteredResults = typeFiltered;
   } else if (filteredResults.length > 0) {
     // Google returned results but none matched our required types - this is a type mismatch
-    console.warn('[POI] Type mismatch: Google returned results but none matched required types', {
-      category,
-      requiredTypes: mapping.types,
-      returnedTypes: filteredResults.slice(0, 3).map(p => ({ name: p.name, types: p.types })),
-    });
     filteredResults = []; // Clear mismatched results
   }
 
@@ -670,8 +608,8 @@ async function fetchTravelTimes(
           }
         });
       }
-    } catch (error) {
-      console.error(`[POI] Distance Matrix error for ${mode}:`, error);
+    } catch {
+      // Distance Matrix request failed — skip travel times for this mode
     }
   }
 
@@ -719,8 +657,8 @@ async function storePOICache(
           ttl_days: DEFAULT_TTL_DAYS,
         });
     }
-  } catch (err) {
-    console.error('[POI] Failed to store cache (FK constraint?):', err);
+  } catch {
+    // cache store failed — non-critical
   }
 }
 
@@ -772,8 +710,6 @@ export async function getNearbyPOIs(
   schemeId: string,
   category: POICategory
 ): Promise<POICacheResult> {
-  console.log(`[POI] getNearbyPOIs called for scheme=${schemeId}, category=${category}`);
-
   const diagnostics: PlacesDiagnostics = {
     scheme_id: schemeId,
     category,
@@ -797,7 +733,6 @@ export async function getNearbyPOIs(
   }
 
   if (!location) {
-    console.error(`[POI] Scheme ${schemeId} has no location set in scheme_profile - returning deterministic failure`);
     diagnostics.failure_reason = 'missing_location';
     
     return {
@@ -809,7 +744,6 @@ export async function getNearbyPOIs(
   }
 
   if (!isValidCoordinate(location.lat, location.lng)) {
-    console.error(`[POI] Scheme ${schemeId} has invalid coordinates: lat=${location.lat}, lng=${location.lng}`);
     diagnostics.failure_reason = 'invalid_coordinates';
     diagnostics.places_error_message = `Invalid coordinates: lat=${location.lat}, lng=${location.lng}`;
     
@@ -831,11 +765,8 @@ export async function getNearbyPOIs(
   let foundUsableResults = false;
 
   for (const radius of ESCALATION_RADII) {
-    console.log(`[POI] Trying radius ${radius}m for ${category}`);
-    
     const cached = await getCachedPOIs(schemeId, category, radius);
     if (cached && cached.is_fresh) {
-      console.log(`[POI] Cache hit at ${radius}m: ${cached.results.length} results`);
       anyFreshDataAvailable = true;
       
       if (cached.results.length >= MIN_RESULTS_THRESHOLD) {
@@ -873,7 +804,6 @@ export async function getNearbyPOIs(
       continue;
     }
     
-    console.log(`[POI] Fetching fresh data from Google Places at ${location.lat}, ${location.lng} with radius ${radius}m`);
     anyApiFetchAttempted = true;
     const fetchResult = await fetchFromGooglePlaces(location.lat, location.lng, category, radius);
 
@@ -885,19 +815,6 @@ export async function getNearbyPOIs(
     if (!fetchResult.success) {
       diagnostics.failure_reason = fetchResult.failureReason;
       
-      console.error('[POI] Structured failure log:', {
-        timestamp: new Date().toISOString(),
-        scheme_id: schemeId,
-        category,
-        radius,
-        lat: location.lat,
-        lng: location.lng,
-        http_status: fetchResult.httpStatus,
-        api_status: fetchResult.errorCode,
-        error_message: fetchResult.errorMessage,
-        failure_reason: fetchResult.failureReason,
-      });
-
       continue;
     }
 
@@ -907,15 +824,12 @@ export async function getNearbyPOIs(
     
     if (results.length === 0) {
       await storePOICache(schemeId, category, [], radius);
-      console.log(`[POI] Cached empty results at ${radius}m`);
       escalationUsed = true;
       continue;
     }
     
-    console.log(`[POI] Fetching travel times for ${results.length} places`);
     results = await fetchTravelTimes(location.lat, location.lng, results);
     await storePOICache(schemeId, category, results, radius);
-    console.log(`[POI] Cached ${results.length} results at ${radius}m`);
     
     if (results.length > bestFreshResults.length) {
       bestFreshResults = results;
@@ -938,22 +852,9 @@ export async function getNearbyPOIs(
     escalationUsed = true;
   }
 
-  console.assert(
-    !foundUsableResults || !allApiFetchesFailed || bestFreshResults.length > 0,
-    '[POI] ASSERTION: If foundUsableResults is true, we should have returned early - stale cache must not be evaluated'
-  );
-  
   if (anyApiFetchAttempted && allApiFetchesFailed && !foundUsableResults) {
-    console.log('[POI] Stale cache fallback triggered:', {
-      anyApiFetchAttempted,
-      allApiFetchesFailed,
-      foundUsableResults,
-      bestFreshResultsCount: bestFreshResults.length,
-      anyFreshDataAvailable,
-    });
     const staleCache = await findBestStaleCache(schemeId, category);
     if (staleCache && staleCache.results.length > 0) {
-      console.log('[POI] All API fetches failed and no usable results found, returning stale cache with', staleCache.results.length, 'results');
       diagnostics.is_stale_cache = true;
       (diagnostics as any).radius_used = bestFreshRadius;
       (diagnostics as any).escalation_used = escalationUsed;
@@ -1604,8 +1505,6 @@ export async function searchNearbyByKeyword(
   schemeId: string,
   keyword: string
 ): Promise<POICacheResult> {
-  console.log(`[POI] searchNearbyByKeyword called for scheme=${schemeId}, keyword="${keyword}"`);
-
   const diagnostics: PlacesDiagnostics = {
     scheme_id: schemeId,
     category: `dynamic:${keyword}`,
@@ -1659,12 +1558,6 @@ export async function searchNearbyByKeyword(
 
     const data = await response.json();
 
-    console.log('[POI] Text Search API response:', {
-      keyword,
-      status: data.status,
-      resultCount: data.results?.length || 0,
-    });
-
     if (data.status === 'OK' && data.results) {
       let results: POIResult[] = data.results.slice(0, MAX_RESULTS).map((place: any) => ({
         name: place.name,
@@ -1697,8 +1590,7 @@ export async function searchNearbyByKeyword(
       from_cache: false,
       diagnostics,
     };
-  } catch (error: any) {
-    console.error('[POI] Keyword search error:', error);
+  } catch {
     diagnostics.failure_reason = 'google_places_network_error';
     return {
       results: [],

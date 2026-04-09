@@ -49,7 +49,6 @@ function getContentHash(buffer: Buffer): string {
 async function checkOCRCache(contentHash: string): Promise<{ text: string; confidence: number } | null> {
   const cached = OCR_CACHE.get(contentHash);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    console.log('  OCR cache hit');
     return { text: cached.text, confidence: cached.confidence };
   }
   
@@ -62,7 +61,6 @@ async function checkOCRCache(contentHash: string): Promise<{ text: string; confi
     `);
     if (dbCache.rows && dbCache.rows.length > 0) {
       const row = dbCache.rows[0] as any;
-      console.log('  OCR database cache hit');
       return { text: row.ocr_text, confidence: row.ocr_confidence || 0 };
     }
   } catch (e) {
@@ -262,14 +260,11 @@ async function extractTextFromPDFPage(buffer: Buffer, pageNum: number): Promise<
       confidence: result.data.confidence,
     };
   } catch (error) {
-    console.error(`  OCR page ${pageNum} failed:`, error);
     return { text: '', confidence: 0 };
   }
 }
 
 async function extractWithVision(buffer: Buffer, fileName: string, maxPages: number = 3): Promise<{ text: string; dimensions: RoomDimensionExtraction[] }> {
-  console.log('  Attempting GPT-4o Vision extraction...');
-  
   try {
     const uint8Array = new Uint8Array(buffer);
     const pdf = await getDocumentProxy(uint8Array);
@@ -339,7 +334,6 @@ Be thorough and extract ALL text visible, including small labels and annotations
       dimensions: allDimensions,
     };
   } catch (error) {
-    console.error('  Vision extraction failed:', error);
     return { text: '', dimensions: [] };
   }
 }
@@ -355,9 +349,6 @@ export async function enhancedExtractText(
 ): Promise<EnhancedOCRResult> {
   const { forceOCR = false, useVision = false, maxVisionPages = 3 } = options;
   
-  console.log(`\n📄 ENHANCED TEXT EXTRACTION: ${fileName}`);
-  console.log('='.repeat(60));
-  
   const contentHash = getContentHash(buffer);
   const failures: DocumentFailure[] = [];
   
@@ -369,15 +360,12 @@ export async function enhancedExtractText(
   
   if (!forceOCR) {
     try {
-      console.log('  Step 1: Text layer extraction...');
       const uint8Array = new Uint8Array(buffer);
       const pdf = await getDocumentProxy(uint8Array);
       const result = await extractText(pdf, { mergePages: true });
       textLayerText = result.text.trim();
       totalPages = result.totalPages;
-      console.log(`  Text layer: ${textLayerText.length} chars from ${totalPages} pages`);
     } catch (error) {
-      console.log(`  Text layer extraction failed: ${error instanceof Error ? error.message : 'Unknown'}`);
       failures.push({
         page: 0,
         error: `Text layer failed: ${error instanceof Error ? error.message : 'Unknown'}`,
@@ -393,9 +381,7 @@ export async function enhancedExtractText(
     if (cached) {
       ocrText = cached.text;
       ocrConfidence = cached.confidence;
-      console.log(`  OCR (cached): ${ocrText.length} chars, ${ocrConfidence.toFixed(1)}% confidence`);
     } else {
-      console.log('  Step 2: OCR extraction...');
       
       try {
         const uint8Array = new Uint8Array(buffer);
@@ -415,7 +401,6 @@ export async function enhancedExtractText(
               totalConf += pageResult.confidence;
               processedPages++;
             }
-            console.log(`  Page ${pageNum}/${numPages}: ${pageResult.text.length} chars`);
           } catch (pageError) {
             failures.push({
               page: pageNum,
@@ -432,9 +417,7 @@ export async function enhancedExtractText(
           setOCRCache(contentHash, ocrText, ocrConfidence);
         }
         
-        console.log(`  OCR complete: ${ocrText.length} chars, ${ocrConfidence.toFixed(1)}% avg confidence`);
       } catch (ocrError) {
-        console.error('  OCR extraction failed:', ocrError);
         failures.push({
           page: 0,
           error: `OCR failed: ${ocrError instanceof Error ? ocrError.message : 'Unknown'}`,
@@ -448,13 +431,9 @@ export async function enhancedExtractText(
   const useVisionForThis = useVision || (combinedTextLength < 100 && process.env.OPENAI_API_KEY);
   
   if (useVisionForThis && combinedTextLength < 500) {
-    console.log('  Step 3: GPT-4o Vision extraction (low text detected)...');
     const visionResult = await extractWithVision(buffer, fileName, maxVisionPages);
     visionText = visionResult.text;
-    console.log(`  Vision: ${visionText.length} chars, ${visionResult.dimensions.length} dimensions found`);
   }
-  
-  console.log('  Step 4: Merging and normalizing text...');
   
   let mergedText: string;
   let extractionMethod: 'text' | 'ocr' | 'merged' | 'vision';
@@ -473,26 +452,7 @@ export async function enhancedExtractText(
     extractionMethod = 'text';
   }
   
-  console.log('  Step 5: Extracting room dimensions...');
   const roomDimensions = extractRoomDimensions(mergedText);
-  console.log(`  Found ${roomDimensions.length} room dimensions`);
-  
-  if (roomDimensions.length > 0) {
-    for (const dim of roomDimensions) {
-      console.log(`    ${dim.room}: ${dim.length_m}m x ${dim.width_m}m = ${dim.area_sqm}m²`);
-    }
-  }
-  
-  console.log('');
-  console.log('  EXTRACTION SUMMARY:');
-  console.log(`    Method: ${extractionMethod}`);
-  console.log(`    Text layer: ${textLayerText.length} chars`);
-  console.log(`    OCR: ${ocrText.length} chars (${ocrConfidence.toFixed(1)}% confidence)`);
-  console.log(`    Vision: ${visionText.length} chars`);
-  console.log(`    Merged: ${mergedText.length} chars`);
-  console.log(`    Room dimensions: ${roomDimensions.length}`);
-  console.log(`    Failures: ${failures.length}`);
-  console.log('='.repeat(60));
   
   return {
     text: mergedText,
@@ -531,9 +491,7 @@ export async function logDocumentFailure(
         NOW()
       )
     `);
-    console.log(`  Logged document failure: ${documentId}`);
   } catch (e) {
-    console.error('  Failed to log document failure:', e);
   }
 }
 

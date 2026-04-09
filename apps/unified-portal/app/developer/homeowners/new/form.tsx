@@ -76,8 +76,9 @@ export function HomeownerForm({ developments }: { developments: Development[] })
         setError(errorData.error || 'Failed to create homeowner');
         setLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Network error. Please check your connection and try again.');
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setError(errMessage || 'Network error. Please check your connection and try again.');
       setLoading(false);
     }
   }

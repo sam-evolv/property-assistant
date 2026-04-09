@@ -48,22 +48,11 @@ export async function POST(request: NextRequest) {
         `,
       });
 
-      console.log('[New Signup Notification] Email sent successfully for:', email);
       return NextResponse.json({ success: true, method: 'email' });
     } catch (emailError) {
-      console.error('[New Signup Notification] Email failed, logging to console:', emailError);
-      console.log('=== NEW DEVELOPER SIGNUP ===');
-      console.log('Name:', fullName);
-      console.log('Email:', email);
-      console.log('Phone:', phone);
-      console.log('Company:', companyName);
-      console.log('Code Used:', code);
-      console.log('Timestamp:', timestamp);
-      console.log('============================');
       return NextResponse.json({ success: true, method: 'console' });
     }
   } catch (error) {
-    console.error('[New Signup Notification] Error:', error);
     return NextResponse.json({ success: false, error: 'Notification failed' }, { status: 500 });
   }
 }

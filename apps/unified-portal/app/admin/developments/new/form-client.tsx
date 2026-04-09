@@ -60,8 +60,8 @@ export function DevelopmentFormClient() {
         const data = await developersRes.json();
         setDevelopers(data.developers || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch form data:', error);
+    } catch {
+      // Failed to fetch form data
     }
   }
 

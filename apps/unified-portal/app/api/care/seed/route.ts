@@ -113,7 +113,6 @@ export async function POST() {
   const { error: instError } = await supabase.from('installations').upsert(installations, { onConflict: 'job_reference' });
 
   if (instError) {
-    console.error('[Seed] Installation insert error:', instError);
     return NextResponse.json({ error: instError.message }, { status: 500 });
   }
 
@@ -167,7 +166,6 @@ export async function POST() {
 
   const { error: sqError } = await supabase.from('support_queries').insert(supportQueries);
   if (sqError) {
-    console.error('[Seed] Support queries insert error:', sqError);
     // Non-fatal: table might not exist yet
   }
 
@@ -207,7 +205,6 @@ export async function POST() {
 
   const { error: dfError } = await supabase.from('diagnostic_flows').insert(diagnosticFlows);
   if (dfError) {
-    console.error('[Seed] Diagnostic flows insert error:', dfError);
   }
 
   return NextResponse.json({

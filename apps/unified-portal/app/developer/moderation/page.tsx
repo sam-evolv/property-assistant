@@ -43,8 +43,8 @@ export default function ModerationPage() {
         setReports(data.reports || []);
         setStats(data.stats || {});
       }
-    } catch (error) {
-      console.error('Failed to fetch reports:', error);
+    } catch {
+      // failed to fetch reports
     } finally {
       setLoading(false);
     }
@@ -69,8 +69,8 @@ export default function ModerationPage() {
       if (res.ok) {
         fetchReports();
       }
-    } catch (error) {
-      console.error('Failed to process report:', error);
+    } catch {
+      // failed to process report
     } finally {
       setActionLoading(null);
     }

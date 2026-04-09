@@ -44,7 +44,6 @@ export async function GET(
 
     return NextResponse.json({ folder });
   } catch (error) {
-    console.error('[API] Error fetching folder:', error);
     return NextResponse.json(
       { error: 'Failed to fetch folder' },
       { status: 500 }

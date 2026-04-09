@@ -9,7 +9,6 @@ async function loadCanvas(): Promise<typeof createCanvas> {
       const canvasModule = await import('canvas');
       createCanvas = canvasModule.createCanvas;
     } catch (error) {
-      console.warn('⚠️ OCR: Canvas library not available. OCR functionality disabled.');
       createCanvas = null;
     }
   }
@@ -25,25 +24,19 @@ interface OCRResult {
 export async function extractTextWithOCR(buffer: Buffer, fileName: string): Promise<OCRResult> {
   const canvasFn = await loadCanvas();
   if (!canvasFn) {
-    console.warn('⚠️ OCR: Canvas not available, returning empty result');
     return { text: '', confidence: 0, pageCount: 0 };
   }
-  console.log(`🔍 OCR: Starting OCR extraction for ${fileName}`);
   
   try {
     const uint8Array = new Uint8Array(buffer);
     const pdf = await getDocumentProxy(uint8Array);
     const numPages = pdf.numPages;
     
-    console.log(`🔍 OCR: PDF has ${numPages} pages`);
-    
     const allTexts: string[] = [];
     let totalConfidence = 0;
     let processedPages = 0;
     
     for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      console.log(`🔍 OCR: Processing page ${pageNum}/${numPages}...`);
-      
       try {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2.0 });
@@ -69,8 +62,6 @@ export async function extractTextWithOCR(buffer: Buffer, fileName: string): Prom
           },
         });
         
-        console.log('');
-        
         const pageText = result.data.text.trim();
         const pageConfidence = result.data.confidence;
         
@@ -80,16 +71,12 @@ export async function extractTextWithOCR(buffer: Buffer, fileName: string): Prom
           processedPages++;
         }
         
-        console.log(`✅ OCR: Page ${pageNum} complete - ${pageText.length} chars, ${pageConfidence.toFixed(1)}% confidence`);
       } catch (pageError) {
-        console.error(`⚠️ OCR: Failed to process page ${pageNum}:`, pageError);
       }
     }
     
     const combinedText = allTexts.join('\n\n');
     const avgConfidence = processedPages > 0 ? totalConfidence / processedPages : 0;
-    
-    console.log(`✅ OCR: Complete - ${combinedText.length} total chars, ${avgConfidence.toFixed(1)}% avg confidence`);
     
     return {
       text: combinedText,
@@ -97,7 +84,6 @@ export async function extractTextWithOCR(buffer: Buffer, fileName: string): Prom
       pageCount: numPages,
     };
   } catch (error) {
-    console.error('❌ OCR: Failed:', error);
     throw new Error(`OCR extraction failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }

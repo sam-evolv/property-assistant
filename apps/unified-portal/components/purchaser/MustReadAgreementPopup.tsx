@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { FileCheck, AlertTriangle, CheckCircle, X } from 'lucide-react';
+import { FileCheck, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface ImportantDoc {
   id: string;
@@ -45,7 +45,6 @@ export default function MustReadAgreementPopup({
         }
       }
     } catch (error) {
-      console.error('Failed to check agreement:', error);
     } finally {
       setHasCheckedAgreement(true);
     }
@@ -89,7 +88,6 @@ export default function MustReadAgreementPopup({
         onAgreementComplete();
       }
     } catch (error) {
-      console.error('Failed to save agreement:', error);
     } finally {
       setIsSubmitting(false);
     }

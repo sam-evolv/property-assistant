@@ -117,7 +117,6 @@ Provide your insight in a clear, actionable format.`;
       insight,
     });
   } catch (error) {
-    console.error('[Analytics Insights Error]:', error);
     
     return NextResponse.json({
       success: true,

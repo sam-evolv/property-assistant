@@ -24,8 +24,6 @@ export async function GET(
     const session = await requireRole(['developer', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     
-    console.log('[Development] Fetching details for:', params.id);
-
     // Try to get from local DB first
     const [development] = await db
       .select()
@@ -34,14 +32,13 @@ export async function GET(
       .limit(1);
 
     if (development) {
-      console.log('[Development] Found in local DB, project_type:', development.project_type);
       return NextResponse.json({ development });
     }
 
     // Fallback: try Supabase projects table
     const { data: project, error } = await supabaseAdmin
       .from('projects')
-      .select('*')
+      .select('id, name, tenant_id, created_at, project_type')
       .eq('id', params.id)
       .single();
 
@@ -61,7 +58,7 @@ export async function GET(
     // Try with real project ID as last resort
     const { data: realProject } = await supabaseAdmin
       .from('projects')
-      .select('*')
+      .select('id, name, tenant_id, created_at, project_type')
       .eq('id', REAL_PROJECT_ID)
       .single();
 
@@ -91,7 +88,6 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('[Development] Error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development' },
       { status: 500 }

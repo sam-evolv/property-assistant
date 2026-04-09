@@ -173,7 +173,6 @@ export function usePipelineData(tenantId?: string): PipelineData {
         }
       } catch (err: any) {
         // Fallback to demo data
-        console.warn('[usePipelineData] API failed, using demo data:', err.message);
         const demo = adaptDemoData();
         if (!cancelled) {
           setData({ ...demo, loading: false, error: err.message, isLive: false });

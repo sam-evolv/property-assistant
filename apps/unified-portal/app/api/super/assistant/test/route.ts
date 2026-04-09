@@ -107,7 +107,6 @@ ${context}`;
       }
     });
   } catch (err) {
-    console.error('[Test Assistant] Error:', err);
     return NextResponse.json({ 
       error: 'Failed to get response',
       details: err instanceof Error ? err.message : 'Unknown error'

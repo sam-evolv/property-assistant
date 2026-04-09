@@ -52,10 +52,10 @@ export async function GET(request: NextRequest) {
         created_at: row.created_at,
       })),
     });
-  } catch (error: any) {
-    console.error('[Unit Events API] Error:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to fetch unit events: ' + error.message },
+      { error: 'Failed to fetch unit events: ' + errorMessage },
       { status: 500 }
     );
   }

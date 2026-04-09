@@ -154,8 +154,9 @@ async function testPlacesApiCall(lat: number, lng: number, apiKey: string): Prom
       return { success: true, status: data.status };
     }
     return { success: false, status: data.status, error: data.error_message };
-  } catch (err: any) {
-    return { success: false, status: 'NETWORK_ERROR', error: err.message };
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    return { success: false, status: 'NETWORK_ERROR', error: errMessage };
   }
 }
 
@@ -210,8 +211,6 @@ export async function GET(request: NextRequest) {
       message: 'schemeName lookup requires X-Test-Mode header',
     }, { status: 400 });
   }
-
-  console.log('[PlacesHealth] Authorized request via', resolvedAuth.method, 'role:', auth.role);
 
   const schemeAccess = await assertSchemeAccess(
     { schemeId: schemeId || undefined, schemeName: schemeName || undefined },

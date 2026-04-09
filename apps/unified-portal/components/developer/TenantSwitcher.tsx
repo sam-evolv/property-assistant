@@ -43,21 +43,17 @@ export function TenantSwitcher({ selectedTenantId, onTenantChange }: TenantSwitc
     async function fetchTenants() {
       try {
         setIsLoading(true);
-        console.log('[TenantSwitcher] Fetching tenants...');
         const response = await fetch('/api/tenants');
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({}));
-          console.error('[TenantSwitcher] API error:', response.status, errorData);
           throw new Error(errorData.error || 'Failed to fetch tenants');
         }
 
         const data = await response.json();
-        console.log('[TenantSwitcher] Loaded tenants:', data.length || 0);
         setTenants(data || []);
         setError(null);
       } catch (err) {
-        console.error('[TenantSwitcher] Error fetching tenants:', err);
         setError(err instanceof Error ? err.message : 'Failed to load');
       } finally {
         setIsLoading(false);
@@ -84,7 +80,6 @@ export function TenantSwitcher({ selectedTenantId, onTenantChange }: TenantSwitc
   const displayName = currentTenant?.name || 'All Developers';
 
   const handleSelect = (id: string | null) => {
-    console.log('[TenantSwitcher] Selecting tenant:', id || 'All Developers');
     onTenantChange(id);
     setIsOpen(false);
   };

@@ -87,7 +87,6 @@ export async function GET(
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching unit prehandover data:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -130,13 +129,11 @@ export async function PATCH(
       .eq('id', unitId);
 
     if (error) {
-      console.error('Error updating unit:', error);
       return NextResponse.json({ error: 'Failed to update unit' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in PATCH unit prehandover:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

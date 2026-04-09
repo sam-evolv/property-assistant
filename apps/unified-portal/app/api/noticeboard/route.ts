@@ -25,7 +25,6 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ posts });
   } catch (error) {
-    console.error('[Noticeboard GET Error]:', error);
     return NextResponse.json(
       { error: 'Failed to fetch posts' },
       { status: 500 }
@@ -83,19 +82,16 @@ export async function POST(request: NextRequest) {
               category: 'community',
               triggeredBy: 'noticeboard.post_created',
               actionUrl: '/noticeboard',
-            }, recipients).catch(err =>
-              console.error('[Noticeboard] Notification failed (non-critical):', err)
-            );
+            }, recipients).catch(() => {});
           }
         }
-      } catch (notifyError) {
-        console.error('[Noticeboard] Failed to send notifications (non-critical):', notifyError);
+      } catch (_notifyError) {
+          // error handled silently
       }
     }
 
     return NextResponse.json({ post });
   } catch (error) {
-    console.error('[Noticeboard POST Error]:', error);
     return NextResponse.json(
       { error: 'Failed to create post' },
       { status: 500 }

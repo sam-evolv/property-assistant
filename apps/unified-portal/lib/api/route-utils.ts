@@ -71,10 +71,6 @@ export function withRouteGuard(
         const duration = Date.now() - startTime;
         const status = result.status;
 
-        if (opts.logLevel !== 'error') {
-          console.log(`[API] ${method} ${route} ${status} ${duration}ms requestId=${requestId}`);
-        }
-
         const responseHeaders = new Headers(result.headers);
         responseHeaders.set('x-request-id', requestId);
         responseHeaders.set('x-response-time', `${duration}ms`);
@@ -88,12 +84,6 @@ export function withRouteGuard(
       } catch (error: any) {
         lastError = error;
         const duration = Date.now() - startTime;
-
-        if (error.message === 'timeout') {
-          console.error(`[API] ${method} ${route} TIMEOUT after ${duration}ms requestId=${requestId} attempt=${attempt + 1}`);
-        } else {
-          console.error(`[API] ${method} ${route} ERROR after ${duration}ms requestId=${requestId} attempt=${attempt + 1}:`, error.message);
-        }
 
         const isRetryable = 
           error.message === 'timeout' ||
@@ -113,8 +103,6 @@ export function withRouteGuard(
 
     const duration = Date.now() - startTime;
     const apiError = normalizeError(lastError, requestId);
-
-    console.error(`[API] ${method} ${route} FAILED after ${duration}ms requestId=${requestId} code=${apiError.code}`);
 
     return NextResponse.json(
       { error: apiError.code, message: apiError.message, requestId },

@@ -44,7 +44,7 @@ async function getUserPreferences(userId: string): Promise<NotificationPreferenc
   const supabase = getServiceClient();
   const { data } = await supabase
     .from('notification_preferences')
-    .select('*')
+    .select('push_enabled, email_enabled, muted_categories, quiet_hours_enabled, quiet_hours_start, quiet_hours_end')
     .eq('user_id', userId)
     .single();
   return data;
@@ -98,7 +98,6 @@ export async function sendNotification(params: SendNotificationParams): Promise<
     .single();
 
   if (error || !notification) {
-    console.error('[NotificationService] Failed to create notification:', error);
     return null;
   }
 
@@ -181,8 +180,7 @@ export async function sendBulkNotification(
       } else {
         failed++;
       }
-    } catch (error) {
-      console.error(`[NotificationService] Failed to send to user ${userId}:`, error);
+    } catch {
       failed++;
     }
   }

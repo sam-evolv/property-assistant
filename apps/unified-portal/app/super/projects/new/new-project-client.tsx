@@ -108,7 +108,6 @@ function NewProjectWizardContent() {
         setTenants(data.tenants || []);
       }
     } catch (err) {
-      console.error('Failed to fetch tenants:', err);
     } finally {
       setTenantsLoading(false);
     }

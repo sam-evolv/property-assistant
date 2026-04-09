@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Plus, Users, Building2, MessageSquare, TrendingUp, ArrowRight, FileText, Settings, BarChart3 } from 'lucide-react';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import { Users, Building2, MessageSquare, TrendingUp, ArrowRight, Settings, BarChart3 } from 'lucide-react';
 
 interface DashboardStats {
   activeDevelopments: number;
@@ -68,7 +68,6 @@ export default function DeveloperOverviewDashboard({ developerName = 'Developer'
           });
         }
       } catch (error) {
-        console.error('Failed to fetch stats:', error);
       } finally {
         setLoading(false);
       }

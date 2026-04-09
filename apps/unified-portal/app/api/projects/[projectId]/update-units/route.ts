@@ -110,7 +110,6 @@ export async function POST(
       .eq('project_id', projectId);
 
     if (unitsError) {
-      console.error('[Update Units] Error fetching units:', unitsError);
       return NextResponse.json({ error: 'Failed to fetch existing units' }, { status: 500 });
     }
 
@@ -164,11 +163,8 @@ export async function POST(
       if (!updateError) {
         updated++;
       } else {
-        console.error('[Update Units] Update error for unit:', update.id, updateError);
       }
     }
-
-    console.log(`[Update Units] Project: ${project.name}, Matched: ${matched}, Updated: ${updated}, Not found: ${notFound}, Skipped: ${skipped}`);
 
     return NextResponse.json({
       success: true,
@@ -180,10 +176,10 @@ export async function POST(
       notFound,
       notFoundList: notFoundList.length > 0 ? notFoundList : undefined,
     });
-  } catch (error: any) {
-    console.error('[Update Units] Error:', error);
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: error.message || 'Update failed' },
+      { error: errorMessage || 'Update failed' },
       { status: 500 }
     );
   }

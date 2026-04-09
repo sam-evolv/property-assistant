@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft, FileText, Star, AlertCircle, Sparkles, Building2, Calendar,
@@ -144,7 +144,6 @@ export default function DocumentDetailPage() {
           setVersions(versionsData.versions || []);
         }
       } catch (err) {
-        console.error('Failed to fetch document:', err);
         setError(err instanceof Error ? err.message : 'Failed to load document');
       } finally {
         setIsLoading(false);
@@ -183,7 +182,6 @@ export default function DocumentDetailPage() {
       setSuccessMessage('Changes saved successfully');
       setTimeout(() => setSuccessMessage(null), 3000);
     } catch (err) {
-      console.error('Save error:', err);
       setError(err instanceof Error ? err.message : 'Failed to save changes');
     } finally {
       setIsSaving(false);
@@ -218,7 +216,6 @@ export default function DocumentDetailPage() {
       setSuccessMessage(`Re-classified as "${data.classification?.discipline}" with ${Math.round(data.classification?.confidence * 100)}% confidence`);
       setTimeout(() => setSuccessMessage(null), 5000);
     } catch (err) {
-      console.error('Reprocess error:', err);
       setError(err instanceof Error ? err.message : 'Reprocess failed');
     } finally {
       setIsReprocessing(false);
@@ -271,8 +268,7 @@ export default function DocumentDetailPage() {
         setFloorPlanRooms(data.rooms || []);
         setFpUnitTypes(data.unit_types || []);
       }
-    } catch (e) {
-      console.error('Failed to fetch floor plan rooms:', e);
+    } catch {
     }
     setIsLoadingRooms(false);
   }
@@ -321,8 +317,7 @@ export default function DocumentDetailPage() {
       if (res.ok) {
         setFloorPlanRooms(prev => prev.map(r => r.id === roomId ? { ...r, verified } : r));
       }
-    } catch (e) {
-      console.error('Verify room error:', e);
+    } catch {
     }
   }
 
@@ -345,8 +340,7 @@ export default function DocumentDetailPage() {
         setEditingRoomId(null);
         setRoomEdits({});
       }
-    } catch (e) {
-      console.error('Save room edit error:', e);
+    } catch {
     }
   }
 
@@ -360,8 +354,7 @@ export default function DocumentDetailPage() {
       if (res.ok) {
         setFloorPlanRooms(prev => prev.filter(r => r.id !== roomId));
       }
-    } catch (e) {
-      console.error('Delete room error:', e);
+    } catch {
     }
   }
 

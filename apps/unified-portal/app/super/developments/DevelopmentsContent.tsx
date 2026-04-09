@@ -70,7 +70,6 @@ export function DevelopmentsContent({ isSuperAdmin }: DevelopmentsContentProps) 
       const data = await res.json();
       setDevelopments(data.developments || []);
     } catch (err) {
-      console.error('Error fetching developments:', err);
     } finally {
       setLoading(false);
       setIsRefreshing(false);

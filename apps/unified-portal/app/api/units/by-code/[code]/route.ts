@@ -94,10 +94,11 @@ export async function GET(
         developmentCode: development?.code || null,
       },
     });
-  } catch (error: any) {
-    console.error('[Unit Lookup] Error:', error);
+  } catch (error: unknown) {
     
-    if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    
+    if (errorMessage?.includes('Unauthorized') || errorMessage?.includes('Forbidden')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     

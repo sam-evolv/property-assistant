@@ -114,8 +114,9 @@ export default function BTRMaintenancePage() {
         const btr = await btrRes.json();
         setRequests(Array.isArray(maintData) ? maintData : maintData.requests || []);
         setBtrData(btr);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }
@@ -190,8 +191,9 @@ export default function BTRMaintenancePage() {
         prev.map((r) => (r.id === selectedRequest.id ? { ...r, ...updated, ...(updated.request || {}) } : r))
       );
       setSelectedRequest(null);
-    } catch (err: any) {
-      alert('Error saving: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error saving: ' + errMessage);
     } finally {
       setSaving(false);
     }
@@ -222,8 +224,9 @@ export default function BTRMaintenancePage() {
       setNewCategory('general');
       setNewPriority('routine');
       setNewUnitId('');
-    } catch (err: any) {
-      alert('Error creating: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error creating: ' + errMessage);
     } finally {
       setSaving(false);
     }

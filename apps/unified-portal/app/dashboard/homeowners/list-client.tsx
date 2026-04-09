@@ -47,8 +47,7 @@ export function HomeownersListClient({ session }: { session: AdminSession }) {
       } else {
         setError('Failed to load homeowners');
       }
-    } catch (error) {
-      console.error('Failed to fetch homeowners:', error);
+    } catch {
       setError('An error occurred while loading homeowners');
     } finally {
       setLoading(false);

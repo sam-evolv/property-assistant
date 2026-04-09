@@ -35,7 +35,6 @@ export async function PATCH(
       .eq('user_id', adminContext.id);
 
     if (error) {
-      console.error('[Sessions PATCH] Error:', error);
       return new Response(JSON.stringify({ error: 'Failed to update session' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -47,7 +46,6 @@ export async function PATCH(
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('[Sessions PATCH] Error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

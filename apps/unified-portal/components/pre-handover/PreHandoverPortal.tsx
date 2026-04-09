@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { BottomSheet, SheetHeader, SheetItem } from './BottomSheet';
 import { SettingsSheet } from './sheets/SettingsSheet';
 import { MILESTONE_ORDER, MILESTONE_LABELS, type UnitPreHandoverData, type SheetType, type Document, type ContactInfo, type FAQ, type MilestoneDates } from './types';
-import { Home, Settings, Clock, FileText, HelpCircle, Phone, Calendar, ChevronRight, Check, Mail, MapPin, Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown, MessageSquare, Sparkles, Bell } from 'lucide-react';
+import { Home, Settings, Clock, FileText, HelpCircle, Phone, Calendar, ChevronRight, Check, Mail, MapPin, Key, ClipboardCheck, Zap, Wifi, AlertTriangle, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -74,7 +74,7 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
             setLoadedDocuments(data.documents);
           }
         })
-        .catch(err => console.error('Failed to load documents:', err));
+        .catch(() => {});
     }
   }, [props.unitId, props.unit, props.documents]);
 
@@ -95,10 +95,8 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
         });
         
         if (!response.ok) {
-          console.error('Failed to mark handover:', await response.text());
         }
       } catch (error) {
-        console.error('Failed to mark handover:', error);
       }
       
       localStorage.setItem(`handover_override_${props.unitId}`, 'true');

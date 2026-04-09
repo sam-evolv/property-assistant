@@ -36,9 +36,6 @@ export function getAnalyticsTarget(): { isSupabase: boolean; target: string } {
 export function assertSupabaseAnalytics(): void {
   const { isSupabase, target } = getAnalyticsTarget();
   if (!isSupabase) {
-    console.error('[ANALYTICS CRITICAL] Analytics target is NOT Supabase!');
-    console.error('[ANALYTICS CRITICAL] Current target:', target);
-    console.error('[ANALYTICS CRITICAL] Set SUPABASE_DB_URL to ensure data goes to Supabase.');
     throw new Error('ANALYTICS_TARGET_NOT_SUPABASE: Analytics must only write to Supabase');
   }
 }
@@ -62,11 +59,6 @@ function getPool(): Pool {
   if (!pool) {
     const { isSupabase, target } = getAnalyticsTarget();
     if (!isSupabase) {
-      console.error('[DB CRITICAL] Database target is NOT Supabase!');
-      console.error('[DB CRITICAL] Current target:', target);
-      console.error('[DB CRITICAL] Set SUPABASE_DB_URL to ensure data goes to Supabase.');
-    } else {
-      console.log('[DB] Verified Supabase target:', target);
     }
     
     pool = new Pool(getPoolConfig());
@@ -74,30 +66,21 @@ function getPool(): Pool {
     
     // Pool error handlers
     pool.on('error', (err, client) => {
-      console.error('[DB Pool] Unexpected error on idle client:', err);
     });
 
     pool.on('connect', (client) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[DB Pool] New client connected');
-      }
     });
 
     pool.on('remove', (client) => {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[DB Pool] Client removed from pool');
-      }
     });
 
     // Graceful shutdown handler - ONLY on actual process termination
     // NOT on beforeExit (which fires during Next.js HMR)
     const shutdown = async () => {
       if (pool) {
-        console.log('[DB Pool] Shutting down connection pool...');
         await pool.end();
         pool = null;
         globalForDb.dbPool = undefined;
-        console.log('[DB Pool] Connection pool closed');
       }
     };
 

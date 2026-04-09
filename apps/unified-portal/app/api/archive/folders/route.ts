@@ -14,10 +14,7 @@ export async function GET(request: NextRequest) {
     const discipline = searchParams.get('discipline');
     const parentFolderId = searchParams.get('parentFolderId');
 
-    console.log('[API /archive/folders] GET request:', { tenantId, developmentId, discipline, parentFolderId });
-
     if (!tenantId || !developmentId || !discipline) {
-      console.log('[API /archive/folders] Missing required params');
       return NextResponse.json(
         { error: 'tenantId, developmentId, and discipline are required' },
         { status: 400 }
@@ -56,14 +53,10 @@ export async function GET(request: NextRequest) {
     }
 
     const folders = await query;
-    console.log('[API /archive/folders] Found', folders.length, 'folders');
 
     return NextResponse.json({ folders });
   } catch (error) {
-    console.error('[API /archive/folders] Error:', error instanceof Error ? error.message : error);
-    console.error('[API /archive/folders] Stack:', error instanceof Error ? error.stack : 'N/A');
     // Return empty folders array on database error to allow documents to display
-    console.log('[API /archive/folders] Returning empty folders due to database error');
     return NextResponse.json({ folders: [] });
   }
 }
@@ -96,7 +89,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ folder, success: true });
   } catch (error) {
-    console.error('[API] Error creating folder:', error);
     return NextResponse.json(
       { error: 'Failed to create folder' },
       { status: 500 }
@@ -148,7 +140,6 @@ export async function PATCH(request: NextRequest) {
 
     return NextResponse.json({ folder, success: true });
   } catch (error) {
-    console.error('[API] Error updating folder:', error);
     return NextResponse.json(
       { error: 'Failed to update folder' },
       { status: 500 }
@@ -207,7 +198,6 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true, message: 'Folder deleted' });
   } catch (error) {
-    console.error('[API] Error deleting folder:', error);
     return NextResponse.json(
       { error: 'Failed to delete folder' },
       { status: 500 }

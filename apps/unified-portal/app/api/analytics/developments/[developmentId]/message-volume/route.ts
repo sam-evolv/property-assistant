@@ -28,7 +28,6 @@ export async function GET(
 
     return NextResponse.json({ data: result });
   } catch (error) {
-    console.error('[API] /api/analytics/developments/[id]/message-volume error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development message volume' },
       { status: 500 }

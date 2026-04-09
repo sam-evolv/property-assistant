@@ -22,11 +22,8 @@ export default async function DeveloperLayout({
   const hasAccess = session.role && ALLOWED_ROLES.includes(session.role);
 
   if (!hasAccess) {
-    console.warn(`[Developer Portal] Access denied for email: ${session.email || 'unknown'}, role: ${session.role || 'none'}`);
     redirect('/unauthorized');
   }
-
-  console.log(`[Developer Portal] Access granted for ${session.email}, role: ${session.role}`);
 
   return (
     <DeveloperLayoutProvider session={session}>

@@ -117,8 +117,8 @@ export default function DevelopmentDetailPage() {
         fetchTrainingJobs(devData?.tenant_id),
         fetchDocuments(),
       ]);
-    } catch (error) {
-      console.error('Error fetching development data:', error);
+    } catch {
+      // Error fetching development data
     } finally {
       setLoading(false);
     }
@@ -128,7 +128,6 @@ export default function DevelopmentDetailPage() {
     try {
       const response = await fetch(`/api/developments/${developmentId}`);
       if (!response.ok) {
-        console.error(`Failed to fetch development: ${response.status} ${response.statusText}`);
         throw new Error('Failed to fetch development');
       }
       const data = await response.json();
@@ -138,8 +137,7 @@ export default function DevelopmentDetailPage() {
       setDevelopment(data.development);
       setSystemInstructions(data.development.system_instructions || '');
       return data.development;
-    } catch (error) {
-      console.error('Failed to fetch development:', error);
+    } catch {
       toast.error('Failed to load development details');
       return null;
     }
@@ -152,8 +150,8 @@ export default function DevelopmentDetailPage() {
         const data = await response.json();
         setAnalytics(data);
       }
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
+    } catch {
+      // Failed to fetch analytics
     }
   };
 
@@ -164,8 +162,8 @@ export default function DevelopmentDetailPage() {
         const data = await response.json();
         setHouses(data.houses || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch houses:', error);
+    } catch {
+      // Failed to fetch houses
     }
   };
 
@@ -173,7 +171,6 @@ export default function DevelopmentDetailPage() {
     try {
       const tid = tenantId || development?.tenant_id;
       if (!tid) {
-        console.log('[Dev Detail] Skipping training jobs fetch: no tenant_id available');
         return;
       }
       const response = await fetch(`/api/train/jobs?tenantId=${tid}&developmentId=${developmentId}`);
@@ -182,8 +179,8 @@ export default function DevelopmentDetailPage() {
       }
       const data = await response.json();
       setTrainingJobs(data.jobs || []);
-    } catch (error) {
-      console.error('Failed to fetch training jobs:', error);
+    } catch {
+      // Failed to fetch training jobs
     }
   };
 
@@ -194,8 +191,7 @@ export default function DevelopmentDetailPage() {
         const data = await res.json();
         setDocuments(data.documents || []);
       }
-    } catch (error) {
-      console.error('Failed to fetch documents:', error);
+    } catch {
       toast.error('Failed to load documents');
     }
   };
@@ -223,8 +219,7 @@ export default function DevelopmentDetailPage() {
       
       toast.success(!currentlyImportant ? 'Marked as important' : 'Removed from important');
       fetchDocuments();
-    } catch (error) {
-      console.error('Failed to toggle importance:', error);
+    } catch {
       toast.error('Failed to update document');
     } finally {
       setUpdatingImportance(null);
@@ -247,8 +242,7 @@ export default function DevelopmentDetailPage() {
 
       if (!res.ok) throw new Error('Failed to update rank');
       fetchDocuments();
-    } catch (error) {
-      console.error('Failed to update rank:', error);
+    } catch {
       toast.error('Failed to update rank');
     } finally {
       setUpdatingImportance(null);
@@ -273,8 +267,7 @@ export default function DevelopmentDetailPage() {
       
       toast.success(`Important docs version ${data.new_version} published! All units will require re-consent.`);
       fetchDocuments();
-    } catch (error) {
-      console.error('Failed to publish:', error);
+    } catch {
       toast.error('Failed to publish important docs');
     } finally {
       setPublishingVersion(false);
@@ -284,19 +277,10 @@ export default function DevelopmentDetailPage() {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) {
-      console.log('[Dev Detail] No files selected');
       return;
     }
 
-    console.log('[Dev Detail] Starting file upload...', {
-      fileCount: files.length,
-      files: Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type })),
-      developmentId,
-      development: development ? { id: development.id, tenant_id: development.tenant_id } : null
-    });
-
     if (!development) {
-      console.error('[Dev Detail] Development not loaded');
       toast.error('Development not loaded. Please refresh the page.');
       return;
     }
@@ -306,31 +290,21 @@ export default function DevelopmentDetailPage() {
       const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
-        console.log(`  Adding file ${i + 1}: ${files[i].name}`);
       }
       formData.append('developmentId', developmentId);
       formData.append('tenantId', development.tenant_id);
-      console.log('  ✅ FormData prepared');
 
-      console.log('[Dev Detail] Sending POST to /api/train...');
       const response = await fetch('/api/train', {
         method: 'POST',
         body: formData,
       });
-      console.log('[Dev Detail] Response received:', {
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        console.error('[Dev Detail] Upload error response:', errorData);
         throw new Error(errorData.error || `Upload failed with status ${response.status}`);
       }
       
       const result = await response.json();
-      console.log('[Dev Detail] Upload successful:', result);
       toast.success(`Successfully uploaded ${result.successfulFiles || 0} file(s)`);
       
       await fetchAnalytics();
@@ -339,7 +313,6 @@ export default function DevelopmentDetailPage() {
       
       e.target.value = '';
     } catch (error) {
-      console.error('[Dev Detail] Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload files');
     } finally {
       setUploading(false);
@@ -374,13 +347,7 @@ export default function DevelopmentDetailPage() {
       return;
     }
 
-    console.log('🚀 Starting drag & drop file upload...', {
-      fileCount: files.length,
-      files: Array.from(files).map(f => ({ name: f.name, size: f.size, type: f.type })),
-    });
-
     if (!development) {
-      console.error('[Dev Detail] Development not loaded');
       toast.error('Development not loaded. Please refresh the page.');
       return;
     }
@@ -390,7 +357,6 @@ export default function DevelopmentDetailPage() {
       const formData = new FormData();
       for (let i = 0; i < files.length; i++) {
         formData.append('files', files[i]);
-        console.log(`  Adding file ${i + 1}: ${files[i].name}`);
       }
       formData.append('developmentId', developmentId);
       formData.append('tenantId', development.tenant_id);
@@ -412,7 +378,6 @@ export default function DevelopmentDetailPage() {
       await fetchTrainingJobs();
       await fetchDocuments();
     } catch (error) {
-      console.error('[Dev Detail] Upload failed:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to upload files');
     } finally {
       setUploading(false);
@@ -431,8 +396,7 @@ export default function DevelopmentDetailPage() {
       if (!response.ok) throw new Error('Failed to save instructions');
       toast.success('System instructions saved successfully');
       fetchDevelopment();
-    } catch (error) {
-      console.error('Failed to save instructions:', error);
+    } catch {
       toast.error('Failed to save instructions');
     } finally {
       setSavingInstructions(false);
@@ -455,8 +419,7 @@ export default function DevelopmentDetailPage() {
       const data = await response.json();
       setChatResponse(data);
       setChatMessage('');
-    } catch (error) {
-      console.error('Chat failed:', error);
+    } catch {
       toast.error('Failed to send message');
     } finally {
       setChatting(false);
@@ -486,8 +449,7 @@ export default function DevelopmentDetailPage() {
       window.URL.revokeObjectURL(url);
 
       toast.success('QR codes PDF downloaded successfully!', { id: loadingToast });
-    } catch (error) {
-      console.error('Failed to download QR codes:', error);
+    } catch {
       toast.error('Failed to generate QR codes. Please try again.', { id: loadingToast });
     }
   };

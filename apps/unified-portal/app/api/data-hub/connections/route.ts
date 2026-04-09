@@ -40,7 +40,7 @@ export async function GET() {
       (connections || []).map(async (conn) => {
         const { count } = await supabase
           .from('storage_files')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .eq('connection_id', conn.id)
 
         return { ...conn, file_count: count || 0 }
@@ -53,7 +53,6 @@ export async function GET() {
     if (message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('[Data Hub Connections GET] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
@@ -98,7 +97,6 @@ export async function DELETE(request: NextRequest) {
     if (message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    console.error('[Data Hub Connections DELETE] Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

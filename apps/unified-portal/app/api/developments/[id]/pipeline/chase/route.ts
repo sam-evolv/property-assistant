@@ -167,7 +167,6 @@ export async function GET(
     });
 
   } catch (error) {
-    console.error('[Pipeline Chase] Error:', error);
     return NextResponse.json({ error: 'Failed to generate chase email' }, { status: 500 });
   }
 }

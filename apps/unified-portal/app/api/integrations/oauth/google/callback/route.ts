@@ -62,7 +62,6 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (!stateRecord) {
-      console.error('[OAuth Google Callback] State validation failed — possible CSRF');
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=invalid_state`
       );
@@ -84,7 +83,6 @@ export async function GET(request: NextRequest) {
     const tokens = await tokenResponse.json();
 
     if (!tokenResponse.ok || !tokens.access_token) {
-      console.error('[OAuth Google Callback] Token exchange failed:', tokens);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=token_exchange_failed`
       );
@@ -116,7 +114,6 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (storageError) {
-        console.error('[OAuth Google Callback] Storage connection insert error:', storageError);
         return NextResponse.redirect(
           `${process.env.NEXT_PUBLIC_APP_URL}/developer/data-hub?error=save_failed`
         );
@@ -150,7 +147,6 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('[OAuth Google Callback] Insert error:', insertError);
       return NextResponse.redirect(
         `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=save_failed`
       );
@@ -167,7 +163,6 @@ export async function GET(request: NextRequest) {
       `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?connected=${integration.id}`
     );
   } catch (err: any) {
-    console.error('[OAuth Google Callback] Error:', err);
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/developer/integrations?error=unexpected`
     );

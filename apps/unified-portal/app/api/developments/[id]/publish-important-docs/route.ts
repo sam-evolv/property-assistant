@@ -92,7 +92,6 @@ export async function POST(
       affectedUnitsCount: Number(unitsCount[0]?.count || 0),
     });
   } catch (error) {
-    console.error('[Publish Important Docs API Error]:', error);
     return NextResponse.json(
       { error: 'Failed to publish important documents' },
       { status: 500 }

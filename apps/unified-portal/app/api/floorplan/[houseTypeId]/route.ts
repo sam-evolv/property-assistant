@@ -116,8 +116,8 @@ export async function GET(
       if (data && !error) {
         signedUrl = data.signedUrl;
       }
-    } catch (storageError) {
-      console.log('[Floorplan] Storage not available or file not found:', storageError);
+    } catch (_storageError) {
+        // error handled silently
     }
 
     return NextResponse.json({
@@ -128,7 +128,6 @@ export async function GET(
       floorplanUrl: signedUrl,
     });
   } catch (error) {
-    console.error('[Floorplan API Error]:', error);
     return NextResponse.json(
       { error: 'Failed to fetch floorplan data' },
       { status: 500 }

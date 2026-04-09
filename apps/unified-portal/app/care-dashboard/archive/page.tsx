@@ -7,7 +7,7 @@ import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal 
 import { InsightsTab } from '@/components/archive/InsightsTab';
 import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
 import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
-import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope, scopeToString } from '@/lib/archive-scope';
+import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope } from '@/lib/archive-scope';
 import type { ArchiveScope } from '@/lib/archive-scope';
 import type { DisciplineSummary } from '@/lib/archive-constants';
 import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
@@ -87,8 +87,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         setDevelopments(data.developments || []);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to load developments:', error);
+    } catch {
+      // Failed to load developments
     }
   }, [tenantId]);
 
@@ -97,13 +97,6 @@ export default function CareDocumentArchivePage() {
 
     setIsLoading(true);
     try {
-      const queryPayload = {
-        tenantId,
-        mode: isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME',
-        schemeId: developmentId
-      };
-      console.log('[CareArchive] Outgoing archive query payload:', queryPayload);
-
       const params = new URLSearchParams();
       params.set('tenantId', tenantId);
       params.set('mode', isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME');
@@ -112,13 +105,12 @@ export default function CareDocumentArchivePage() {
       }
 
       const response = await fetch(`/api/archive/disciplines?${params}`);
-      console.log('[CareArchive] Backend response status:', response.status);
       if (response.ok) {
         const data = await response.json();
         setDisciplines(data.disciplines || []);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to load disciplines:', error);
+    } catch {
+      // Failed to load disciplines
     } finally {
       setIsLoading(false);
     }
@@ -136,8 +128,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         setHouseTypes(data.houseTypes || []);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to load house types:', error);
+    } catch {
+      // Failed to load house types
     }
   }, [tenantId, developmentId]);
 
@@ -156,8 +148,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         setUnclassifiedCount(data.unclassifiedCount || 0);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to check unclassified:', error);
+    } catch {
+      // Failed to check unclassified
     }
   }, [tenantId, developmentId]);
 
@@ -176,8 +168,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         setEmbeddingStats(data);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to load embedding stats:', error);
+    } catch {
+      // Failed to load embedding stats
     }
   }, [tenantId, developmentId]);
 
@@ -197,8 +189,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         setCustomFolders(data.folders || []);
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to load custom folders:', error);
+    } catch {
+      // Failed to load custom folders
     }
   }, [tenantId, developmentId]);
 
@@ -215,8 +207,8 @@ export default function CareDocumentArchivePage() {
         const data = await res.json();
         setKnowledgeGaps(data.gaps || []);
       }
-    } catch (e) {
-      console.error('[CareArchive Gaps] Failed:', e);
+    } catch {
+      // Failed to load knowledge gaps
     } finally {
       setGapsLoading(false);
     }
@@ -252,8 +244,7 @@ export default function CareDocumentArchivePage() {
         setReprocessProgress(`Error: ${error.error || 'Reprocessing failed'}`);
         setTimeout(() => setReprocessProgress(null), 5000);
       }
-    } catch (error) {
-      console.error('[CareArchive] Reprocess failed:', error);
+    } catch {
       setReprocessProgress('Reprocessing failed');
       setTimeout(() => setReprocessProgress(null), 3000);
     } finally {
@@ -363,8 +354,8 @@ export default function CareDocumentArchivePage() {
         const data = await response.json();
         alert(data.error || 'Failed to delete category');
       }
-    } catch (error) {
-      console.error('[CareArchive] Failed to delete folder:', error);
+    } catch {
+      // Failed to delete folder
     }
   };
 
@@ -404,8 +395,7 @@ export default function CareDocumentArchivePage() {
         setClassifyProgress('Classification failed');
         setTimeout(() => setClassifyProgress(null), 3000);
       }
-    } catch (error) {
-      console.error('[CareArchive] Bulk classify failed:', error);
+    } catch {
       setClassifyProgress('Classification failed');
       setTimeout(() => setClassifyProgress(null), 3000);
     } finally {
@@ -415,7 +405,6 @@ export default function CareDocumentArchivePage() {
 
   const setDevelopmentId = (id: string | null) => {
     const newScope = id ? createSchemeScope(id) : createAllSchemesScope();
-    console.log('[CareArchive] Scope change:', scopeToString(newScope));
     setArchiveScope(newScope);
   };
 
@@ -424,12 +413,6 @@ export default function CareDocumentArchivePage() {
   const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
   const hasDocuments = totalDocuments > 0;
   const uploadSchemeId = selectedUploadSchemeId || developmentId;
-
-  console.log('[CareArchive] Render state:', {
-    documents: totalDocuments,
-    scope: scopeToString(archiveScope),
-    isLoading
-  });
 
   return (
     <div className="min-h-screen bg-white">

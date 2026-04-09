@@ -107,7 +107,6 @@ export async function GET() {
 
     return NextResponse.json(confidenceCheck);
   } catch (error) {
-    console.error('[Analytics Health] Error:', error);
     return NextResponse.json({
       analyticsTableExists: false,
       lastInsertTimestamp: null,

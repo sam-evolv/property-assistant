@@ -5,8 +5,7 @@ import { Users, Building2, Home, FileText, MessageSquare, TrendingUp, Activity }
 import { InsightCard } from '@/components/admin-enterprise/InsightCard';
 import { SectionHeader } from '@/components/admin-enterprise/SectionHeader';
 import { LoadingSkeleton } from '@/components/admin-enterprise/LoadingSkeleton';
-import { LineChart } from '@/components/admin-enterprise/charts/LineChart';
-import { BarChart } from '@/components/admin-enterprise/charts/BarChart';
+import { DynamicEnterpriseLineChart, DynamicEnterpriseBarChart } from '@/lib/dynamic-imports';
 
 interface PlatformMetrics {
   total_developers: number;
@@ -65,7 +64,6 @@ export function OverviewDashboard() {
         setChatData(chat);
       })
       .catch((err) => {
-        console.error('Dashboard error:', err);
         setError(err.message);
       })
       .finally(() => setLoading(false));
@@ -153,7 +151,7 @@ export function OverviewDashboard() {
             <TrendingUp className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Message Volume (14 Days)</h3>
           </div>
-          <LineChart
+          <DynamicEnterpriseLineChart
             data={messageVolumeData}
             xKey="date"
             lines={[
@@ -169,7 +167,7 @@ export function OverviewDashboard() {
             <Building2 className="w-5 h-5 text-gold-600" />
             <h3 className="text-lg font-semibold text-gray-900">Top 5 Developments</h3>
           </div>
-          <BarChart
+          <DynamicEnterpriseBarChart
             data={developmentActivityData}
             xKey="name"
             bars={[

@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     try {
       const { data } = await supabaseAdmin
         .from('question_analytics')
-        .select('*')
+        .select('created_at, satisfaction_score, user_id, topic, question, development_id, confidence_score')
         .order('created_at', { ascending: false })
         .limit(1000);
       questionAnalytics = data || [];
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     try {
       const { count } = await supabaseAdmin
         .from('units')
-        .select('*', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true });
       totalUnits = count || 1;
     } catch (e) {}
 
@@ -54,7 +54,7 @@ export async function GET(request: NextRequest) {
     try {
       const { data } = await supabaseAdmin
         .from('platform_insights')
-        .select('*')
+        .select('id, type, title, description, created_at')
         .order('created_at', { ascending: false })
         .limit(10);
       platformInsights = data || [];
@@ -233,7 +233,6 @@ export async function GET(request: NextRequest) {
       hasData: totalQuestions > 0,
     });
   } catch (err) {
-    console.error('Error fetching R&D analytics:', err);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

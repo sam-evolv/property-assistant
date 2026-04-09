@@ -25,8 +25,6 @@ export async function GET(
     const supabaseAdmin = getSupabaseAdmin();
     const session = await requireRole(['developer', 'super_admin']);
 
-    console.log('[Houses] Fetching units for development:', developmentId, 'tenant:', session.tenantId);
-
     const { data: units, error } = await supabaseAdmin
       .from('units')
       .select(
@@ -39,11 +37,8 @@ export async function GET(
       .limit(1000);
 
     if (error) {
-      console.error('[Houses] Error fetching units:', error);
       return NextResponse.json({ error: 'Failed to fetch houses' }, { status: 500 });
     }
-
-    console.log('[Houses] Found:', units?.length || 0, 'units for development:', developmentId);
 
     const houses = (units || []).map((unit: any) => ({
       id: unit.id,
@@ -72,7 +67,6 @@ export async function GET(
 
     return NextResponse.json({ houses });
   } catch (error) {
-    console.error('[Houses] Unexpected error:', error);
     return NextResponse.json({ error: 'Failed to fetch houses' }, { status: 500 });
   }
 }

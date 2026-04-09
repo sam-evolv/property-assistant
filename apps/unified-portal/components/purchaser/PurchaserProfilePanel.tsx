@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
@@ -141,21 +141,24 @@ export default function PurchaserProfilePanel({
     
     try {
       storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      storageToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      storageToken = 'ERROR: ' + eMessage;
     }
     
     try {
       sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: any) {
-      sessionToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      sessionToken = 'ERROR: ' + eMessage;
     }
     
     try {
       const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
       cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
-    } catch (e: any) {
-      cookieToken = 'ERROR: ' + e.message;
+    } catch (e: unknown) {
+      const eMessage = e instanceof Error ? e.message : 'Unknown error';
+      cookieToken = 'ERROR: ' + eMessage;
     }
     
     const effectiveToken = propToken || getEffectiveToken(unitUid);
@@ -176,14 +179,6 @@ export default function PurchaserProfilePanel({
       setError(null);
       const token = propToken || getEffectiveToken(unitUid);
       
-      console.log('[Profile] fetchProfile called', {
-        propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-        effectiveToken: token ? `${token.substring(0, 8)}...` : 'undefined',
-        unitUid,
-        tokenSource: propToken ? 'prop' : 'storage',
-        isAccessCode: /^[A-Z]{2}-\d{3}-[A-Z0-9]{4}$/.test(token || ''),
-        isUUID: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(token || ''),
-      });
       
       const apiUrl = `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
       const res = await fetch(apiUrl);
@@ -203,9 +198,9 @@ export default function PurchaserProfilePanel({
         setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorText.substring(0, 100)}` } : null);
         setError('Failed to load profile');
       }
-    } catch (err: any) {
-      console.error('Profile fetch error:', err);
-      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${err.message}` } : null);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${errMessage}` } : null);
       setError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -213,18 +208,12 @@ export default function PurchaserProfilePanel({
   };
 
   useEffect(() => {
-    console.log('[Profile] useEffect triggered', {
-      isOpen,
-      propToken: propToken ? `${propToken.substring(0, 8)}...` : 'undefined',
-      unitUid
-    });
     
     if (isOpen) {
       const effectiveToken = propToken || getEffectiveToken(unitUid);
       if (effectiveToken) {
         fetchProfile();
       } else {
-        console.log('[Profile] No token available, skipping fetch');
       }
     }
   }, [isOpen, unitUid, propToken]);
@@ -239,7 +228,7 @@ export default function PurchaserProfilePanel({
         if (user) {
           const { data } = await supabase
             .from('user_contexts')
-            .select('*')
+            .select('id, auth_user_id, product, context_type, context_id, display_name, display_subtitle, display_icon, context_aware, last_active_at, linked_at')
             .eq('auth_user_id', user.id)
             .order('last_active_at', { ascending: false });
           setContexts(data || []);

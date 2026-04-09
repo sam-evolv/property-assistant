@@ -119,7 +119,6 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
       .then(res => res.json())
       .then(data => {
         const pt = data?.development?.project_type || data?.project_type || 'bts';
-        console.log('[Sidebar] Fallback fetch project_type:', pt);
         setFetchedProjectType(pt);
       })
       .catch(() => setFetchedProjectType('bts'));

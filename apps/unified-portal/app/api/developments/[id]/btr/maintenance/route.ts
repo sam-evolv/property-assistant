@@ -3,7 +3,7 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { maintenanceRequests } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
 export async function PATCH(
@@ -33,11 +33,10 @@ export async function PATCH(
       .returning();
 
     return NextResponse.json({ request: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -70,11 +69,10 @@ export async function GET(
     }));
 
     return NextResponse.json({ requests });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }
@@ -99,11 +97,10 @@ export async function POST(
       .returning();
 
     return NextResponse.json({ request: maintenanceRequest }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[BTR API] Error:', error);
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
   }
 }

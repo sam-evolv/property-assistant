@@ -27,14 +27,11 @@ export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null>
     .single();
 
   if (error || !supabaseUnit) {
-    console.log('[UnitResolver] Unit not found:', unitUid, error?.message);
     return null;
   }
 
   // Use tenant_id directly from unit (not from projects table which has organization_id instead)
   const tenantId: string | null = supabaseUnit.tenant_id || null;
-
-  console.log('[UnitResolver] Found unit:', supabaseUnit.id, 'tenant:', tenantId, 'development:', supabaseUnit.development_id);
 
   let houseTypeCode: string | undefined;
 
@@ -47,7 +44,6 @@ export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null>
 
     if (unitType) {
       houseTypeCode = unitType.code;
-      console.log('[UnitResolver] House type code:', houseTypeCode);
     }
   }
 

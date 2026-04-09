@@ -54,8 +54,7 @@ export default function CustomFolderPage() {
         const data = await response.json();
         setFolder(data.folder);
       }
-    } catch (error) {
-      console.error('[CustomFolder] Failed to load folder:', error);
+    } catch {
     } finally {
       setIsFolderLoading(false);
     }
@@ -77,8 +76,7 @@ export default function CustomFolderPage() {
         const data = await response.json();
         setDocuments(data.documents || []);
       }
-    } catch (error) {
-      console.error('[CustomFolder] Failed to load documents:', error);
+    } catch {
     } finally {
       setIsLoading(false);
     }
@@ -93,8 +91,7 @@ export default function CustomFolderPage() {
         const data = await response.json();
         setHouseTypes(data.houseTypes || []);
       }
-    } catch (error) {
-      console.error('[CustomFolder] Failed to load house types:', error);
+    } catch {
     }
   }, [developmentId]);
 
@@ -112,8 +109,7 @@ export default function CustomFolderPage() {
         const data = await response.json();
         setSubFolders(data.folders || []);
       }
-    } catch (error) {
-      console.error('[CustomFolder] Failed to load sub-folders:', error);
+    } catch {
     }
   }, [tenantId, developmentId, folderId]);
 

@@ -133,7 +133,6 @@ const SubmissionRow = memo(function SubmissionRow({
         onStatusChange(submission.id, newStatus);
       }
     } catch (error) {
-      console.error('Failed to update status:', error);
     } finally {
       setUpdating(false);
     }
@@ -322,7 +321,6 @@ export default function OnboardingSubmissionsPage() {
       setSubmissions(data.submissions || []);
       if (data.stats) setStats(data.stats);
     } catch (err) {
-      console.error('Error fetching submissions:', err);
       setError('Unable to load submissions. Please try again.');
     } finally {
       setIsLoading(false);

@@ -68,11 +68,11 @@ export async function POST(request: NextRequest) {
 
     // Otherwise, analyze the spreadsheet
     return handleAnalyzeSpreadsheet(supabase, tenantId, body as ConnectRequest);
-  } catch (error: any) {
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    console.error('[Spreadsheet Connect] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -91,7 +91,7 @@ async function handleAnalyzeSpreadsheet(
   // Fetch integration
   const { data: integration } = await supabase
     .from('integrations')
-    .select('*')
+    .select('id, tenant_id, type, credentials, external_ref')
     .eq('id', integration_id)
     .eq('tenant_id', tenantId)
     .single();
@@ -131,10 +131,11 @@ async function handleAnalyzeSpreadsheet(
       headers = result.headers;
       sampleData = result.sampleData;
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
     return NextResponse.json({
       error: 'Failed to read spreadsheet',
-      details: err.message,
+      details: errMessage,
     }, { status: 400 });
   }
 
@@ -190,7 +191,6 @@ async function handleConfirmMappings(
     .insert(mappingRecords);
 
   if (mappingError) {
-    console.error('[Spreadsheet Connect] Mapping insert error:', mappingError);
     return NextResponse.json({ error: 'Failed to save mappings' }, { status: 500 });
   }
 

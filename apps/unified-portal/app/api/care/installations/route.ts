@@ -45,7 +45,6 @@ export async function GET(request: NextRequest) {
       count: installations?.length || 0,
     });
   } catch (error) {
-    console.error('[Care API] GET /installations error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch installations' },
       { status: 500 }
@@ -132,7 +131,6 @@ export async function POST(request: NextRequest) {
       shareUrl: `${process.env.NEXT_PUBLIC_APP_URL}/care/${installation.id}?qr=${qrCode}`,
     });
   } catch (error) {
-    console.error('[Care API] POST /installations error:', error);
     return NextResponse.json(
       { error: 'Failed to create installation' },
       { status: 500 }

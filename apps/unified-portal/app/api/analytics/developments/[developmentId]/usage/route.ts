@@ -38,7 +38,6 @@ export async function GET(
       estimated_cost_usd: parseFloat(estimated_cost_usd.toFixed(4)),
     });
   } catch (error) {
-    console.error('[API] /api/analytics/developments/[id]/usage error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development usage metrics' },
       { status: 500 }

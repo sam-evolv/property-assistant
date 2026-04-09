@@ -40,7 +40,6 @@ export function SystemLogs() {
         }
       })
       .catch((err) => {
-        console.error('[SystemLogs] Error:', err);
         setError(err.message || 'Failed to fetch logs');
       })
       .finally(() => setLoading(false));

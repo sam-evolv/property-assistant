@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
-import { notice_comments, noticeboard_posts, units, developments } from '@openhouse/db/schema';
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { notice_comments, noticeboard_posts } from '@openhouse/db/schema';
+import { eq, and, desc } from 'drizzle-orm';
 
 export async function GET(
   request: NextRequest,
@@ -56,7 +56,6 @@ export async function GET(
 
     return NextResponse.json({ comments });
   } catch (error) {
-    console.error('[Developer Comments GET Error]:', error);
     return NextResponse.json(
       { error: 'Failed to fetch comments' },
       { status: 500 }
@@ -110,7 +109,6 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Developer Comments DELETE Error]:', error);
     return NextResponse.json(
       { error: 'Failed to delete comment' },
       { status: 500 }

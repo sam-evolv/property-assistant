@@ -56,8 +56,7 @@ export default function HouseEditPage() {
           router.push(`/developments/${developmentId}`);
         }
       }
-    } catch (error) {
-      console.error('Failed to fetch house:', error);
+    } catch {
       toast.error('Failed to load house details');
     } finally {
       setLoading(false);
@@ -82,8 +81,7 @@ export default function HouseEditPage() {
       } else {
         toast.error('Failed to update house');
       }
-    } catch (error) {
-      console.error('Failed to update house:', error);
+    } catch {
       toast.error('Failed to update house');
     } finally {
       setSaving(false);

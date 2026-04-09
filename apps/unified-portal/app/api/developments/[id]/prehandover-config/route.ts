@@ -26,7 +26,6 @@ export async function GET(
       .single();
 
     if (error) {
-      console.error('Error fetching prehandover config:', error);
       return NextResponse.json({ error: 'Failed to fetch config' }, { status: 500 });
     }
 
@@ -55,7 +54,6 @@ export async function GET(
 
     return NextResponse.json(data?.prehandover_config || defaultConfig);
   } catch (error) {
-    console.error('Error in GET prehandover config:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -76,13 +74,11 @@ export async function PUT(
       .eq('id', id);
 
     if (error) {
-      console.error('Error updating prehandover config:', error);
       return NextResponse.json({ error: 'Failed to update config' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error in PUT prehandover config:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

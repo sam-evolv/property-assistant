@@ -97,8 +97,9 @@ export default function BTRAmenitiesPage() {
         const btr = await btrRes.json();
         setAmenities(Array.isArray(amenData) ? amenData : amenData.amenities || []);
         setBtrData(btr);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        const errMessage = err instanceof Error ? err.message : 'Unknown error';
+        setError(errMessage);
       } finally {
         setLoading(false);
       }
@@ -155,8 +156,9 @@ export default function BTRAmenitiesPage() {
         prev.map((a) => (a.id === selectedAmenity.id ? { ...a, ...updated, ...(updated.amenity || {}) } : a))
       );
       setSelectedAmenity(null);
-    } catch (err: any) {
-      alert('Error saving: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error saving: ' + errMessage);
     } finally {
       setSaving(false);
     }
@@ -193,8 +195,9 @@ export default function BTRAmenitiesPage() {
       setNewMaxDuration('2');
       setNewMaxAdvance('7');
       setNewIsBookable(true);
-    } catch (err: any) {
-      alert('Error creating: ' + err.message);
+    } catch (err: unknown) {
+      const errMessage = err instanceof Error ? err.message : 'Unknown error';
+      alert('Error creating: ' + errMessage);
     } finally {
       setSaving(false);
     }

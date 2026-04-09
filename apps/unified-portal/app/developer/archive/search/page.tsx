@@ -56,8 +56,7 @@ export default function ArchiveSearchPage() {
           const data = await res.json();
           setDevelopments(data.developments || []);
         }
-      } catch (err) {
-        console.error('Failed to fetch developments:', err);
+      } catch {
       }
     }
     fetchDevelopments();
@@ -76,8 +75,7 @@ export default function ArchiveSearchPage() {
             name: ht.name || ht.house_type_code 
           })) || []);
         }
-      } catch (err) {
-        console.error('Failed to fetch house types:', err);
+      } catch {
       }
     }
     fetchHouseTypes();
@@ -114,7 +112,6 @@ export default function ArchiveSearchPage() {
       setResults(data.results || []);
       setSearchMeta({ cached: data.cached, total: data.total });
     } catch (err) {
-      console.error('Search error:', err);
       setError(err instanceof Error ? err.message : 'Search failed');
       setResults([]);
     } finally {

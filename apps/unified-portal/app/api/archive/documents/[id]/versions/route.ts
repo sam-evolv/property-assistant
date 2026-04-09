@@ -23,7 +23,6 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 
     return NextResponse.json({ versions });
   } catch (error) {
-    console.error('[Versions] Failed:', error);
     return NextResponse.json({ versions: [] });
   }
 }
@@ -42,7 +41,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[Versions POST] Failed:', error);
     return NextResponse.json({ error: 'Failed to add version' }, { status: 500 });
   }
 }

@@ -92,8 +92,7 @@ export async function getAmenityDocContext(
       documentTitles: matchedDocTitles,
       augmentationNote,
     };
-  } catch (error) {
-    console.error('[AmenityAugmenter] Error fetching doc context:', error);
+  } catch {
     return { found: false, snippets: [], documentTitles: [] };
   }
 }

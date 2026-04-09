@@ -89,7 +89,6 @@ function tryLocalTopicMatch(question: string): string | null {
 export async function extractQuestionTopic(question: string): Promise<string> {
   const localMatch = tryLocalTopicMatch(question);
   if (localMatch) {
-    console.log('[TopicExtractor] Local match:', localMatch);
     return localMatch;
   }
 
@@ -125,10 +124,8 @@ Return ONLY the topic identifier in snake_case, nothing else.`,
     });
 
     const topic = response.choices[0]?.message?.content?.trim().toLowerCase().replace(/\s+/g, '_') || 'general_inquiry';
-    console.log('[TopicExtractor] AI extracted topic:', topic);
     return topic;
-  } catch (error) {
-    console.error('[TopicExtractor] Error:', error);
+  } catch {
     return 'general_inquiry';
   }
 }

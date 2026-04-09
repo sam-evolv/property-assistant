@@ -13,19 +13,15 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
     const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     
     if (!apiKey) {
-      console.error('[Geocode] No Google Maps API key configured');
       return null;
     }
 
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
     
-    console.log(`[Geocode] Geocoding address: ${address}`);
-    
     const response = await fetch(url);
     const data = await response.json();
 
     if (data.status !== 'OK' || !data.results?.length) {
-      console.warn(`[Geocode] Failed to geocode address: ${address}, status: ${data.status}`);
       return null;
     }
 
@@ -36,11 +32,8 @@ export async function geocodeAddress(address: string): Promise<GeocodeResult | n
       formatted_address: data.results[0].formatted_address,
     };
 
-    console.log(`[Geocode] Successfully geocoded: ${address} -> (${result.lat}, ${result.lng})`);
-    
     return result;
   } catch (error) {
-    console.error('[Geocode] Error geocoding address:', error);
     return null;
   }
 }

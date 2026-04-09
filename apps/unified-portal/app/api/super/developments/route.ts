@@ -45,8 +45,8 @@ export async function GET() {
           }
           return acc;
         }, {} as Record<string, number>);
-      } catch (unitError) {
-        console.log('[Super Developments API] Units table query failed, using 0 counts');
+      } catch (_unitError) {
+          // error handled silently
       }
     }
 
@@ -73,9 +73,9 @@ export async function GET() {
       developments: formattedDevelopments,
       total: formattedDevelopments.length,
     });
-  } catch (error: any) {
-    console.error('[Super Developments API] Error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED' || errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to fetch developments' }, { status: 500 });
@@ -142,18 +142,16 @@ export async function POST(request: NextRequest) {
         .where(eq(onboardingSubmissions.id, from_submission_id));
     }
 
-    console.log('[Super Developments API] Created development:', newDevelopment.id);
-
     return NextResponse.json({ 
       success: true,
       id: newDevelopment.id,
     });
-  } catch (error: any) {
-    console.error('[Super Developments API] Create error:', error);
-    if (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN') {
+  } catch (error: unknown) {
+    const errorObj = error instanceof Error ? error as Error & { code?: unknown } : new Error(String(error));
+    if (errorObj.message === 'UNAUTHORIZED' || errorObj.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.code === '23505') {
+    if (errorObj.code === '23505') {
       return NextResponse.json({ error: 'A development with this code already exists' }, { status: 400 });
     }
     return NextResponse.json({ error: 'Failed to create development' }, { status: 500 });

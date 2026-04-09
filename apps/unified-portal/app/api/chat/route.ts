@@ -120,10 +120,10 @@ import {
   applyGlobalSafetyContract,
   GLOBAL_SAFETY_CONTRACT
 } from '@/lib/assistant/suggested-pills';
-import { getNearbyPOIs, formatPOIResponse, formatSchoolsResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategory, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
+import { getNearbyPOIs, formatPOIResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
-import { validateAmenityAnswer, createValidationContext, hasDistanceMatrixData, detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
+import { detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
   getFirewallDiagnostics,
@@ -131,7 +131,7 @@ import {
   type FirewallResult
 } from '@/lib/assistant/hallucination-firewall';
 import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
-import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
+import { cleanForDisplay } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { isGrantQuery, getSEAIGrantsResponse } from '@/lib/assistant/seai-grants';
@@ -449,13 +449,11 @@ function extractRoomFromQuestion(question: string): RoomMapping | null {
   for (const { patterns, mapping } of ROOM_PHRASE_MAPPINGS) {
     for (const pattern of patterns) {
       if (pattern.test(lowerQuestion)) {
-        console.log(`[Chat] Matched room "${mapping.displayName}" from question using pattern: ${pattern}`);
         return mapping;
       }
     }
   }
 
-  console.log(`[Chat] No room pattern matched for question: "${question}"`);
   return null;
 }
 
@@ -482,11 +480,6 @@ async function lookupRoomDimensions(
   roomMapping: RoomMapping
 ): Promise<RoomDimensionResult> {
   try {
-    console.log(`[Chat] ========== ROOM DIMENSION LOOKUP ==========`);
-    console.log(`[Chat] Looking for: "${roomMapping.displayName}"`);
-    console.log(`[Chat] Search keys to try: ${roomMapping.searchKeys.join(', ')}`);
-    console.log(`[Chat] Search name patterns: ${roomMapping.searchNames.join(', ')}`);
-    console.log(`[Chat] User context: houseTypeCode="${houseTypeCode}", unitId="${unitId}", developmentId="${developmentId}", tenantId="${tenantId}"`);
 
     // First, get the house_type_id from unit_types table if we have a house type code
     // CRITICAL: Must filter by development (project_id) to avoid matching wrong house type!
@@ -501,14 +494,12 @@ async function lookupRoomDimensions(
 
       if (unitTypeData && unitTypeData.length > 0) {
         houseTypeId = unitTypeData[0].id;
-        console.log(`[Chat] Resolved house type code ${houseTypeCode} in dev ${developmentId} to ID ${houseTypeId}`);
       } else {
-        console.log(`[Chat] WARNING: Could not resolve house type code ${houseTypeCode} in dev ${developmentId}`);
       }
     }
 
     // Helper to parse dimension result
-    const parseDimension = (dim: any): RoomDimensionResult => ({
+    const parseDimension = (dim: { room_name: string; room_key: string; length_m?: string | null; width_m?: string | null; area_sqm?: string | null; ceiling_height_m?: string | null; verified?: boolean; source?: string }): RoomDimensionResult => ({
       found: true,
       roomName: dim.room_name,
       roomKey: dim.room_key,  // Include the actual room_key for debugging
@@ -526,7 +517,7 @@ async function lookupRoomDimensions(
       if (unitId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('unit_id', unitId)
           .eq('room_key', searchKey)
@@ -534,7 +525,6 @@ async function lookupRoomDimensions(
           .limit(1);
 
         if (data && data.length > 0) {
-          console.log(`[Chat] ✓ Found unit-specific match with room_key="${searchKey}": ${data[0].room_name}`);
           return parseDimension(data[0]);
         }
       }
@@ -543,7 +533,7 @@ async function lookupRoomDimensions(
       if (houseTypeId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('house_type_id', houseTypeId)
           .eq('room_key', searchKey)
@@ -552,7 +542,6 @@ async function lookupRoomDimensions(
           .limit(1);
 
         if (data && data.length > 0) {
-          console.log(`[Chat] ✓ Found house-type match with room_key="${searchKey}": ${data[0].room_name}`);
           return parseDimension(data[0]);
         }
       }
@@ -561,7 +550,7 @@ async function lookupRoomDimensions(
       // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .eq('room_key', searchKey)
@@ -571,7 +560,6 @@ async function lookupRoomDimensions(
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found development-wide default with room_key="${searchKey}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
@@ -582,7 +570,7 @@ async function lookupRoomDimensions(
       if (unitId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('unit_id', unitId)
           .ilike('room_name', `%${searchName}%`)
@@ -590,7 +578,6 @@ async function lookupRoomDimensions(
           .limit(1);
 
         if (data && data.length > 0) {
-          console.log(`[Chat] ✓ Found unit-specific ILIKE match with "${searchName}": ${data[0].room_name}`);
           return parseDimension(data[0]);
         }
       }
@@ -599,7 +586,7 @@ async function lookupRoomDimensions(
       if (houseTypeId) {
         const { data } = await supabase
           .from('unit_room_dimensions')
-          .select('*')
+          .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
           .eq('tenant_id', tenantId)
           .eq('house_type_id', houseTypeId)
           .ilike('room_name', `%${searchName}%`)
@@ -608,7 +595,6 @@ async function lookupRoomDimensions(
           .limit(1);
 
         if (data && data.length > 0) {
-          console.log(`[Chat] ✓ Found house-type ILIKE match with "${searchName}": ${data[0].room_name}`);
           return parseDimension(data[0]);
         }
       }
@@ -617,7 +603,7 @@ async function lookupRoomDimensions(
       // CRITICAL: Do NOT return other house types' dimensions - that causes wrong data!
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_name', `%${searchName}%`)
@@ -627,7 +613,6 @@ async function lookupRoomDimensions(
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found development-wide ILIKE match with "${searchName}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
@@ -637,7 +622,7 @@ async function lookupRoomDimensions(
     for (const searchName of roomMapping.searchNames) {
       const { data } = await supabase
         .from('unit_room_dimensions')
-        .select('*')
+        .select('room_name, room_key, length_m, width_m, area_sqm, ceiling_height_m, verified, source')
         .eq('tenant_id', tenantId)
         .eq('development_id', developmentId)
         .ilike('room_key', `%${searchName}%`)
@@ -647,15 +632,12 @@ async function lookupRoomDimensions(
         .limit(1);
 
       if (data && data.length > 0) {
-        console.log(`[Chat] ✓ Found development-wide ILIKE match on room_key with "${searchName}": ${data[0].room_name}`);
         return parseDimension(data[0]);
       }
     }
 
-    console.log(`[Chat] ✗ No room dimensions found for "${roomMapping.displayName}" after trying all strategies`);
     return { found: false };
   } catch (err) {
-    console.error(`[Chat] Error looking up room dimensions:`, err);
     return { found: false };
   }
 }
@@ -733,12 +715,8 @@ async function translateQueryToEnglish(query: string, sourceLanguage: string): P
     });
 
     const translatedQuery = response.choices[0]?.message?.content?.trim() || query;
-    console.log('[Chat] Translated query from', sourceLanguage, 'to English in', Date.now() - translateStart, 'ms');
-    console.log('[Chat] Original:', query.substring(0, 100));
-    console.log('[Chat] Translated:', translatedQuery.substring(0, 100));
     return translatedQuery;
   } catch (err) {
-    console.error('[Chat] Translation failed, using original query:', err);
     return query;
   }
 }
@@ -761,7 +739,7 @@ interface MessagePersistParams {
   question_topic: string;
   source: string;
   latency_ms: number;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   request_id?: string;
   require_unit_id?: boolean;  // SEV-1: Set true to enforce unit_id requirement
 }
@@ -777,11 +755,6 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
     // SEV-1 ENFORCEMENT: If require_unit_id is set, block if unit_id is invalid
     if (params.require_unit_id && !isValidUUID(params.unit_id)) {
       const errorMsg = `unit_id is required and must be a valid UUID. Got: ${params.unit_id}`;
-      console.error('[Chat] Message persist BLOCKED - missing unit_id (required):', {
-        request_id: params.request_id,
-        unit_uid: params.unit_uid,
-        unit_id: params.unit_id,
-      });
       return { success: false, error: errorMsg };
     }
     
@@ -790,11 +763,6 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
     
     // Log warning if unit_id is missing (for analytics tracking)
     if (!validUnitId) {
-      console.warn('[Chat] Message persisted WITHOUT unit_id:', {
-        request_id: params.request_id,
-        unit_uid: params.unit_uid,
-        require_unit_id: params.require_unit_id,
-      });
     }
     
     await db.insert(messages).values({
@@ -819,13 +787,6 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
     return { success: true };
   } catch (err) {
     const errorMsg = err instanceof Error ? err.message : 'Unknown error';
-    console.error('[Chat] Message persist failed:', {
-      request_id: params.request_id,
-      unit_uid: params.unit_uid,
-      unit_id: params.unit_id,
-      user_id: params.user_id,
-      error: errorMsg,
-    });
     return { success: false, error: errorMsg };
   }
 }
@@ -1048,7 +1009,6 @@ async function getUserUnitDetails(unitUid: string): Promise<{ address: string | 
   const cacheKey = `unit_details:${unitUid}`;
   const cached = globalCache.get(cacheKey);
   if (cached) {
-    console.log('[Chat] Unit info cache hit for:', unitUid);
     return cached as { address: string | null; houseType: string | null; unitInfo: UnitInfo | null };
   }
 
@@ -1057,19 +1017,11 @@ async function getUserUnitDetails(unitUid: string): Promise<{ address: string | 
     const unitInfo = await getUnitInfo(unitUid);
 
     if (!unitInfo) {
-      console.log('[Chat] Could not fetch unit details from either database');
       const result = { address: null, houseType: null, unitInfo: null };
       // Cache negative results for shorter time (30 seconds)
       globalCache.set(cacheKey, result, 30000);
       return result;
     }
-
-    console.log('[Chat] Unit info loaded in', Date.now() - lookupStart, 'ms:', {
-      id: unitInfo.id,
-      house_type_code: unitInfo.house_type_code,
-      development_id: unitInfo.development_id,
-      tenant_id: unitInfo.tenant_id,
-    });
 
     const result = {
       address: unitInfo.address || null,
@@ -1081,7 +1033,6 @@ async function getUserUnitDetails(unitUid: string): Promise<{ address: string | 
     globalCache.set(cacheKey, result, 300000);
     return result;
   } catch (err) {
-    console.error('[Chat] Error fetching unit details:', err);
     return { address: null, houseType: null, unitInfo: null };
   }
 }
@@ -1106,18 +1057,18 @@ function extractHouseTypeFromFilename(filename: string): string | null {
 }
 
 // Get house type code from chunk metadata (checks multiple locations)
-function getChunkHouseTypeCode(chunk: any): string | null {
+function getChunkHouseTypeCode(chunk: { metadata?: Record<string, unknown>; content?: string }): string | null {
   const metadata = chunk.metadata || {};
-  const drawingClassification = metadata.drawing_classification || {};
-  const fileName = metadata.file_name || metadata.source || '';
-  
-  return metadata.house_type_code || 
-         drawingClassification.houseTypeCode || 
+  const drawingClassification = (metadata.drawing_classification || {}) as Record<string, unknown>;
+  const fileName = (metadata.file_name || metadata.source || '') as string;
+
+  return (metadata.house_type_code as string | null) ||
+         (drawingClassification.houseTypeCode as string | null) ||
          extractHouseTypeFromFilename(fileName);
 }
 
 // Parse embedding from Supabase (may be string, array, or object)
-function parseEmbedding(emb: any): number[] | null {
+function parseEmbedding(emb: unknown): number[] | null {
   if (!emb) return null;
   
   // Already an array
@@ -1202,7 +1153,6 @@ function isFollowUpQuestion(message: string): boolean {
 async function loadConversationHistory(userId: string, tenantId: string, developmentId: string): Promise<{ userMessage: string; aiMessage: string }[]> {
   // SECURITY: Never load history for anonymous or unidentified users to prevent cross-session leakage
   if (!userId || userId === 'anonymous' || userId.length < 10) {
-    console.log('[Chat] Skipping history load - user not properly identified');
     return [];
   }
   
@@ -1234,7 +1184,6 @@ async function loadConversationHistory(userId: string, tenantId: string, develop
         aiMessage: m.aiMessage || '',
       }));
   } catch (error) {
-    console.error('[Chat] Error loading conversation history:', error);
     return [];
   }
 }
@@ -1339,7 +1288,6 @@ function expandQueryWithContext(currentMessage: string, history: { userMessage: 
   // Build a context-aware query for semantic search
   const contextQuery = `Previous topic: ${lastExchange.userMessage}\nCurrent question: ${currentMessage}`;
   
-  console.log('[Chat] Expanded query for semantic search:', contextQuery.slice(0, 100) + '...');
   return contextQuery;
 }
 
@@ -1349,7 +1297,6 @@ export async function POST(request: NextRequest) {
 
   const rateCheck = checkRateLimit(clientIP, '/api/chat');
   if (!rateCheck.allowed) {
-    console.log(`[Chat] Rate limit exceeded for ${clientIP} requestId=${requestId}`);
     return NextResponse.json(
       createStructuredError('Too many requests', requestId, {
         error_code: 'RATE_LIMITED',
@@ -1359,18 +1306,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  console.log('\n============================================================');
-  console.log('[Chat] RAG CHAT API - SEMANTIC SEARCH MODE');
-  console.log('[Chat] PROJECT_ID:', PROJECT_ID, `requestId=${requestId}`);
-  console.log('============================================================');
-
   const startTime = Date.now();
   
   // TEST MODE: Allow test harness to get JSON responses instead of streaming
   const { searchParams } = new URL(request.url);
   const testMode = searchParams.get('test_mode') === 'json';
   if (testMode) {
-    console.log('[Chat] TEST MODE ENABLED - will return JSON instead of streaming');
   }
 
   // DIAGNOSTIC MODE: Enable debug output for places-diagnostics testing
@@ -1380,7 +1321,6 @@ export async function POST(request: NextRequest) {
   const isDiagnosticsAuthenticated = isPlacesDiagnosticsMode && testSecret && expectedSecret && testSecret === expectedSecret;
   
   if (isDiagnosticsAuthenticated) {
-    console.log('[Chat] DIAGNOSTICS MODE ENABLED - will include debug info in response');
   }
 
   // Diagnostic tracking object - populated throughout the request
@@ -1427,7 +1367,6 @@ export async function POST(request: NextRequest) {
     const contentLength = request.headers.get('content-length');
     const maxPayloadBytes = 100 * 1024; // 100KB max payload
     if (contentLength && parseInt(contentLength, 10) > maxPayloadBytes) {
-      console.log(`[Chat] Payload too large: ${contentLength} bytes requestId=${requestId}`);
       return NextResponse.json(
         createStructuredError('Payload too large', requestId, { error_code: 'PAYLOAD_TOO_LARGE' }),
         { status: 413, headers: getResponseHeaders(requestId) }
@@ -1463,7 +1402,6 @@ export async function POST(request: NextRequest) {
 
     const maxMessageLength = 8000; // ~2000 tokens max
     if (message.length > maxMessageLength) {
-      console.log(`[Chat] Message too long: ${message.length} chars requestId=${requestId}`);
       return NextResponse.json(
         createStructuredError('Message too long', requestId, { error_code: 'MESSAGE_TOO_LONG' }),
         { status: 400, headers: getResponseHeaders(requestId) }
@@ -1478,12 +1416,9 @@ export async function POST(request: NextRequest) {
       intentClassification = classifyIntent(message);
       answerStrategy = getAnswerStrategy(intentClassification);
       
-      console.log('[Chat] Assistant OS intent:', intentClassification.intent, 'tier:', intentClassification.emergencyTier, 'mode:', answerStrategy.mode);
-      
       // Handle tiered emergency responses
       if (intentClassification.emergencyTier === 1) {
         const tier1Response = getTier1Response();
-        console.log('[Chat] TIER 1 EMERGENCY: Life safety risk detected');
         
         await persistMessageSafely({
           tenant_id: DEFAULT_TENANT_ID,
@@ -1521,7 +1456,6 @@ export async function POST(request: NextRequest) {
       
       if (intentClassification.emergencyTier === 2) {
         const tier2Response = getTier2Response();
-        console.log('[Chat] TIER 2 EMERGENCY: Property emergency detected');
         
         await persistMessageSafely({
           tenant_id: DEFAULT_TENANT_ID,
@@ -1559,7 +1493,6 @@ export async function POST(request: NextRequest) {
       
       if (intentClassification.emergencyTier === 3) {
         const tier3Response = getTier3Response();
-        console.log('[Chat] TIER 3: Non-urgent maintenance issue detected');
         
         await persistMessageSafely({
           tenant_id: DEFAULT_TENANT_ID,
@@ -1608,7 +1541,6 @@ export async function POST(request: NextRequest) {
       
       if (isHumorRequest(message) && !humorBlocked) {
         const jokeResponse = formatJokeResponse();
-        console.log('[Chat] Humor request detected - serving joke');
         
         await persistMessageSafely({
           tenant_id: DEFAULT_TENANT_ID,
@@ -1643,7 +1575,6 @@ export async function POST(request: NextRequest) {
     // SAFETY-CRITICAL PRE-FILTER (fallback for non-OS mode or missed patterns)
     const safetyCheck = isSafetyCriticalQuery(message);
     if (safetyCheck.isCritical && (!isAssistantOSEnabled() || !intentClassification?.emergencyTier)) {
-      console.log('[Chat] SAFETY INTERCEPT: Query blocked by pre-filter, matched keyword:', safetyCheck.matchedKeyword);
       
       await persistMessageSafely({
         tenant_id: DEFAULT_TENANT_ID,
@@ -1662,7 +1593,6 @@ export async function POST(request: NextRequest) {
         },
         request_id: requestId,
       });
-      console.log('[Chat] Safety intercept logged to database');
       
       return NextResponse.json({
         success: true,
@@ -1681,22 +1611,16 @@ export async function POST(request: NextRequest) {
         const payload = await validateQRToken(token);
         if (payload && payload.supabaseUnitId) {
           validatedUnitUid = payload.supabaseUnitId;
-          console.log('[Chat] Token validated, unit derived from token:', validatedUnitUid);
         } else {
-          console.log('[Chat] Token validation failed - drawings will not be accessible');
         }
-      } catch (tokenError) {
-        console.log('[Chat] Token validation error - drawings will not be accessible:', tokenError);
+      } catch (_tokenError) {
+          // error handled silently
       }
     } else {
-      console.log('[Chat] No token provided - drawings will not be accessible for security');
     }
-
-    console.log('🔍 Search Query:', message);
 
     // Establish effective unit UID with fallback chain for drawing lookup
     const effectiveUnitUid = validatedUnitUid || clientUnitUid || null;
-    console.log('[Chat] Effective unit UID for drawings:', effectiveUnitUid || 'none');
 
     // GDPR PROTECTION: Fetch user's unit details and check for questions about other units
     // This also gets house_type_code for RAG filtering (CRITICAL for correct document retrieval)
@@ -1750,10 +1674,9 @@ export async function POST(request: NextRequest) {
     let escalationGuidance: EscalationOutput | null = null;
     
     if (!userSupabaseProjectId) {
-      console.log('[Chat] SCHEME RESOLUTION FAILED: Cannot determine Supabase project_id for tenant:', userTenantId, 'unitUid:', effectiveUnitUid);
       chatDiagnostics.fallback_reason = 'missing_scheme_id';
       
-      const errorResponse: any = {
+      const errorResponse: Record<string, unknown> = {
         success: true,
         answer: "I'm unable to access your development's knowledge base at the moment. Please try again later or contact your management company for assistance.",
         source: 'tenant_config_error',
@@ -1766,20 +1689,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(errorResponse, { headers: { 'x-request-id': requestId } });
     }
     
-    console.log('[Chat] User unit address:', userUnitDetails.address || 'unknown');
-    console.log('[Chat] User house type code:', userHouseTypeCode || 'none (will use all house types)');
-    console.log('[Chat] User tenant/development:', userTenantId, '/', userDevelopmentId, '(Supabase:', userSupabaseProjectId, ')');
-    
     const gdprCheck = detectOtherUnitQuestion(message, userUnitDetails.address);
     
     // HIGH-RISK TOPIC DETECTION: Check if this is a safety/emergency question
     const highRiskCheck = detectHighRiskTopic(message);
     if (highRiskCheck.isHighRisk) {
-      console.log('[Chat] HIGH-RISK TOPIC detected:', highRiskCheck.category);
     }
     
     if (gdprCheck.isAboutOtherUnit) {
-      console.log('[Chat] GDPR BLOCK: Question about other unit detected:', gdprCheck.mentionedUnit);
       
       const gdprResponse = userUnitDetails.address
         ? `I'm afraid I can only provide information about your own home at ${userUnitDetails.address}, or general information about the development and community. For privacy reasons under EU GDPR guidelines, I'm not able to share details about other residents' homes. Is there anything I can help you with regarding your own property or the development as a whole?`
@@ -1817,7 +1734,6 @@ export async function POST(request: NextRequest) {
     // LOCAL HISTORY: Handle history/heritage queries for Longview Park and Rathard Park
     const developmentName = userUnitDetails?.unitInfo?.development_name || null;
     if (isLocalHistoryQuery(message) && isLongviewOrRathardScheme(developmentName)) {
-      console.log('[Chat] Local history query detected for:', developmentName);
       
       const historyCategory = detectHistoryCategory(message);
       const historyResponse = formatLocalHistoryResponse(historyCategory);
@@ -1858,7 +1774,6 @@ export async function POST(request: NextRequest) {
 
     // SEAI GRANTS: Handle grant-related queries with structured knowledge base
     if (isGrantQuery(message)) {
-      console.log('[Chat] SEAI grant query detected');
       const grantResponse = getSEAIGrantsResponse(message);
 
       await persistMessageSafely({
@@ -1897,7 +1812,6 @@ export async function POST(request: NextRequest) {
 
     // Check for active wizard session first
     if (hasActiveWizard(wizardSessionId)) {
-      console.log('[Chat] Active utility wizard session — processing step');
       const wizardResponse = processUtilityStep(wizardSessionId, message);
 
       if (wizardResponse) {
@@ -1941,10 +1855,8 @@ export async function POST(request: NextRequest) {
 
       let utilityResponse: string;
       if (wantsFullWizard) {
-        console.log('[Chat] Starting utility setup wizard');
         utilityResponse = startUtilitySetupWizard(wizardSessionId);
       } else {
-        console.log('[Chat] Single utility query detected');
         utilityResponse = getUtilityInfoResponse(message);
       }
 
@@ -2004,16 +1916,9 @@ export async function POST(request: NextRequest) {
       sessionMemoryUpdatedKeys = memoryResult.updatedKeys;
       
       if (sessionMemoryUpdatedKeys.length > 0) {
-        console.log('[Chat] Session memory updated:', sessionMemoryUpdatedKeys.join(', '));
       }
       
       if (hasRelevantMemory(sessionMemory)) {
-        console.log('[Chat] Session memory context available:', 
-          sessionMemory.block ? `block=${sessionMemory.block}` : '',
-          sessionMemory.room ? `room=${sessionMemory.room}` : '',
-          sessionMemory.appliance ? `appliance=${sessionMemory.appliance}` : '',
-          sessionMemory.issue ? `issue=${sessionMemory.issue}` : ''
-        );
       }
       
       // Generate debug info for observability
@@ -2023,7 +1928,6 @@ export async function POST(request: NextRequest) {
     // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
     const isAffirmativeMessage = intentClassification?.intent === 'affirmative' || isYesIntent(message);
     if (isAssistantOSEnabled() && isAffirmativeMessage) {
-      console.log('[Chat] AFFIRMATIVE INTENT detected - checking for previous follow-up context');
       
       // Load conversation history to find the previous assistant message
       const history = await loadConversationHistory(
@@ -2038,7 +1942,6 @@ export async function POST(request: NextRequest) {
         // LOCAL HISTORY FOLLOW-UP: Check if last message offered another history fact
         const isLocalHistoryFollowUp = lastAssistantMessage.includes('Would you like to hear another interesting fact about the area');
         if (isLocalHistoryFollowUp && isLongviewOrRathardScheme(developmentName)) {
-          console.log('[Chat] AFFIRMATIVE: Routing to local history follow-up');
           
           const historyResponse = formatLocalHistoryResponse(null);
           
@@ -2094,13 +1997,11 @@ export async function POST(request: NextRequest) {
         }
         
         if (extractedTopic) {
-          console.log('[Chat] AFFIRMATIVE: Extracted follow-up topic:', extractedTopic);
           
           // Map the extracted topic to POI categories
           const categories = getFollowUpCategories(extractedTopic);
           
           if (categories && categories.length > 0) {
-            console.log('[Chat] AFFIRMATIVE: Routing to POI categories:', categories);
             
             // Override the intent to location_amenities and set the category
             // Inject the extracted topic into the message for proper POI handling
@@ -2118,14 +2019,12 @@ export async function POST(request: NextRequest) {
               
               // Update message to be the synthetic query for downstream processing
               // This will be handled by the location_amenities block below
-              console.log('[Chat] AFFIRMATIVE: Re-classified as location_amenities for:', poiCategoryResult.category);
             }
           }
         }
         
         if (intentClassification?.intent === 'affirmative') {
           // Couldn't extract a follow-up topic - provide helpful response
-          console.log('[Chat] AFFIRMATIVE: Could not extract follow-up topic from previous message');
           
           const helpfulResponse = 'I want to help, but I am not sure what you would like more information about. Could you tell me specifically what you would like to know?';
           
@@ -2183,11 +2082,9 @@ export async function POST(request: NextRequest) {
     if (isAssistantOSEnabled()) {
       const weatherKeywords = /\b(weather|forecast|raining|sunny|temperature|how cold|how warm|wind|windy|storm|snow|will it rain|what('s| is) the weather|met (é|e)ireann|climate today|outside today)\b/i;
       if (weatherKeywords.test(message)) {
-        console.log('[Chat] WEATHER: detected weather query');
         try {
           const weatherResult = await getWeather(userSupabaseProjectId);
           const weatherResponse = formatWeatherResponse(weatherResult);
-          console.log('[Chat] Weather response generated, length:', weatherResponse.length);
 
           return NextResponse.json({
             success: true,
@@ -2207,7 +2104,6 @@ export async function POST(request: NextRequest) {
             },
           });
         } catch (weatherErr) {
-          console.error('[Chat] Weather fetch failed:', weatherErr);
           // Fall through to normal handling
         }
       }
@@ -2224,7 +2120,6 @@ export async function POST(request: NextRequest) {
       // If a specific amenity is detected, skip active travel and let POI handler answer with real distances
       const mentionsSpecificAmenity = detectPOICategoryExpanded(message).category !== null;
       if (activeTravelKeywords.test(message) && !mentionsSpecificAmenity) {
-        console.log('[Chat] ACTIVE TRAVEL: detected walking/cycling query');
         try {
           const activeTravelResult = await getActiveTravelTimes(userSupabaseProjectId);
           const activeTravelResponse = formatActiveTravelResponse(activeTravelResult);
@@ -2238,7 +2133,6 @@ export async function POST(request: NextRequest) {
             suggested_questions: generateFollowUpQuestions('transport', message),
           });
         } catch (activeTravelErr) {
-          console.error('[Chat] Active travel failed:', activeTravelErr);
           // Fall through to normal amenity handling
         }
       }
@@ -2265,7 +2159,6 @@ export async function POST(request: NextRequest) {
       
       // DYNAMIC KEYWORD SEARCH: If no predefined category but we extracted a keyword, use text search
       if (!poiCategory && dynamicKeyword) {
-        console.log('[Chat] LOCATION_AMENITIES: Using dynamic keyword search for:', dynamicKeyword);
         chatDiagnostics.places_call.category = `dynamic:${dynamicKeyword}`;
         
         try {
@@ -2301,7 +2194,7 @@ export async function POST(request: NextRequest) {
             request_id: requestId,
           });
           
-          const dynamicResponseObj: any = {
+          const dynamicResponseObj: Record<string, unknown> = {
             success: true,
             answer: dynamicResponse,
             source: 'google_places_dynamic',
@@ -2321,14 +2214,12 @@ export async function POST(request: NextRequest) {
           
           return NextResponse.json(dynamicResponseObj);
         } catch (err) {
-          console.error('[Chat] Dynamic keyword search failed:', err);
           // Fall through to generic fallback
         }
       }
       
       if (!poiCategory) {
         // Could not determine POI category - provide generic response, DO NOT fall through to RAG
-        console.log('[Chat] LOCATION_AMENITIES: Could not determine POI category, using fallback');
         chatDiagnostics.fallback_reason = 'unknown_poi_category';
         
         const fallbackResponse = `I'd be happy to help with that – are you looking for shops, restaurants, schools, or something else nearby? Just let me know and I'll point you in the right direction.`;
@@ -2364,7 +2255,7 @@ export async function POST(request: NextRequest) {
           request_id: requestId,
         });
         
-        const fallbackResponseObj: any = {
+        const fallbackResponseObj: Record<string, unknown> = {
           success: true,
           answer: fallbackResponse,
           source: 'amenities_fallback',
@@ -2384,7 +2275,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(fallbackResponseObj);
       }
       
-      console.log('[Chat] LOCATION_AMENITIES: Detected category:', poiCategory, 'expandedIntent:', expandedIntent, 'for scheme:', userSupabaseProjectId);
       chatDiagnostics.places_call.category = poiCategory;
       
       // Check for test mode header for diagnostics
@@ -2400,7 +2290,6 @@ export async function POST(request: NextRequest) {
         let groupedAmenitiesData: GroupedAmenitiesData | null = null;
         
         if (expandedIntent && expandedCategories && expandedCategories.length > 1) {
-          console.log('[Chat] EXPANDED INTENT:', expandedIntent, 'fetching categories:', expandedCategories);
           
           // Fetch all categories and merge results
           const allResults: Awaited<ReturnType<typeof getNearbyPOIs>>[] = [];
@@ -2509,12 +2398,10 @@ export async function POST(request: NextRequest) {
             final_source: 'stale_cache',
             gap_reason: 'google_places_stale_cache_used',
           });
-          console.log('[Chat] AMENITY GATE: Serving stale cache due to:', diagnostics.failure_reason);
         }
         
         // STRICT GATE: If no results, DO NOT fall through to RAG - provide controlled fallback
         if (poiData.results.length === 0) {
-          console.log('[Chat] AMENITY GATE: No Places results, using controlled fallback');
           
           const isMissingLocation = isLocationMissingReason(diagnostics?.failure_reason);
           const categoryName = poiCategory.replace(/_/g, ' ');
@@ -2559,7 +2446,7 @@ export async function POST(request: NextRequest) {
             request_id: requestId,
           });
           
-          const noResultsResponseObj: any = {
+          const noResultsResponseObj: Record<string, unknown> = {
             success: true,
             answer: noResultsResponse,
             source: 'amenities_fallback',
@@ -2579,12 +2466,6 @@ export async function POST(request: NextRequest) {
           }
           
           // Log fallback reason to server logs
-          console.log('[Chat] AMENITY FALLBACK:', {
-            schemeId: userSupabaseProjectId,
-            fallback_reason: chatDiagnostics.fallback_reason || gapReason,
-            category: poiCategory,
-            location_present: chatDiagnostics.scheme_location.present,
-          });
           
           return NextResponse.json(noResultsResponseObj);
         }
@@ -2611,16 +2492,12 @@ export async function POST(request: NextRequest) {
           try {
             transitResult = await getTransitRoutes(userSupabaseProjectId);
             poiResponse = formatTransitRoutesResponse(transitResult, poiData.results);
-            console.log('[Chat] Transit routes:', transitResult.routes.length, 'routes, enabled:', transitResult.enabled, 'from_cache:', transitResult.from_cache);
           } catch (transitErr) {
-            console.error('[Chat] Transit routes failed, falling back to POI:', transitErr);
             poiResponse = formatPOIResponse(poiData, formatOptions);
           }
         } else {
           poiResponse = formatPOIResponse(poiData, formatOptions);
         }
-        
-        console.log('[Chat] POI response generated, from_cache:', poiData.from_cache, 'results:', poiData.results.length);
         
         // OPTIONAL DOCUMENT AUGMENTATION: Enhance Places response with scheme documentation
         // Documents can ONLY augment, never replace place names, distances, or rankings
@@ -2632,7 +2509,6 @@ export async function POST(request: NextRequest) {
           if (docContext.found) {
             poiResponse = formatAugmentedResponse(poiResponse, docContext);
             docAugmentUsed = true;
-            console.log('[Chat] Amenity response augmented with docs:', docContext.documentTitles);
             
             // Log augmentation for observability
             await logAnswerGap({
@@ -2645,8 +2521,8 @@ export async function POST(request: NextRequest) {
               gap_reason: 'amenities_doc_augment_used',
             });
           }
-        } catch (augmentError) {
-          console.log('[Chat] Document augmentation skipped:', augmentError);
+        } catch (_augmentError) {
+            // error handled silently
         }
         
         // Build multi-source hint
@@ -2661,8 +2537,8 @@ export async function POST(request: NextRequest) {
           if (googleApiKey && schemeLoc?.lat && schemeLoc?.lng && poiData.results.some(p => p.lat && p.lng)) {
             mapUrl = buildStaticMapUrl(schemeLoc.lat, schemeLoc.lng, poiData.results, googleApiKey);
           }
-        } catch (mapErr) {
-          console.log('[Chat] Static map URL failed (non-critical):', mapErr);
+        } catch (_mapErr) {
+            // error handled silently
         }
 
         // Generate response first, then persist safely (never fail the response)
@@ -2678,7 +2554,7 @@ export async function POST(request: NextRequest) {
           destination: transitResult.destination,
         } : null;
 
-        const successResponseObj: any = {
+        const successResponseObj: Record<string, unknown> = {
           success: true,
           answer: poiResponse,
           source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
@@ -2736,7 +2612,6 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(successResponseObj);
       } catch (poiError) {
         // STRICT GATE: On Places API error, DO NOT fall through to RAG - provide controlled fallback
-        console.error('[Chat] AMENITY GATE: POI engine error, using controlled fallback:', poiError);
         
         const errorResponse = `I couldn't retrieve nearby amenities right now. Please try again later, or check Google Maps for ${schemeAddress}.`;
         
@@ -2755,8 +2630,8 @@ export async function POST(request: NextRequest) {
             final_source: 'fallback',
             gap_reason: 'google_places_failed',
           });
-        } catch (gapLogError) {
-          console.error('[Chat] Gap log failed:', gapLogError);
+        } catch (_gapLogError) {
+            // error handled silently
         }
         
         // Persist message safely - don't let DB errors fail the response
@@ -2783,7 +2658,7 @@ export async function POST(request: NextRequest) {
           request_id: requestId,
         });
         
-        const errorResponseObj: any = {
+        const errorResponseObj: Record<string, unknown> = {
           success: true,
           answer: errorResponse,
           source: 'amenities_fallback',
@@ -2807,12 +2682,6 @@ export async function POST(request: NextRequest) {
         }
         
         // Log fallback reason to server logs
-        console.log('[Chat] AMENITY API ERROR:', {
-          schemeId: userSupabaseProjectId,
-          fallback_reason: 'api_error',
-          category: poiCategory,
-          error: poiError instanceof Error ? poiError.message : 'Unknown error',
-        });
         
         return NextResponse.json(errorResponseObj);
       }
@@ -2823,7 +2692,6 @@ export async function POST(request: NextRequest) {
     // This ensures conversation continuity even when QR token validation fails but client unit UID exists
     const conversationUserId = effectiveUnitUid || userId || '';
     const conversationHistory = await loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId);
-    console.log('[Chat] Loaded', conversationHistory.length, 'previous exchanges for context');
     
     // Check if this is a follow-up question that needs context expansion
     const needsContext = isFollowUpQuestion(message) && conversationHistory.length > 0;
@@ -2832,23 +2700,18 @@ export async function POST(request: NextRequest) {
       : message;
 
     if (needsContext) {
-      console.log('[Chat] Follow-up detected, using expanded query for semantic search');
     }
 
     // MULTILINGUAL SUPPORT: Translate query to English for RAG retrieval
     // Documents are embedded in English, so querying in English gives best semantic match
     // The AI response will still be in the user's selected language (handled separately)
     if (selectedLanguage !== 'en') {
-      console.log('[Chat] Non-English language detected:', selectedLanguage, '- translating query for retrieval');
       searchQuery = await translateQueryToEnglish(searchQuery, selectedLanguage);
     }
 
     // STEP 1: Generate embeddings — original query + expanded alternatives for better retrieval
-    console.log('[Chat] Expanding query for retrieval...');
     const queryVariants = await expandQueryForRetrieval(searchQuery);
-    console.log('[Chat] Query variants:', queryVariants.length, '(original + alternatives)');
 
-    console.log('[Chat] Generating query embedding...');
     // Embed all variants and average the vectors — improves recall on technical documents
     const embeddingResponses = await Promise.all(
       queryVariants.map(q =>
@@ -2866,7 +2729,6 @@ export async function POST(request: NextRequest) {
       const sum = allEmbeddings.reduce((acc: number, emb: number[]) => acc + emb[i], 0);
       return sum / allEmbeddings.length;
     });
-    console.log('[Chat] Query embedding generated (averaged across', allEmbeddings.length, 'variants)');
 
     // STEP 2: Semantic search using cosine similarity on ALL chunks
     // First, get list of superseded document IDs to filter out from RAG
@@ -2878,23 +2740,20 @@ export async function POST(request: NextRequest) {
         WHERE tenant_id = ${userTenantId}::uuid 
         AND is_superseded = true
       `);
-      supersededDocIds = new Set((superseded as any[]).map(r => r.id));
+      supersededDocIds = new Set((superseded as { id: string }[]).map(r => r.id));
       if (supersededDocIds.size > 0) {
-        console.log('[Chat] Filtering out', supersededDocIds.size, 'superseded documents from RAG');
       }
-    } catch (e) {
-      console.log('[Chat] Could not check superseded docs:', e);
+    } catch (_e) {
+        // error handled silently
     }
     
     // SERVER-SIDE pgvector SIMILARITY SEARCH via match_document_sections()
     // Uses HNSW index — returns top-50 pre-ranked chunks, no in-memory cosine needed.
     // Replaces the previous fetch-all-then-cosine-in-JS approach (was loading ~1000+ rows
     // of 1536-dim embeddings into memory on every request).
-    console.log('[Chat] pgvector search for project:', userSupabaseProjectId);
-    console.log('[Chat] Supabase URL configured:', !!process.env.NEXT_PUBLIC_SUPABASE_URL);
-    console.log('[Chat] Supabase key configured:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
     
-    let allChunks: any[] | null = null;
+    type DocumentChunk = { id: string; content: string; metadata: Record<string, unknown>; embedding?: unknown; similarity?: number; _pgvector_similarity?: number | null; [key: string]: unknown };
+    let allChunks: DocumentChunk[] | null = null;
     let supabaseError: string | null = null;
 
     const chunkLoadStart = Date.now();
@@ -2908,7 +2767,6 @@ export async function POST(request: NextRequest) {
         });
 
       if (fetchError) {
-        console.error('[Chat] pgvector RPC error:', fetchError.message, fetchError.details, fetchError.hint);
         // Fallback: fetch without vector ranking if RPC fails (e.g. function not yet deployed)
         const { data: fallbackData, error: fallbackErr } = await supabase
           .from('document_sections')
@@ -2919,24 +2777,23 @@ export async function POST(request: NextRequest) {
           supabaseError = fallbackErr.message;
         } else {
           allChunks = fallbackData;
-          console.log('[Chat] Using fallback fetch (no vector ranking):', allChunks?.length, 'chunks');
         }
       } else {
         // RPC returns: { id, content, metadata, similarity }
         // Map similarity onto _pgvector_similarity so the scoring section can use it
-        allChunks = (data || []).map((d: any) => ({
+        allChunks = (data || []).map((d: Record<string, unknown>) => ({
           ...d,
+          id: d.id as string,
+          content: d.content as string,
+          metadata: (d.metadata || {}) as Record<string, unknown>,
           _pgvector_similarity: typeof d.similarity === 'number' ? d.similarity : null,
         }));
-        console.log('[Chat] pgvector returned', allChunks?.length, 'pre-ranked chunks in', Date.now() - chunkLoadStart, 'ms');
       }
     } catch (supabaseErr) {
-      console.error('[Chat] Supabase connection failed:', supabaseErr);
       supabaseError = supabaseErr instanceof Error ? supabaseErr.message : 'Connection failed';
     }
 
     if (supabaseError || !allChunks) {
-      console.error('[Chat] Cannot proceed without document chunks. Error:', supabaseError);
       return NextResponse.json({
         success: false,
         error: 'Unable to access knowledge base',
@@ -2945,16 +2802,12 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
-    console.log('[Chat] Total chunks available:', allChunks?.length || 0);
-
     // Calculate similarity scores for ALL chunks
-    let chunks: any[] = [];
+    let chunks: DocumentChunk[] = [];
     if (allChunks && allChunks.length > 0) {
-      console.log('[Chat] Computing semantic similarity scores...');
       
       // DRAWING INTENT DETECTION: Only include floor plans if question is about drawings/dimensions
       const isDrawingRelatedQuestion = /\b(floor\s*plan|drawing|layout|dimensions?|room\s*size|measurements?|square\s*(feet|metres?|meters?|ft|m2)|how\s+(big|large)\s+(is|are)|what\s+size|internal\s+layout|elevation|section)\b/i.test(message);
-      console.log('[Chat] Drawing-related question:', isDrawingRelatedQuestion);
       
       // Patterns that identify floor plan/drawing documents (coded filenames like 2R1-MHL-BS04-ZZ-DR-A-0040)
       const FLOOR_PLAN_PATTERNS = [
@@ -3039,9 +2892,7 @@ export async function POST(request: NextRequest) {
       });
       
       if (activeChunks.length < allChunks.length) {
-        console.log('[Chat] Filtered to', activeChunks.length, 'chunks after removing superseded + technical + wrong house type docs (from', allChunks.length, ')');
         if (userHouseTypeCode) {
-          console.log('[Chat] House type filter active: only showing documents for', userHouseTypeCode);
         }
       }
       
@@ -3091,8 +2942,6 @@ export async function POST(request: NextRequest) {
       const topChunkSimilarity = scoredChunks[0]?.similarity || 0;
       
       if (topChunkSimilarity < MIN_RELEVANCE_SIMILARITY) {
-        console.log('[Chat] Top chunk similarity', topChunkSimilarity.toFixed(3), 'below threshold', MIN_RELEVANCE_SIMILARITY);
-        console.log('[Chat] Treating as "no relevant information found"');
         // Don't add any chunks - this will trigger the "no documents" prompt
       } else {
         // Take top chunks that fit within context limit
@@ -3105,13 +2954,7 @@ export async function POST(request: NextRequest) {
         }
       }
       
-      console.log('[Chat] Selected', chunks.length, 'most relevant chunks');
       if (chunks.length > 0) {
-        console.log('[Chat] Top chunk scores:', chunks.slice(0, 3).map(c => ({
-          score: c.score.toFixed(3),
-          similarity: c.similarity.toFixed(3),
-          source: c.metadata?.file_name || 'unknown'
-        })));
       }
     }
 
@@ -3124,7 +2967,6 @@ export async function POST(request: NextRequest) {
     const isFirstMessage = typeof hasBeenWelcomed === 'boolean'
       ? !hasBeenWelcomed
       : conversationHistory.length === 0;
-    console.log('[Chat] isFirstMessage:', isFirstMessage, '(hasBeenWelcomed:', hasBeenWelcomed, ', historyLength:', conversationHistory.length, ')');
     
     // CAPABILITY EVALUATOR: Determine support level based on RAG quality
     // This prevents the AI from offering follow-up help it cannot deliver
@@ -3147,7 +2989,6 @@ export async function POST(request: NextRequest) {
     };
     
     const supportLevel = evaluateSupportLevel();
-    console.log('[Chat] Support level:', supportLevel, '(top similarity:', (chunks[0]?.similarity || 0).toFixed(3), ')');
     
     // Build capability-aware follow-up instruction
     const getFollowUpInstruction = (): string => {
@@ -3177,7 +3018,7 @@ export async function POST(request: NextRequest) {
 
     if (chunks && chunks.length > 0) {
       const referenceData = chunks
-        .map((chunk: any) => {
+        .map((chunk) => {
           const fileName = chunk.metadata?.file_name || chunk.metadata?.source || 'Document';
           const section = chunk.metadata?.section ? `, Section: ${chunk.metadata.section}` : '';
           const page = chunk.metadata?.page_number ? `, p.${chunk.metadata.page_number}` : '';
@@ -3186,7 +3027,7 @@ export async function POST(request: NextRequest) {
         })
         .join('\n---\n');
 
-      const sources = Array.from(new Set(chunks.map((c: any) => c.metadata?.file_name || c.metadata?.source || 'Document')));
+      const sources = Array.from(new Set(chunks.map((c) => (c.metadata?.file_name || c.metadata?.source || 'Document') as string)));
 
       systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
 
@@ -3252,7 +3093,6 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
       if (homeKnowledgeEntries.length > 0) {
         const homeKnowledgeContext = formatHomeKnowledgeContext(homeKnowledgeEntries);
         systemMessage = systemMessage + `\n\n${homeKnowledgeContext}`;
-        console.log('[Chat] Home knowledge injected:', homeKnowledgeEntries.length, 'entries');
       }
 
       // WARRANTY AWARENESS: Inject specific warranty guidance based on message content
@@ -3260,7 +3100,6 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
       if (warrantyType !== 'unknown') {
         const warrantyGuidance = getWarrantyGuidance(warrantyType);
         systemMessage = systemMessage + `\n\nWARRANTY GUIDANCE (use this when discussing relevant issues):\n${warrantyGuidance}`;
-        console.log('[Chat] Warranty context injected:', warrantyType);
       }
 
       // PROACTIVE DOCUMENT SURFACING: If appliance keywords present in question, instruct model to offer relevant docs
@@ -3268,7 +3107,6 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
       const hasApplianceQuestion = applianceKeywords.some(kw => message.toLowerCase().includes(kw));
       if (hasApplianceQuestion) {
         systemMessage = systemMessage + `\n\nPROACTIVE DOCUMENT OFFER: If the reference documents above include a manual, warranty document, or spec sheet relevant to what the user is asking about, proactively mention it at the end of your answer with a natural offer like "I also have the [document name] available if you'd like to see it."`;
-        console.log('[Chat] Proactive document surfacing enabled for appliance question');
       }
 
       // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present
@@ -3277,16 +3115,12 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         if (intentPlaybook) {
           const intentPrompt = buildIntentSystemPrompt(intentPlaybook);
           systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${intentPrompt}\n\n---\n\n${systemMessage}`;
-          console.log('[Chat] Intent playbook applied:', activeIntentKey);
         } else {
           // Always apply Global Safety Contract even without a specific playbook
           systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${systemMessage}`;
-          console.log('[Chat] Global Safety Contract applied (no playbook for intent):', activeIntentKey);
         }
       }
 
-      console.log('[Chat] Context loaded:', referenceData.length, 'chars from', chunks.length, 'chunks');
-      
       // Update capability context now that we know documents are available
       capabilityContext = buildCapabilityContext({
         hasDocuments: true,
@@ -3294,8 +3128,8 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         placesApiWorking: !!process.env.GOOGLE_PLACES_API_KEY,
         hasSessionMemory: isSessionMemoryEnabled() && hasRelevantMemory(sessionMemory),
         hasUnitInfo: !!userUnitDetails?.unitInfo,
-        hasFloorPlans: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('floor')),
-        hasDrawings: chunks.some((c: any) => c.metadata?.file_name?.toLowerCase().includes('drawing')),
+        hasFloorPlans: chunks.some((c) => (c.metadata?.file_name as string | undefined)?.toLowerCase().includes('floor')),
+        hasDrawings: chunks.some((c) => (c.metadata?.file_name as string | undefined)?.toLowerCase().includes('drawing')),
         isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
       });
     } else {
@@ -3359,7 +3193,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       if (homeKnowledgeEntriesNoDocs.length > 0) {
         const homeKnowledgeContextNoDocs = formatHomeKnowledgeContext(homeKnowledgeEntriesNoDocs);
         systemMessage = systemMessage + `\n\n${homeKnowledgeContextNoDocs}`;
-        console.log('[Chat] Home knowledge injected (no-docs path):', homeKnowledgeEntriesNoDocs.length, 'entries');
       }
 
       // WARRANTY AWARENESS: Inject warranty guidance even when no docs are available
@@ -3367,7 +3200,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       if (warrantyTypeNoDocs !== 'unknown') {
         const warrantyGuidanceNoDocs = getWarrantyGuidance(warrantyTypeNoDocs);
         systemMessage = systemMessage + `\n\nWARRANTY GUIDANCE (use this when discussing relevant issues):\n${warrantyGuidanceNoDocs}`;
-        console.log('[Chat] Warranty context injected (no docs path):', warrantyTypeNoDocs);
       }
 
       // SUGGESTED PILLS V2: Apply intent playbook enhancement when intent metadata is present (no documents case)
@@ -3376,16 +3208,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         if (intentPlaybook) {
           const intentPrompt = buildIntentSystemPrompt(intentPlaybook);
           systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${intentPrompt}\n\n---\n\n${systemMessage}`;
-          console.log('[Chat] Intent playbook applied (no docs):', activeIntentKey);
         } else {
           // Always apply Global Safety Contract even without a specific playbook
           systemMessage = `${GLOBAL_SAFETY_CONTRACT}\n\n---\n\n${systemMessage}`;
-          console.log('[Chat] Global Safety Contract applied (no docs, no playbook):', activeIntentKey);
         }
       }
 
-      console.log('[Chat] No relevant documents found for this query');
-      
       // ESCALATION GUIDANCE: When no documents, provide helpful escalation path
       if (isEscalationEnabled()) {
         const detectedIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
@@ -3401,7 +3229,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             issueType: sessionMemory?.issue ?? (sessionMemory?.appliance ? `${sessionMemory.appliance} issue` : undefined),
           },
         });
-        console.log('[Chat] Escalation guidance prepared:', escalationGuidance.escalationTarget);
       }
       
       // Log unanswered event with full question context for training insights
@@ -3455,7 +3282,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     // Start drawing lookup in parallel with topic extraction
     const drawingPromise = effectiveUnitUid 
       ? findDrawingForQuestion(effectiveUnitUid, await questionTopicPromise).catch(err => {
-          console.error('[Chat] Error finding drawing:', err);
           return { found: false, drawing: null, explanation: '' };
         })
       : Promise.resolve({ found: false, drawing: null, explanation: '' });
@@ -3465,8 +3291,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       drawingPromise
     ]);
 
-    console.log('[Chat] Question topic:', questionTopic);
-    
     // Calculate response quality metrics for analytics
     const topSimilarity = chunks[0]?.similarity || 0;
     const avgSimilarity = chunks.length > 0 
@@ -3524,7 +3348,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     
     // If question is ambiguous about internal vs external, offer clarification
     if (isAmbiguousSizeQuestion && effectiveUnitUid) {
-      console.log('[Chat] Ambiguous size question detected - offering clarification');
       
       const clarificationResponse = "Would you like to see the internal floor plans (showing room layouts and dimensions) or the external elevations (showing the outside appearance of your home)?";
       
@@ -3564,7 +3387,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     if (drawingResult.found && drawingResult.drawing) {
       drawing = drawingResult.drawing;
       drawingExplanation = drawingResult.explanation;
-      console.log('[Chat] Found drawing:', drawing.fileName, 'Type:', drawing.drawingType);
       
       // Track drawing served for marketing website counter
       try {
@@ -3581,9 +3403,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           sessionId: effectiveUnitUid,
           unitId: effectiveUnitUid,
         });
-        console.log('[Chat] Tracked drawing served:', drawing.fileName);
-      } catch (trackErr) {
-        console.error('[Chat] Failed to track drawing served:', trackErr);
+      } catch (_trackErr) {
+          // error handled silently
       }
     }
 
@@ -3593,7 +3414,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     
     const linkRequest = detectDocumentLinkRequest(message);
     if (linkRequest.isLinkRequest && effectiveUnitUid) {
-      console.log('[Chat] Document link request detected, hint:', linkRequest.documentHint);
       
       // Get context from last conversation for better matching
       const lastContext = conversationHistory.length > 0 
@@ -3611,7 +3431,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       if (docResult.found && docResult.document) {
         documentLink = docResult.document;
         documentLinkExplanation = docResult.explanation;
-        console.log('[Chat] Found document for link:', documentLink.fileName);
         
         // Track document served for marketing website counter
         try {
@@ -3629,9 +3448,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             sessionId: effectiveUnitUid,
             unitId: effectiveUnitUid,
           });
-          console.log('[Chat] Tracked document served:', documentLink.fileName);
-        } catch (trackErr) {
-          console.error('[Chat] Failed to track document served:', trackErr);
+        } catch (_trackErr) {
+            // error handled silently
         }
         
         // Return immediately with the document link
@@ -3680,7 +3498,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       /\b(floor\s*plan|floor\s*plans)\s+(link|download|please)\b/i.test(message);
     
     if (isFloorPlanLinkRequest && effectiveUnitUid) {
-      console.log('[Chat] Floor plan link request detected');
       
       const floorPlanResult = await findFloorPlanDocuments(
         effectiveUnitUid,
@@ -3692,8 +3509,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         const floorPlanAnswer = floorPlanResult.attachments.length === 1
           ? "Here's your floor plan. You can view or download it below."
           : `Here are your floor plans (${floorPlanResult.attachments.length} documents). You can view or download them below.`;
-        
-        console.log('[Chat] Returning', floorPlanResult.attachments.length, 'floor plan attachments');
         
         // Save to database
         await persistMessageSafely({
@@ -3770,11 +3585,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     const languageInstruction = languageInstructions[selectedLanguage] || '';
     if (languageInstruction) {
       systemMessage = systemMessage + languageInstruction;
-      console.log('[Chat] Language instruction added for:', selectedLanguage, '- Full system message length:', systemMessage.length);
     }
 
     // STEP 5: Generate Response with STREAMING
-    console.log('[Chat] Generating streaming response with GPT-4o-mini...');
     
     // Build messages array with conversation history for context
     const chatMessages: { role: 'system' | 'user' | 'assistant'; content: string }[] = [
@@ -3783,7 +3596,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     
     // Add recent conversation history so the AI understands follow-up questions
     if (conversationHistory.length > 0) {
-      console.log('[Chat] Including', conversationHistory.length, 'previous exchanges in context');
       for (const exchange of conversationHistory) {
         chatMessages.push({ role: 'user', content: exchange.userMessage });
         chatMessages.push({ role: 'assistant', content: exchange.aiMessage });
@@ -3795,8 +3607,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
     // Handle ALL dimension questions - look up from database AND attach floor plans
     if (isDimensionQuestion) {
-      console.log('[Chat] Dimension question detected - looking up room dimensions and floor plans');
-      console.log('[Chat] Extracted room:', extractedRoom);
 
       // Start both lookups in parallel for performance
       const [floorPlanResult, roomDimensionResult] = await Promise.all([
@@ -3824,7 +3634,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       const hasFloorPlans = floorPlanResult.found && floorPlanResult.attachments.length > 0;
       if (hasFloorPlans) {
         floorPlanAttachments = floorPlanResult.attachments;
-        console.log('[Chat] Floor plans available:', floorPlanAttachments.length);
       }
 
       // Build response based on what we found
@@ -3832,25 +3641,17 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         // We have actual room dimensions from the database!
         dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName, hasFloorPlans);
         answerSource = 'dimension_database';
-        console.log('[Chat] Found room dimensions in database:');
-        console.log('[Chat]   Asked for:', extractedRoom.displayName);
-        console.log('[Chat]   DB room_key:', roomDimensionResult.roomKey);
-        console.log('[Chat]   DB room_name:', roomDimensionResult.roomName);
-        console.log('[Chat]   Dimensions:', roomDimensionResult.length_m, 'x', roomDimensionResult.width_m, 'm');
       } else if (hasFloorPlans) {
         // No database dimensions but we have floor plans
         dimensionAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.\n\nCheck the room labels on the plans for the exact measurements you need.";
         answerSource = 'dimension_floor_plan_fallback';
-        console.log('[Chat] Using floor plan fallback for dimension question');
       } else {
         // No dimensions and no floor plans
         dimensionAnswer = "I don't have the room dimensions for your property stored yet. If you have your original floor plan documentation, that would have the exact measurements. Is there anything else I can help you with?";
-        console.log('[Chat] No room dimensions or floor plans available');
       }
 
       // Floor plans already assigned above if available
       if (hasFloorPlans) {
-        console.log('[Chat] Attaching', floorPlanAttachments.length, 'floor plans to response');
       }
 
       // Also include drawing if available
@@ -3913,11 +3714,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
     // Select model based on question complexity
     const selectedModel = selectChatModel(message, chunks ?? [], activeIntentKey);
-    console.log('[Chat] Model selected:', selectedModel, '| chunks:', chunks?.length ?? 0, '| msgLen:', message.length);
 
     // TEST MODE: Return JSON response instead of streaming for test harness
     if (testMode) {
-      console.log('[Chat] TEST MODE: Generating non-streaming response...');
       const completion = await getOpenAIClient().chat.completions.create({
         model: selectedModel,
         messages: chatMessages,
@@ -3928,7 +3727,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       
       let fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
       const latencyMs = Date.now() - startTime;
-      console.log('[Chat] TEST MODE: Response generated. Length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
       
       // AMENITY HALLUCINATION CHECK: Block fabricated venue names, travel times, distances
       // CRITICAL: If we're in the LLM path, we do NOT have grounded POI data - never bypass validation
@@ -3937,7 +3735,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
       
       if (hallucinationCheck.hasHallucination) {
-        console.log('[Chat] AMENITY HALLUCINATION BLOCKED:', hallucinationCheck.detectedIssues);
         fullAnswer = hallucinationCheck.cleanedAnswer || fullAnswer;
         
         // Log the blocked hallucination
@@ -3953,8 +3750,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             gap_reason: 'amenity_hallucination_blocked',
             details: { blocked_claims: hallucinationCheck.detectedIssues },
           });
-        } catch (logError) {
-          console.error('[Chat] Failed to log hallucination block:', logError);
+        } catch (_logError) {
+            // error handled silently
         }
       }
       
@@ -3968,12 +3765,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           if (escalationText) {
             const cleanEscalationText = cleanForDisplay(escalationText);
             fullAnswer = fullAnswer.trim() + '\n\n' + cleanEscalationText;
-            console.log('[Chat] Escalation guidance appended for:', escalationGuidance.escalationTarget);
           } else {
-            console.log('[Chat] Escalation guidance blocked (placeholder tokens or unknown target)');
           }
         } else {
-          console.log('[Chat] Escalation skipped for non-actionable intent:', effectiveIntent);
         }
       }
       
@@ -3983,13 +3777,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
       if (capabilityContext && isNextBestActionEnabled()) {
         const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as any);
+        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as string);
         fullAnswer = nbaResult.response;
         nbaSuggestionUsed = nbaResult.suggestionUsed;
         nbaDebugInfo = nbaResult.debugInfo;
 
         if (nbaSuggestionUsed) {
-          console.log('[Chat] Next Best Action appended:', nbaSuggestionUsed.substring(0, 50) + '...');
         }
       }
       
@@ -4004,7 +3797,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           includeSourceHint: true,
         };
         fullAnswer = wrapResponse(fullAnswer, toneInput);
-        console.log('[Chat] Tone guardrails applied');
       }
       
       // HALLUCINATION FIREWALL: Validate grounding and block unverified claims
@@ -4024,13 +3816,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             isPlaybook: false,
             isSchemeProfile: false,
           },
-          citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+          citations: chunks?.slice(0, 3).map((c) => (c.metadata?.file_name as string) || 'document'),
         };
         
         firewallResult = enforceGrounding(firewallInput);
         
         if (firewallResult.modified) {
-          console.log('[Chat] Hallucination firewall modified response:', firewallResult.violationType);
           fullAnswer = firewallResult.safeAnswerText;
         }
       }
@@ -4127,7 +3918,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           };
           
           // Check if document is relevant to the question topic
-          const isDocumentRelevantToTopic = (fileName: string, chunk: any, topic: string | null): boolean => {
+          const isDocumentRelevantToTopic = (fileName: string, chunk: DocumentChunk, topic: string | null): boolean => {
             const lower = fileName.toLowerCase();
             const chunkContent = (chunk.content || '').toLowerCase();
             const docCategory = (chunk.metadata?.category || '').toLowerCase();
@@ -4266,12 +4057,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
                 const escalationContent = '\n\n' + cleanEscalationText;
                 fullAnswer += escalationContent;
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: escalationContent })}\n\n`));
-                console.log('[Chat] Escalation guidance streamed for:', escalationGuidance.escalationTarget);
               } else {
-                console.log('[Chat] Escalation guidance blocked in stream (placeholder tokens or unknown target)');
               }
             } else {
-              console.log('[Chat] Escalation skipped in stream for non-actionable intent:', streamEffectiveIntent);
             }
           }
           
@@ -4280,14 +4068,13 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
           if (capabilityContext && isNextBestActionEnabled()) {
             const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as any);
+            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as string);
 
             if (streamNbaResult.suggestionUsed) {
               streamNbaSuggestion = streamNbaResult.suggestionUsed;
               const nbaContent = '\n\n' + streamNbaSuggestion;
               fullAnswer += nbaContent;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text', content: nbaContent })}\n\n`));
-              console.log('[Chat] Next Best Action streamed:', streamNbaSuggestion.substring(0, 50) + '...');
             }
           }
           
@@ -4327,13 +4114,11 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
           // Save to database after streaming completes
           const latencyMs = Date.now() - startTime;
-          console.log('[Chat] Streaming complete. Answer length:', fullAnswer.length, 'Latency:', latencyMs, 'ms');
           
           // TONE GUARDRAILS: Apply final cleanup to complete response for storage
           // Uses processStreamedResponse to apply phrase replacements, em-dash removal, and formatting
           if (isToneGuardrailsEnabled()) {
             fullAnswer = processStreamedResponse(fullAnswer, streamToneInput);
-            console.log('[Chat] Tone guardrails finalized for streamed response storage');
           }
           
           // HALLUCINATION FIREWALL: Validate grounding for stored response
@@ -4352,13 +4137,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
                 hasApprovedFacts: false,
                 schemeId: DEFAULT_DEVELOPMENT_ID,
               },
-              citations: chunks?.slice(0, 3).map((c: any) => c.metadata?.file_name || 'document'),
+              citations: chunks?.slice(0, 3).map((c) => (c.metadata?.file_name as string) || 'document'),
             };
             
             streamFirewallResult = enforceGrounding(streamFirewallInput);
             
             if (streamFirewallResult.modified) {
-              console.log('[Chat] Hallucination firewall detected violation in streamed response:', streamFirewallResult.violationType);
               fullAnswer = streamFirewallResult.safeAnswerText;
               
               // Log the violation for observability
@@ -4378,8 +4162,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
                     firewall_diagnostics: getFirewallDiagnostics(streamFirewallResult)
                   },
                 });
-              } catch (logError) {
-                console.error('[Chat] Failed to log firewall violation:', logError);
+              } catch (_logError) {
+                  // error handled silently
               }
             }
           }
@@ -4395,7 +4179,6 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           
           let answerToStore = fullAnswer;
           if (streamHallucinationCheck.hasHallucination) {
-            console.log('[Chat] STREAMING HALLUCINATION DETECTED (already sent to client):', streamHallucinationCheck.detectedIssues);
             answerToStore = streamHallucinationCheck.cleanedAnswer || fullAnswer;
             
             // Log the hallucination for observability
@@ -4411,8 +4194,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
                 gap_reason: 'amenity_hallucination_blocked',
                 details: { blocked_claims: streamHallucinationCheck.detectedIssues, already_sent: true },
               });
-            } catch (logError) {
-              console.error('[Chat] Failed to log streaming hallucination:', logError);
+            } catch (_logError) {
+                // error handled silently
             }
           }
 
@@ -4437,16 +4220,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             },
             request_id: requestId,
           });
-          console.log('[Chat] Message saved to database');
         } catch (error) {
-          console.error('[Chat] Streaming error:', error);
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: 'Streaming failed' })}\n\n`));
           controller.close();
         }
       },
     });
-
-    console.log('============================================================\n');
 
     return new Response(readable, {
       headers: {

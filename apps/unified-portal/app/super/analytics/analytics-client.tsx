@@ -71,7 +71,6 @@ export default function AnalyticsClient() {
       const result = await res.json();
       setData(result);
     } catch (err) {
-      console.error('Analytics fetch error:', err);
       setError('Failed to load analytics data');
     } finally {
       setIsLoading(false);

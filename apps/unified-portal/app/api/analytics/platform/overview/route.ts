@@ -41,7 +41,6 @@ export async function GET(request: Request) {
             .select('*', { count: 'exact', head: true })
             .eq('project_id', projectId);
           if (!countError) unitCount = count || 0;
-          console.log('[Overview] Units count (fallback query):', unitCount, countError);
         } else {
           unitCount = data || 0;
         }
@@ -51,12 +50,10 @@ export async function GET(request: Request) {
           .select('*', { count: 'exact', head: true });
         if (!error) unitCount = count || 0;
       }
-    } catch (unitError) {
-      console.error('[Overview] Units error:', unitError);
+    } catch (_unitError) {
+        // error handled silently
     }
     
-    console.log('[Overview] Units count:', unitCount, 'projectId:', projectId);
-
     // Get projects count from Supabase
     let projectCount = 0;
     try {
@@ -64,8 +61,8 @@ export async function GET(request: Request) {
         .from('projects')
         .select('*', { count: 'exact', head: true });
       if (!error) projectCount = count || 0;
-    } catch (projectError) {
-      console.error('[Overview] Projects error:', projectError);
+    } catch (_projectError) {
+        // error handled silently
     }
 
     let docQuery = supabaseAdmin
@@ -79,7 +76,6 @@ export async function GET(request: Request) {
     const { data: docSections, error: docError } = await docQuery;
 
     if (docError) {
-      console.error('[Overview] Documents error:', docError);
     }
 
     // Count unique documents by source/file_name
@@ -89,8 +85,6 @@ export async function GET(request: Request) {
       if (source) uniqueDocs.add(source);
     }
     const docCount = uniqueDocs.size;
-
-    console.log('[Overview] Documents count (from Supabase):', docCount);
 
     const [msgCount, activeUsers, homeownerCount, developerCount] = await Promise.all([
       db.select({ count: sql<number>`COUNT(*)::int` }).from(messages).then(r => r[0]?.count || 0).catch(() => 0),
@@ -115,7 +109,6 @@ export async function GET(request: Request) {
       active_homeowners_7d: activeUsers,
     });
   } catch (error) {
-    console.error('[Overview] Error:', error);
     return NextResponse.json({ error: 'Failed to fetch overview' }, { status: 500 });
   }
 }

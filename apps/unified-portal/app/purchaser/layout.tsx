@@ -1,4 +1,5 @@
 import { PurchaserProvider } from '@/contexts/PurchaserContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 export default function PurchaserLayout({
   children,
@@ -6,8 +7,10 @@ export default function PurchaserLayout({
   children: React.ReactNode;
 }) {
   return (
-    <PurchaserProvider>
-      {children}
-    </PurchaserProvider>
+    <ErrorBoundary>
+      <PurchaserProvider>
+        {children}
+      </PurchaserProvider>
+    </ErrorBoundary>
   );
 }

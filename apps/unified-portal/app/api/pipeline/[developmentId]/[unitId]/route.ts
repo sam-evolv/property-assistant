@@ -104,13 +104,12 @@ export async function PATCH(
     // Get existing pipeline record using Supabase
     const { data: existingPipeline, error: fetchError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date, purchaser_name, purchaser_email, purchaser_phone, housing_agency, sale_price')
       .eq('tenant_id', tenantId)
       .eq('unit_id', unitId)
       .single();
 
     if (fetchError && fetchError.code !== 'PGRST116') {
-      console.error('[Pipeline Unit Update API] Error fetching pipeline:', fetchError);
     }
 
     // If no pipeline record exists, create one first
@@ -120,14 +119,13 @@ export async function PATCH(
       // Get unit to verify it exists
       const { data: unit, error: unitError } = await supabaseAdmin
         .from('units')
-        .select('*')
+        .select('id, purchaser_name, purchaser_email, purchaser_phone')
         .eq('tenant_id', tenantId)
         .eq('id', unitId)
         .eq('development_id', developmentId)
         .single();
 
       if (unitError || !unit) {
-        console.error('[Pipeline Unit Update API] Unit not found:', unitError);
         return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
       }
 
@@ -146,7 +144,6 @@ export async function PATCH(
         .single();
 
       if (insertError || !newPipeline) {
-        console.error('[Pipeline Unit Update API] Error creating pipeline:', insertError);
         return NextResponse.json({ error: 'Failed to create pipeline record' }, { status: 500 });
       }
       pipelineId = newPipeline.id;
@@ -177,7 +174,6 @@ export async function PATCH(
         .eq('id', pipelineId);
 
       if (updateError) {
-        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
         return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
       }
     } else if (isNumericField) {
@@ -196,7 +192,6 @@ export async function PATCH(
         .eq('id', pipelineId);
 
       if (updateError) {
-        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
         return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
       }
     } else {
@@ -212,7 +207,6 @@ export async function PATCH(
         .eq('id', pipelineId);
 
       if (updateError) {
-        console.error('[Pipeline Unit Update API] Error updating pipeline:', updateError);
         return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
       }
     }
@@ -232,12 +226,10 @@ export async function PATCH(
           .eq('tenant_id', tenantId);
 
         if (unitSyncError) {
-          console.error('[Pipeline Unit Update API] Failed to sync purchaser data to units table:', unitSyncError);
         } else {
-          console.log(`[Pipeline Unit Update API] Synced ${field} to units table for unit ${unitId}`);
         }
-      } catch (syncError) {
-        console.error('[Pipeline Unit Update API] Purchaser sync failed (non-critical):', syncError);
+      } catch (_syncError) {
+          // error handled silently
       }
     }
 
@@ -247,7 +239,7 @@ export async function PATCH(
         // Fetch the updated pipeline record
         const { data: updatedPipeline } = await supabaseAdmin
           .from('unit_sales_pipeline')
-          .select('*')
+          .select('sale_agreed_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
           .eq('id', pipelineId)
           .single();
 
@@ -270,13 +262,11 @@ export async function PATCH(
             .eq('tenant_id', tenantId);
 
           if (unitUpdateError) {
-            console.error('[Pipeline Unit Update API] Failed to sync milestone to units table:', unitUpdateError);
           } else {
-            console.log(`[Pipeline Unit Update API] Synced milestone '${currentMilestone}' to unit ${unitId}`);
           }
         }
-      } catch (syncError) {
-        console.error('[Pipeline Unit Update API] Milestone sync failed (non-critical):', syncError);
+      } catch (_syncError) {
+          // error handled silently
       }
     }
 
@@ -298,8 +288,8 @@ export async function PATCH(
           new_value: value,
         },
       });
-    } catch (auditError) {
-      console.error('[Pipeline Unit Update API] Audit log failed (non-critical):', auditError);
+    } catch (_auditError) {
+        // error handled silently
     }
 
     // Send push notification for significant pipeline date changes (non-blocking)
@@ -317,10 +307,10 @@ export async function PATCH(
             category: notificationConfig.category,
             triggeredBy: `pipeline.${field}`,
             actionUrl: '/home',
-          }).catch(err => console.error('[Pipeline] Notification failed (non-critical):', err));
+          }).catch(() => { /* notification failure is non-critical */ });
         }
-      } catch (notifyError) {
-        console.error('[Pipeline Unit Update API] Notification failed (non-critical):', notifyError);
+      } catch (_notifyError) {
+          // error handled silently
       }
     }
 
@@ -341,8 +331,6 @@ export async function PATCH(
       },
     });
   } catch (error) {
-    console.error('[Pipeline Unit Update API] Error:', error);
-    console.error('[Pipeline Unit Update API] Stack:', error instanceof Error ? error.stack : 'No stack');
     return NextResponse.json({
       error: 'Internal server error',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -427,27 +415,25 @@ export async function GET(
     // Get unit using Supabase
     const { data: unit, error: unitError } = await supabaseAdmin
       .from('units')
-      .select('*')
+      .select('id, unit_number, address_line_1, house_type_code, purchaser_name, purchaser_email, purchaser_phone')
       .eq('tenant_id', tenantId)
       .eq('id', unitId)
       .eq('development_id', developmentId)
       .single();
 
     if (unitError || !unit) {
-      console.error('[Pipeline Unit Get API] Unit not found:', unitError);
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
     // Get pipeline data using Supabase
     const { data: pipeline, error: pipelineError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, purchaser_name, purchaser_email, purchaser_phone, sale_type, housing_agency, sale_price, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date')
       .eq('tenant_id', tenantId)
       .eq('unit_id', unitId)
       .single();
 
     if (pipelineError && pipelineError.code !== 'PGRST116') {
-      console.error('[Pipeline Unit Get API] Error fetching pipeline:', pipelineError);
     }
 
     // Safely convert dates
@@ -486,7 +472,6 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error('[Pipeline Unit Get API] Error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

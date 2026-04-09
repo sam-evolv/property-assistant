@@ -92,7 +92,6 @@ export default function RDAnalyticsPage() {
         setData(result);
       }
     } catch (err) {
-      console.error('Failed to fetch analytics:', err);
     } finally {
       setLoading(false);
       setRefreshing(false);

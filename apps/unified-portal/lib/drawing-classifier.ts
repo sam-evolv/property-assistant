@@ -79,7 +79,6 @@ export async function classifyDrawing(
   const localDrawingType = classifyDrawingTypeLocal(filename, title);
   
   if (localHouseType && localDrawingType) {
-    console.log('[DrawingClassifier] Local match:', { houseTypeCode: localHouseType, drawingType: localDrawingType });
     return {
       houseTypeCode: localHouseType,
       drawingType: localDrawingType,
@@ -135,8 +134,6 @@ ${contextText ? `Content preview: ${contextText}` : ''}`,
     const content = response.choices[0]?.message?.content;
     if (content) {
       const parsed = JSON.parse(content);
-      console.log('[DrawingClassifier] AI classification:', parsed);
-      
       return {
         houseTypeCode: parsed.house_type_code || localHouseType,
         drawingType: parsed.drawing_type || 'other',
@@ -144,8 +141,8 @@ ${contextText ? `Content preview: ${contextText}` : ''}`,
         confidence: parsed.house_type_code ? 'high' : 'medium',
       };
     }
-  } catch (error) {
-    console.error('[DrawingClassifier] AI classification error:', error);
+  } catch {
+    // AI classification failed — fall back to local extraction
   }
   
   return {

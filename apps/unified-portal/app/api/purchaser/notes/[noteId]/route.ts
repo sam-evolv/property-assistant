@@ -53,11 +53,8 @@ export async function DELETE(
       );
     }
 
-    console.log('[Notes DELETE] Deleted note:', noteId, 'for unit:', unitUid);
-
     return NextResponse.json({ success: true, id: deleted.id });
   } catch (error) {
-    console.error('[Notes DELETE] Error:', error);
     return NextResponse.json(
       { error: 'Failed to delete note' },
       { status: 500 }

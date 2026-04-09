@@ -70,7 +70,6 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ activity: allDays });
   } catch (error) {
-    console.error('[API] /api/analytics/daily-activity error:', error);
     return NextResponse.json({ error: 'Failed to fetch daily activity' }, { status: 500 });
   }
 }

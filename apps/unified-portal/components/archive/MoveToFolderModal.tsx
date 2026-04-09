@@ -50,7 +50,6 @@ export function MoveToFolderModal({
         setFolders(data.folders || []);
       }
     } catch (error) {
-      console.error('[MoveToFolder] Failed to load folders:', error);
     } finally {
       setIsLoading(false);
     }

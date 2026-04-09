@@ -364,7 +364,6 @@ export function formatEscalationGuidance(escalation: EscalationOutput): string |
   const result = lines.join('\n');
   
   if (containsForbiddenPlaceholders(result)) {
-    console.warn('[Escalation] Blocked output containing forbidden placeholder tokens');
     return null;
   }
   
@@ -407,7 +406,6 @@ export function createEscalationForGapReason(
   }
   
   if (!isEscalationAllowedForIntent(intent)) {
-    console.log('[Escalation] Blocked for non-actionable intent:', intent);
     return null;
   }
   

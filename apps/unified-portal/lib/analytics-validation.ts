@@ -65,8 +65,7 @@ export function safeAnalyticsResponse<T>(data: T, schema: z.ZodSchema<T>) {
   try {
     const validated = schema.parse(data);
     return NextResponse.json(validated);
-  } catch (error) {
-    console.error('[Analytics Validation Error]', error);
+  } catch {
     return NextResponse.json(
       { error: 'Invalid response data', safeFallback: true },
       { status: 200 }
@@ -75,8 +74,6 @@ export function safeAnalyticsResponse<T>(data: T, schema: z.ZodSchema<T>) {
 }
 
 export function handleAnalyticsError(error: unknown, context: string) {
-  console.error(`[Analytics Error - ${context}]`, error);
-  
   const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
   
   // Return 400 for ValidationError or validation-related errors, 500 for unexpected server errors

@@ -166,7 +166,7 @@ async function storeTransitRoutesCache(
       });
     }
   } catch (err) {
-    console.error('[Transit] Cache store failed:', err);
+    // Cache store failure is non-critical
   }
 }
 
@@ -230,7 +230,6 @@ export async function getTransitRoutes(schemeId: string): Promise<TransitRoutesR
 
   const cached = await getCachedTransitRoutes(schemeId, cacheKey);
   if (cached) {
-    console.log('[Transit] Cache hit:', schemeId);
     return cached;
   }
 
@@ -254,16 +253,13 @@ export async function getTransitRoutes(schemeId: string): Promise<TransitRoutesR
     clearTimeout(timeoutId);
 
     const data = await response.json();
-    console.log('[Transit] Directions API:', data.status, `(${data.routes?.length ?? 0} routes)`);
 
     // NOT_FOUND or REQUEST_DENIED likely means Directions API not enabled yet
     if (data.status === 'REQUEST_DENIED' || data.status === 'NOT_FOUND') {
-      console.warn('[Transit] Directions API not available:', data.error_message);
       return empty(false);
     }
 
     if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
-      console.error('[Transit] Directions API error:', data.status);
       return empty();
     }
 
@@ -273,7 +269,6 @@ export async function getTransitRoutes(schemeId: string): Promise<TransitRoutesR
     await storeTransitRoutesCache(schemeId, cacheKey, result);
     return result;
   } catch (error: any) {
-    console.error('[Transit] Request failed:', error.message);
     return empty();
   }
 }
@@ -332,7 +327,7 @@ async function storeActiveTravelCache(schemeId: string, cacheKey: string, result
     } else {
       await db.insert(poi_cache).values({ scheme_id: schemeId, category: cacheKey, provider: 'google_directions_active', results_json: payload, fetched_at: now, ttl_days: ACTIVE_TRAVEL_TTL_DAYS });
     }
-  } catch (err) { console.error('[ActiveTravel] Cache store failed:', err); }
+  } catch (err) { /* Cache store failure is non-critical */ }
 }
 
 async function fetchDirectionsTime(origin: string, destination: string, mode: 'walking' | 'bicycling', apiKey: string): Promise<number | null> {
@@ -351,7 +346,7 @@ async function fetchDirectionsTime(origin: string, destination: string, mode: 'w
     if (data.status === 'OK' && data.routes?.[0]?.legs?.[0]?.duration) {
       return Math.round(data.routes[0].legs[0].duration.value / 60);
     }
-  } catch (err) { console.error(`[ActiveTravel] ${mode} directions failed:`, err); }
+  } catch (err) { /* Directions fetch failure */ }
   return null;
 }
 
@@ -368,14 +363,12 @@ export async function getActiveTravelTimes(schemeId: string): Promise<ActiveTrav
   const cacheKey = `active_travel:v1:${destination.substring(0, 40)}`;
 
   const cached = await getCachedActiveTravel(schemeId, cacheKey);
-  if (cached) { console.log('[ActiveTravel] Cache hit:', schemeId); return cached; }
+  if (cached) { return cached; }
 
   const apiKey = getGoogleMapsApiKey();
   if (!apiKey) return empty;
 
   const origin = `${location.lat},${location.lng}`;
-  console.log('[ActiveTravel] Fetching walk + cycle times to', destination);
-
   const [walk_min, cycle_min] = await Promise.all([
     fetchDirectionsTime(origin, destination, 'walking', apiKey),
     fetchDirectionsTime(origin, destination, 'bicycling', apiKey),

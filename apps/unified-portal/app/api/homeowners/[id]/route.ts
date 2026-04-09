@@ -60,11 +60,8 @@ export async function PATCH(
       .where(eq(homeowners.id, id))
       .returning();
 
-    console.log(`[HOMEOWNERS] Updated: ${updated.name} (${id})`);
-
     return NextResponse.json({ homeowner: updated });
   } catch (error) {
-    console.error('[HOMEOWNERS] Error updating:', error);
     return NextResponse.json({ error: 'Failed to update homeowner' }, { status: 500 });
   }
 }
@@ -96,11 +93,8 @@ export async function DELETE(
 
     await db.delete(homeowners).where(eq(homeowners.id, id));
 
-    console.log(`[HOMEOWNERS] Deleted: ${homeowner.name} (${id})`);
-
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('[HOMEOWNERS] Error deleting:', error);
     return NextResponse.json({ error: 'Failed to delete homeowner' }, { status: 500 });
   }
 }

@@ -166,7 +166,6 @@ export default function DevelopmentDetailClient({
       const data = await res.json();
       setDevelopment(data.development);
     } catch (err) {
-      console.error('Error fetching development:', err);
     } finally {
       setLoading(false);
     }
@@ -180,7 +179,6 @@ export default function DevelopmentDetailClient({
       const data = await res.json();
       setUnits(data.units || []);
     } catch (err) {
-      console.error('Error fetching units:', err);
     } finally {
       setUnitsLoading(false);
     }
@@ -256,7 +254,6 @@ export default function DevelopmentDetailClient({
         setImportStep('sheet');
       }
     } catch (err) {
-      console.error('Error parsing file:', err);
       alert('Failed to parse Excel file');
     } finally {
       setIsProcessing(false);
@@ -283,7 +280,6 @@ export default function DevelopmentDetailClient({
       autoMapColumns(data.columns);
       setImportStep('mapping');
     } catch (err) {
-      console.error('Error getting columns:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -346,7 +342,6 @@ export default function DevelopmentDetailClient({
       setPreviewData(data.rows);
       setImportStep('preview');
     } catch (err) {
-      console.error('Error previewing:', err);
     } finally {
       setIsProcessing(false);
     }
@@ -375,7 +370,6 @@ export default function DevelopmentDetailClient({
       setImportResult(data);
       setImportStep('success');
     } catch (err) {
-      console.error('Error importing:', err);
       alert('Import failed');
       setImportStep('preview');
     }
@@ -403,7 +397,6 @@ export default function DevelopmentDetailClient({
       await fetchDevelopment();
       setEditingDevelopment(false);
     } catch (err) {
-      console.error('Error updating development:', err);
       alert('Failed to update development');
     }
   };
@@ -416,7 +409,6 @@ export default function DevelopmentDetailClient({
       if (!res.ok) throw new Error('Failed to delete');
       router.push('/super/developments');
     } catch (err) {
-      console.error('Error deleting development:', err);
       alert('Failed to delete development');
     }
   };

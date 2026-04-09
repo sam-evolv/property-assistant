@@ -20,7 +20,6 @@ async function ensureTable(supabase: ReturnType<typeof getSupabaseAdmin>) {
       );`,
     });
     if (error) {
-      console.warn('[Sessions] ensureTable rpc failed:', error.message);
     }
   } catch {
     // rpc not available — table likely already exists
@@ -51,7 +50,6 @@ export async function GET() {
       .limit(50);
 
     if (error) {
-      console.error('[Sessions GET] Error:', error);
       return new Response(JSON.stringify({ sessions: [] }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -72,7 +70,6 @@ export async function GET() {
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[Sessions GET] Error:', error);
     return new Response(JSON.stringify({ sessions: [] }), {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
@@ -108,7 +105,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error) {
-      console.error('[Sessions POST] Error:', error);
       return new Response(JSON.stringify({ error: 'Failed to create session' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -129,7 +125,6 @@ export async function POST(request: NextRequest) {
       { status: 201, headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('[Sessions POST] Error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
@@ -167,7 +162,6 @@ export async function DELETE(request: NextRequest) {
       .eq('user_id', adminContext.id);
 
     if (error) {
-      console.error('[Sessions DELETE] Error:', error);
       return new Response(JSON.stringify({ error: 'Failed to delete session' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
@@ -179,7 +173,6 @@ export async function DELETE(request: NextRequest) {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
-    console.error('[Sessions DELETE] Error:', error);
     return new Response(JSON.stringify({ error: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },

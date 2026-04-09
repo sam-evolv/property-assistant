@@ -31,15 +31,8 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    const errorId = this.state.errorId || generateErrorId();
-    console.error(`[APP CRITICAL] React error boundary caught error errorId=${errorId}`, {
-      error: error.message,
-      stack: error.stack,
-      componentStack: errorInfo.componentStack,
-      timestamp: new Date().toISOString(),
-    });
     
-    this.setState({ error, errorInfo, errorId });
+    this.setState({ error, errorInfo });
 
     if (typeof window !== 'undefined') {
       fetch('/api/admin/client-errors', {
@@ -53,7 +46,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
           userAgent: navigator.userAgent,
           url: window.location.href,
         }),
-      }).catch((err) => console.error('[Error Boundary] Failed to log error:', err));
+      }).catch(() => {});
     }
   }
 

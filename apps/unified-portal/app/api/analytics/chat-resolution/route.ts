@@ -85,7 +85,6 @@ export async function GET(request: Request) {
       pendingInfoRequests,
     });
   } catch (error) {
-    console.error('[API] /api/analytics/chat-resolution error:', error);
     return NextResponse.json({ 
       totalChats: 0,
       resolvedByAi: 0,

@@ -60,8 +60,7 @@ export async function generateInsightFor(
     });
 
     return insight;
-  } catch (error) {
-    console.error('[InsightsEngine] Failed to generate insight:', error);
+  } catch {
     return 'Insights temporarily unavailable. Please check back later.';
   }
 }
@@ -103,9 +102,7 @@ export function clearExpiredInsights() {
     }
   }
   
-  if (cleared > 0) {
-    console.log(`[InsightsEngine] Cleared ${cleared} expired insights`);
-  }
+  // cleared expired insights
 }
 
 setInterval(clearExpiredInsights, 60 * 60 * 1000);

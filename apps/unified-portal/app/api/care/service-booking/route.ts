@@ -58,7 +58,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError) {
-      console.error('[Care API] POST /service-booking insert error:', insertError);
       return NextResponse.json(
         { error: 'Failed to create booking' },
         { status: 500 }
@@ -67,7 +66,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ booking }, { status: 201 });
   } catch (error) {
-    console.error('[Care API] POST /service-booking error:', error);
     return NextResponse.json(
       { error: 'Failed to create service booking' },
       { status: 500 }

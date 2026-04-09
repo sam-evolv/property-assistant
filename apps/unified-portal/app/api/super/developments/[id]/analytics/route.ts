@@ -139,7 +139,6 @@ export async function GET(
 
     return NextResponse.json({ error: 'Invalid tab' }, { status: 400 });
   } catch (error) {
-    console.error('[Development Analytics Error]', error);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

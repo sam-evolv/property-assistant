@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, memo, useMemo, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import {
   Users, Building2, FileCheck, TrendingUp, ArrowRight, AlertCircle,
@@ -9,12 +9,8 @@ import {
   Download, BarChart3
 } from 'lucide-react';
 import Link from 'next/link';
-import { cn } from '@/lib/utils';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
-import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
-import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
 import type { Alert } from '@/components/ui/ProactiveAlerts';
-import { QuickActionsBar } from '@/components/ui/QuickActions';
 import type { QuickAction } from '@/components/ui/QuickActions';
 
 const TopQuestionsChart = dynamic(
@@ -237,8 +233,8 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
           const data = await response.json();
           setDevelopments(data.developments || []);
         }
-      } catch (err) {
-        console.error('Failed to fetch developments:', err);
+      } catch {
+        // fetch developments failed
       } finally {
         setLoading(false);
       }
@@ -273,8 +269,8 @@ function DevelopmentsCard({ isDarkMode }: { isDarkMode: boolean }) {
           setRequestSuccess(false);
         }, 2000);
       }
-    } catch (err) {
-      console.error('Failed to submit request:', err);
+    } catch {
+      // submit request failed
     } finally {
       setSubmitting(false);
     }
@@ -713,14 +709,12 @@ export default function DeveloperDashboardClient({
           requestId: responseData.requestId || response.headers.get('x-request-id') || undefined,
           endpoint: responseData.endpoint || '/api/analytics/developer/dashboard',
         };
-        console.error('[Dashboard] API error:', errorInfo);
         setError(errorInfo);
         return;
       }
       
       setData(responseData);
     } catch (err) {
-      console.error('[Dashboard] Fetch error:', err);
       setError({
         error: 'Network error',
         details: err instanceof Error ? err.message : 'Failed to connect to server',

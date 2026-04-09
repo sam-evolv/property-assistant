@@ -83,8 +83,8 @@ export async function GET(request: NextRequest) {
       user_id_to_unit_match: userIdToUnitMatch.rows,
       _note: 'Debug panel for message linkage diagnostics',
     });
-  } catch (error: any) {
-    console.error('[Debug Messages] Error:', error);
-    return NextResponse.json({ error: error.message || 'Failed to fetch debug data' }, { status: 500 });
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: errorMessage || 'Failed to fetch debug data' }, { status: 500 });
   }
 }

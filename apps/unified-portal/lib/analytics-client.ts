@@ -46,7 +46,6 @@ async function fetchJSON<T>(url: string, caller: string): Promise<{ data: T | nu
     const data = await response.json();
     return { data, error: null };
   } catch (error) {
-    console.error('[DEPRECATED Analytics Client] Fetch error:', error);
     return {
       data: null,
       error: error instanceof Error ? error.message : 'Unknown error',

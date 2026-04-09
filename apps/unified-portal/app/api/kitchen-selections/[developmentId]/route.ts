@@ -75,7 +75,6 @@ export async function GET(
 ) {
   try {
     const { developmentId } = await params;
-    console.log('[Kitchen Selections API] GET request for development:', developmentId);
     
     const session = await requireRole(['developer', 'admin', 'super_admin']);
     const tenantId = session.tenantId;
@@ -113,31 +112,29 @@ export async function GET(
 
     const { data: supabaseUnits, error: unitsError } = await supabaseAdmin
       .from('units')
-      .select('*')
+      .select('id, unit_number, house_type_code, bedrooms, purchaser_name')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .order('unit_number', { ascending: true });
     
     if (unitsError) {
-      console.error('[Kitchen Selections API] Units query error:', unitsError);
     }
     const allUnits = supabaseUnits || [];
 
     const { data: pipelineData, error: pipelineError } = await supabaseAdmin
       .from('unit_sales_pipeline')
-      .select('*')
+      .select('id, unit_id, purchaser_name, kitchen_selected, kitchen_counter, kitchen_cabinet, kitchen_handle, kitchen_wardrobes, kitchen_notes, kitchen_date')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId);
     
     if (pipelineError) {
-      console.error('[Kitchen Selections API] Pipeline query error:', pipelineError);
     }
     
     const pipelineMap = new Map((pipelineData || []).map(p => [p.unit_id, p]));
 
     const { data: configData } = await supabaseAdmin
       .from('kitchen_selection_options')
-      .select('*')
+      .select('pc_sum_kitchen_4bed, pc_sum_kitchen_3bed, pc_sum_kitchen_2bed, pc_sum_wardrobes, counter_types, cabinet_colors, handle_styles, wardrobe_styles')
       .eq('tenant_id', tenantId)
       .eq('development_id', actualDevelopmentId)
       .single();
@@ -220,12 +217,12 @@ export async function GET(
         unitsWithDeductions,
       },
     });
-  } catch (error: any) {
-    console.error('[Kitchen Selections API] Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -325,7 +322,6 @@ export async function PUT(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Update error:', error);
         return NextResponse.json({ error: 'Failed to update' }, { status: 500 });
       }
       result = data;
@@ -342,19 +338,18 @@ export async function PUT(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Insert error:', error);
         return NextResponse.json({ error: 'Failed to create' }, { status: 500 });
       }
       result = data;
     }
 
     return NextResponse.json({ success: true, selection: result });
-  } catch (error: any) {
-    console.error('[Kitchen Selections API] Update Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -439,7 +434,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Options update error:', error);
         return NextResponse.json({ error: 'Failed to update options' }, { status: 500 });
       }
       result = data;
@@ -451,7 +445,6 @@ export async function PATCH(
         .single();
       
       if (error) {
-        console.error('[Kitchen Selections API] Options insert error:', error);
         return NextResponse.json({ error: 'Failed to save options' }, { status: 500 });
       }
       result = data;
@@ -469,12 +462,12 @@ export async function PATCH(
     };
 
     return NextResponse.json({ success: true, options: transformedOptions });
-  } catch (error: any) {
-    console.error('[Kitchen Selections API] Options Error:', error);
-    if (error.message === 'UNAUTHORIZED') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (error.message === 'FORBIDDEN') {
+    if (errorMessage === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -30,7 +30,6 @@ export async function GET(
 
     return NextResponse.json({ data: result });
   } catch (error) {
-    console.error('[API] /api/analytics/developments/[id]/top-questions error:', error);
     return NextResponse.json(
       { error: 'Failed to fetch development top questions' },
       { status: 500 }

@@ -62,13 +62,8 @@ export function HydrationProvider({
 
   useEffect(() => {
     try {
-      console.log('[Hydration] Client hydration complete', {
-        hasServerData: !!serverData,
-        timestamp: serverData?.timestamp,
-      });
       setIsHydrated(true);
     } catch (err) {
-      console.error('[Hydration] Hydration error', err);
       setError(err instanceof Error ? err : new Error(String(err)));
       setIsHydrated(true); // Still mark as hydrated to prevent infinite loading
     }
@@ -91,7 +86,6 @@ export function useHydration(): HydrationContextType {
   const context = useContext(HydrationContext);
   
   if (!context) {
-    console.warn('[Hydration] useHydration called outside HydrationProvider - returning safe defaults');
     return {
       data: null,
       isHydrated: true,
@@ -111,7 +105,6 @@ export function useHydrationData<T extends keyof HydrationData>(
   const { data, isHydrated } = useHydration();
 
   if (!isHydrated) {
-    console.log('[Hydration] Data requested before hydration complete', key);
     return null;
   }
 
