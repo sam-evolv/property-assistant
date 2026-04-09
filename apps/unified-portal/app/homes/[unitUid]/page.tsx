@@ -570,7 +570,7 @@ export default function HomeResidentPage() {
         >
         {/* Left: Development Logo */}
         <div className="flex items-center gap-3">
-          <div className="flex w-auto items-center justify-center h-[68px]">
+          <div className="flex w-auto items-center justify-center h-[51px]">
             {house?.development_logo_url ? (
               <img
                 src={house.development_logo_url}
