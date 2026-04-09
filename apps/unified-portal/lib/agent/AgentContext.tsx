@@ -66,24 +66,28 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setAgent(profile);
 
       const devIds = await getAgentAssignments(profile.id);
-      if (devIds.length === 0) {
+      setDevelopmentIds(devIds);
+
+      // For scheme agents, no schemes = error. For independent/hybrid, it's fine.
+      if (devIds.length === 0 && profile.agentType === 'scheme') {
         setError('No schemes assigned');
         setLoading(false);
         return;
       }
-      setDevelopmentIds(devIds);
 
-      // Load pipeline for ALL assigned developments
-      const pipelineData = await getAgentPipelineAll(profile.id, devIds);
-      setPipeline(pipelineData);
+      if (devIds.length > 0) {
+        // Load pipeline for ALL assigned developments
+        const pipelineData = await getAgentPipelineAll(profile.id, devIds);
+        setPipeline(pipelineData);
 
-      // Compute development summaries
-      const devSummaries = getDevelopmentSummaries(pipelineData);
-      setDevelopments(devSummaries);
+        // Compute development summaries
+        const devSummaries = getDevelopmentSummaries(pipelineData);
+        setDevelopments(devSummaries);
 
-      // Compute alerts
-      const alertData = getAgentAlerts(pipelineData);
-      setAlerts(alertData);
+        // Compute alerts
+        const alertData = getAgentAlerts(pipelineData);
+        setAlerts(alertData);
+      }
 
     } catch (err: any) {
       setError(err.message || 'Failed to load data');

@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../_components/AgentShell';
+import IndependentPipelineView from '../_components/IndependentPipelineView';
 import {
   getTimelineNudges, logPipelineNote, getInitials,
   daysSince, daysFromNow, type PipelineUnit, type DevelopmentSummary,
@@ -86,6 +87,15 @@ export default function PipelinePage() {
             <div key={i} style={{ height: 140, background: '#f3f4f6', borderRadius: 18, marginBottom: 12, animation: 'pulse 1.5s infinite' }} />
           ))}
         </div>
+      </AgentShell>
+    );
+  }
+
+  // Independent/hybrid agents see listings instead of scheme pipeline
+  if (agent && agent.agentType !== 'scheme') {
+    return (
+      <AgentShell agentName={agent.displayName?.split(' ')[0]} urgentCount={0}>
+        <IndependentPipelineView agent={agent} />
       </AgentShell>
     );
   }

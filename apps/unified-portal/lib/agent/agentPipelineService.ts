@@ -78,6 +78,8 @@ export interface SolicitorGroup {
   units: { unitId: string; unitNumber: string; purchaserName: string; pipelineId: string; status: string }[];
 }
 
+export type AgentType = 'scheme' | 'independent' | 'hybrid';
+
 export interface AgentProfile {
   id: string;
   displayName: string;
@@ -85,6 +87,10 @@ export interface AgentProfile {
   phone: string;
   email: string;
   tenantId: string;
+  agentType: AgentType;
+  bio: string | null;
+  location: string | null;
+  specialisations: string[] | null;
 }
 
 export interface DevelopmentSummary {
@@ -152,6 +158,10 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
       phone: '021 427 0000',
       email: 'sarah.cronin@savills.ie',
       tenantId: 'b2c3d4e5-f6a7-8901-bcde-f23456789012',
+      agentType: 'scheme' as AgentType,
+      bio: null,
+      location: null,
+      specialisations: null,
     };
   }
 
@@ -161,7 +171,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
     if (user) {
       const { data } = await supabase
         .from('agent_profiles')
-        .select('id, display_name, agency_name, phone, email, tenant_id')
+        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -175,6 +185,10 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
           phone: data.phone,
           email: data.email,
           tenantId: data.tenant_id,
+          agentType: (data.agent_type || 'scheme') as AgentType,
+          bio: data.bio || null,
+          location: data.location || null,
+          specialisations: data.specialisations || null,
         };
       }
     }
@@ -185,7 +199,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
   // Fallback: load first agent profile (Sam Donworth for demo/preview)
   const { data } = await supabase
     .from('agent_profiles')
-    .select('id, display_name, agency_name, phone, email, tenant_id')
+    .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
     .order('created_at', { ascending: true })
     .limit(1)
     .single();
@@ -198,6 +212,10 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
     phone: data.phone,
     email: data.email,
     tenantId: data.tenant_id,
+    agentType: (data.agent_type || 'scheme') as AgentType,
+    bio: data.bio || null,
+    location: data.location || null,
+    specialisations: data.specialisations || null,
   };
 }
 

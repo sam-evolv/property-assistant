@@ -18,6 +18,7 @@ import {
   type UnitProfile,
   type PipelineNote,
 } from '@/lib/agent/agentPipelineService';
+import ListingDetailView from '../../_components/ListingDetailView';
 import {
   ArrowLeft,
   Zap,
@@ -42,12 +43,17 @@ import {
 export default function UnitProfilePage() {
   const params = useParams();
   const unitId = params.unitId as string;
-  const { pipeline, agent } = useAgent();
+  const { pipeline, agent, loading: agentLoading } = useAgent();
 
   const [profile, setProfile] = useState<UnitProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [noteText, setNoteText] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // For independent agents, render the listing detail view
+  if (!agentLoading && agent && agent.agentType !== 'scheme') {
+    return <ListingDetailView listingId={unitId} agent={agent} />;
+  }
 
   const loadProfile = useCallback(async () => {
     if (!pipeline.length) return;

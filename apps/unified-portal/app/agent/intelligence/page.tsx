@@ -2,14 +2,23 @@
 
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
+import { useAgent } from '@/lib/agent/AgentContext';
 import { AGENT_STATS } from '@/lib/agent/demo-data';
 
-const PROMPT_PILLS = [
+const SCHEME_PILLS = [
   "What's outstanding on contracts?",
   'Give me a scheme summary',
   'Draft a buyer follow-up email',
   'Generate developer weekly report',
+];
+
+const INDEPENDENT_PILLS = [
+  "Draft replies to today's enquiries",
+  'Prepare a vendor update',
+  "Who haven't I followed up with?",
+  'Chase a solicitor on contracts',
 ];
 
 interface Message {
@@ -19,16 +28,31 @@ interface Message {
 }
 
 export default function IntelligencePage() {
+  const { agent } = useAgent();
+  const searchParams = useSearchParams();
+  const prefillPrompt = searchParams.get('prompt');
+  const isIndependent = agent?.agentType !== 'scheme';
+  const PROMPT_PILLS = isIndependent ? INDEPENDENT_PILLS : SCHEME_PILLS;
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const prefillHandled = useRef(false);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  // Handle prefilled prompt from URL (e.g., from "Draft reply" buttons)
+  useEffect(() => {
+    if (prefillPrompt && !prefillHandled.current) {
+      prefillHandled.current = true;
+      handleSend(prefillPrompt);
+    }
+  }, [prefillPrompt]);
 
   const handleSend = (text: string) => {
     if (!text.trim()) return;

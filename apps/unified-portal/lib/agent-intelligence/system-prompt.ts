@@ -5,7 +5,8 @@ export function buildAgentSystemPrompt(
   recentActivitySummary: string,
   upcomingDeadlines: string,
   previousEntityContext: string,
-  ragResults: string
+  ragResults: string,
+  independentContext?: string,
 ): string {
   const schemeList = agentContext.assignedSchemes
     .map(s => `- ${s.schemeName} (${s.unitCount} units)`)
@@ -161,5 +162,7 @@ ${previousEntityContext ? `PREVIOUS CONTEXT (background only — from prior conv
 ${previousEntityContext}
 IMPORTANT: The above is background context ONLY. Do NOT reference names, events, or details from previous conversations unless the agent's current message specifically asks about those entities. Never weave previous conversation details into unrelated answers.` : ''}
 
-${ragResults ? `DOCUMENT RESULTS:\n${ragResults}` : ''}`;
+${ragResults ? `DOCUMENT RESULTS:\n${ragResults}` : ''}
+
+${independentContext || ''}`;
 }

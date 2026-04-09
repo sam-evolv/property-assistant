@@ -94,13 +94,21 @@ export async function POST(request: NextRequest) {
         : Promise.resolve(''),
     ]);
 
+    // 2b. Load independent agent context if applicable
+    let independentContext = '';
+    const agentType = await getAgentType(supabase, agentContext.agentId);
+    if (agentType !== 'scheme') {
+      independentContext = await buildIndependentAgentContext(supabase, agentContext.agentId);
+    }
+
     // 3. Build system prompt
     const systemPrompt = buildAgentSystemPrompt(
       agentContext,
       recentActivity,
       upcomingDeadlines,
       entityMemory,
-      '' // RAG results injected after tool calls if needed
+      '', // RAG results injected after tool calls if needed
+      independentContext,
     );
 
     // 4. Build message history
@@ -383,4 +391,83 @@ async function logInteraction(
       context: { tools_called: toolsCalled.map(t => t.tool_name) },
     });
   }
+}
+
+/**
+ * Get agent_type from agent_profiles table.
+ */
+async function getAgentType(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  agentId: string
+): Promise<string> {
+  const { data } = await supabase
+    .from('agent_profiles')
+    .select('agent_type')
+    .eq('id', agentId)
+    .maybeSingle();
+  return data?.agent_type || 'scheme';
+}
+
+/**
+ * Build context about independent agent's listings, enquiries, and follow-ups
+ * to inject into the system prompt.
+ */
+async function buildIndependentAgentContext(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  agentId: string
+): Promise<string> {
+  const [listingsResult, enquiriesResult, followUpsResult] = await Promise.all([
+    supabase
+      .from('listings')
+      .select('id, address, property_type, bedrooms, asking_price, status, listed_date, vendor_name, vendor_solicitor_name, buyer_name, buyer_solicitor_name, contracts_issued_at, sale_agreed_at')
+      .eq('agent_id', agentId)
+      .in('status', ['active', 'sale_agreed'])
+      .order('listed_date', { ascending: false }),
+    supabase
+      .from('enquiries')
+      .select('enquirer_name, listing_id, status, received_at, source, message')
+      .eq('agent_id', agentId)
+      .eq('status', 'new')
+      .order('received_at', { ascending: false })
+      .limit(10),
+    supabase
+      .from('enquiries')
+      .select('enquirer_name, listing_id, last_contacted_at, next_follow_up_at')
+      .eq('agent_id', agentId)
+      .lt('next_follow_up_at', new Date().toISOString())
+      .neq('status', 'dead')
+      .limit(10),
+  ]);
+
+  const listings = listingsResult.data || [];
+  const enquiries = enquiriesResult.data || [];
+  const followUps = followUpsResult.data || [];
+
+  return `
+AGENT TYPE: Independent estate agent
+
+ACTIVE LISTINGS (${listings.length}):
+${listings.map(l => `
+  - ${l.address}
+    ${l.bedrooms || '?'} bed ${l.property_type || 'property'} · €${l.asking_price ? Number(l.asking_price).toLocaleString('en-IE') : '?'}
+    Status: ${l.status}
+    Listed: ${l.listed_date ? new Date(l.listed_date).toLocaleDateString('en-IE') : 'unknown'}
+    ${l.sale_agreed_at ? `Sale agreed: ${new Date(l.sale_agreed_at).toLocaleDateString('en-IE')}` : ''}
+    ${l.contracts_issued_at ? `Contracts issued: ${new Date(l.contracts_issued_at).toLocaleDateString('en-IE')}` : ''}
+    Vendor solicitor: ${l.vendor_solicitor_name ?? 'not recorded'}
+    Buyer solicitor: ${l.buyer_solicitor_name ?? 'not yet'}
+`).join('')}
+
+NEW ENQUIRIES (${enquiries.length} unactioned):
+${enquiries.map(e => `
+  - ${e.enquirer_name ?? 'Unknown'} via ${e.source || 'unknown'} about listing ${e.listing_id || 'unknown'}
+    "${e.message ?? 'No message'}"
+    Received: ${new Date(e.received_at).toLocaleDateString('en-IE')}
+`).join('')}
+
+OVERDUE FOLLOW-UPS (${followUps.length}):
+${followUps.map(f => `
+  - ${f.enquirer_name || 'Unknown'} — last contacted ${f.last_contacted_at ? new Date(f.last_contacted_at).toLocaleDateString('en-IE') : 'never'}
+`).join('')}
+  `.trim();
 }
