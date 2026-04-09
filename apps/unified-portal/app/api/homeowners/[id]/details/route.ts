@@ -338,7 +338,7 @@ export async function GET(
         email: unitRow.purchaser_email || unitRow.email,
         house_type: houseType,
         address: fullAddress || null,
-        unique_qr_token: unitRow.unit_uid || unitRow.id,
+        unique_qr_token: unitRow.id,
         access_code: unitRow.unit_uid || null,
         handover_date: handoverDate,
         is_handed_over: isHandedOver,
