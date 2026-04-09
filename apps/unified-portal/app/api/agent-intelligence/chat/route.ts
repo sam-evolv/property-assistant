@@ -85,47 +85,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Build context components in parallel (including live pipeline data)
-    const [recentActivity, upcomingDeadlines, entityMemory, pipelineSummary, allDevelopments, unreleasedUnitsRaw] = await Promise.all([
+    // 2. Build context components in parallel
+    const [recentActivity, upcomingDeadlines, entityMemory] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
       agentContext.agentId
         ? loadEntityMemory(supabase, agentContext.agentId, message).catch(() => '')
         : Promise.resolve(''),
-      supabase
-        .from('unit_sales_pipeline')
-        .select(`
-          status,
-          sale_price,
-          sale_type,
-          housing_agency,
-          drawdown_date,
-          handover_date,
-          unit_id,
-          development:developments!development_id(name),
-          unit:units!unit_id(unit_number, house_type_code, bedrooms)
-        `)
-        .eq('tenant_id', tenantId)
-        .then(r => r.data ?? [])
-        .catch(() => [] as any[]),
-      supabase
-        .from('developments')
-        .select('id, name')
-        .eq('tenant_id', tenantId)
-        .eq('is_active', true)
-        .then(r => r.data ?? [])
-        .catch(() => [] as any[]),
-      supabase
-        .from('units')
-        .select('id, development_id, unit_status')
-        .eq('tenant_id', tenantId)
-        .eq('unit_status', 'available')
-        .then(r => r.data ?? [])
-        .catch(() => [] as any[]),
     ]);
-
-    // Build pipeline context string for system prompt
-    const pipelineContext = buildPipelineContext(pipelineSummary, allDevelopments, unreleasedUnitsRaw);
 
     // 3. Build system prompt
     const systemPrompt = buildAgentSystemPrompt(
@@ -133,8 +100,7 @@ export async function POST(request: NextRequest) {
       recentActivity,
       upcomingDeadlines,
       entityMemory,
-      '', // RAG results injected after tool calls if needed
-      pipelineContext
+      '' // RAG results injected after tool calls if needed
     );
 
     // 4. Build message history
@@ -188,7 +154,6 @@ export async function POST(request: NextRequest) {
               tool_name: toolCall.function.name,
               params,
               result_summary: result.summary,
-              result_data: result.data,
             });
           } catch (err: any) {
             console.error(`[AgentIntel] Tool ${toolCall.function.name} failed:`, err);
@@ -231,64 +196,57 @@ export async function POST(request: NextRequest) {
       (err) => console.error('[AgentIntel] Failed to log interaction:', err)
     );
 
-    // 9. Strip markdown from response (plain text for mobile display)
-    const cleanResponse = responseText
-      .replace(/#{1,6}\s/g, '')           // strip heading markers
-      .replace(/\*\*([^*]+)\*\*/g, '$1')  // strip bold **text**
-      .replace(/\*([^*]+)\*/g, '$1')      // strip italic *text*
-      .replace(/__([^_]+)__/g, '$1')      // strip bold __text__
-      .replace(/_([^_]+)_/g, '$1')        // strip italic _text_
-      .replace(/`([^`]+)`/g, '$1')        // strip inline code
-      .replace(/```[\s\S]*?```/g, '')     // strip code blocks
-      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // strip links, keep text
-
-    // 10. Stream the response word-by-word for natural text flow
+    // 9. Stream the response
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Stream words with small delays for natural appearance
-          const words = cleanResponse.split(/(\s+)/); // split keeping whitespace
-          for (let i = 0; i < words.length; i++) {
-            controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'token', content: words[i] }) + '\n')
-            );
-            // Small delay between word groups for natural flow
-            if (i % 3 === 2 && i < words.length - 1) {
-              await new Promise(r => setTimeout(r, 20));
-            }
-          }
+          // Send the full response as tokens (for consistency with existing pattern)
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ type: 'token', content: responseText }) + '\n')
+          );
 
           // Send tool call metadata
           if (toolsCalled.length > 0) {
             controller.enqueue(
               encoder.encode(JSON.stringify({
                 type: 'tools_used',
-                tools: toolsCalled.map(t => ({
-                  name: t.tool_name,
-                  summary: t.result_summary,
-                  ...(t.result_data?.draft ? { draft: t.result_data.draft } : {}),
-                })),
+                tools: toolsCalled.map(t => ({ name: t.tool_name, summary: t.result_summary })),
               }) + '\n')
             );
           }
 
-          // Generate follow-up ACTION suggestions (not questions)
+          // Generate follow-up suggestions
           try {
+            const toolNames = toolsCalled.map(t => t.tool_name).join(', ');
             const followUpCompletion = await openai.chat.completions.create({
               model: 'gpt-4.1-mini',
               messages: [
                 {
                   role: 'system',
-                  content: 'You are suggesting the next thing a busy Irish estate agent would want to do. Return ONLY a JSON array of 2-3 short action strings (max 7 words each). These are buttons the agent taps — so they must be commands, not questions. Sound like a colleague suggesting the obvious next step. GOOD: "Draft chase emails for those 5", "Show me the Riverside pipeline", "Log that call", "Set a reminder for Monday". BAD: "Would you like more details?", "Get help with something else", "Learn more about this topic". Never start with Would/Do/Can/Should.',
+                  content: `You suggest next actions for a busy Irish estate agent selling new homes. Based on the conversation, suggest 2-3 short ACTION-ORIENTED next steps the agent might want to take.
+
+RULES:
+- Every suggestion must be an ACTION the agent can take, not a question back to the agent.
+- Start each suggestion with a verb: "Draft...", "Check...", "Show...", "Create...", "Generate...", "Log..."
+- Never ask the agent a clarifying question. Never use "Would you like..." or "Should I..."
+- Keep each suggestion under 8 words.
+- Make suggestions contextual to what was just discussed.
+- Return ONLY a JSON array of strings, no explanation.
+
+EXAMPLES by context:
+- After a unit/buyer lookup: ["Draft a follow-up email to the buyer", "Check outstanding items in this scheme", "Log a communication for this unit"]
+- After drafting an email: ["Check what else is due this week", "Create a follow-up task", "Draft the next outstanding email"]
+- After a scheme overview: ["Show me the overdue items", "Generate the developer report", "Which units need attention first?"]
+- After creating a task: ["Show my task list", "What else is outstanding?", "Draft a reminder for the buyer"]`,
                 },
                 {
                   role: 'user',
-                  content: `Agent asked: ${message}\n\nAssistant replied: ${cleanResponse.slice(0, 500)}`,
+                  content: `Agent asked: ${message}\n\nTools used: ${toolNames || 'none'}\n\nAssistant replied: ${responseText.slice(0, 500)}`,
                 },
               ],
               temperature: 0.5,
-              max_tokens: 150,
+              max_tokens: 200,
             });
 
             const followUpText = followUpCompletion.choices[0]?.message?.content?.trim();
@@ -334,72 +292,6 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
-}
-
-/**
- * Build a structured pipeline context string from live Supabase data, grouped by development.
- *
- * Status mapping injected into the prompt:
- *   for_sale  = currently available / for sale
- *   agreed    = sale agreed (buyer selected, not yet contracted)
- *   signed    = contracts signed / legally binding
- *   drawdown  = completed / funds transferred
- */
-function buildPipelineContext(
-  pipelineSummary: any[],
-  allDevelopments: any[],
-  unreleasedUnitsRaw: any[]
-): string {
-  if (!allDevelopments.length && !pipelineSummary.length) return '';
-
-  const byDev: Record<string, {
-    name: string;
-    for_sale: number;
-    agreed: number;
-    signed: number;
-    drawdown: number;
-    total: number;
-    revenue: number;
-  }> = {};
-
-  for (const dev of allDevelopments) {
-    byDev[dev.id] = { name: dev.name, for_sale: 0, agreed: 0, signed: 0, drawdown: 0, total: 0, revenue: 0 };
-  }
-
-  // Track which unit IDs are already in the pipeline (for "not yet released" calc)
-  const pipelineUnitIds = new Set<string>();
-
-  for (const entry of pipelineSummary) {
-    const devName = entry.development?.name;
-    const devKey = Object.keys(byDev).find(k => byDev[k].name === devName);
-    if (!devKey) continue;
-
-    byDev[devKey].total++;
-    if (entry.unit_id) pipelineUnitIds.add(entry.unit_id);
-    if (entry.status === 'for_sale') byDev[devKey].for_sale++;
-    if (entry.status === 'agreed') byDev[devKey].agreed++;
-    if (entry.status === 'signed') byDev[devKey].signed++;
-    if (entry.drawdown_date) byDev[devKey].drawdown++;
-    if (entry.sale_price) byDev[devKey].revenue += Number(entry.sale_price);
-  }
-
-  // Count unreleased units (available status, no pipeline entry) per development
-  const unreleasedByDev: Record<string, number> = {};
-  for (const unit of unreleasedUnitsRaw) {
-    if (!pipelineUnitIds.has(unit.id)) {
-      unreleasedByDev[unit.development_id] = (unreleasedByDev[unit.development_id] ?? 0) + 1;
-    }
-  }
-
-  const lines = Object.entries(byDev).map(([devId, d]) => {
-    const unreleased = unreleasedByDev[devId] ?? 0;
-    return `${d.name}: ${d.total} units in pipeline | ${d.for_sale} for sale | ${d.agreed} sale agreed | ${d.signed} contracts signed | ${d.drawdown} drawn down | ${unreleased} not yet released | Revenue: €${d.revenue.toLocaleString()}`;
-  });
-
-  return `LIVE SALES PIPELINE DATA (as of now — treat this as authoritative, not general knowledge):
-Status guide: for_sale = currently available/for sale | agreed = sale agreed (buyer selected, not yet contracted) | signed = contracts signed/legally binding | drawdown = completed/funds transferred | not yet released = units with no pipeline entry yet
-
-${lines.join('\n')}`;
 }
 
 /**

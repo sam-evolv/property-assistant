@@ -186,8 +186,16 @@ export async function loadEntityMemory(
   agentId: string,
   message: string
 ): Promise<string> {
-  // Extract potential entity references from the message (simple heuristic)
-  const words = message.toLowerCase().split(/\s+/);
+  // Extract potential entity references from the message
+  // Only match on substantial terms (3+ chars) to avoid false positives on common words
+  const words = message.toLowerCase().split(/\s+/).filter(w => w.length >= 3);
+
+  // Skip entity memory for generic queries that don't reference specific entities
+  const genericPatterns = ['overview', 'outstanding', 'update', 'report', 'what\'s', 'whats', 'summary', 'briefing', 'this week', 'today'];
+  const isGenericQuery = genericPatterns.some(p => message.toLowerCase().includes(p)) &&
+    !words.some(w => /\d+/.test(w)); // Allow if there's a unit number
+
+  if (isGenericQuery) return '';
 
   // Look for recent conversations about any mentioned names or unit numbers
   const { data: recentConversations } = await supabase
@@ -201,6 +209,7 @@ export async function loadEntityMemory(
   if (!recentConversations?.length) return '';
 
   // Filter conversations that mention any of the same entities
+  // Require at least a 4-character match to avoid false positives
   const relevant = recentConversations.filter((conv: any) => {
     if (!conv.entities_mentioned) return false;
     const entities = conv.entities_mentioned as any;
@@ -210,7 +219,7 @@ export async function loadEntityMemory(
       ...(entities.schemes || []),
     ].map((e: string) => e.toLowerCase());
 
-    return words.some(w => allEntityNames.some(e => e.includes(w) || w.includes(e)));
+    return words.some(w => w.length >= 4 && allEntityNames.some(e => e.includes(w) || w.includes(e)));
   });
 
   if (!relevant.length) return '';

@@ -150,6 +150,8 @@ export async function draftMessage(
   // Gather context data for the draft
   let recipientEmail: string | null = null;
   let unitContext = '';
+  let schemeName = '';
+  let unitNumber = '';
 
   if (params.related_scheme && params.related_unit) {
     const { data: dev } = await supabase
@@ -161,22 +163,18 @@ export async function draftMessage(
       .maybeSingle();
 
     if (dev) {
+      schemeName = dev.name;
       const { data: units } = await supabase
         .from('units')
-        .select('id, unit_number, unit_uid')
+        .select('id, unit_number, unit_uid, purchaser_email')
         .eq('development_id', dev.id)
         .or(`unit_number.ilike.%${params.related_unit}%,unit_uid.ilike.%${params.related_unit}%`)
         .limit(1);
 
       if (units?.[0]) {
-        unitContext = `Unit ${units[0].unit_number || units[0].unit_uid} in ${dev.name}`;
-        // Get email from pipeline table (units table doesn't have purchaser_email)
-        const { data: pipeline } = await supabase
-          .from('unit_sales_pipeline')
-          .select('purchaser_email')
-          .eq('unit_id', units[0].id)
-          .maybeSingle();
-        recipientEmail = pipeline?.purchaser_email || null;
+        recipientEmail = units[0].purchaser_email;
+        unitNumber = units[0].unit_number || units[0].unit_uid || params.related_unit;
+        unitContext = `Unit ${unitNumber} in ${dev.name}`;
       }
     }
   }
@@ -188,52 +186,26 @@ export async function draftMessage(
     'professional'
   );
 
-  // Generate the actual email using LLM
-  const OpenAI = (await import('openai')).default;
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  // Extract first name from recipient
+  const firstName = params.recipient_name.split(' ')[0];
 
-  const emailCompletion = await openai.chat.completions.create({
-    model: 'gpt-4.1-mini',
-    messages: [
-      {
-        role: 'system',
-        content: `You are writing an email on behalf of ${agentContext.displayName}, an Irish estate agent. Write the COMPLETE email — nothing else. No explanation, no preamble. Just the email text.
-
-Rules:
-- Start with a friendly greeting using the recipient's first name (e.g., "Hi Marcelo," or "Hi Stephanie and Kevin,")
-- Write in warm, natural Irish English. Not corporate. Not American.
-- Keep it short — 3-5 sentences maximum
-- End with a warm sign-off like "Thanks a million," or "Kind regards,"
-- Then the agent's name: ${agentContext.displayName}
-- The tone should be: ${tone}`,
-      },
-      {
-        role: 'user',
-        content: `Write an email to ${params.recipient_name} (${params.recipient_type}).${unitContext ? ` Regarding: ${unitContext}.` : ''} Purpose: ${params.context}`,
-      },
-    ],
-    temperature: 0.4,
-    max_tokens: 400,
-  });
-
-  const emailBody = emailCompletion.choices[0]?.message?.content?.trim() || '';
-
-  // Generate subject line
-  const subjectLine = unitContext
-    ? `Update — ${unitContext}`
-    : `Following up — ${params.context.slice(0, 40)}`;
-
+  // Return rich context so the LLM generates the COMPLETE email in its response
   return {
     data: {
-      draft: {
-        to: params.recipient_name,
-        email: recipientEmail,
-        subject: subjectLine,
-        body: emailBody,
-        unit_context: unitContext,
-      },
+      draft_ready: true,
+      recipient_type: params.recipient_type,
+      recipient_name: params.recipient_name,
+      recipient_first_name: firstName,
+      recipient_email: recipientEmail,
+      context: params.context,
+      tone,
+      unit_context: unitContext,
+      unit_number: unitNumber,
+      scheme_name: schemeName,
+      agent_name: agentContext.displayName,
+      instruction: `Generate the COMPLETE email now. Include: Subject line, greeting using "${firstName}", full body text, sign-off, and signature placeholder ([Agent Name] / [Agent Phone] / [Agency Name]). The email must sound like a real person wrote it in natural Irish conversational English. Do NOT describe what the email would say — write the actual email text ready to copy and send.`,
     },
-    summary: `Email drafted for ${params.recipient_name}${unitContext ? ` (${unitContext})` : ''}`,
+    summary: `Drafting email to ${firstName} ${params.recipient_name !== firstName ? `(${params.recipient_name})` : ''} — ${unitContext || params.context.slice(0, 60)}.`,
   };
 }
 
