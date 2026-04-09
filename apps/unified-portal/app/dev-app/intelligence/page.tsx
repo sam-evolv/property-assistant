@@ -7,6 +7,7 @@ import {
 } from '@/lib/dev-app/design-system';
 import MobileShell from '@/components/dev-app/layout/MobileShell';
 import TypingIndicator from '@/components/dev-app/shared/TypingIndicator';
+import IntelligenceConfirmation from '@/components/dev-app/intelligence/rich-cards/IntelligenceConfirmation';
 
 /* ─── Prototype color overrides (matching the HTML design) ─── */
 const C = {
@@ -44,6 +45,8 @@ interface Message {
   content: string;
   toolsUsed?: Array<{ name: string; summary: string }>;
   followUps?: string[];
+  message_type?: string;
+  structured_data?: any;
 }
 
 /* ─── Helpers ─── */
@@ -120,13 +123,11 @@ export default function IntelligencePage() {
     setInput('');
     setSending(true);
 
-    const history = [...messages, userMsg].slice(-10).map(m => ({ role: m.role, content: m.content }));
-
     try {
-      const response = await fetch('/api/agent-intelligence/chat', {
+      const response = await fetch('/api/dev-app/intelligence/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText, history: history.slice(0, -1), sessionId }),
+        body: JSON.stringify({ message: messageText, conversation_id: sessionId }),
         signal: controller.signal,
       });
 
@@ -135,63 +136,65 @@ export default function IntelligencePage() {
         throw new Error(err.error || `HTTP ${response.status}`);
       }
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response stream');
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let fullContent = '';
-      let toolsUsed: Array<{ name: string; summary: string }> = [];
-      let followUps: string[] = [];
-      let returnedSessionId: string | null = null;
-      const aId = `a_${Date.now()}`;
+      const data = await response.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || '';
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const ev = JSON.parse(line);
-            if (ev.type === 'token') {
-              fullContent += ev.content;
-              setMessages(prev => {
-                const exists = prev.find(m => m.id === aId);
-                if (exists) return prev.map(m => m.id === aId ? { ...m, content: fullContent } : m);
-                return [...prev, { id: aId, role: 'assistant' as const, content: fullContent }];
-              });
-            }
-            if (ev.type === 'tools_used') toolsUsed = ev.tools || [];
-            if (ev.type === 'followups') followUps = ev.questions || [];
-            if (ev.type === 'done') returnedSessionId = ev.sessionId || null;
-            if (ev.type === 'error') fullContent = ev.message || 'Something went wrong.';
-          } catch { /* skip */ }
+      if (data.conversation_id && !sessionId) {
+        setSessionId(data.conversation_id);
+      }
+
+      // Convert response messages to page format
+      const newMessages: Message[] = [];
+      const toolsUsed: Array<{ name: string; summary: string }> = [];
+      let textContent = '';
+
+      for (const msg of (data.messages || [])) {
+        if (msg.message_type === 'text' && msg.content) {
+          textContent = msg.content;
+        } else if (msg.message_type === 'unit_info' && msg.structured_data) {
+          toolsUsed.push({ name: 'get_unit_status', summary: `Looked up ${msg.structured_data?.unit_name || 'unit'}` });
+        } else if (msg.message_type === 'email_draft' && msg.structured_data) {
+          toolsUsed.push({ name: 'draft_message', summary: `Drafted email to ${msg.structured_data?.to || 'recipient'}` });
+          if (!textContent) textContent = msg.structured_data?.body || msg.content || '';
+        } else if (msg.message_type === 'status_update_confirmation' && msg.structured_data) {
+          toolsUsed.push({ name: 'update_unit_status', summary: `Preparing status update for ${msg.structured_data?.units?.length || 0} unit(s)` });
+          // Add as a separate message so the confirmation card renders
+          newMessages.push({
+            id: msg.id || `confirm_${Date.now()}`,
+            role: 'assistant',
+            content: msg.content || '',
+            message_type: 'status_update_confirmation',
+            structured_data: msg.structured_data,
+          });
         }
       }
 
-      // Process remaining buffer
-      if (buffer.trim()) {
-        try {
-          const ev = JSON.parse(buffer);
-          if (ev.type === 'token') fullContent += ev.content;
-          if (ev.type === 'tools_used') toolsUsed = ev.tools || [];
-          if (ev.type === 'followups') followUps = ev.questions || [];
-          if (ev.type === 'done') returnedSessionId = ev.sessionId || null;
-        } catch { /* skip */ }
+      // Add the main assistant text message
+      if (textContent || toolsUsed.length > 0) {
+        newMessages.push({
+          id: `a_${Date.now()}`,
+          role: 'assistant',
+          content: textContent,
+          toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
+        });
       }
 
-      // Final update with metadata
-      setMessages(prev => prev.map(m => m.id === aId ? { ...m, content: fullContent, toolsUsed, followUps } : m));
-      if (returnedSessionId && !sessionId) setSessionId(returnedSessionId);
+      if (newMessages.length > 0) {
+        setMessages(prev => [...prev, ...newMessages]);
+      } else {
+        // Fallback if no messages were returned
+        setMessages(prev => [...prev, {
+          id: `a_${Date.now()}`,
+          role: 'assistant',
+          content: 'I processed your request but have nothing to report.',
+        }]);
+      }
     } catch (err: any) {
       if (err.name === 'AbortError') return;
       setMessages(prev => [...prev, { id: `err_${Date.now()}`, role: 'assistant', content: `Sorry, I couldn\u2019t process that. ${err.message || 'Please try again.'}` }]);
     } finally {
       setSending(false);
     }
-  }, [input, sending, messages, sessionId]);
+  }, [input, sending, sessionId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
@@ -290,6 +293,29 @@ export default function IntelligencePage() {
                 }}>
                   <p style={{ color: '#fff', fontSize: 13, lineHeight: 1.55, margin: 0 }}>{msg.content}</p>
                 </div>
+              </div>
+            ) : msg.message_type === 'status_update_confirmation' && msg.structured_data ? (
+              /* ── Confirmation card for status updates ── */
+              <div key={msg.id} style={{ maxWidth: '92%' }}>
+                <IntelligenceConfirmation
+                  data={msg.structured_data}
+                  onResult={(result) => {
+                    if (result.confirmed && result.updated) {
+                      setMessages(prev => [...prev, {
+                        id: `action_${Date.now()}`,
+                        role: 'assistant',
+                        content: `${result.updated} unit${result.updated !== 1 ? 's' : ''} updated successfully.`,
+                        toolsUsed: [{ name: 'update_unit_status', summary: `Updated ${result.updated} unit(s)` }],
+                      }]);
+                    } else if (!result.confirmed) {
+                      setMessages(prev => [...prev, {
+                        id: `cancel_${Date.now()}`,
+                        role: 'assistant',
+                        content: 'No changes were made.',
+                      }]);
+                    }
+                  }}
+                />
               </div>
             ) : (
               /* ── Assistant: white card with Intelligence header ── */
