@@ -156,7 +156,7 @@ export async function middleware(req: NextRequest) {
     return res;
   }
 
-  let user: { email?: string | null } | null = null;
+  let user: { id?: string; email?: string | null } | null = null;
   let error: unknown = null;
 
   try {
@@ -185,11 +185,54 @@ export async function middleware(req: NextRequest) {
 
     if (isAuthenticated && isLoginPage) {
       const explicitRedirectTo = req.nextUrl.searchParams.get('redirectTo');
-      
+
       if (explicitRedirectTo && explicitRedirectTo.startsWith('/') && !explicitRedirectTo.startsWith('//')) {
         return NextResponse.redirect(new URL(explicitRedirectTo, req.url));
       }
-      
+
+      // On the main product selector, redirect authenticated users to their last active product
+      if (pathname === '/login') {
+        try {
+          const { data: lastContext } = await supabase
+            .from('user_contexts')
+            .select('product, context_id')
+            .eq('auth_user_id', user!.id)
+            .order('last_active_at', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (lastContext) {
+            const contextRoutes: Record<string, string> = {
+              homeowner: `/homes/${lastContext.context_id}`,
+              agent: '/agent/home',
+              developer: '/developer/overview',
+              care: `/care/${lastContext.context_id}`,
+              select: '/select/overview',
+            };
+            const route = contextRoutes[lastContext.product];
+            if (route) {
+              return NextResponse.redirect(new URL(route, req.url));
+            }
+          }
+        } catch (e) {
+          // No context found, fall through to admin role check
+        }
+
+        // Fallback: check admin role
+        try {
+          const { data: adminData } = await supabase
+            .from('admins')
+            .select('role, preferred_role')
+            .eq('email', user!.email)
+            .single();
+
+          if (adminData?.role) {
+            const route = resolveDefaultRoute(adminData.role as AdminRole, adminData.preferred_role as AdminRole | null);
+            return NextResponse.redirect(new URL(route, req.url));
+          }
+        } catch (e) {}
+      }
+
       return res;
     }
 
