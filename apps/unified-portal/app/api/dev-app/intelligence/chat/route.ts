@@ -154,6 +154,49 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'update_unit_status',
+      description:
+        "Update the status of one or more units in a scheme. Use for requests like 'mark unit 4B as reserved', 'set all available units in Block A to reserved', 'mark units 1A through 1F as sold'.",
+      parameters: {
+        type: 'object',
+        properties: {
+          scheme_id: {
+            type: 'string',
+            description: 'The development/scheme identifier',
+          },
+          units: {
+            type: 'array',
+            description: 'Array of unit updates to perform',
+            items: {
+              type: 'object',
+              properties: {
+                unit_id: { type: 'string' },
+                unit_reference: {
+                  type: 'string',
+                  description: 'Human-readable unit reference e.g. 4B, Unit 12',
+                },
+                current_status: { type: 'string' },
+                new_status: {
+                  type: 'string',
+                  enum: ['Available', 'Reserved', 'Sold', 'Withdrawn'],
+                },
+              },
+              required: ['unit_id', 'unit_reference', 'current_status', 'new_status'],
+            },
+          },
+          reason: {
+            type: 'string',
+            description:
+              'Brief plain-English summary of what is being changed and why, as understood from the user instruction',
+          },
+        },
+        required: ['scheme_id', 'units', 'reason'],
+      },
+    },
+  },
 ];
 
 // Tool execution functions
@@ -573,6 +616,40 @@ async function executeTool(
       return { items: filtered, count: filtered.length };
     }
 
+    case 'update_unit_status': {
+      // Resolve units from args — the AI provides unit IDs, references, current + new status
+      const unitUpdates = (args.units as Array<{
+        unit_id: string;
+        unit_reference: string;
+        current_status: string;
+        new_status: string;
+      }>) || [];
+
+      if (unitUpdates.length === 0) {
+        return { error: 'No units specified for status update' };
+      }
+
+      // Verify all unit IDs belong to the developer's developments
+      const updateUnitIds = unitUpdates.map((u) => u.unit_id);
+      const validUnitIds = allUnits.filter((u) => updateUnitIds.includes(u.id)).map((u) => u.id);
+      const invalidIds = updateUnitIds.filter((id) => !validUnitIds.includes(id));
+
+      if (invalidIds.length > 0) {
+        return { error: `Units not found in your developments: ${invalidIds.join(', ')}` };
+      }
+
+      // Return a confirmation payload — the client renders this as a confirmation card
+      // No write happens until the user confirms via the API endpoint
+      return {
+        confirmation_required: true,
+        action_type: 'update_unit_status',
+        scheme_id: args.scheme_id,
+        reason: args.reason,
+        units: unitUpdates,
+        message: `I'll update ${unitUpdates.length} unit${unitUpdates.length > 1 ? 's' : ''}. Please review and confirm.`,
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${toolName}` };
   }
@@ -672,6 +749,15 @@ IMPORTANT RULES:
 - If you're unsure about data, say so. Never guess.
 - Use Irish property terminology (solicitor not lawyer, estate agent not realtor).
 
+You also have the ability to perform actions on behalf of the user. When a user asks you to make a change to scheme data, use the appropriate tool.
+
+Rules for write actions:
+- Always populate the reason field with a plain-English summary of what you understood the user to be asking
+- Always include current_status for each unit so the confirmation UI can show the before/after clearly
+- If you are unsure which units a request applies to, ask one clarifying question before calling the tool - do not guess
+- Never call a write tool unless you are confident you have identified the correct records
+- After a confirmed write, acknowledge the change briefly and naturally - do not over-explain
+
 CURRENT CONTEXT:
 Developer ID: ${user.id}
 Developments: ${devList || 'None'}
@@ -757,6 +843,35 @@ Current date: ${today}`;
               message_type: 'email_draft',
               content: `Email draft to ${result.email_draft.to}`,
               structured_data: result.email_draft,
+            });
+          }
+        }
+
+        if (result.confirmation_required && result.action_type === 'update_unit_status') {
+          const confirmationData = {
+            action_type: result.action_type,
+            scheme_id: result.scheme_id,
+            reason: result.reason,
+            units: result.units,
+            natural_language_instruction: message,
+          };
+          const richMsg = {
+            id: `confirm-${Date.now()}-${call.id}`,
+            role: 'assistant',
+            message_type: 'status_update_confirmation',
+            content: result.message || '',
+            structured_data: confirmationData,
+            created_at: new Date().toISOString(),
+          };
+          responseMessages.push(richMsg);
+
+          if (convoId) {
+            await admin.from('intelligence_messages').insert({
+              conversation_id: convoId,
+              role: 'assistant',
+              message_type: 'status_update_confirmation',
+              content: `Status update confirmation for ${(result.units as Array<{ unit_reference: string }>).length} unit(s)`,
+              structured_data: confirmationData,
             });
           }
         }

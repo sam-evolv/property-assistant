@@ -5,12 +5,13 @@ import UnitInfoCard from './rich-cards/UnitInfoCard';
 import EmailDraftCard from './rich-cards/EmailDraftCard';
 import SummaryCard from './rich-cards/SummaryCard';
 import AlertListCard from './rich-cards/AlertListCard';
+import IntelligenceConfirmation from './rich-cards/IntelligenceConfirmation';
 import { Check } from 'lucide-react';
 
 export interface IntelligenceMessage {
   id: string;
   role: 'user' | 'assistant' | 'system';
-  message_type: 'text' | 'unit_info' | 'email_draft' | 'summary' | 'alert_list' | 'action_result';
+  message_type: 'text' | 'unit_info' | 'email_draft' | 'summary' | 'alert_list' | 'action_result' | 'status_update_confirmation';
   content: string;
   structured_data?: any;
   created_at: string;
@@ -20,9 +21,10 @@ export interface MessageBubbleProps {
   message: IntelligenceMessage;
   onSendEmail?: (messageId: string) => Promise<void> | void;
   onEditEmail?: (body: string) => void;
+  onConfirmationResult?: (result: { confirmed: boolean; updated?: number }) => void;
 }
 
-export default function MessageBubble({ message, onSendEmail, onEditEmail }: MessageBubbleProps) {
+export default function MessageBubble({ message, onSendEmail, onEditEmail, onConfirmationResult }: MessageBubbleProps) {
   if (message.role === 'system') return null;
 
   const isUser = message.role === 'user';
@@ -49,6 +51,12 @@ export default function MessageBubble({ message, onSendEmail, onEditEmail }: Mes
         )}
         {!isUser && message.message_type === 'alert_list' && message.structured_data && (
           <AlertListCard data={message.structured_data} />
+        )}
+        {!isUser && message.message_type === 'status_update_confirmation' && message.structured_data && (
+          <IntelligenceConfirmation
+            data={message.structured_data}
+            onResult={onConfirmationResult}
+          />
         )}
 
         {/* Action result bubble */}

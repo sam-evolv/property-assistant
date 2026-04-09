@@ -149,6 +149,24 @@ export default function ChatInterface({
     inputRef.current?.focus();
   };
 
+  const handleConfirmationResult = useCallback(
+    (result: { confirmed: boolean; updated?: number }) => {
+      if (result.confirmed && result.updated) {
+        setMessages((prev: IntelligenceMessage[]) => [
+          ...prev,
+          {
+            id: `action-${Date.now()}`,
+            role: 'assistant',
+            message_type: 'action_result',
+            content: `${result.updated} unit${result.updated !== 1 ? 's' : ''} updated successfully`,
+            created_at: new Date().toISOString(),
+          },
+        ]);
+      }
+    },
+    []
+  );
+
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
@@ -163,6 +181,7 @@ export default function ChatInterface({
             message={msg}
             onSendEmail={handleSendEmail}
             onEditEmail={handleEditEmail}
+            onConfirmationResult={handleConfirmationResult}
           />
         ))}
 
