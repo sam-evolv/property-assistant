@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useCurrentContext } from '@/contexts/CurrentContext';
 
 // =============================================================================
 // Design Tokens - OpenHouse Brand (matching Replit exactly)
@@ -227,6 +228,7 @@ function DevelopmentRow({ development, onClick }: DevelopmentRowProps) {
 
 export default function PipelinePage() {
   const router = useRouter();
+  const { setDevelopmentId } = useCurrentContext();
   const [developments, setDevelopments] = useState<Development[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -438,7 +440,7 @@ export default function PipelinePage() {
                   <DevelopmentRow
                     key={dev.id}
                     development={dev}
-                    onClick={() => router.push(`/developer/pipeline/${dev.id}`)}
+                    onClick={() => { setDevelopmentId(dev.id, dev.name); router.push(`/developer/pipeline/${dev.id}`); }}
                   />
                 ))}
               </tbody>
