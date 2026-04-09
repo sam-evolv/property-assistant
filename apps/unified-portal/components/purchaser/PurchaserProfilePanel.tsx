@@ -25,7 +25,9 @@ import {
   LogOut,
   Link2,
   Mail,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { useHomeNotes, type HomeNote, type NoteCategory } from '@/hooks/useHomeNotes';
 import { getEffectiveToken } from '../../lib/purchaserSession';
@@ -132,6 +134,7 @@ export default function PurchaserProfilePanel({
   const [linkEmail, setLinkEmail] = useState('');
   const [linkStep, setLinkStep] = useState<'idle' | 'input' | 'sent'>('idle');
   const [linkLoading, setLinkLoading] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -280,6 +283,7 @@ export default function PurchaserProfilePanel({
   const handleLinkEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     setLinkLoading(true);
+    setLinkError(null);
     try {
       const supabase = createClientComponentClient();
       const { error } = await supabase.auth.signInWithOtp({
@@ -288,8 +292,14 @@ export default function PurchaserProfilePanel({
           emailRedirectTo: `${window.location.origin}/auth/callback?context=homeowner&unit_id=${unitUid}`,
         },
       });
-      if (!error) setLinkStep('sent');
-    } catch (e) {}
+      if (error) {
+        setLinkError(error.message);
+      } else {
+        setLinkStep('sent');
+      }
+    } catch (err: any) {
+      setLinkError(err?.message || 'Something went wrong. Please try again.');
+    }
     setLinkLoading(false);
   };
 
@@ -749,12 +759,24 @@ export default function PurchaserProfilePanel({
                       <button
                         type="submit"
                         disabled={linkLoading}
-                        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all ${
+                        className={`w-full py-3 rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 ${
                           linkLoading ? 'opacity-60 cursor-not-allowed' : ''
                         } bg-gradient-to-r from-gold-500 to-gold-600 text-white shadow-lg shadow-gold-500/20 hover:shadow-gold-500/30`}
                       >
-                        {linkLoading ? 'Sending...' : 'Send access link'}
+                        {linkLoading ? (
+                          <>
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          'Send access link'
+                        )}
                       </button>
+                      {linkError && (
+                        <p className="text-xs text-center text-red-500">
+                          {linkError}
+                        </p>
+                      )}
                       <p className={`text-xs text-center ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
                         We&apos;ll email you a secure link to connect your property.
                       </p>
@@ -765,14 +787,33 @@ export default function PurchaserProfilePanel({
                 {!authUser && linkStep === 'sent' && (
                   <div className={`rounded-xl p-5 border text-center ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
                     <div className={`p-3 rounded-full mx-auto w-12 h-12 flex items-center justify-center mb-3 ${isDarkMode ? 'bg-emerald-500/10' : 'bg-emerald-50'}`}>
-                      <Mail className="w-5 h-5 text-emerald-500" />
+                      <Check className="w-5 h-5 text-emerald-500" />
                     </div>
                     <p className={`font-semibold mb-1 ${isDarkMode ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                      Link sent!
+                      Link sent - check your email
                     </p>
                     <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Check your email and tap the link to connect.
+                      We sent a secure link to <span className="font-medium">{linkEmail}</span>. Tap it to connect your account.
                     </p>
+                  </div>
+                )}
+
+                {/* Linked email — shown when user has a Supabase auth account */}
+                {authUser && (
+                  <div className={`rounded-xl p-4 border ${isDarkMode ? 'bg-gray-800/50 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
+                        <Mail className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                          Linked email
+                        </p>
+                        <p className={`text-sm font-medium truncate ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+                          {authUser.email}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -838,18 +879,6 @@ export default function PurchaserProfilePanel({
                   </div>
                 )}
 
-                {/* Sign out */}
-                <button
-                  onClick={handleSignOut}
-                  className={`w-full flex items-center justify-center gap-2 py-3.5 rounded-xl text-sm font-medium transition-all ${
-                    isDarkMode
-                      ? 'bg-gray-800/50 border border-gray-700 text-red-400 hover:bg-red-500/10 hover:border-red-500/30'
-                      : 'bg-white border border-gray-200 text-red-500 hover:bg-red-50 hover:border-red-200'
-                  }`}
-                >
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
               </div>
             ) : activeSection === 'saved' ? (
               /* Saved Answers Section */
