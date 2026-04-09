@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 
 const PRODUCTS = [
   {
-    id: 'homeowner',
+    id: 'select',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
@@ -14,19 +14,6 @@ const PRODUCTS = [
     title: 'OpenHouse Select',
     subtitle: 'Builder & homeowner portal',
     href: '/select',
-  },
-  {
-    id: 'select',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-        <path d="M2 17l10 5 10-5"/>
-        <path d="M2 12l10 5 10-5"/>
-      </svg>
-    ),
-    title: 'OpenHouse Select',
-    subtitle: 'One-off & custom builds',
-    href: '/login/homeowner?tier=select',
   },
   {
     id: 'agent',
@@ -65,19 +52,6 @@ const PRODUCTS = [
     title: 'Developer Portal',
     subtitle: 'Project management & analytics',
     href: '/login/developer',
-  },
-  {
-    id: 'select',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-        <path d="M9 22V12h6v10"/>
-        <path d="M12 2l1.5 4h4l-3.5 2.5 1.5 4L12 10l-3.5 2.5 1.5-4L6.5 6h4z" strokeWidth="1.2"/>
-      </svg>
-    ),
-    title: 'OpenHouse Select',
-    subtitle: 'Premium home builder portal',
-    href: '/login/select',
   },
 ];
 
