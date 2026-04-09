@@ -138,10 +138,10 @@ export default function UnitProfilePage() {
       <div style={{ padding: '16px 20px 220px' }}>
           {/* Back */}
           <Link
-            href="/agent/pipeline"
+            href={profile?.developmentId ? `/agent/pipeline/scheme/${profile.developmentId}` : '/agent/pipeline'}
             className="flex items-center gap-1.5 text-sm text-gray-400 mb-4 transition-all active:opacity-70"
           >
-            <ArrowLeft size={16} /> Back to Pipeline
+            <ArrowLeft size={16} /> Back to {profile?.developmentName || 'Pipeline'}
           </Link>
 
           {/* Purchaser header */}
