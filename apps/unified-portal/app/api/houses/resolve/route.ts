@@ -408,19 +408,26 @@ export async function POST(req: Request) {
         if (!coordinates && fullAddress) {
           coordinates = await geocodeAddress(fullAddress);
         }
-        // Priority 3: Try to get project coordinates from Supabase projects table
-        if (!coordinates && supabaseUnit.project_id) {
+        // Priority 3: Try to get project details from Supabase projects table
+        // Also fetch name + logo for accurate development_name (avoids cross-table UUID collisions)
+        let projectName: string | null = null;
+        let projectLogoUrl: string | null = null;
+        if (supabaseUnit.project_id) {
           const { data: project } = await supabase
             .from('projects')
-            .select('latitude, longitude')
+            .select('name, logo_url, latitude, longitude')
             .eq('id', supabaseUnit.project_id)
             .single();
-          
-          if (project?.latitude && project?.longitude) {
-            coordinates = { lat: project.latitude, lng: project.longitude };
+
+          if (project) {
+            projectName = project.name || null;
+            projectLogoUrl = project.logo_url || null;
+            if (!coordinates && project.latitude && project.longitude) {
+              coordinates = { lat: project.latitude, lng: project.longitude };
+            }
           }
         }
-        
+
         // Use development resolver to get both Supabase and Drizzle IDs
         const resolved = await resolveDevelopment(supabaseUnit.project_id, fullAddress);
         
@@ -514,9 +521,9 @@ export async function POST(req: Request) {
           developmentId: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
           development_id: resolved?.drizzleDevelopmentId || supabaseUnit.project_id,
           supabase_project_id: supabaseUnit.project_id,
-          development_name: resolved?.developmentName || 'Your Development',
+          development_name: projectName || resolved?.developmentName || 'Your Development',
           development_code: '',
-          development_logo_url: resolved?.logoUrl || null,
+          development_logo_url: projectLogoUrl || resolved?.logoUrl || null,
           development_system_instructions: '',
           address: fullAddress || 'Your Home',
           eircode: '',

@@ -54,10 +54,56 @@ export async function resolveDevelopment(
     return cached;
   }
 
-  // Fast path: direct lookup of developments table by ID (most reliable, avoids name/word matching)
+  // Fast path: Check projects table first, since most Supabase units reference project_id
+  // from the projects table. Then name-match to a Drizzle development.
+  // IMPORTANT: Do NOT search the developments table by a projects-table ID directly,
+  // as UUIDs can collide across the two tables and return the wrong development.
   if (supabaseProjectId) {
     try {
       const supabase = getSupabaseClient();
+
+      // First check if this ID belongs to the projects table
+      const { data: project } = await supabase
+        .from('projects')
+        .select('id, name, logo_url')
+        .eq('id', supabaseProjectId)
+        .single();
+
+      if (project) {
+        // Found in projects table — use name to find the matching Drizzle development
+        const { rows: devRows } = await db.execute(sql`
+          SELECT id, name, tenant_id, logo_url
+          FROM developments
+          WHERE LOWER(name) = LOWER(${project.name})
+          LIMIT 1
+        `);
+
+        if (devRows.length > 0) {
+          const dev = devRows[0] as any;
+          const resolved: ResolvedDevelopment = {
+            drizzleDevelopmentId: dev.id,
+            supabaseProjectId: supabaseProjectId,
+            developmentName: dev.name || project.name,
+            tenantId: dev.tenant_id || null,
+            logoUrl: dev.logo_url || project.logo_url || null,
+          };
+          setCachedDevelopment(cacheKey, resolved);
+          return resolved;
+        }
+
+        // No matching Drizzle development — return project info directly
+        const resolved: ResolvedDevelopment = {
+          drizzleDevelopmentId: supabaseProjectId,
+          supabaseProjectId: supabaseProjectId,
+          developmentName: project.name,
+          tenantId: null,
+          logoUrl: project.logo_url || null,
+        };
+        setCachedDevelopment(cacheKey, resolved);
+        return resolved;
+      }
+
+      // Not in projects table — this may be a direct development ID
       const { data: directDev, error } = await supabase
         .from('developments')
         .select('id, name, tenant_id, logo_url')
@@ -75,7 +121,7 @@ export async function resolveDevelopment(
         return resolved;
       }
     } catch (directErr) {
-      // Direct lookup failed, falling through to other methods
+      // Lookup failed, falling through to other methods
     }
   }
 
