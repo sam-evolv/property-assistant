@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, memo, useCallback, useMemo } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import * as Tabs from '@radix-ui/react-tabs';
 import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User, Bookmark } from 'lucide-react';
@@ -86,6 +86,7 @@ const LANGUAGES = [
 export default function HomeResidentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { unitUid } = params as { unitUid: string };
   const token = searchParams.get('token');
 
@@ -177,7 +178,12 @@ export default function HomeResidentPage() {
           
           clearToken(unitUid);
           sessionStorage.removeItem(`intro_seen_${unitUid}`);
-          
+
+          // Clear stored session so login page doesn't keep redirecting to a broken unit
+          if (validateRes.status === 404) {
+            localStorage.removeItem('purchaser_session');
+          }
+
           // Show a friendlier error for temporary unavailability
           if (validateRes.status === 503) {
             setError('The service is temporarily busy. Please wait a moment and try again.');
@@ -762,6 +768,11 @@ export default function HomeResidentPage() {
         unitUid={house.unit_id}
         isDarkMode={isDarkMode}
         token={validatedToken || undefined}
+        onLogout={() => {
+          clearToken(unitUid);
+          localStorage.removeItem('purchaser_session');
+          router.push('/purchaser');
+        }}
       />
 
       {/* Notification Drawer */}

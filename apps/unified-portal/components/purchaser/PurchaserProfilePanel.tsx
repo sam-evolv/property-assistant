@@ -78,6 +78,7 @@ interface PurchaserProfilePanelProps {
   unitUid: string;
   isDarkMode: boolean;
   token?: string;
+  onLogout?: () => void;
 }
 
 const BER_COLORS: Record<string, { bg: string; text: string; border: string }> = {
@@ -98,12 +99,13 @@ const BER_COLORS: Record<string, { bg: string; text: string; border: string }> =
   'G': { bg: 'bg-red-700', text: 'text-white', border: 'border-red-800' },
 };
 
-export default function PurchaserProfilePanel({ 
-  isOpen, 
-  onClose, 
-  unitUid, 
+export default function PurchaserProfilePanel({
+  isOpen,
+  onClose,
+  unitUid,
   isDarkMode,
-  token: propToken
+  token: propToken,
+  onLogout,
 }: PurchaserProfilePanelProps) {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -934,6 +936,21 @@ export default function PurchaserProfilePanel({
           )}
         </div>
 
+        {/* Change code footer */}
+        {onLogout && (
+          <div className={`px-6 py-3 border-t ${isDarkMode ? 'border-gray-800' : 'border-gray-100'}`}>
+            <button
+              onClick={onLogout}
+              className={`w-full text-sm py-2 rounded-lg transition-colors
+                ${isDarkMode
+                  ? 'text-gray-600 hover:text-gray-400 hover:bg-gray-800/50'
+                  : 'text-gray-400 hover:text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+              Change access code
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
