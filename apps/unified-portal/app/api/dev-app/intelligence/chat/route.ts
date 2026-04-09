@@ -159,13 +159,13 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'update_unit_status',
       description:
-        "Update the status of one or more units in a scheme. Use for requests like 'mark unit 4B as reserved', 'set all available units in Block A to reserved', 'mark units 1A through 1F as sold'.",
+        "Update the status of one or more units in a development. Use for requests like 'mark unit 3 as complete', 'set unit 20 to sale agreed', 'mark units 1-5 as available'. Valid statuses: available, sale_agreed, in_progress, complete, social_housing, occupied, handed_over, maintenance, vacant, void, withdrawn.",
       parameters: {
         type: 'object',
         properties: {
           scheme_id: {
             type: 'string',
-            description: 'The development/scheme identifier',
+            description: 'The development ID (UUID from YOUR DEVELOPMENTS context)',
           },
           units: {
             type: 'array',
@@ -173,15 +173,21 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             items: {
               type: 'object',
               properties: {
-                unit_id: { type: 'string' },
+                unit_id: {
+                  type: 'string',
+                  description: 'The unit UUID from the database',
+                },
                 unit_reference: {
                   type: 'string',
-                  description: 'Human-readable unit reference e.g. 4B, Unit 12',
+                  description: 'Human-readable unit number e.g. 3, 20, 45',
                 },
-                current_status: { type: 'string' },
+                current_status: {
+                  type: 'string',
+                  description: 'The current status value from the database',
+                },
                 new_status: {
                   type: 'string',
-                  enum: ['Available', 'Reserved', 'Sold', 'Withdrawn'],
+                  enum: ['available', 'sale_agreed', 'in_progress', 'complete', 'social_housing', 'occupied', 'handed_over', 'maintenance', 'vacant', 'void', 'withdrawn'],
                 },
               },
               required: ['unit_id', 'unit_reference', 'current_status', 'new_status'],
@@ -208,13 +214,13 @@ async function executeTool(
 ): Promise<Record<string, unknown>> {
   const supabase = getSupabaseAdmin();
 
-  // Get all unit IDs for this developer
+  // Get all unit IDs for this developer (include status for write operations)
   const { data: units } = await supabase
     .from('units')
-    .select('id, unit_number, development_id')
+    .select('id, unit_number, development_id, unit_status')
     .in('development_id', devIds);
 
-  const allUnits: { id: string; unit_number: string; development_id: string }[] = units || [];
+  const allUnits: { id: string; unit_number: string; development_id: string; unit_status: string }[] = units || [];
   const unitIds = allUnits.map((u) => u.id);
 
   switch (toolName) {
@@ -681,9 +687,52 @@ export async function POST(request: NextRequest) {
       .select('id, name')
       .eq('developer_user_id', user.id);
 
-    const devs = developments || [];
+    const devs = (developments || []).filter(
+      (d: { id: string; name: string }) => d.name && d.name !== 'Test' && d.name !== 'NULL tenant test'
+    );
     const devIds = devs.map((d: { id: string; name: string }) => d.id);
-    const devList = devs.map((d: { id: string; name: string }) => `${d.name} (${d.id})`).join(', ');
+
+    // Load unit summary data for each development — this gives the AI real context
+    const { data: allDevUnits } = await admin
+      .from('units')
+      .select('id, unit_number, unit_status, development_id')
+      .in('development_id', devIds)
+      .order('unit_number');
+
+    const unitsByDev: Record<string, Array<{ id: string; unit_number: string; unit_status: string; development_id: string }>> = {};
+    for (const u of (allDevUnits || []) as Array<{ id: string; unit_number: string; unit_status: string; development_id: string }>) {
+      if (!unitsByDev[u.development_id]) unitsByDev[u.development_id] = [];
+      unitsByDev[u.development_id].push(u);
+    }
+
+    // Strip diacritics for alias matching (e.g. Rathárd → Rathard)
+    function stripDiacritics(str: string): string {
+      return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
+
+    // Build rich development context
+    const devSummaries = devs.map((d: { id: string; name: string }) => {
+      const units = unitsByDev[d.id] || [];
+      const alias = stripDiacritics(d.name);
+      const aliasNote = alias !== d.name ? ` (also known as "${alias}")` : '';
+
+      // Unit number range
+      const unitNumbers = units.map((u) => parseInt(u.unit_number, 10)).filter((n) => !isNaN(n)).sort((a, b) => a - b);
+      const range = unitNumbers.length > 0 ? `${unitNumbers[0]}-${unitNumbers[unitNumbers.length - 1]}` : 'none';
+
+      // Status breakdown
+      const statusCounts: Record<string, number> = {};
+      for (const u of units) {
+        const s = u.unit_status || 'unknown';
+        statusCounts[s] = (statusCounts[s] || 0) + 1;
+      }
+      const statusStr = Object.entries(statusCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([s, c]) => `${c} ${s}`)
+        .join(', ');
+
+      return `- ${d.name}${aliasNote} [ID: ${d.id}]: ${units.length} units (numbers ${range}). Status: ${statusStr || 'no units'}`;
+    }).join('\n');
 
     // Get or create conversation
     let convoId = conversation_id;
@@ -736,18 +785,26 @@ export async function POST(request: NextRequest) {
       day: 'numeric',
     });
 
-    const systemPrompt = `You are OpenHouse Intelligence, an AI assistant for property developers. You help developers manage their residential developments by answering questions about units, purchasers, compliance, pipeline status, and more.
+    const systemPrompt = `You are OpenHouse Intelligence, an AI assistant for Irish property developers. You help developers manage their residential developments by answering questions about units, purchasers, compliance, pipeline status, and more.
 
-You have access to the developer's real data across all their developments. You can also take actions on their behalf: drafting emails, updating pipeline stages, and more.
+You have access to the developer's real data across all their developments. You can also take actions on their behalf: drafting emails, updating pipeline stages, updating unit statuses, and more.
 
 IMPORTANT RULES:
 - Always be concise and direct. Developers are busy, on-site.
 - When you have structured data, return it as a rich card (use the appropriate tool to fetch data first).
 - When drafting emails, always show the draft first and wait for confirmation before sending.
-- When updating pipeline stages, confirm the change before executing.
-- Reference specific unit numbers and names — never be vague.
+- When updating pipeline stages or unit statuses, confirm the change before executing.
+- Reference specific unit numbers and names - never be vague.
 - If you're unsure about data, say so. Never guess.
 - Use Irish property terminology (solicitor not lawyer, estate agent not realtor).
+
+NAME MATCHING:
+Development names may contain Irish fadas (accented characters). When the user types "Rathard Park", they mean "Rathárd Park". When they type "Ardan View", they mean "Árdan View". Always match ignoring diacritics. The development list below includes aliases in parentheses.
+
+HANDLING MISSING DATA:
+- If a unit number does not exist, tell the user the valid unit range for that development.
+- If there are no records for a query (e.g. no snag items), state clearly that no records exist and suggest what the user might want to do (e.g. "No snag items have been logged for this unit yet. Would you like me to help with something else?").
+- Never blame the user or tell them to "upload" things. Just state the facts.
 
 You also have the ability to perform actions on behalf of the user. When a user asks you to make a change to scheme data, use the appropriate tool.
 
@@ -760,8 +817,12 @@ Rules for write actions:
 
 CURRENT CONTEXT:
 Developer ID: ${user.id}
-Developments: ${devList || 'None'}
-Current date: ${today}`;
+Current date: ${today}
+
+YOUR DEVELOPMENTS:
+${devSummaries || 'None'}
+
+VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housing, occupied, handed_over, maintenance, vacant, void, withdrawn`;
 
     // Call OpenAI
     const completion = await getOpenAI().chat.completions.create({

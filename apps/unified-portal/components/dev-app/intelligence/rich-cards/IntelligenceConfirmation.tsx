@@ -22,20 +22,42 @@ type ConfirmationState = 'pending' | 'confirming' | 'confirmed' | 'cancelled' | 
 
 const STATUS_COLORS: Record<string, { bg: string; text: string }> = {
   available: { bg: 'rgba(5,150,105,0.08)', text: '#059669' },
-  reserved: { bg: 'rgba(37,99,235,0.08)', text: '#2563eb' },
-  sold: { bg: 'rgba(212,175,55,0.08)', text: '#B8960C' },
-  withdrawn: { bg: 'rgba(220,38,38,0.08)', text: '#dc2626' },
+  sale_agreed: { bg: 'rgba(37,99,235,0.08)', text: '#2563eb' },
+  in_progress: { bg: 'rgba(217,119,6,0.08)', text: '#d97706' },
+  complete: { bg: 'rgba(212,175,55,0.08)', text: '#B8960C' },
+  social_housing: { bg: 'rgba(107,114,128,0.08)', text: '#6b7280' },
+  occupied: { bg: 'rgba(5,150,105,0.08)', text: '#059669' },
+  handed_over: { bg: 'rgba(212,175,55,0.08)', text: '#B8960C' },
+  maintenance: { bg: 'rgba(220,38,38,0.08)', text: '#dc2626' },
+  vacant: { bg: 'rgba(217,119,6,0.08)', text: '#d97706' },
+  void: { bg: 'rgba(220,38,38,0.08)', text: '#dc2626' },
+  withdrawn: { bg: 'rgba(107,114,128,0.08)', text: '#6b7280' },
+};
+
+const STATUS_LABELS: Record<string, string> = {
+  available: 'Available',
+  sale_agreed: 'Sale Agreed',
+  in_progress: 'In Progress',
+  complete: 'Complete',
+  social_housing: 'Social Housing',
+  occupied: 'Occupied',
+  handed_over: 'Handed Over',
+  maintenance: 'Maintenance',
+  vacant: 'Vacant',
+  void: 'Void',
+  withdrawn: 'Withdrawn',
 };
 
 function StatusPill({ status }: { status: string }) {
-  const key = status.toLowerCase();
+  const key = status.toLowerCase().replace(/\s+/g, '_');
   const colors = STATUS_COLORS[key] || { bg: 'rgba(107,114,128,0.08)', text: '#6b7280' };
+  const label = STATUS_LABELS[key] || status;
   return (
     <span
       className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium"
       style={{ backgroundColor: colors.bg, color: colors.text }}
     >
-      {status}
+      {label}
     </span>
   );
 }

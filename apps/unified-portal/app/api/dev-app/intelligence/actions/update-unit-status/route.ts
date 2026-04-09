@@ -16,7 +16,10 @@ interface RequestBody {
   action: 'confirm' | 'cancel';
 }
 
-const VALID_STATUSES = ['Available', 'Reserved', 'Sold', 'Withdrawn'];
+const VALID_STATUSES = [
+  'available', 'sale_agreed', 'in_progress', 'complete', 'social_housing',
+  'occupied', 'handed_over', 'maintenance', 'vacant', 'void', 'withdrawn',
+];
 
 export async function POST(request: NextRequest) {
   try {
@@ -115,7 +118,7 @@ export async function POST(request: NextRequest) {
       const { error } = await admin
         .from('units')
         .update({
-          unit_status: unit.new_status.toLowerCase(),
+          unit_status: unit.new_status,
         })
         .eq('id', unit.unit_id)
         .eq('development_id', scheme_id);
