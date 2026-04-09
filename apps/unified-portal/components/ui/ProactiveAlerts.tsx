@@ -334,7 +334,7 @@ export function ProactiveAlertsWidget({
           <div>
             <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
             <p className="text-xs text-gray-500">
-              {totalCount} item{totalCount !== 1 ? 's' : ''} need attention
+              {totalCount} item{totalCount !== 1 ? 's' : ''} need{totalCount !== 1 ? '' : 's'} attention
             </p>
           </div>
         </div>
