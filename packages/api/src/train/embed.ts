@@ -1,9 +1,9 @@
-import OpenAI from 'openai';
 import { TextChunk, EmbeddingResult } from './types';
 import crypto from 'crypto';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
 import { logger } from '../logger';
+import { createAIClient, getFallbackModel } from '../ai-client';
 
 const EMBEDDING_MODEL = 'text-embedding-3-large';
 const EMBEDDING_DIMENSIONS = 1536;
@@ -15,14 +15,11 @@ function hashText(text: string): string {
   return crypto.createHash('sha256').update(text).digest('hex');
 }
 
-function getOpenAIClient(): OpenAI {
-  const apiKey = process.env.OPENAI_API_KEY;
+function getAIClient() {
+  const preferredModel = 'text-embedding-3-large';
+  const fallbackModel = getFallbackModel(preferredModel, 'embedding');
   
-  if (!apiKey) {
-    throw new Error('OPENAI_API_KEY environment variable is not set');
-  }
-  
-  return new OpenAI({ apiKey });
+  return createAIClient(fallbackModel);
 }
 
 function delay(ms: number): Promise<void> {
@@ -30,10 +27,10 @@ function delay(ms: number): Promise<void> {
 }
 
 export async function embedChunk(chunk: TextChunk, retries: number = 0): Promise<EmbeddingResult> {
-  const openai = getOpenAIClient();
+  const client = getAIClient();
   
   try {
-    const response = await openai.embeddings.create({
+    const response = await client.embeddings.create({
       model: EMBEDDING_MODEL,
       input: chunk.content,
       dimensions: EMBEDDING_DIMENSIONS,
@@ -100,8 +97,8 @@ export async function embedText(text: string): Promise<number[]> {
       return JSON.parse(cached.rows[0].embedding);
     }
     
-    const openai = getOpenAIClient();
-    const response = await openai.embeddings.create({
+    const client = getAIClient();
+    const response = await client.embeddings.create({
       model: EMBEDDING_MODEL,
       input: text,
       dimensions: EMBEDDING_DIMENSIONS,

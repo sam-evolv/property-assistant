@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
-import OpenAI from 'openai';
 import { resolveTenantFromRequest } from './tenancy';
 import { searchSimilarChunks, MatchedChunk } from './vector-store';
 import { chatRateLimiter, getRateLimitKey } from './rate-limiter';
@@ -19,14 +18,16 @@ import {
   SAFE_DIMENSION_FALLBACK,
   DimensionGuardrailResult,
 } from './dimension-guardrail';
+import { createAIClient, getFallbackModel } from './ai-client';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
-function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  });
+function getAIClient() {
+  const preferredModel = 'gpt-4.1-mini';
+  const fallbackModel = getFallbackModel(preferredModel, 'chat');
+  
+  return createAIClient(fallbackModel);
 }
 
 interface ChatRequest {
@@ -606,7 +607,8 @@ When a user asks about room sizes, dimensions, or floor area:
 ONLY if the answer is truly not in the context at all, say:
 "Based on the documents available for your home, I don't see any information about that. Would you like me to check with your developer?"`;
 
-    const completion = await getOpenAI().chat.completions.create({
+    const client = getAIClient();
+    const completion = await client.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: systemPrompt + greetingContext },

@@ -1,12 +1,13 @@
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
-import OpenAI from 'openai';
 import { logger } from './logger';
+import { createAIClient, getFallbackModel } from './ai-client';
 
-function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  });
+function getAIClient() {
+  const preferredModel = 'text-embedding-3-large';
+  const fallbackModel = getFallbackModel(preferredModel, 'embedding');
+  
+  return createAIClient(fallbackModel);
 }
 
 export interface HybridChunk {
@@ -124,7 +125,8 @@ export async function hybridRetrieval(options: HybridRetrievalOptions): Promise<
   logger.info('Hybrid retrieval started', { developmentId, unitId, houseTypeCode, query });
 
   // Step 1: Generate query embedding
-  const embeddingResponse = await getOpenAI().embeddings.create({
+  const client = getAIClient();
+  const embeddingResponse = await client.embeddings.create({
     model: 'text-embedding-3-large',
     input: query,
     dimensions: 1536,

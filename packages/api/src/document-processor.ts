@@ -1,4 +1,3 @@
-import OpenAI from 'openai';
 import { db } from '@openhouse/db/client';
 import { documents, doc_chunks, embedding_cache } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
@@ -8,11 +7,13 @@ import { extractTextWithOCR, cleanOCRText } from './train/ocr';
 import { extractRoomDimensionsFromFloorplan, FloorplanVisionInput } from './train/floorplan-vision';
 import { resolveUploadUrl } from './resolve-upload-url';
 import { getDocumentProxy } from 'unpdf';
+import { createAIClient, getFallbackModel } from './ai-client';
 
-function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  });
+function getAIClient() {
+  const preferredModel = 'text-embedding-3-large';
+  const fallbackModel = getFallbackModel(preferredModel, 'embedding');
+  
+  return createAIClient(fallbackModel);
 }
 
 async function extractPDFTextWithUnpdf(buffer: Buffer): Promise<string> {
@@ -602,7 +603,8 @@ export class DocumentProcessor {
       try {
         logger.info(`[DocumentProcessor] Generating embedding ${index + 1}/${total} (attempt ${attempt + 1})`);
         
-        const response = await getOpenAI().embeddings.create({
+        const client = getAIClient();
+        const response = await client.embeddings.create({
           model: this.EMBEDDING_MODEL,
           input: text,
           dimensions: this.EMBEDDING_DIMENSIONS,

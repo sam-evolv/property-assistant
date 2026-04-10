@@ -1,15 +1,16 @@
 import Tesseract from 'tesseract.js';
 import { getDocumentProxy, extractText } from 'unpdf';
 import { createCanvas } from 'canvas';
-import OpenAI from 'openai';
 import crypto from 'crypto';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
+import { createAIClient, getFallbackModel } from '../ai-client';
 
-function getOpenAI() {
-  return new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-  });
+function getAIClient() {
+  const preferredModel = 'gpt-4o';
+  const fallbackModel = getFallbackModel(preferredModel, 'vision');
+  
+  return createAIClient(fallbackModel);
 }
 
 export interface EnhancedOCRResult {
@@ -289,7 +290,8 @@ async function extractWithVision(buffer: Buffer, fileName: string, maxPages: num
       const imageBuffer = canvas.toBuffer('image/png');
       const base64Image = imageBuffer.toString('base64');
       
-      const response = await getOpenAI().chat.completions.create({
+      const client = getAIClient();
+      const response = await client.chat.completions.create({
         model: 'gpt-4o',
         messages: [
           {
