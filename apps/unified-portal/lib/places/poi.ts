@@ -287,12 +287,11 @@ export interface SchemeLocationResult {
 }
 
 async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocationResult | null> {
-  // SINGLE SOURCE OF TRUTH: scheme_profile is the authoritative source for amenity locations
-  // This ensures deterministic, scheme-scoped resolution
+  // PRIMARY: scheme_profile is the authoritative source for amenity locations
   const schemes = await db
-    .select({ 
+    .select({
       id: scheme_profile.id,
-      lat: scheme_profile.scheme_lat, 
+      lat: scheme_profile.scheme_lat,
       lng: scheme_profile.scheme_lng,
       address: scheme_profile.scheme_address,
     })
@@ -307,6 +306,27 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
       address: schemes[0].address || undefined,
       source: 'scheme_profile',
       schemeProfileId: schemes[0].id,
+    };
+  }
+
+  // FALLBACK: developments table — the ID passed may be a development_id, not a scheme_profile ID
+  const devs = await db
+    .select({
+      id: developments.id,
+      lat: developments.latitude,
+      lng: developments.longitude,
+      address: developments.address,
+    })
+    .from(developments)
+    .where(eq(developments.id, supabaseProjectId))
+    .limit(1);
+
+  if (devs.length > 0 && devs[0].lat && devs[0].lng) {
+    return {
+      lat: parseFloat(devs[0].lat),
+      lng: parseFloat(devs[0].lng),
+      address: devs[0].address || undefined,
+      source: 'developments',
     };
   }
 
