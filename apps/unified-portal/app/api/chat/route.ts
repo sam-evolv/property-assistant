@@ -1634,24 +1634,23 @@ export async function POST(request: NextRequest) {
     // SEV-1 FIX: Capture actual Supabase unit ID for message linkage
     // This is the true unit.id from Supabase, not the effectiveUnitUid which may be a different format
     const actualUnitId = userUnitDetails.unitInfo?.id || null;
-    // For Supabase queries (document_sections), we need the Supabase project_id which may differ from Drizzle development_id
-    // TODO: In a multi-tenant system, implement proper tenant → supabase_project_id mapping
-    // Currently: Falls back to PROJECT_ID only when tenant matches DEFAULT_TENANT_ID (Longview)
-    // This prevents cross-tenant data leakage in multi-tenant deployments
-    const userSupabaseProjectId = userUnitDetails.unitInfo?.supabase_project_id 
-      || clientDevelopmentId  // Developer preview: explicit developmentId wins before default fallback
-      || userDevelopmentId    // Multi-tenant: use the unit's development_id (matches project_id in document_sections uploads)
+    // For vector search (document_sections.project_id), use the developmentId from the request body first.
+    // This ensures the filter matches the actual project_id stored in document_sections rows.
+    // supabase_project_id is a legacy field that may hold a stale value — only use as last resort.
+    const userSupabaseProjectId = clientDevelopmentId  // Request body developmentId — matches document_sections.project_id
+      || userDevelopmentId    // Unit's development_id from DB lookup
+      || userUnitDetails.unitInfo?.supabase_project_id  // Legacy fallback
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null)
       || null;
-    
+
     // Determine scheme resolution path for diagnostics
     let schemeResolutionPath = 'unknown';
-    if (userUnitDetails.unitInfo?.supabase_project_id) {
-      schemeResolutionPath = 'unit_info.supabase_project_id';
-    } else if (clientDevelopmentId) {
+    if (clientDevelopmentId) {
       schemeResolutionPath = 'client_development_id';
     } else if (userDevelopmentId && userDevelopmentId !== DEFAULT_DEVELOPMENT_ID) {
       schemeResolutionPath = 'unit_development_id';
+    } else if (userUnitDetails.unitInfo?.supabase_project_id) {
+      schemeResolutionPath = 'unit_info.supabase_project_id';
     } else if (userTenantId === DEFAULT_TENANT_ID) {
       schemeResolutionPath = 'default_project_id_fallback';
     } else {
