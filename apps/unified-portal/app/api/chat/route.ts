@@ -78,7 +78,7 @@ import {
   type AnswerStrategy,
 } from '@/lib/assistant/os';
 import { formatJokeResponse } from '@/lib/assistant/jokes';
-import { isLocalHistoryQuery, detectHistoryCategory, formatLocalHistoryResponse, isLongviewOrRathardScheme, isYesIntent } from '@/lib/assistant/local-history';
+import { isYesIntent } from '@/lib/assistant/local-history';
 import { 
   isSessionMemoryEnabled, 
   getSessionMemory, 
@@ -134,14 +134,8 @@ import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
-import { isGrantQuery, getSEAIGrantsResponse } from '@/lib/assistant/seai-grants';
-import {
-  isUtilityQuery,
-  hasActiveWizard,
-  startUtilitySetupWizard,
-  processUtilityStep,
-  getUtilityInfoResponse,
-} from '@/lib/assistant/utility-wizard';
+// SEAI grants interceptor removed — RAG pipeline handles all questions now
+// Utility wizard interceptor removed — RAG pipeline handles all questions now
 
 function generateFollowUpQuestions(intent: string, message: string): string[] {
   const msg = message.toLowerCase();
@@ -1730,168 +1724,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // LOCAL HISTORY: Handle history/heritage queries for Longview Park and Rathard Park
+    // LOCAL HISTORY + SEAI GRANTS + UTILITY WIZARD: Removed — all questions now go through RAG pipeline.
+    // These interceptors returned hardcoded static responses, bypassing document_sections vector search.
     const developmentName = userUnitDetails?.unitInfo?.development_name || null;
-    if (isLocalHistoryQuery(message) && isLongviewOrRathardScheme(developmentName)) {
-      
-      const historyCategory = detectHistoryCategory(message);
-      const historyResponse = formatLocalHistoryResponse(historyCategory);
-      
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: validatedUnitUid || userId || null,
-        unit_uid: validatedUnitUid || null,
-        user_message: message,
-        ai_message: historyResponse,
-        question_topic: 'local_history',
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          assistantOS: true,
-          intent: 'local_history',
-          historyCategory: historyCategory,
-          developmentName: developmentName,
-          userId: userId || null,
-        },
-        request_id: requestId,
-      });
-      
-      return NextResponse.json({
-        success: true,
-        answer: historyResponse,
-        source: 'local_history',
-        isNoInfo: false,
-        metadata: {
-          intent: 'local_history',
-          historyCategory: historyCategory,
-        },
-      });
-    }
-
-    // SEAI GRANTS: Handle grant-related queries with structured knowledge base
-    if (isGrantQuery(message)) {
-      const grantResponse = getSEAIGrantsResponse(message);
-
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: validatedUnitUid || userId || null,
-        unit_uid: validatedUnitUid || null,
-        user_message: message,
-        ai_message: grantResponse,
-        question_topic: 'seai_grants',
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          assistantOS: true,
-          intent: 'grants',
-          userId: userId || null,
-        },
-        request_id: requestId,
-      });
-
-      return NextResponse.json({
-        success: true,
-        answer: grantResponse,
-        source: 'seai_grants',
-        isNoInfo: false,
-        metadata: {
-          intent: 'grants',
-        },
-      });
-    }
-
-    // UTILITY WIZARD: Interactive multi-step utility setup guide
-    const wizardSessionId = validatedUnitUid || userId || requestId;
-
-    // Check for active wizard session first
-    if (hasActiveWizard(wizardSessionId)) {
-      const wizardResponse = processUtilityStep(wizardSessionId, message);
-
-      if (wizardResponse) {
-        await persistMessageSafely({
-          tenant_id: userTenantId,
-          development_id: userDevelopmentId,
-          unit_id: actualUnitId,
-          require_unit_id: true,
-          user_id: validatedUnitUid || userId || null,
-          unit_uid: validatedUnitUid || null,
-          user_message: message,
-          ai_message: wizardResponse,
-          question_topic: 'utility_wizard',
-          source: 'purchaser_portal',
-          latency_ms: Date.now() - startTime,
-          metadata: {
-            assistantOS: true,
-            intent: 'utilities',
-            wizardActive: true,
-            userId: userId || null,
-          },
-          request_id: requestId,
-        });
-
-        return NextResponse.json({
-          success: true,
-          answer: wizardResponse,
-          source: 'utility_wizard',
-          isNoInfo: false,
-          metadata: {
-            intent: 'utilities',
-            wizardActive: true,
-          },
-        });
-      }
-    }
-
-    // New utility query — start wizard or return single utility info
-    if (isUtilityQuery(message)) {
-      const wantsFullWizard = /\butilities\b|set\s*up\s*(my\s*)?(all|everything)|just\s*got\s*(my\s*)?keys|mov(e|ing)\s*in|new\s*home\s*(set\s*up|checklist|guide)|new\s*homeowner|first\s*time\s*buyer|setup\s*wizard/i.test(message);
-
-      let utilityResponse: string;
-      if (wantsFullWizard) {
-        utilityResponse = startUtilitySetupWizard(wizardSessionId);
-      } else {
-        utilityResponse = getUtilityInfoResponse(message);
-      }
-
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: validatedUnitUid || userId || null,
-        unit_uid: validatedUnitUid || null,
-        user_message: message,
-        ai_message: utilityResponse,
-        question_topic: 'utility_setup',
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          assistantOS: true,
-          intent: 'utilities',
-          wizardStarted: wantsFullWizard,
-          userId: userId || null,
-        },
-        request_id: requestId,
-      });
-
-      return NextResponse.json({
-        success: true,
-        answer: utilityResponse,
-        source: 'utility_setup',
-        isNoInfo: false,
-        metadata: {
-          intent: 'utilities',
-          wizardActive: wantsFullWizard,
-        },
-      });
-    }
-
     // SESSION MEMORY: Extract and update session-scoped context
     let sessionMemory: SessionMemory | null = null;
     let sessionMemoryDebug: MemoryDebugInfo | null = null;
@@ -1937,44 +1772,6 @@ export async function POST(request: NextRequest) {
       
       if (history.length > 0) {
         const lastAssistantMessage = history[history.length - 1].aiMessage;
-        
-        // LOCAL HISTORY FOLLOW-UP: Check if last message offered another history fact
-        const isLocalHistoryFollowUp = lastAssistantMessage.includes('Would you like to hear another interesting fact about the area');
-        if (isLocalHistoryFollowUp && isLongviewOrRathardScheme(developmentName)) {
-          
-          const historyResponse = formatLocalHistoryResponse(null);
-          
-          await persistMessageSafely({
-            tenant_id: userTenantId,
-            development_id: userDevelopmentId,
-            unit_id: actualUnitId,
-        require_unit_id: true,
-            user_id: validatedUnitUid || userId || null,
-            unit_uid: validatedUnitUid || null,
-            user_message: message,
-            ai_message: historyResponse,
-            question_topic: 'local_history',
-            source: 'purchaser_portal',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              assistantOS: true,
-              intent: 'local_history_followup',
-              developmentName: developmentName,
-              userId: userId || null,
-            },
-            request_id: requestId,
-          });
-          
-          return NextResponse.json({
-            success: true,
-            answer: historyResponse,
-            source: 'local_history',
-            isNoInfo: false,
-            metadata: {
-              intent: 'local_history_followup',
-            },
-          });
-        }
         
         // Import follow-up routing utilities
         const { getFollowUpCategories } = await import('@/lib/places/poi');
@@ -2937,7 +2734,7 @@ export async function POST(request: NextRequest) {
       
       // MINIMUM RELEVANCE THRESHOLD - if top chunks aren't relevant enough, treat as "no info"
       // This prevents forcing irrelevant context into the prompt
-      const MIN_RELEVANCE_SIMILARITY = 0.40; // Raw cosine similarity threshold — only serve chunks the model can trust
+      const MIN_RELEVANCE_SIMILARITY = 0.20; // Lowered — let the LLM decide relevance; 0.40 was discarding useful chunks
       const topChunkSimilarity = scoredChunks[0]?.similarity || 0;
       
       if (topChunkSimilarity < MIN_RELEVANCE_SIMILARITY) {
@@ -3345,43 +3142,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       unitId: effectiveUnitUid,
     }).catch(() => {}); // Don't fail chat if analytics fails
     
-    // If question is ambiguous about internal vs external, offer clarification
-    if (isAmbiguousSizeQuestion && effectiveUnitUid) {
-      
-      const clarificationResponse = "Would you like to see the internal floor plans (showing room layouts and dimensions) or the external elevations (showing the outside appearance of your home)?";
-      
-      // Save clarification interaction
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: conversationUserId || null,
-        unit_uid: effectiveUnitUid || null,
-        user_message: message,
-        ai_message: clarificationResponse,
-        question_topic: 'clarification_needed',
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          clarificationType: 'drawing_type',
-        },
-        request_id: requestId,
-      });
-      
-      return NextResponse.json({
-        success: true,
-        answer: clarificationResponse,
-        source: 'clarification',
-        clarification: {
-          type: 'drawing_type',
-          options: [
-            { id: 'internal', label: 'Internal Floor Plans', description: 'Room layouts and dimensions' },
-            { id: 'external', label: 'External Elevations', description: 'Outside appearance of your home' },
-          ],
-        },
-      });
-    }
+    // Ambiguous size question clarification removed — let RAG pipeline handle all size questions
 
     if (drawingResult.found && drawingResult.drawing) {
       drawing = drawingResult.drawing;
@@ -3604,112 +3365,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     // Add the current user message
     chatMessages.push({ role: 'user', content: message });
 
-    // Handle ALL dimension questions - look up from database AND attach floor plans
-    if (isDimensionQuestion) {
-
-      // Start both lookups in parallel for performance
-      const [floorPlanResult, roomDimensionResult] = await Promise.all([
-        findFloorPlanDocuments(
-          effectiveUnitUid,
-          userSupabaseProjectId,
-          userHouseTypeCode || undefined
-        ),
-        // Look up room dimensions from database if we identified a room
-        extractedRoom ? lookupRoomDimensions(
-          getSupabaseClient(),
-          userTenantId,
-          userSupabaseProjectId,  // FIXED: unit_room_dimensions uses Supabase project ID, not Drizzle dev ID
-          userHouseTypeCode || undefined,
-          actualUnitId || undefined,
-          extractedRoom  // Pass the full RoomMapping object for smart matching
-        ) : Promise.resolve({ found: false } as RoomDimensionResult)
-      ]);
-
-      let dimensionAnswer: string;
-      let floorPlanAttachments: FloorPlanAttachment[] = [];
-      let answerSource = 'dimension_no_data';
-
-      // Check if we have floor plans first (so we can reference them in the answer)
-      const hasFloorPlans = floorPlanResult.found && floorPlanResult.attachments.length > 0;
-      if (hasFloorPlans) {
-        floorPlanAttachments = floorPlanResult.attachments;
-      }
-
-      // Build response based on what we found
-      if (roomDimensionResult.found && extractedRoom) {
-        // We have actual room dimensions from the database!
-        dimensionAnswer = formatRoomDimensionAnswer(roomDimensionResult, extractedRoom.displayName, hasFloorPlans);
-        answerSource = 'dimension_database';
-      } else if (hasFloorPlans) {
-        // No database dimensions but we have floor plans
-        dimensionAnswer = "I've popped the floor plan below for you - that'll have the accurate room dimensions.\n\nCheck the room labels on the plans for the exact measurements you need.";
-        answerSource = 'dimension_floor_plan_fallback';
-      } else {
-        // No dimensions and no floor plans
-        dimensionAnswer = "I don't have the room dimensions for your property stored yet. If you have your original floor plan documentation, that would have the exact measurements. Is there anything else I can help you with?";
-      }
-
-      // Floor plans already assigned above if available
-      if (hasFloorPlans) {
-      }
-
-      // Also include drawing if available
-      const drawingAttachment = drawing ? {
-        fileName: drawing.fileName,
-        drawingType: drawing.drawingType,
-        drawingDescription: drawing.drawingDescription,
-        houseTypeCode: drawing.houseTypeCode,
-        previewUrl: drawing.signedUrl,
-        downloadUrl: drawing.downloadUrl,
-        explanation: drawingExplanation,
-      } : undefined;
-
-      // Save to database
-      await persistMessageSafely({
-        tenant_id: userTenantId,
-        development_id: userDevelopmentId,
-        unit_id: actualUnitId,
-        require_unit_id: true,
-        user_id: conversationUserId || null,
-        unit_uid: validatedUnitUid || null,
-        user_message: message,
-        ai_message: dimensionAnswer,
-        question_topic: questionTopic,
-        source: 'purchaser_portal',
-        latency_ms: Date.now() - startTime,
-        metadata: {
-          userId: userId || null,
-          chunksUsed: chunks?.length || 0,
-          model: 'gpt-4o-mini',
-          dimensionQuestion: true,
-          roomAsked: extractedRoom?.displayName,
-          dbRoomKey: roomDimensionResult.roomKey,
-          dbRoomName: roomDimensionResult.roomName,
-          dbDimensions: roomDimensionResult.found ? `${roomDimensionResult.length_m}x${roomDimensionResult.width_m}` : null,
-          foundDimensions: roomDimensionResult.found,
-          foundFloorPlans: floorPlanAttachments.length > 0,
-        },
-        request_id: requestId,
-      });
-
-      return NextResponse.json({
-        success: true,
-        answer: dimensionAnswer,
-        source: answerSource,
-        chunksUsed: chunks?.length || 0,
-        drawing: drawingAttachment,
-        attachments: floorPlanAttachments.length > 0 ? floorPlanAttachments.map(fp => ({
-          id: fp.id,
-          title: fp.title,
-          fileName: fp.fileName,
-          previewUrl: fp.signedUrl,
-          downloadUrl: fp.downloadUrl,
-          discipline: fp.discipline,
-          docType: fp.docType,
-          houseTypeCode: fp.houseTypeCode,
-        })) : undefined,
-      });
-    }
+    // Dimension handler early return removed — RAG pipeline now handles all dimension
+    // questions using room size documents in document_sections. Floor plan drawings
+    // are still attached via the drawing metadata in the streaming response.
 
     // Select model based on question complexity
     const selectedModel = selectChatModel(message, chunks ?? [], activeIntentKey);
