@@ -151,12 +151,12 @@ const SEAI_GRANTS: SEAIGrant[] = [
 // Detection
 // ---------------------------------------------------------------------------
 
+// IMPORTANT: Patterns must require explicit grant/SEAI context.
+// Bare appliance names (ev charger, solar, heat pump) must NOT match here —
+// those are property-specific questions that need the RAG pipeline.
 const GRANT_PATTERNS = [
   /\bgrants?\b/i,
   /\bseai\b/i,
-  /\bsolar\s*(pv|panel|electricity)?\b/i,
-  /\bev\s*charger\b/i,
-  /\belectric\s*vehicle\s*charger\b/i,
   /\binsulation\s*grant\b/i,
   /\bheat\s*pump\s*grant\b/i,
   /\benergy\s*grant\b/i,
