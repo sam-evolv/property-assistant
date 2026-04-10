@@ -385,61 +385,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Installation not found' }, { status: 404 });
     }
 
-    // Get or create conversation
+    // PARALLEL: conversation management + history loading
     let convoId = conversation_id;
-    if (!convoId) {
-      const { data: newConvo } = await supabase
-        .from('care_conversations')
-        .insert({
-          installation_id: installationId,
-          title: message.substring(0, 80),
-        })
-        .select('id')
-        .single();
-      convoId = newConvo?.id;
-    }
+    const [, historyResult] = await Promise.all([
+      (async () => {
+        if (!convoId) {
+          const { data: newConvo } = await supabase
+            .from('care_conversations')
+            .insert({ installation_id: installationId, title: message.substring(0, 80) })
+            .select('id')
+            .single();
+          convoId = newConvo?.id;
+        }
+        if (convoId) {
+          await supabase.from('care_messages').insert({
+            conversation_id: convoId, role: 'user', message_type: 'text', content: message,
+          });
+        }
+      })(),
+      (async () => {
+        if (!conversation_id) return [];
+        const { data: history } = await supabase
+          .from('care_messages')
+          .select('role, content')
+          .eq('conversation_id', conversation_id)
+          .order('created_at', { ascending: true })
+          .limit(20);
+        return (history || [])
+          .filter((m: any) => m.role !== 'system')
+          .map((m: any) => ({ role: m.role as 'user' | 'assistant', content: m.content }));
+      })(),
+    ]);
+    const contextMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = historyResult;
 
-    // Save user message
-    if (convoId) {
-      await supabase.from('care_messages').insert({
-        conversation_id: convoId,
-        role: 'user',
-        message_type: 'text',
-        content: message,
-      });
-    }
-
-    // Load conversation history
-    let contextMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
-    if (convoId) {
-      const { data: history } = await supabase
-        .from('care_messages')
-        .select('role, content')
-        .eq('conversation_id', convoId)
-        .order('created_at', { ascending: true })
-        .limit(20);
-
-      contextMessages = (history || [])
-        .filter((m: any) => m.role !== 'system')
-        .map((m: any) => ({
-          role: m.role as 'user' | 'assistant',
-          content: m.content,
-        }));
-    }
-
-    // Care KB — inject relevant knowledge based on the message
-    // Generic knowledge base
+    // Care KB
     const careKnowledgeEntries = getRelevantCareKnowledge(message, installation.system_type);
-
-    // SE Systems-specific knowledge (overrides/extends generic entries when applicable)
     const seSystemsEntries = isSeSystemsInstallation(installation)
       ? getSeSystemsKnowledge(message, installation.system_type)
       : [];
-
-    // Generic Irish renewable knowledge (homeowner education layer)
     const irelandEntries = getIrelandRenewableKnowledge(message, installation.system_type);
 
-    // Merge priority: SE Systems (most specific) → Ireland renewable (generic Irish) → generic care KB
     const mergedEntries = [
       ...seSystemsEntries,
       ...irelandEntries.filter(
@@ -467,7 +452,6 @@ export async function POST(request: NextRequest) {
     const isHeatPumpSystem = installation.system_type?.toLowerCase().includes('heat_pump') ||
       installation.system_type?.toLowerCase().includes('heat pump');
 
-    // Build a human-readable system summary that works for both solar and heat pump schemas
     const systemSummary = isHeatPumpSystem
       ? [
           `System: Heat Pump — ${installation.heat_pump_model || specs.model || 'unknown model'}`,
@@ -534,7 +518,7 @@ RULES:
 - Never invent specific numbers (generation figures, costs) without a clear basis.
 - Safety issues (electrical faults, gas smells, structural damage): always direct to a professional.`;
 
-    // First OpenAI call
+    // First OpenAI call — tool selection (NOT streamed)
     const completion = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -550,10 +534,20 @@ RULES:
 
     let assistantContent = completion.choices[0]?.message?.content || '';
     const toolCalls = completion.choices[0]?.message?.tool_calls;
-    const responseMessages: any[] = [];
+    const richMessages: any[] = [];
+
+    // Build messages for follow-up call
+    let followUpMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...contextMessages,
+      { role: 'user', content: message },
+    ];
+
+    let needsFollowUp = false;
 
     if (toolCalls && toolCalls.length > 0) {
-      const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      needsFollowUp = true;
+      const toolResultMsgs: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
         { role: 'assistant', content: null as any, tool_calls: toolCalls },
       ];
 
@@ -561,13 +555,12 @@ RULES:
         const args = JSON.parse(call.function.arguments);
         const result = await executeTool(call.function.name, args, installation);
 
-        toolResults.push({
+        toolResultMsgs.push({
           role: 'tool',
           tool_call_id: call.id,
           content: JSON.stringify(result),
         });
 
-        // Emit rich cards for structured results
         const richType =
           call.function.name === 'get_system_status'
             ? 'system_status'
@@ -576,7 +569,7 @@ RULES:
             : null;
 
         if (richType) {
-          responseMessages.push({
+          richMessages.push({
             id: `rich-${Date.now()}-${call.id}`,
             role: 'assistant',
             message_type: richType,
@@ -587,7 +580,7 @@ RULES:
         }
 
         if (result.service_request_draft) {
-          responseMessages.push({
+          richMessages.push({
             id: `draft-${Date.now()}-${call.id}`,
             role: 'assistant',
             message_type: 'service_request_draft',
@@ -598,23 +591,96 @@ RULES:
         }
       }
 
-      // Second call — natural language summary
+      followUpMessages = [...followUpMessages, ...toolResultMsgs];
+    }
+
+    // Check if client wants streaming
+    const wantsStream = request.headers.get('accept')?.includes('text/event-stream');
+
+    if (wantsStream) {
+      // ── SSE STREAMING PATH ──
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          try {
+            // Send metadata (conversation_id + rich cards) immediately
+            controller.enqueue(encoder.encode(
+              `event: meta\ndata: ${JSON.stringify({ conversation_id: convoId, rich_messages: richMessages })}\n\n`
+            ));
+
+            if (needsFollowUp || !assistantContent) {
+              // Stream the follow-up / main response
+              const streamResponse = await getOpenAI().chat.completions.create({
+                model: 'gpt-4o-mini',
+                messages: followUpMessages,
+                temperature: 0.4,
+                max_tokens: 800,
+                stream: true,
+              });
+
+              let fullText = '';
+              for await (const chunk of streamResponse) {
+                const delta = chunk.choices[0]?.delta?.content;
+                if (delta) {
+                  fullText += delta;
+                  controller.enqueue(encoder.encode(`event: token\ndata: ${JSON.stringify(delta)}\n\n`));
+                }
+              }
+              assistantContent = fullText;
+            } else {
+              // No tool calls, direct answer — send as single token
+              controller.enqueue(encoder.encode(`event: token\ndata: ${JSON.stringify(assistantContent)}\n\n`));
+            }
+
+            controller.enqueue(encoder.encode(`event: done\ndata: {}\n\n`));
+            controller.close();
+
+            // Fire-and-forget: persist assistant message
+            if (assistantContent && convoId) {
+              supabase.from('care_messages').insert({
+                conversation_id: convoId,
+                role: 'assistant',
+                message_type: 'text',
+                content: assistantContent,
+              }).then(() => {
+                supabase
+                  .from('care_conversations')
+                  .update({
+                    updated_at: new Date().toISOString(),
+                    message_count: contextMessages.length + 2,
+                  })
+                  .eq('id', convoId);
+              });
+            }
+          } catch (streamErr) {
+            console.error('[CARE_CHAT_STREAM_ERROR]', streamErr);
+            controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ error: 'Stream failed' })}\n\n`));
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    }
+
+    // ── NON-STREAMING JSON FALLBACK ──
+    if (needsFollowUp) {
       const followUp = await getOpenAI().chat.completions.create({
         model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...contextMessages,
-          { role: 'user', content: message },
-          ...toolResults,
-        ],
+        messages: followUpMessages,
         temperature: 0.4,
         max_tokens: 800,
       });
-
       assistantContent = followUp.choices[0]?.message?.content || '';
     }
 
-    // Save and return text response
+    const responseMessages = [...richMessages];
     if (assistantContent) {
       responseMessages.push({
         id: `text-${Date.now()}`,
@@ -654,4 +720,4 @@ RULES:
       { status: 500 }
     );
   }
-  }
+}

@@ -202,29 +202,67 @@ export default function AssistantScreen({ installationId }: { installationId: st
     try {
       const res = await fetch('/api/care/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'text/event-stream',
+        },
         body: JSON.stringify({ installationId, message: msg }),
       });
-      const data = await res.json();
-      // New API returns messages array — find the text response
-      const textMsg = Array.isArray(data.messages)
-        ? data.messages.find((m: any) => m.message_type === 'text')
-        : null;
-      const full = textMsg?.content || data.response || 'Sorry, I couldn\'t process that.';
-      const sources = data.sources || [];
 
-      // Word-by-word streaming
-      const words = full.split(' ');
-      let shown = '';
-      for (let i = 0; i < words.length; i++) {
-        const afterParagraph = i > 0 && words[i - 1].includes('\n');
-        await new Promise(r => setTimeout(r, getWordDelay(words[i], afterParagraph)));
-        shown += (i > 0 ? ' ' : '') + words[i];
-        setStreamText(shown);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+      const contentType = res.headers.get('content-type') || '';
+
+      if (contentType.includes('text/event-stream') && res.body) {
+        // Real SSE streaming
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullText = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          let currentEvent = '';
+          for (const line of lines) {
+            if (line.startsWith('event: ')) {
+              currentEvent = line.slice(7);
+            } else if (line.startsWith('data: ')) {
+              const rawData = line.slice(6);
+              if (currentEvent === 'token') {
+                try {
+                  const token = JSON.parse(rawData);
+                  fullText += token;
+                  setStreamText(fullText);
+                  scroll();
+                } catch {}
+              } else if (currentEvent === 'error') {
+                throw new Error('Stream error');
+              }
+            }
+          }
+        }
+
+        setStreamText('');
+        if (fullText) {
+          setMessages(p => [...p, { role: 'assistant', content: fullText }]);
+        } else {
+          setMessages(p => [...p, { role: 'assistant', content: 'Sorry, I couldn\'t process that.' }]);
+        }
+      } else {
+        // JSON fallback
+        const data = await res.json();
+        const textMsg = Array.isArray(data.messages)
+          ? data.messages.find((m: any) => m.message_type === 'text')
+          : null;
+        const full = textMsg?.content || data.response || 'Sorry, I couldn\'t process that.';
+        setMessages(p => [...p, { role: 'assistant', content: full }]);
       }
-
-      setStreamText('');
-      setMessages(p => [...p, { role: 'assistant', content: full, sources }]);
     } catch {
       setStreamText('');
       setMessages(p => [...p, { role: 'assistant', content: 'Sorry, something went wrong.' }]);
