@@ -2830,11 +2830,13 @@ export async function POST(request: NextRequest) {
 ${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
 
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}TONE & FORMAT:
-- Conversational and warm — match the homeowner's energy and use your intelligence, not just the literal text
+- Warm and helpful, like a knowledgeable neighbour — match the homeowner's energy
 - Lead with the answer, supporting context after
 - Irish/UK English: colour, centre, realise; natural phrases (no bother, grand, cheers) are fine when they fit
+- Never use filler phrases like "feel free to ask", "don't hesitate to reach out", or "I hope this helps"
 - Plain text only — no markdown (#, *, _, >, backticks). Section labels use a colon: "Heating:" not "**Heating:**"
 - Lists use dashes or numbers. Natural paragraph breaks for structure.
+- If asked about room sizes, give the actual dimensions (width x length) from the reference data, not just area.
 
 ${getFollowUpInstruction()}
 
@@ -2873,9 +2875,10 @@ SAFETY RULES — MANDATORY:
 - For safety-critical questions: acknowledge the concern → state you cannot give safety advice → direct to the right professional → reference the homeowner manual if relevant
 - If immediate danger (gas smell, burning, electrical arcing, major leak, structural movement): instruct to call 999 or 112 immediately — do not give further guidance
 
-ROOM DIMENSIONS — LIABILITY:
-- NEVER quote specific room measurements in any unit
-- If asked: "I've popped the floor plan below — that'll have the accurate dimensions."
+ROOM DIMENSIONS:
+- When room dimensions appear in the REFERENCE DATA above (width and length), quote them as width x length (e.g. "4.27m x 3.66m") and include the floor area if available
+- Always add a disclaimer that these are approximate and the official floor plan has exact measurements
+- If no dimensions are in the reference data, say: "I've popped the floor plan below — that'll have the accurate dimensions."
 
 GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Only discuss the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
@@ -3328,6 +3331,23 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
 
+    // FLOOR PLAN ATTACHMENTS: For dimension questions, fetch all floor plan documents
+    let floorPlanAttachments: FloorPlanAttachment[] = [];
+    if (isDimensionQuestion && effectiveUnitUid) {
+      try {
+        const fpResult = await findFloorPlanDocuments(
+          effectiveUnitUid,
+          userSupabaseProjectId,
+          userHouseTypeCode || undefined
+        );
+        if (fpResult.found && fpResult.attachments.length > 0) {
+          floorPlanAttachments = fpResult.attachments;
+        }
+      } catch (_fpErr) {
+        // Floor plan lookup failed — continue without attachments
+      }
+    }
+
     // LANGUAGE INSTRUCTION: Add language-specific instruction to system message
     // This MUST be at the end for maximum effect and must be very explicit
     const languageInstructions: Record<string, string> = {
@@ -3668,6 +3688,16 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             } : null,
             ber_card: berKeywords.test(message) ? { rating: 'A2', label: 'Near Zero Energy' } : null,
             warranty_card: warrantyKeywords.test(message) ? { developer_years: 2, structural_years: 10, providers: ['HomeBond', 'Premier Guarantee'] } : null,
+            attachments: floorPlanAttachments.length > 0 ? floorPlanAttachments.map(fp => ({
+              id: fp.id,
+              title: fp.title,
+              fileName: fp.fileName,
+              previewUrl: fp.signedUrl,
+              downloadUrl: fp.downloadUrl,
+              discipline: fp.discipline,
+              docType: fp.docType,
+              houseTypeCode: fp.houseTypeCode,
+            })) : null,
           };
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(metadata)}\n\n`));
 

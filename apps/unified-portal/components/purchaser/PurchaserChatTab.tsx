@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { flushSync } from 'react-dom';
 import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Bookmark, Check } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
@@ -1316,6 +1317,7 @@ export default function PurchaserChatTab({
         let streamedContent = '';
         let drawing: DrawingData | null = null;
         let sources: SourceDocument[] | null = null;
+        let attachments: AttachmentData[] | null = null;
         let berCard: Message['ber_card'] = null;
         let warrantyCard: Message['warranty_card'] = null;
         let contactCard: Message['contact_card'] = null;
@@ -1358,21 +1360,26 @@ export default function PurchaserChatTab({
                   if (data.contact_card) {
                     contactCard = data.contact_card;
                   }
+                  if (data.attachments && data.attachments.length > 0) {
+                    attachments = data.attachments;
+                  }
                 } else if (data.type === 'text') {
                   // IMMEDIATE DISPLAY: Show text as it arrives for fast perceived response
                   streamedContent += data.content;
                   const displayContent = cleanForDisplay(streamedContent);
-                  setMessages((prev) => {
-                    const updated = [...prev];
-                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
-                      updated[assistantMessageIndex] = {
-                        ...updated[assistantMessageIndex],
-                        content: displayContent,
-                        drawing: drawing,
-                        sources: sources,
-                      };
-                    }
-                    return updated;
+                  flushSync(() => {
+                    setMessages((prev) => {
+                      const updated = [...prev];
+                      if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                        updated[assistantMessageIndex] = {
+                          ...updated[assistantMessageIndex],
+                          content: displayContent,
+                          drawing: drawing,
+                          sources: sources,
+                        };
+                      }
+                      return updated;
+                    });
                   });
                 } else if (data.type === 'done') {
                   // Capture contact_card from done event (detected after full response is built)
@@ -1394,6 +1401,7 @@ export default function PurchaserChatTab({
                         content: cleanForDisplay(streamedContent),
                         drawing: drawing,
                         sources: sources,
+                        attachments: attachments,
                         isNoInfo: isNoInfoResponse,
                         ber_card: berCard,
                         warranty_card: warrantyCard,
@@ -1643,7 +1651,7 @@ export default function PurchaserChatTab({
               {schemeLat && schemeLng && (
                 <div className="relative w-full h-[110px]">
                   <img
-                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${schemeLat},${schemeLng}&zoom=16&size=600x220&scale=2&maptype=satellite&markers=color:0xC4A44A|size:small|${schemeLat},${schemeLng}&key=AIzaSyCKpHDRYYv_Hii4mG3WFdx0YrQlT33hvvc`}
+                    src={`https://maps.googleapis.com/maps/api/staticmap?center=${schemeLat},${schemeLng}&zoom=16&size=600x220&scale=2&maptype=satellite&markers=color:0xC4A44A|size:small|${schemeLat},${schemeLng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ''}`}
                     alt="Your development"
                     className="w-full h-full object-cover"
                   />
