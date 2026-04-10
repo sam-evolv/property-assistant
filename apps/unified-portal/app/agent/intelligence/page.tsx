@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { AGENT_STATS } from '@/lib/agent/demo-data';
+import { Send, Mail, Copy, Check, ExternalLink } from 'lucide-react';
 
 const SCHEME_PILLS = [
   "What's outstanding on contracts?",
@@ -21,14 +21,58 @@ const INDEPENDENT_PILLS = [
   'Chase a solicitor on contracts',
 ];
 
+interface DraftedEmail {
+  to: string;
+  subject: string;
+  body: string;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  emails?: DraftedEmail[];
+  followups?: string[];
+  toolsUsed?: Array<{ name: string; summary: string }>;
+}
+
+// Parse <email> blocks from AI response text
+function parseEmails(response: string): { emails: DraftedEmail[]; cleanText: string } {
+  const emailRegex = /<email>\s*<to>([\s\S]*?)<\/to>\s*<subject>([\s\S]*?)<\/subject>\s*<body>([\s\S]*?)<\/body>\s*<\/email>/g;
+  const emails: DraftedEmail[] = [];
+  let match;
+  while ((match = emailRegex.exec(response)) !== null) {
+    emails.push({
+      to: match[1].trim(),
+      subject: match[2].trim(),
+      body: match[3].trim(),
+    });
+  }
+
+  // Also detect emails in plain-text format (Subject: ... Dear ...)
+  if (emails.length === 0) {
+    const subjectMatch = response.match(/Subject:\s*(.+?)(?:\n|$)/);
+    const dearMatch = response.match(/Dear\s+(\w+)/);
+    if (subjectMatch && dearMatch) {
+      // Extract the email body starting from "Subject:" to end or next section
+      const subjectIdx = response.indexOf('Subject:');
+      const bodyText = response.slice(subjectIdx).trim();
+      emails.push({
+        to: '',
+        subject: subjectMatch[1].trim(),
+        body: bodyText,
+      });
+    }
+  }
+
+  // Remove email XML blocks from the display text
+  const cleanText = response.replace(/<email>[\s\S]*?<\/email>/g, '').trim();
+
+  return { emails, cleanText };
 }
 
 export default function IntelligencePage() {
-  const { agent } = useAgent();
+  const { agent, alerts, developmentIds } = useAgent();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
   const isIndependent = agent?.agentType !== 'scheme';
@@ -37,6 +81,7 @@ export default function IntelligencePage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [sessionId, setSessionId] = useState<string>(`session_${Date.now()}`);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefillHandled = useRef(false);
 
@@ -46,7 +91,7 @@ export default function IntelligencePage() {
     }
   }, [messages]);
 
-  // Handle prefilled prompt from URL (e.g., from "Draft reply" buttons)
+  // Handle prefilled prompt from URL
   useEffect(() => {
     if (prefillPrompt && !prefillHandled.current) {
       prefillHandled.current = true;
@@ -54,33 +99,101 @@ export default function IntelligencePage() {
     }
   }, [prefillPrompt]);
 
-  const handleSend = (text: string) => {
-    if (!text.trim()) return;
+  const handleSend = useCallback(async (text: string) => {
+    if (!text.trim() || isTyping) return;
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: text.trim(),
     };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    try {
+      // Build history from existing messages
+      const history = messages.map(m => ({ role: m.role, content: m.content }));
+
+      const response = await fetch('/api/agent-intelligence/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: text.trim(),
+          history,
+          sessionId,
+          activeDevelopmentId: developmentIds?.[0] || null,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response');
+      }
+
+      // Parse the streaming response
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let fullContent = '';
+      let followups: string[] = [];
+      let toolsUsed: Array<{ name: string; summary: string }> = [];
+      let newSessionId = sessionId;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split('\n').filter(l => l.trim());
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line);
+            if (data.type === 'token') {
+              fullContent += data.content;
+            } else if (data.type === 'followups') {
+              followups = data.questions || [];
+            } else if (data.type === 'tools_used') {
+              toolsUsed = data.tools || [];
+            } else if (data.type === 'done') {
+              newSessionId = data.sessionId || sessionId;
+            }
+          } catch {
+            // Skip malformed lines
+          }
+        }
+      }
+
+      setSessionId(newSessionId);
+
+      // Parse any email drafts from the response
+      const { emails, cleanText } = parseEmails(fullContent);
+
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: getAIResponse(text.trim()),
+        content: cleanText || fullContent,
+        emails: emails.length > 0 ? emails : undefined,
+        followups: followups.length > 0 ? followups : undefined,
+        toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
       };
-      setMessages((prev) => [...prev, aiMsg]);
+      setMessages(prev => [...prev, aiMsg]);
+    } catch {
+      const errorMsg: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Something went wrong connecting to Intelligence. Check your connection and try again.',
+      };
+      setMessages(prev => [...prev, errorMsg]);
+    } finally {
       setIsTyping(false);
-    }, 1200);
-  };
+    }
+  }, [messages, isTyping, sessionId, developmentIds]);
 
   const hasMessages = messages.length > 0;
 
   return (
-    <AgentShell agentName="Sam" urgentCount={AGENT_STATS.urgent}>
+    <AgentShell agentName={agent?.displayName?.split(' ')[0] || 'Agent'} urgentCount={alerts?.length || 0}>
       <div
         style={{
           display: 'flex',
@@ -90,7 +203,7 @@ export default function IntelligencePage() {
         }}
       >
         {!hasMessages ? (
-          /* ─── Landing state ─── */
+          /* Landing state */
           <div
             style={{
               flex: 1,
@@ -119,7 +232,6 @@ export default function IntelligencePage() {
               priority
             />
 
-            {/* Gold wordmark */}
             <p
               style={{
                 background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
@@ -133,7 +245,7 @@ export default function IntelligencePage() {
                 margin: '0 0 18px',
               }}
             >
-              OpenHouse Agent
+              OpenHouse Intelligence
             </p>
 
             <h2
@@ -165,7 +277,7 @@ export default function IntelligencePage() {
               every action before it sends.
             </p>
 
-            {/* Prompt pills — 2x2 grid */}
+            {/* Prompt pills */}
             <div
               style={{
                 display: 'grid',
@@ -203,7 +315,7 @@ export default function IntelligencePage() {
             </div>
           </div>
         ) : (
-          /* ─── Conversation state ─── */
+          /* Conversation state */
           <div
             ref={scrollRef}
             style={{
@@ -218,11 +330,17 @@ export default function IntelligencePage() {
             }}
             className="[&::-webkit-scrollbar]:hidden"
           >
-            {messages.map((msg) =>
+            {messages.map(msg =>
               msg.role === 'user' ? (
                 <UserBubble key={msg.id} text={msg.content} />
               ) : (
-                <AIResponseCard key={msg.id} text={msg.content} />
+                <AIResponseCard
+                  key={msg.id}
+                  text={msg.content}
+                  emails={msg.emails}
+                  followups={msg.followups}
+                  onFollowup={handleSend}
+                />
               )
             )}
             {isTyping && <TypingIndicator />}
@@ -255,8 +373,8 @@ export default function IntelligencePage() {
             <input
               type="text"
               value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend(input)}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSend(input)}
               placeholder="Ask Intelligence anything..."
               style={{
                 flex: 1,
@@ -272,7 +390,7 @@ export default function IntelligencePage() {
             />
             <button
               onClick={() => handleSend(input)}
-              disabled={!input.trim()}
+              disabled={!input.trim() || isTyping}
               style={{
                 width: 34,
                 height: 34,
@@ -289,19 +407,7 @@ export default function IntelligencePage() {
                 flexShrink: 0,
               }}
             >
-              <svg
-                width={15}
-                height={15}
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={input.trim() ? '#fff' : '#C0C8D4'}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22,2 15,22 11,13 2,9 22,2" />
-              </svg>
+              <Send size={15} color={input.trim() ? '#fff' : '#C0C8D4'} />
             </button>
           </div>
           <p
@@ -313,7 +419,7 @@ export default function IntelligencePage() {
               letterSpacing: '0.01em',
             }}
           >
-            Powered by AI &middot; Information for reference only
+            Powered by AI. Information for reference only.
           </p>
         </div>
       </div>
@@ -321,7 +427,7 @@ export default function IntelligencePage() {
   );
 }
 
-/* ─── Sub-components ─── */
+/* ---- Sub-components ---- */
 
 function UserBubble({ text }: { text: string }) {
   return (
@@ -354,7 +460,17 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
-function AIResponseCard({ text }: { text: string }) {
+function AIResponseCard({
+  text,
+  emails,
+  followups,
+  onFollowup,
+}: {
+  text: string;
+  emails?: DraftedEmail[];
+  followups?: string[];
+  onFollowup: (text: string) => void;
+}) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
       <div
@@ -365,6 +481,7 @@ function AIResponseCard({ text }: { text: string }) {
           maxWidth: '90%',
           boxShadow:
             '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
+          width: '100%',
         }}
       >
         {/* Header */}
@@ -400,17 +517,229 @@ function AIResponseCard({ text }: { text: string }) {
         </div>
 
         {/* Response text */}
-        <div
+        {text && (
+          <div
+            style={{
+              fontSize: 13.5,
+              lineHeight: 1.6,
+              color: '#374151',
+              letterSpacing: '-0.005em',
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {text}
+          </div>
+        )}
+
+        {/* Email draft cards */}
+        {emails && emails.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: text ? 16 : 0 }}>
+            {emails.map((email, i) => (
+              <EmailDraftCard key={i} email={email} index={i + 1} total={emails.length} />
+            ))}
+          </div>
+        )}
+
+        {/* Follow-up suggestion chips */}
+        {followups && followups.length > 0 && (
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              gap: 8,
+              marginTop: 16,
+              paddingTop: 12,
+              borderTop: '1px solid rgba(0,0,0,0.05)',
+            }}
+          >
+            {followups.map((suggestion, i) => (
+              <button
+                key={i}
+                onClick={() => onFollowup(suggestion)}
+                className="agent-tappable"
+                style={{
+                  padding: '8px 14px',
+                  background: '#FAFAF8',
+                  border: '0.5px solid rgba(0,0,0,0.08)',
+                  borderRadius: 20,
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: '#6B7280',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  lineHeight: 1.3,
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                {suggestion}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmailDraftCard({ email, index, total }: { email: DraftedEmail; index: number; total: number }) {
+  const [copied, setCopied] = useState(false);
+
+  const fullEmailText = email.subject
+    ? `Subject: ${email.subject}\n\n${email.body}`
+    : email.body;
+
+  const handleSendViaGmail = () => {
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(email.to)}&su=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+    window.open(gmailUrl, '_blank');
+  };
+
+  const handleSendViaMailto = () => {
+    const mailtoUrl = `mailto:${email.to}?subject=${encodeURIComponent(email.subject)}&body=${encodeURIComponent(email.body)}`;
+    window.location.href = mailtoUrl;
+  };
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(fullEmailText);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = fullEmailText;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: '#FAFAF8',
+        borderRadius: 14,
+        border: '0.5px solid rgba(0,0,0,0.06)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Email header */}
+      <div style={{ padding: '12px 14px', borderBottom: '0.5px solid rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Mail size={13} color="#D4AF37" />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Draft {total > 1 ? `${index}/${total}` : ''}
+            </span>
+          </div>
+        </div>
+        {email.to && (
+          <div style={{ fontSize: 12, color: '#6B7280', marginBottom: 2 }}>
+            To: {email.to}
+          </div>
+        )}
+        {email.subject && (
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#0D0D12', letterSpacing: '-0.01em' }}>
+            {email.subject}
+          </div>
+        )}
+      </div>
+
+      {/* Email body */}
+      <div
+        style={{
+          padding: '12px 14px',
+          fontSize: 13,
+          lineHeight: 1.6,
+          color: '#374151',
+          whiteSpace: 'pre-wrap',
+          maxHeight: 200,
+          overflowY: 'auto',
+        }}
+      >
+        {email.body}
+      </div>
+
+      {/* Action buttons */}
+      <div
+        style={{
+          display: 'flex',
+          gap: 8,
+          padding: '10px 14px',
+          borderTop: '0.5px solid rgba(0,0,0,0.05)',
+        }}
+      >
+        <button
+          onClick={handleSendViaGmail}
+          className="agent-tappable"
           style={{
-            fontSize: 13.5,
-            lineHeight: 1.6,
-            color: '#374151',
-            letterSpacing: '-0.005em',
-            whiteSpace: 'pre-wrap',
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '10px 12px',
+            background: '#0D0D12',
+            border: 'none',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#fff',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
           }}
         >
-          {text}
-        </div>
+          <ExternalLink size={13} />
+          Send via Gmail
+        </button>
+        <button
+          onClick={handleSendViaMailto}
+          className="agent-tappable"
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 6,
+            padding: '10px 12px',
+            background: '#fff',
+            border: '0.5px solid rgba(0,0,0,0.1)',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 600,
+            color: '#374151',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
+        >
+          <Mail size={13} />
+          Mail App
+        </button>
+        <button
+          onClick={handleCopy}
+          className="agent-tappable"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '10px 14px',
+            background: '#fff',
+            border: '0.5px solid rgba(0,0,0,0.1)',
+            borderRadius: 10,
+            fontSize: 12,
+            fontWeight: 600,
+            color: copied ? '#059669' : '#374151',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            gap: 6,
+            transition: 'color 0.15s ease',
+          }}
+        >
+          {copied ? <Check size={13} /> : <Copy size={13} />}
+          {copied ? 'Copied' : 'Copy'}
+        </button>
       </div>
     </div>
   );
@@ -443,7 +772,7 @@ function TypingIndicator() {
           }}
         />
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-          {[0, 1, 2].map((i) => (
+          {[0, 1, 2].map(i => (
             <div
               key={i}
               style={{
@@ -451,13 +780,13 @@ function TypingIndicator() {
                 height: 6,
                 borderRadius: 3,
                 background: '#C0C8D4',
-                animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
+                animation: `intelligence-pulse 1.2s ease-in-out ${i * 0.2}s infinite`,
               }}
             />
           ))}
         </div>
         <style>{`
-          @keyframes pulse {
+          @keyframes intelligence-pulse {
             0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
             40% { opacity: 1; transform: scale(1); }
           }
@@ -465,28 +794,4 @@ function TypingIndicator() {
       </div>
     </div>
   );
-}
-
-/* ─── Demo AI responses ─── */
-
-function getAIResponse(query: string): string {
-  const q = query.toLowerCase();
-
-  if (q.includes('outstanding') || q.includes('contracts')) {
-    return `There are 17 buyers with contracts outstanding across Riverside Gardens.\n\nMost urgent:\n• Marcelo Acher — Unit 5 — 149 days\n• Stephanie Flanagan — Unit 40 — 121 days\n• Jasmine Thomas — Unit 33 — 111 days\n\nAll 17 are in Riverside Gardens. The longest outstanding is nearly 5 months. I recommend prioritising solicitor follow-ups for the top 5.\n\nWould you like me to draft chase emails for these buyers?`;
-  }
-
-  if (q.includes('scheme') || q.includes('summary')) {
-    return `Portfolio Summary — 5 Active Schemes\n\n• Oak Hill Estate: 83% sold (62/75) — €27.8m revenue\n• Riverside Gardens: 52% reserved (35+17 contracts/68) — €28.8m\n• Meadow View: 75% progressed (39/52) — €17.3m\n• Willow Brook: 93% reserved (40/43) — €1.6m\n• Harbour View: 25% sold (3/12) — €550k\n\nTotal pipeline value: €76.1m across 250 units.\nKey risk: Riverside has 17 contracts unsigned for 49-149 days.`;
-  }
-
-  if (q.includes('email') || q.includes('follow-up') || q.includes('follow up')) {
-    return `Here's a draft follow-up for your most overdue buyer:\n\nSubject: Riverside Gardens, Unit 5 — Contract Status Update\n\nDear Marcelo,\n\nI hope you're well. I'm writing regarding the purchase of Unit 5 at Riverside Gardens.\n\nContracts were issued on 4th November 2025 and we're keen to progress matters. Could you confirm the current status with your solicitor?\n\nIf there's anything we can assist with, please don't hesitate to reach out.\n\nKind regards,\nSam\n\nShall I prepare similar emails for the remaining 16 outstanding buyers?`;
-  }
-
-  if (q.includes('report') || q.includes('weekly')) {
-    return `Developer Weekly Report — w/c 31 March 2026\n\nHighlights:\n• 79 total units sold across 5 schemes\n• 57 active buyers in pipeline\n• 17 contracts requiring follow-up (Riverside Gardens)\n\nRisks:\n• Riverside Gardens contract delays averaging 89 days\n• 5 buyers exceeded 100-day mark\n\nActions Required:\n• Solicitor escalation for top 5 overdue contracts\n• Schedule progress review with Riverside site manager\n\nWould you like me to format this for email to the developer?`;
-  }
-
-  return `I can help with that. Based on your current pipeline:\n\n• 5 active schemes with 250 total units\n• 79 units sold, 57 in active pipeline\n• 17 requiring immediate attention\n\nWhat specific action would you like me to take?`;
 }

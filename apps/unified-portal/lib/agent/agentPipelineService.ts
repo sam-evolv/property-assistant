@@ -293,12 +293,64 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
   return result;
 }
 
-// Get pipeline for ALL developments
+// Get pipeline for ALL developments — includes available units without pipeline records
 export async function getAgentPipelineAll(agentId: string, developmentIds: string[]): Promise<PipelineUnit[]> {
+  // Pre-fetch all development names so we always have them
+  const { data: devNames } = await supabase
+    .from('developments')
+    .select('id, name')
+    .in('id', developmentIds);
+  const devNameMap = new Map((devNames || []).map(d => [d.id, d.name]));
+
   const allUnits: PipelineUnit[] = [];
   for (const devId of developmentIds) {
     const units = await getAgentPipeline(agentId, devId);
+    // Ensure every unit has the development name from our pre-fetched map
+    for (const unit of units) {
+      if (!unit.developmentName) {
+        unit.developmentName = devNameMap.get(devId) || '';
+      }
+    }
     allUnits.push(...units);
+
+    // Include units that have no pipeline record (truly available/for_sale)
+    const pipelineUnitIds = new Set(units.map(u => u.unitId));
+    const { data: allDevUnits } = await supabase
+      .from('units')
+      .select('id, unit_number, address, bedrooms')
+      .eq('development_id', devId);
+
+    for (const u of (allDevUnits || [])) {
+      if (!pipelineUnitIds.has(u.id)) {
+        allUnits.push({
+          id: `virtual_${u.id}`,
+          unitId: u.id,
+          unitNumber: u.unit_number || 'Unknown',
+          unitAddress: u.address || '',
+          developmentId: devId,
+          developmentName: devNameMap.get(devId) || '',
+          bedrooms: u.bedrooms || null,
+          unitTypeName: null,
+          status: 'for_sale',
+          purchaserName: null,
+          purchaserEmail: null,
+          purchaserPhone: null,
+          salePrice: null,
+          saleAgreedDate: null,
+          depositDate: null,
+          contractsIssuedDate: null,
+          signedContractsDate: null,
+          counterSignedDate: null,
+          kitchenDate: null,
+          kitchenSelected: null,
+          snagDate: null,
+          estimatedCloseDate: null,
+          handoverDate: null,
+          mortgageExpiryDate: null,
+          comments: null,
+        });
+      }
+    }
   }
   return allUnits;
 }
