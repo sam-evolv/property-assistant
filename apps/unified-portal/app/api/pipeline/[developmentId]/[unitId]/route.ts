@@ -198,12 +198,29 @@ export async function PATCH(
       const dbField = TEXT_FIELD_MAPPING[field];
       oldValue = existingPipeline?.[dbField] || null;
 
+      const updateData: Record<string, any> = {
+        [dbField]: value || null,
+        updated_at: now,
+      };
+
+      // When marking as "For Sale" (clearing purchaser name), also clear all sale-related dates
+      if (field === 'purchaserName' && !value) {
+        const datesToClear = [
+          'sale_agreed_date', 'deposit_date', 'contracts_issued_date',
+          'signed_contracts_date', 'counter_signed_date', 'kitchen_date',
+          'snag_date', 'drawdown_date', 'handover_date',
+        ];
+        for (const dateCol of datesToClear) {
+          updateData[dateCol] = null;
+        }
+        // Also clear purchaser contact info
+        updateData.purchaser_email = null;
+        updateData.purchaser_phone = null;
+      }
+
       const { error: updateError } = await supabaseAdmin
         .from('unit_sales_pipeline')
-        .update({
-          [dbField]: value || null,
-          updated_at: now,
-        })
+        .update(updateData)
         .eq('id', pipelineId);
 
       if (updateError) {
@@ -218,6 +235,17 @@ export async function PATCH(
         if (field === 'purchaserName') unitUpdateData.purchaser_name = value || null;
         if (field === 'purchaserEmail') unitUpdateData.purchaser_email = value || null;
         if (field === 'purchaserPhone') unitUpdateData.purchaser_phone = value || null;
+
+        // When clearing purchaser, also reset milestone data on units table
+        if (field === 'purchaserName' && !value) {
+          unitUpdateData.purchaser_email = null;
+          unitUpdateData.purchaser_phone = null;
+          unitUpdateData.current_milestone = null;
+          unitUpdateData.milestone_dates = null;
+          unitUpdateData.handover_complete = false;
+          unitUpdateData.est_snagging_date = null;
+          unitUpdateData.est_handover_date = null;
+        }
 
         const { error: unitSyncError } = await supabaseAdmin
           .from('units')
