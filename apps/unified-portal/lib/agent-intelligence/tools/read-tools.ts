@@ -305,8 +305,10 @@ export async function getOutstandingItems(
   const daysAhead = params.days_ahead || 14;
   const futureDate = new Date(Date.now() + daysAhead * 86400000).toISOString();
 
-  // Get development if specified
+  // Get development if specified, otherwise scope to agent's assigned developments
   let developmentId: string | undefined;
+  let agentDevIds: string[] = [];
+
   if (params.scheme_name) {
     const { data: dev } = await supabase
       .from('developments')
@@ -316,6 +318,9 @@ export async function getOutstandingItems(
       .limit(1)
       .maybeSingle();
     developmentId = dev?.id;
+  } else {
+    // Scope to agent's assigned developments
+    agentDevIds = agentContext.assignedSchemes.map(s => s.developmentId);
   }
 
   const items: Array<{
@@ -333,10 +338,14 @@ export async function getOutstandingItems(
   // Get pipeline data for unsigned contracts, overdue selections
   let pipelineQuery = supabase
     .from('unit_sales_pipeline')
-    .select('unit_id, purchaser_name, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_selected')
+    .select('unit_id, development_id, purchaser_name, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_selected')
     .eq('tenant_id', tenantId);
 
-  if (developmentId) pipelineQuery = pipelineQuery.eq('development_id', developmentId);
+  if (developmentId) {
+    pipelineQuery = pipelineQuery.eq('development_id', developmentId);
+  } else if (agentDevIds.length > 0) {
+    pipelineQuery = pipelineQuery.in('development_id', agentDevIds);
+  }
 
   const { data: pipeline } = await pipelineQuery;
 

@@ -57,6 +57,30 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       setLoading(true);
       setError(null);
 
+      // Try the server-side API route first (uses service role, no RLS issues)
+      try {
+        const res = await fetch('/api/agent/pipeline-data');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.agent) {
+            const profile: AgentProfile = data.agent;
+            setAgent(profile);
+            setPipeline(data.pipeline || []);
+            setDevelopmentIds((data.developments || []).map((d: any) => d.id));
+
+            // Compute development summaries from pipeline
+            const devSummaries = getDevelopmentSummaries(data.pipeline || []);
+            setDevelopments(devSummaries);
+            setAlerts(data.alerts || []);
+            setLoading(false);
+            return;
+          }
+        }
+      } catch {
+        // API route failed, fall through to client-side
+      }
+
+      // Fallback: client-side Supabase (original approach)
       const profile = await getAgentProfile(preview || undefined);
       if (!profile) {
         setError('No agent profile found');
@@ -101,6 +125,22 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, [loadData]);
 
   const refreshPipeline = useCallback(async () => {
+    // Try API route first for refresh too
+    try {
+      const res = await fetch('/api/agent/pipeline-data');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.pipeline) {
+          setPipeline(data.pipeline);
+          setDevelopments(getDevelopmentSummaries(data.pipeline));
+          setAlerts(data.alerts || []);
+          return;
+        }
+      }
+    } catch {
+      // Fall through to client-side
+    }
+
     if (!agent || developmentIds.length === 0) return;
     const pipelineData = await getAgentPipelineAll(agent.id, developmentIds);
     setPipeline(pipelineData);
