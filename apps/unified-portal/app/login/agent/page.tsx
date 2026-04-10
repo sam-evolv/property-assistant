@@ -63,7 +63,7 @@ export default function AgentLogin() {
         last_active_at: new Date().toISOString(),
       }, { onConflict: 'auth_user_id,context_type,context_id' });
 
-      router.push('/agent/home');
+      router.push('/agent/select');
       return;
     }
 
@@ -85,7 +85,7 @@ export default function AgentLogin() {
         last_active_at: new Date().toISOString(),
       }, { onConflict: 'auth_user_id,context_type,context_id' });
 
-      router.push('/agent/home');
+      router.push('/agent/select');
       return;
     }
 
