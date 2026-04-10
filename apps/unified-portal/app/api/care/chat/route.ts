@@ -144,21 +144,21 @@ async function executeTool(
 ): Promise<any> {
   switch (toolName) {
     case 'get_system_status': {
-      const specs = installation.system_specs || installation.component_specs || {};
-      const baseline = installation.performance_baseline || {};
+      const specs = installation.system_specs || {};
+      const baseline = specs.performance_baseline || {};
       const isHP = installation.system_type?.toLowerCase().includes('heat_pump') ||
         installation.system_type?.toLowerCase().includes('heat pump');
 
       if (isHP) {
         return {
           system_type: 'heat_pump',
-          model: installation.system_model || specs.model,
-          capacity: installation.capacity || specs.capacity_heating,
+          model: installation.heat_pump_model || specs.model,
+          capacity: installation.system_specs?.capacity_heating || specs.capacity_heating,
           type: specs.type || 'Air-to-Water heat pump',
           refrigerant: specs.refrigerant || 'R32',
           smart_control: specs.smart_control || specs.controlModule || 'standard controller',
           health_status: installation.health_status || 'healthy',
-          install_date: installation.installation_date || installation.install_date,
+          install_date: installation.install_date,
           warranty_expiry: installation.warranty_expiry,
           performance: {
             average_cop: baseline.average_cop,
@@ -171,13 +171,13 @@ async function executeTool(
 
       return {
         system_type: installation.system_type,
-        inverter: installation.inverter_model || installation.system_model,
+        inverter: installation.inverter_model || installation.heat_pump_model,
         panels: installation.panel_model
           ? `${installation.panel_count}x ${installation.panel_model}`
           : specs.panels || null,
         size_kwp: installation.system_size_kwp,
         health_status: installation.health_status || 'healthy',
-        install_date: installation.install_date || installation.installation_date,
+        install_date: installation.install_date,
         portal_status: installation.portal_status,
         address: [installation.address_line_1, installation.city, installation.county]
           .filter(Boolean)
@@ -377,7 +377,7 @@ export async function POST(request: NextRequest) {
     // Get installation
     const { data: installation, error: instErr } = await supabase
       .from('installations')
-      .select('id, system_type, system_model, capacity, system_specs, component_specs, performance_baseline, health_status, installation_date, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, homeowner_email, serial_number, telemetry_source, telemetry_api_key')
+      .select('id, tenant_id, system_type, system_specs, health_status, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, heat_pump_model, heat_pump_serial, heat_pump_cop, flow_temp_current, hot_water_temp_current, controls_model, installer_name, installer_contact, system_category, next_service_due')
       .eq('id', installationId)
       .single();
 
@@ -462,30 +462,30 @@ export async function POST(request: NextRequest) {
       day: 'numeric',
     });
 
-    const specs = installation.system_specs || installation.component_specs || {};
-    const baseline = installation.performance_baseline || {};
+    const specs = installation.system_specs || {};
+    const baseline = specs.performance_baseline || {};
     const isHeatPumpSystem = installation.system_type?.toLowerCase().includes('heat_pump') ||
       installation.system_type?.toLowerCase().includes('heat pump');
 
     // Build a human-readable system summary that works for both solar and heat pump schemas
     const systemSummary = isHeatPumpSystem
       ? [
-          `System: Heat Pump — ${installation.system_model || specs.model || 'unknown model'}`,
-          `Capacity: ${installation.capacity || specs.capacity_heating || 'unknown'}`,
+          `System: Heat Pump — ${installation.heat_pump_model || specs.model || 'unknown model'}`,
+          `Capacity: ${installation.system_specs?.capacity_heating || specs.capacity_heating || 'unknown'}`,
           `Type: ${specs.type || 'Air-to-Water heat pump'}`,
           `Refrigerant: ${specs.refrigerant || 'R32'}`,
           `Smart Control: ${specs.smart_control || specs.controlModule || 'standard controller'}`,
-          `Installed: ${installation.installation_date || installation.install_date || 'not recorded'}`,
+          `Installed: ${installation.install_date || 'not recorded'}`,
           `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
           `Avg COP: ${baseline.average_cop || 'not recorded'}`,
           `Annual heating: ${baseline.annual_heating_kwh ? baseline.annual_heating_kwh + ' kWh' : 'not recorded'}`,
         ].join('\n')
       : [
-          `System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model || installation.system_model || 'unknown'}`,
-          `Size: ${installation.system_size_kwp ? installation.system_size_kwp + ' kWp' : installation.capacity || 'unknown'}`,
+          `System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model || installation.heat_pump_model || 'unknown'}`,
+          `Size: ${installation.system_size_kwp ? installation.system_size_kwp + ' kWp' : 'unknown'}`,
           `Panels: ${installation.panel_count ? installation.panel_count + 'x ' + installation.panel_model : specs.panels || 'not recorded'}`,
           `Battery: ${specs.battery || 'none'}`,
-          `Installed: ${installation.install_date || installation.installation_date || 'not recorded'}`,
+          `Installed: ${installation.install_date || 'not recorded'}`,
           `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
         ].join('\n');
 
@@ -519,7 +519,7 @@ RULES:
 - For heat pumps: reference COP, flow temperature, SEAI heat pump grant (€6,500), F-Gas regulations.
 
 CURRENT INSTALLATION:
-Customer: ${installation.customer_name || installation.homeowner_email || 'Homeowner'}
+Customer: ${installation.customer_name || installation.customer_email || 'Homeowner'}
 ${systemSummary}
 Health: ${installation.health_status || 'healthy'}
 Today: ${today}
@@ -647,9 +647,11 @@ RULES:
       messages: responseMessages,
     });
   } catch (error) {
+    console.error("[CARE_CHAT_ERROR] Full error:", error);
+    console.error("[CARE_CHAT_ERROR] Message:", error instanceof Error ? error.message : "Unknown");
     return NextResponse.json(
-      { error: 'Failed to process chat request' },
+      { error: "Failed to process chat request" },
       { status: 500 }
     );
   }
-}
+  }
