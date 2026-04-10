@@ -230,8 +230,24 @@ export async function getAgentAssignments(agentId: string): Promise<string[]> {
   return (data || []).map(d => d.development_id);
 }
 
+// Get assigned development IDs with names (uses agent_scheme_assignments which always passes RLS)
+export async function getAgentAssignmentsWithNames(agentId: string): Promise<Map<string, string>> {
+  const { data } = await supabase
+    .from('agent_scheme_assignments')
+    .select('development_id, developments!inner(id, name)')
+    .eq('agent_id', agentId)
+    .eq('is_active', true);
+
+  const map = new Map<string, string>();
+  for (const d of data || []) {
+    const dev = d.developments as any;
+    if (dev?.name) map.set(d.development_id, dev.name);
+  }
+  return map;
+}
+
 // Get all pipeline records for a development, sorted by unit number
-export async function getAgentPipeline(agentId: string, developmentId: string): Promise<PipelineUnit[]> {
+export async function getAgentPipeline(agentId: string, developmentId: string, knownDevName?: string): Promise<PipelineUnit[]> {
   const { data: pipelineData, error } = await supabase
     .from('unit_sales_pipeline')
     .select(`
@@ -249,11 +265,16 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
     .select('id, unit_number, address, bedrooms, unit_type_id')
     .eq('development_id', developmentId);
 
-  const { data: dev } = await supabase
-    .from('developments')
-    .select('name')
-    .eq('id', developmentId)
-    .single();
+  // Use pre-fetched name if available, otherwise query (may fail if RLS blocks)
+  let devName = knownDevName || '';
+  if (!devName) {
+    const { data: dev } = await supabase
+      .from('developments')
+      .select('name')
+      .eq('id', developmentId)
+      .single();
+    devName = dev?.name || '';
+  }
 
   const unitMap = new Map((units || []).map(u => [u.id, u]));
 
@@ -265,7 +286,7 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
       unitNumber: unit?.unit_number || 'Unknown',
       unitAddress: unit?.address || '',
       developmentId,
-      developmentName: dev?.name || '',
+      developmentName: devName,
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
       status: normalizeStatus(p.status || 'for_sale'),
@@ -295,22 +316,24 @@ export async function getAgentPipeline(agentId: string, developmentId: string): 
 
 // Get pipeline for ALL developments — includes available units without pipeline records
 export async function getAgentPipelineAll(agentId: string, developmentIds: string[]): Promise<PipelineUnit[]> {
-  // Pre-fetch all development names so we always have them
-  const { data: devNames } = await supabase
-    .from('developments')
-    .select('id, name')
-    .in('id', developmentIds);
-  const devNameMap = new Map((devNames || []).map(d => [d.id, d.name]));
+  // Pre-fetch development names via agent_scheme_assignments join (always passes agent RLS)
+  const devNameMap = await getAgentAssignmentsWithNames(agentId);
+
+  // Fallback: also try direct developments query (now has agent RLS policy)
+  if (devNameMap.size === 0 && developmentIds.length > 0) {
+    const { data: devNames } = await supabase
+      .from('developments')
+      .select('id, name')
+      .in('id', developmentIds);
+    for (const d of devNames || []) {
+      devNameMap.set(d.id, d.name);
+    }
+  }
 
   const allUnits: PipelineUnit[] = [];
   for (const devId of developmentIds) {
-    const units = await getAgentPipeline(agentId, devId);
-    // Ensure every unit has the development name from our pre-fetched map
-    for (const unit of units) {
-      if (!unit.developmentName) {
-        unit.developmentName = devNameMap.get(devId) || '';
-      }
-    }
+    const knownName = devNameMap.get(devId) || '';
+    const units = await getAgentPipeline(agentId, devId, knownName);
     allUnits.push(...units);
 
     // Include units that have no pipeline record (truly available/for_sale)
