@@ -330,6 +330,27 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     };
   }
 
+  // FALLBACK 2: Supabase projects table — the ID may be a legacy Supabase project_id
+  try {
+    const supabase = getSupabaseClient();
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id, latitude, longitude, address')
+      .eq('id', supabaseProjectId)
+      .single();
+
+    if (project?.latitude && project?.longitude) {
+      return {
+        lat: parseFloat(project.latitude),
+        lng: parseFloat(project.longitude),
+        address: project.address || undefined,
+        source: 'developments',
+      };
+    }
+  } catch (_supabaseErr) {
+    // Supabase projects lookup failed — continue to return null
+  }
+
   return null;
 }
 
