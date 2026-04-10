@@ -60,7 +60,7 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
         
         // Clean and dedupe developments
         let devs: Development[] = data.developments || [];
-        
+
         // Filter out garbage/test entries (random codes, test names)
         devs = devs.filter(d => {
           const name = d.name?.toLowerCase() || '';
@@ -71,17 +71,33 @@ export function DevelopmentSwitcher({ tenantFilter }: DevelopmentSwitcherProps =
           if (/_[a-z0-9]{4,}$/i.test(d.name || '')) return false; // Entries like RATHARD_PARK_8U9H
           return true;
         });
-        
-        // Dedupe by name (keep first occurrence)
-        const seen = new Map<string, Development>();
+
+        // Dedupe by name — when multiple entries share the same name, keep the one
+        // whose code best matches (i.e. code is derived from the name itself).
+        // This prevents a "Longview Park" record with code "RATHARD_PARK_BUSH" from
+        // winning over the correct "Longview Park" record with code "LONGVIEW_PARK".
+        const byName = new Map<string, Development[]>();
         devs.forEach(d => {
-          const normalizedName = d.name?.toLowerCase().trim();
-          if (normalizedName && !seen.has(normalizedName)) {
-            seen.set(normalizedName, d);
-          }
+          const key = d.name?.toLowerCase().trim() || '';
+          if (!key) return;
+          if (!byName.has(key)) byName.set(key, []);
+          byName.get(key)!.push(d);
         });
-        devs = Array.from(seen.values());
-        
+
+        devs = Array.from(byName.values()).map(group => {
+          if (group.length === 1) return group[0];
+          // Score each entry: does the code look like it derives from the name?
+          const scoredGroup = group.map(d => {
+            const nameParts = (d.name || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(/\s+/);
+            const codeLower = (d.code || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+            const matchCount = nameParts.filter(p => codeLower.includes(p)).length;
+            return { dev: d, score: matchCount };
+          });
+          // Sort by best match (highest score), then by whether it's from Drizzle (has source field)
+          scoredGroup.sort((a, b) => b.score - a.score);
+          return scoredGroup[0].dev;
+        });
+
         // Sort alphabetically by name
         devs.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
         

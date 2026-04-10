@@ -64,6 +64,83 @@ function getSupabaseProjectId(developmentId: string): string {
   return developmentId;
 }
 
+/**
+ * Resolves a Drizzle development ID to the corresponding Supabase project ID.
+ * Strategy: name-based lookup FIRST (most reliable), then hardcoded mapping fallback.
+ */
+async function resolveProjectId(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  developmentId: string,
+  tenantId: string,
+): Promise<string> {
+  // Step 1: Get the development name
+  const { data: dev } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('id', developmentId)
+    .eq('tenant_id', tenantId)
+    .single();
+
+  // Step 2: Look up project by name (most reliable since names are human-readable)
+  if (dev?.name) {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('name', dev.name)
+      .maybeSingle();
+
+    if (project?.id) {
+      return project.id;
+    }
+  }
+
+  // Step 3: Fall back to hardcoded mapping
+  const mapped = DEVELOPMENT_TO_SUPABASE_PROJECT[developmentId];
+  if (mapped) {
+    return mapped;
+  }
+
+  // Step 4: Identity fallback
+  return developmentId;
+}
+
+/**
+ * Resolves all Supabase project IDs for a tenant (used for "All Schemes").
+ */
+async function resolveAllProjectIds(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  tenantId: string,
+): Promise<string[]> {
+  const projectIds = new Set<string>();
+
+  // Get all developments for this tenant and resolve each
+  const { data: tenantDevs } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('tenant_id', tenantId);
+
+  if (tenantDevs) {
+    for (const dev of tenantDevs) {
+      // Try name-based lookup first
+      if (dev.name) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('name', dev.name)
+          .maybeSingle();
+        if (project?.id) {
+          projectIds.add(project.id);
+          continue;
+        }
+      }
+      // Fall back to hardcoded mapping
+      projectIds.add(getSupabaseProjectId(dev.id));
+    }
+  }
+
+  return Array.from(projectIds);
+}
+
 function getSupabaseClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -122,49 +199,15 @@ async function fetchDocuments(params: {
     let allowedProjectIds: string[] = [];
     
     if (developmentId) {
-      // Verify the development belongs to this tenant AND get its name
-      const { data: devCheck } = await supabase
-        .from('developments')
-        .select('id, name')
-        .eq('id', developmentId)
-        .eq('tenant_id', tenantId)
-        .single();
-      
-      if (!devCheck) {
-        return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
-      }
-      
-      // First try hardcoded mapping
-      let supabaseProjectId = getSupabaseProjectId(developmentId);
-      
-      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
-      if (supabaseProjectId === developmentId && devCheck.name) {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('id')
-          .eq('name', devCheck.name)
-          .maybeSingle();
-        
-        if (project?.id) {
-          supabaseProjectId = project.id;
-        }
-      }
-      
-      allowedProjectIds = [supabaseProjectId];
+      const projectId = await resolveProjectId(supabase, developmentId, tenantId);
+      allowedProjectIds = [projectId];
     } else {
-      // Get all developments for this tenant
-      const { data: tenantDevs } = await supabase
-        .from('developments')
-        .select('id')
-        .eq('tenant_id', tenantId);
-      
-      if (!tenantDevs || tenantDevs.length === 0) {
+      allowedProjectIds = await resolveAllProjectIds(supabase, tenantId);
+      if (allowedProjectIds.length === 0) {
         return { documents: [], totalCount: 0, page, pageSize, totalPages: 0 };
       }
-      
-      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
-    
+
     // Query documents with server-side filtering
     // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
     let query = supabase.from('document_sections').select('id, metadata, content, project_id');
@@ -248,52 +291,18 @@ async function fetchDisciplines(params: {
     let allowedProjectIds: string[] = [];
     
     if (developmentId) {
-      // Verify the development belongs to this tenant AND get its name
-      const { data: devCheck } = await supabase
-        .from('developments')
-        .select('id, name')
-        .eq('id', developmentId)
-        .eq('tenant_id', tenantId)
-        .single();
-      
-      if (!devCheck) {
-        return [];
-      }
-      
-      // First try hardcoded mapping
-      let supabaseProjectId = getSupabaseProjectId(developmentId);
-      
-      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
-      if (supabaseProjectId === developmentId && devCheck.name) {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('id')
-          .eq('name', devCheck.name)
-          .maybeSingle();
-        
-        if (project?.id) {
-          supabaseProjectId = project.id;
-        }
-      }
-      
-      allowedProjectIds = [supabaseProjectId];
+      const projectId = await resolveProjectId(supabase, developmentId, tenantId);
+      allowedProjectIds = [projectId];
     } else {
-      // Get all developments for this tenant
-      const { data: tenantDevs } = await supabase
-        .from('developments')
-        .select('id')
-        .eq('tenant_id', tenantId);
-      
-      if (!tenantDevs || tenantDevs.length === 0) {
+      allowedProjectIds = await resolveAllProjectIds(supabase, tenantId);
+      if (allowedProjectIds.length === 0) {
         return [];
       }
-      
-      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
     }
-    
+
     // Query documents with server-side filtering
     // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
-    
+
     let query = supabase.from('document_sections').select('id, metadata, project_id');
     if (allowedProjectIds.length === 1) {
       query = query.eq('project_id', allowedProjectIds[0]);

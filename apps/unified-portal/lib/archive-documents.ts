@@ -140,41 +140,59 @@ export async function fetchDocumentsByDiscipline({
         .eq('id', developmentId)
         .eq('tenant_id', tenantId)
         .single();
-      
+
       if (!devCheck) {
         return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
       }
-      
-      // First try hardcoded mapping
-      let supabaseProjectId = getSupabaseProjectId(developmentId);
-      
-      // If mapping returns same ID (identity mapping or unmapped), try lookup by name in projects table
-      if (supabaseProjectId === developmentId && devCheck.name) {
+
+      // Name-based lookup first (most reliable), then hardcoded mapping fallback
+      let supabaseProjectId: string | null = null;
+
+      if (devCheck.name) {
         const { data: project } = await supabase
           .from('projects')
           .select('id')
           .eq('name', devCheck.name)
           .maybeSingle();
-        
+
         if (project?.id) {
           supabaseProjectId = project.id;
         }
       }
-      
+
+      if (!supabaseProjectId) {
+        supabaseProjectId = getSupabaseProjectId(developmentId);
+      }
+
       allowedProjectIds = [supabaseProjectId];
     } else {
       // No specific development - get ALL developments for this tenant
       const { data: tenantDevs } = await supabase
         .from('developments')
-        .select('id')
+        .select('id, name')
         .eq('tenant_id', tenantId);
-      
+
       if (!tenantDevs || tenantDevs.length === 0) {
         return { documents: [], totalCount: 0, page, pageSize: effectiveLimit, totalPages: 0 };
       }
-      
-      // Map all tenant developments to their Supabase project IDs
-      allowedProjectIds = tenantDevs.map(d => getSupabaseProjectId(d.id));
+
+      // Resolve each development to its Supabase project ID (name-based first, then hardcoded)
+      const projectIds = new Set<string>();
+      for (const dev of tenantDevs) {
+        if (dev.name) {
+          const { data: project } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('name', dev.name)
+            .maybeSingle();
+          if (project?.id) {
+            projectIds.add(project.id);
+            continue;
+          }
+        }
+        projectIds.add(getSupabaseProjectId(dev.id));
+      }
+      allowedProjectIds = Array.from(projectIds);
     }
     
     // Query documents with server-side filtering

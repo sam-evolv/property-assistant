@@ -337,7 +337,7 @@ interface DateCellProps {
   value: string | null;
   unitId: string;
   field: string;
-  onUpdate: (unitId: string, field: string, value: string) => void;
+  onUpdate: (unitId: string, field: string, value: string | null) => void;
   trafficLight?: 'green' | 'amber' | 'red' | 'blocked' | null;
   onChase?: () => void;
 }
@@ -356,6 +356,13 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
     }
   };
 
+  const handleClear = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onUpdate(unitId, field, null);
+    setPendingValue(null);
+    setIsEditing(false);
+  };
+
   useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus();
@@ -367,7 +374,11 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
     setPendingValue(e.target.value);
   };
 
-  const handleBlur = () => {
+  const handleBlur = (e: React.FocusEvent) => {
+    // Don't close if clicking the clear button
+    if ((e.relatedTarget as HTMLElement)?.getAttribute('data-action') === 'clear-date') {
+      return;
+    }
     if (pendingValue && pendingValue !== value) {
       onUpdate(unitId, field, pendingValue);
     }
@@ -392,7 +403,7 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
   if (isEditing) {
     return (
       <td className="border-l border-gray-50">
-        <div className="h-11 px-1 flex items-center justify-center" style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}>
+        <div className="h-11 px-1 flex items-center justify-center gap-0.5" style={{ boxShadow: `inset 0 0 0 2px ${tokens.gold}`, background: 'white' }}>
           <input
             ref={inputRef}
             type="date"
@@ -402,6 +413,16 @@ function DateCell({ value, unitId, field, onUpdate, trafficLight, onChase }: Dat
             onKeyDown={handleKeyDown}
             className="w-full h-full bg-transparent text-xs text-center outline-none"
           />
+          {value && (
+            <button
+              data-action="clear-date"
+              onClick={handleClear}
+              className="flex-shrink-0 w-5 h-5 flex items-center justify-center rounded bg-red-100 text-red-600 hover:bg-red-200 transition-colors"
+              title="Clear date"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
       </td>
     );
@@ -2560,7 +2581,7 @@ export default function PipelineDevelopmentPage() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, []);
 
-  const handleUpdate = useCallback(async (unitId: string, field: string, value: string) => {
+  const handleUpdate = useCallback(async (unitId: string, field: string, value: string | null) => {
     // Capture previous value for undo
     const prevValue = (units.find(u => u.id === unitId) as any)?.[field] ?? null;
 
@@ -2591,7 +2612,26 @@ export default function PipelineDevelopmentPage() {
   }, [units, developmentId, fetchData, showToast]);
 
   const handlePurchaserNameUpdate = (unitId: string, newName: string | null) => {
-    setUnits(prev => prev.map(u => u.id === unitId ? { ...u, purchaserName: newName } : u));
+    if (newName === null) {
+      // Clearing purchaser — also clear all sale-related dates in local state
+      setUnits(prev => prev.map(u => u.id === unitId ? {
+        ...u,
+        purchaserName: null,
+        purchaserEmail: null,
+        purchaserPhone: null,
+        saleAgreedDate: null,
+        depositDate: null,
+        contractsIssuedDate: null,
+        signedContractsDate: null,
+        counterSignedDate: null,
+        kitchenDate: null,
+        snagDate: null,
+        drawdownDate: null,
+        handoverDate: null,
+      } : u));
+    } else {
+      setUnits(prev => prev.map(u => u.id === unitId ? { ...u, purchaserName: newName } : u));
+    }
   };
 
   const handleCopy = async (text: string, label: string) => {
@@ -2652,7 +2692,21 @@ export default function PipelineDevelopmentPage() {
           // mark unit as for sale failed
         }
       }
-      setUnits(prev => prev.map(u => selectedRows.has(u.id) ? { ...u, purchaserName: null } : u));
+      setUnits(prev => prev.map(u => selectedRows.has(u.id) ? {
+        ...u,
+        purchaserName: null,
+        purchaserEmail: null,
+        purchaserPhone: null,
+        saleAgreedDate: null,
+        depositDate: null,
+        contractsIssuedDate: null,
+        signedContractsDate: null,
+        counterSignedDate: null,
+        kitchenDate: null,
+        snagDate: null,
+        drawdownDate: null,
+        handoverDate: null,
+      } : u));
       showToast(`Marked ${selectedRows.size} unit(s) as For Sale`);
       setSelectedRows(new Set());
       return;

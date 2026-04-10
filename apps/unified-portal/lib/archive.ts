@@ -73,6 +73,38 @@ const VALID_DISCIPLINES = ['architectural', 'structural', 'mechanical', 'electri
  * NOW READS FROM SUPABASE document_sections
  * Filters by developmentId when provided, otherwise returns all for tenant
  */
+/**
+ * Resolves a Drizzle development ID to the corresponding Supabase project ID.
+ * Strategy: name-based lookup FIRST (most reliable), then hardcoded mapping fallback.
+ */
+async function resolveProjectId(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  developmentId: string,
+): Promise<string> {
+  // Step 1: Get the development name
+  const { data: dev } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('id', developmentId)
+    .single();
+
+  // Step 2: Look up project by name
+  if (dev?.name) {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('name', dev.name)
+      .maybeSingle();
+
+    if (project?.id) {
+      return project.id;
+    }
+  }
+
+  // Step 3: Fall back to hardcoded mapping
+  return getSupabaseProjectId(developmentId);
+}
+
 export async function fetchArchiveDisciplines({
   tenantId,
   developmentId,
@@ -82,15 +114,14 @@ export async function fetchArchiveDisciplines({
 }): Promise<DisciplineSummary[]> {
   try {
     const supabase = getSupabaseClient();
-    
+
     let query = supabase.from('document_sections').select('id, metadata, project_id');
-    
+
     if (developmentId) {
-      const supabaseProjectId = getSupabaseProjectId(developmentId);
-      query = query.eq('project_id', supabaseProjectId);
-    } else {
+      const projectId = await resolveProjectId(supabase, developmentId);
+      query = query.eq('project_id', projectId);
     }
-    
+
     const { data: sections, error } = await query;
 
     if (error) {
