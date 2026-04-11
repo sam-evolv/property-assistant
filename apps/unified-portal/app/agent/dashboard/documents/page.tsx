@@ -10,7 +10,7 @@ export default function AgentDashboardDocumentsPage() {
         Documents
       </h1>
       <p style={{ color: '#A0A8B0', fontSize: 14, margin: 0 }}>
-        Coming soon — this section is being built.
+        Coming soon. This section is being built.
       </p>
     </div>
   );

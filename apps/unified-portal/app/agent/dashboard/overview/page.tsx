@@ -202,7 +202,7 @@ export default async function AgentDashboardOverview() {
                 </p>
               </div>
               <span style={{ color: '#374151', fontSize: 14, fontWeight: 500, alignSelf: 'center' }}>
-                {Array.isArray(units) ? units.length : (units as any)?.[0]?.count ?? '—'}
+                {Array.isArray(units) ? units.length : (units as any)?.[0]?.count ?? '-'}
               </span>
               <span style={{ color: '#10B981', fontSize: 14, fontWeight: 600, alignSelf: 'center' }}>
                 {sold}
@@ -215,7 +215,7 @@ export default async function AgentDashboardOverview() {
                 fontSize: 14, fontWeight: devOverdue > 0 ? 600 : 400,
                 alignSelf: 'center',
               }}>
-                {devOverdue > 0 ? devOverdue : '—'}
+                {devOverdue > 0 ? devOverdue : '-'}
               </span>
             </a>
           );

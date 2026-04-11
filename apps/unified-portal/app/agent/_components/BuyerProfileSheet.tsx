@@ -139,7 +139,7 @@ export default function BuyerProfileSheet({ profile, onClose }: BuyerProfileShee
                 <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#DC2626' }}>
-                Contracts {profile.daysSinceIssued} days overdue — solicitor follow-up needed
+                Contracts {profile.daysSinceIssued} days overdue. Solicitor follow-up needed
               </span>
             </div>
           )}
@@ -226,7 +226,7 @@ export default function BuyerProfileSheet({ profile, onClose }: BuyerProfileShee
             <DetailRow label="Snag Date" value={formatDate(profile.snagDate)} />
             <DetailRow label="Est. Closing" value={formatDate(profile.estimatedCloseDate)} />
             <DetailRow label="Handover" value={formatDate(profile.handoverDate)} />
-            <DetailRow label="Kitchen Selected" value={profile.kitchenSelected === null ? '—' : profile.kitchenSelected ? 'Yes' : 'No'} last />
+            <DetailRow label="Kitchen Selected" value={profile.kitchenSelected === null ? '-' : profile.kitchenSelected ? 'Yes' : 'No'} last />
           </div>
 
           {/* ─── Solicitor ─── */}
@@ -325,7 +325,7 @@ function DetailRow({ label, value, bold, highlight, action, last }: {
         textAlign: 'right' as const,
         maxWidth: '60%',
       }}>
-        {value || '—'}
+        {value || '-'}
       </span>
     </div>
   );
@@ -345,9 +345,10 @@ function ActionButton({ icon, label, href }: { icon: string; label: string; href
       href={href}
       className="agent-tappable"
       style={{
-        flex: 1, padding: '12px 10px',
+        flex: 1, padding: '14px 10px',
         background: '#F5F5F3', border: '0.5px solid rgba(0,0,0,0.07)', borderRadius: 14,
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5,
+        minHeight: 44,
         textDecoration: 'none',
       }}
     >
@@ -395,10 +396,10 @@ function ActionIcon({ type }: { type: string }) {
 /* ─── Date helpers ─── */
 
 function formatDate(iso: string | null): string {
-  if (!iso) return '—';
+  if (!iso) return '-';
   try {
     return new Date(iso).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch { return '—'; }
+  } catch { return '-'; }
 }
 
 function formatDateShort(iso: string): string {

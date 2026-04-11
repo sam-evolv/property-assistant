@@ -7,9 +7,14 @@ export function buildAgentSystemPrompt(
   previousEntityContext: string,
   ragResults: string,
   independentContext?: string,
+  viewingsSummary?: string,
 ): string {
   const schemeList = agentContext.assignedSchemes
-    .map(s => `- ${s.schemeName} (${s.unitCount} units)`)
+    .map(s => {
+      const location = s.location ? `, ${s.location}` : '';
+      const developer = s.developerName ? ` [${s.developerName}]` : '';
+      return `- ${s.schemeName} (${s.unitCount} units${location})${developer}`;
+    })
     .join('\n');
 
   return `You are OpenHouse Intelligence, the AI assistant built into the OpenHouse Agent app. You work alongside estate agents and auctioneers who sell new homes developments in Ireland.
@@ -176,6 +181,9 @@ ${recentActivitySummary || 'No recent activity data available.'}
 
 UPCOMING DEADLINES (next 14 days):
 ${upcomingDeadlines || 'No upcoming deadlines found.'}
+
+VIEWINGS:
+${viewingsSummary || 'No viewings scheduled for today or tomorrow.'}
 
 ${previousEntityContext ? `PREVIOUS CONTEXT (background only — from prior conversations):
 ${previousEntityContext}

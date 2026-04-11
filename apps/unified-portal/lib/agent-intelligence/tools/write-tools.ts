@@ -134,6 +134,93 @@ export async function logCommunication(
   };
 }
 
+export async function scheduleViewing(
+  supabase: SupabaseClient,
+  tenantId: string,
+  agentContext: AgentContext,
+  params: {
+    buyer_name: string;
+    scheme_name: string;
+    unit_ref?: string;
+    viewing_date: string;
+    viewing_time?: string;
+    buyer_phone?: string;
+    buyer_email?: string;
+    notes?: string;
+  }
+): Promise<ToolResult> {
+  // Resolve agent profile
+  const { data: agentProfile } = await supabase
+    .from('agent_profiles')
+    .select('id')
+    .eq('user_id', agentContext.userId)
+    .maybeSingle();
+
+  if (!agentProfile) {
+    return { data: { created: false }, summary: 'No agent profile found. Cannot schedule viewing.' };
+  }
+
+  // Resolve development and unit if possible
+  let developmentId: string | null = null;
+  let unitId: string | null = null;
+
+  const { data: dev } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('tenant_id', tenantId)
+    .ilike('name', `%${params.scheme_name}%`)
+    .limit(1)
+    .maybeSingle();
+
+  if (dev) {
+    developmentId = dev.id;
+
+    if (params.unit_ref) {
+      const { data: units } = await supabase
+        .from('units')
+        .select('id')
+        .eq('development_id', dev.id)
+        .or(`unit_number.ilike.%${params.unit_ref}%,unit_uid.ilike.%${params.unit_ref}%`)
+        .limit(1);
+
+      unitId = units?.[0]?.id || null;
+    }
+  }
+
+  const { data: viewing, error } = await supabase
+    .from('agent_viewings')
+    .insert({
+      agent_id: agentProfile.id,
+      tenant_id: tenantId,
+      development_id: developmentId,
+      unit_id: unitId,
+      buyer_name: params.buyer_name,
+      buyer_phone: params.buyer_phone || null,
+      buyer_email: params.buyer_email || null,
+      scheme_name: dev?.name || params.scheme_name,
+      unit_ref: params.unit_ref || null,
+      viewing_date: params.viewing_date,
+      viewing_time: params.viewing_time || null,
+      status: 'confirmed',
+      notes: params.notes || null,
+      source: 'intelligence',
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    return { data: { created: false }, summary: `Failed to schedule viewing: ${error.message}` };
+  }
+
+  const dateStr = new Date(params.viewing_date).toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long' });
+  const timeStr = params.viewing_time ? ` at ${params.viewing_time}` : '';
+
+  return {
+    data: { viewing_id: viewing.id, created: true },
+    summary: `Viewing scheduled: ${params.buyer_name} viewing ${params.unit_ref ? `Unit ${params.unit_ref}, ` : ''}${dev?.name || params.scheme_name} on ${dateStr}${timeStr}.`,
+  };
+}
+
 export async function draftMessage(
   supabase: SupabaseClient,
   tenantId: string,

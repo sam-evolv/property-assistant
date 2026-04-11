@@ -5,11 +5,13 @@ import {
   getSchemeOverview,
   getOutstandingItems,
   getCommunicationHistory,
+  getViewings,
   searchKnowledgeBase,
 } from './read-tools';
 import {
   createTask,
   logCommunication,
+  scheduleViewing,
   draftMessage,
   generateDeveloperReport,
 } from './write-tools';
@@ -80,6 +82,41 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: [],
     },
     execute: getCommunicationHistory,
+  },
+  {
+    name: 'get_viewings',
+    description: 'Get upcoming viewings for the agent, optionally filtered by scheme, buyer, or date range.',
+    parameters: {
+      type: 'object',
+      properties: {
+        scheme_name: { type: 'string', description: 'Filter by scheme/development name' },
+        buyer_name: { type: 'string', description: 'Filter by buyer name' },
+        from_date: { type: 'string', description: 'Start date (ISO format, defaults to today)' },
+        to_date: { type: 'string', description: 'End date (ISO format)' },
+        status: { type: 'string', description: 'Filter by status', enum: ['confirmed', 'pending', 'completed', 'cancelled', 'no_show'] },
+      },
+      required: [],
+    },
+    execute: getViewings,
+  },
+  {
+    name: 'schedule_viewing',
+    description: 'Schedule a property viewing for a buyer. Creates a viewing record in the agent diary.',
+    parameters: {
+      type: 'object',
+      properties: {
+        buyer_name: { type: 'string', description: 'Name of the buyer or prospect' },
+        scheme_name: { type: 'string', description: 'Name of the development/scheme' },
+        unit_ref: { type: 'string', description: 'Unit number (optional if viewing the scheme generally)' },
+        viewing_date: { type: 'string', description: 'Date of the viewing (ISO format, e.g. 2026-04-15)' },
+        viewing_time: { type: 'string', description: 'Time of the viewing (e.g. 14:00)' },
+        buyer_phone: { type: 'string', description: 'Buyer phone number' },
+        buyer_email: { type: 'string', description: 'Buyer email address' },
+        notes: { type: 'string', description: 'Any notes about the viewing' },
+      },
+      required: ['buyer_name', 'scheme_name', 'viewing_date'],
+    },
+    execute: scheduleViewing as ToolFunction,
   },
   {
     name: 'search_knowledge_base',

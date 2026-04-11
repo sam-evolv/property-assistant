@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { getAdminContextFromSession, enforceTenantScope } from '@/lib/api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { loadAgentContext, getRecentActivitySummary, getUpcomingDeadlines, loadEntityMemory } from '@/lib/agent-intelligence/context';
+import { loadAgentContext, getRecentActivitySummary, getUpcomingDeadlines, loadEntityMemory, getViewingsSummary } from '@/lib/agent-intelligence/context';
 import { buildAgentSystemPrompt } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
@@ -86,11 +86,14 @@ export async function POST(request: NextRequest) {
     }
 
     // 2. Build context components in parallel
-    const [recentActivity, upcomingDeadlines, entityMemory] = await Promise.all([
+    const [recentActivity, upcomingDeadlines, entityMemory, viewingsSummary] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
       agentContext.agentId
         ? loadEntityMemory(supabase, agentContext.agentId, message).catch(() => '')
+        : Promise.resolve(''),
+      agentContext.agentId
+        ? getViewingsSummary(supabase, agentContext).catch(() => '')
         : Promise.resolve(''),
     ]);
 
@@ -109,6 +112,7 @@ export async function POST(request: NextRequest) {
       entityMemory,
       '', // RAG results injected after tool calls if needed
       independentContext,
+      viewingsSummary,
     );
 
     // 4. Build message history
@@ -132,7 +136,7 @@ export async function POST(request: NextRequest) {
     const tools = getToolDefinitionsForOpenAI();
 
     let completion = await openai.chat.completions.create({
-      model: 'gpt-4.1-mini',
+      model: 'gpt-4o-mini',
       messages,
       tools,
       tool_choice: 'auto',
@@ -180,7 +184,7 @@ export async function POST(request: NextRequest) {
 
       // Call LLM again with tool results
       completion = await openai.chat.completions.create({
-        model: 'gpt-4.1-mini',
+        model: 'gpt-4o-mini',
         messages,
         tools,
         tool_choice: 'auto',
@@ -228,7 +232,7 @@ export async function POST(request: NextRequest) {
           try {
             const toolNames = toolsCalled.map(t => t.tool_name).join(', ');
             const followUpCompletion = await openai.chat.completions.create({
-              model: 'gpt-4.1-mini',
+              model: 'gpt-4o-mini',
               messages: [
                 {
                   role: 'system',
@@ -375,7 +379,7 @@ async function logInteraction(
       : toolsCalled.some(t => t.tool_name === 'generate_developer_report') ? 'report'
       : toolsCalled.some(t => t.tool_name === 'create_task') ? 'task_created'
       : 'answer',
-    model_used: 'gpt-4.1-mini',
+    model_used: 'gpt-4o-mini',
     latency_ms: latencyMs,
   });
 

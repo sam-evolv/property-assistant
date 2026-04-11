@@ -9,6 +9,8 @@ export interface AgentContext {
     developmentId: string;
     schemeName: string;
     unitCount: number;
+    location?: string | null;
+    developerName?: string | null;
   }>;
 }
 

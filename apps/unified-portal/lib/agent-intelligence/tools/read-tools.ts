@@ -519,6 +519,68 @@ export async function getCommunicationHistory(
   };
 }
 
+export async function getViewings(
+  supabase: SupabaseClient,
+  tenantId: string,
+  agentContext: AgentContext,
+  params: { scheme_name?: string; buyer_name?: string; from_date?: string; to_date?: string; status?: string }
+): Promise<ToolResult> {
+  // Resolve agent profile to get agent_id
+  const { data: agentProfile } = await supabase
+    .from('agent_profiles')
+    .select('id')
+    .eq('user_id', agentContext.userId)
+    .maybeSingle();
+
+  if (!agentProfile) {
+    return { data: { viewings: [] }, summary: 'No agent profile found' };
+  }
+
+  let query = supabase
+    .from('agent_viewings')
+    .select('id, buyer_name, buyer_phone, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status, notes, source')
+    .eq('agent_id', agentProfile.id)
+    .order('viewing_date', { ascending: true })
+    .order('viewing_time', { ascending: true });
+
+  if (params.scheme_name) query = query.ilike('scheme_name', `%${params.scheme_name}%`);
+  if (params.buyer_name) query = query.ilike('buyer_name', `%${params.buyer_name}%`);
+  if (params.status) query = query.eq('status', params.status);
+
+  // Default: from today onwards if no date range specified
+  const fromDate = params.from_date || new Date().toISOString().split('T')[0];
+  query = query.gte('viewing_date', fromDate);
+  if (params.to_date) query = query.lte('viewing_date', params.to_date);
+
+  const { data: viewings, error } = await query.limit(20);
+
+  if (error || !viewings?.length) {
+    return { data: { viewings: [] }, summary: 'No viewings scheduled' };
+  }
+
+  const formatted = viewings.map((v: any) => ({
+    id: v.id,
+    buyer_name: v.buyer_name,
+    buyer_phone: v.buyer_phone,
+    buyer_email: v.buyer_email,
+    scheme: v.scheme_name,
+    unit: v.unit_ref,
+    date: v.viewing_date,
+    time: v.viewing_time,
+    status: v.status,
+    notes: v.notes,
+    source: v.source,
+  }));
+
+  const today = new Date().toISOString().split('T')[0];
+  const todayCount = formatted.filter((v: any) => v.date === today).length;
+  const summary = todayCount > 0
+    ? `${formatted.length} viewing(s) found, ${todayCount} today`
+    : `${formatted.length} upcoming viewing(s)`;
+
+  return { data: { viewings: formatted }, summary };
+}
+
 export async function searchKnowledgeBase(
   supabase: SupabaseClient,
   tenantId: string,

@@ -36,8 +36,17 @@ export async function loadAgentContext(
   if (developmentIds.length > 0) {
     const { data: devs } = await supabase
       .from('developments')
-      .select('id, name')
+      .select('id, name, county')
       .in('id', developmentIds);
+
+    // Get developer (tenant) name
+    let developerName: string | null = null;
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', tenantId)
+      .maybeSingle();
+    if (tenant) developerName = tenant.name;
 
     // Get unit counts per development
     const schemesWithCounts = await Promise.all(
@@ -52,6 +61,8 @@ export async function loadAgentContext(
           developmentId: dev.id,
           schemeName: dev.name,
           unitCount: count || 0,
+          location: dev.county || null,
+          developerName: developerName || null,
         };
       })
     );
@@ -176,6 +187,50 @@ export async function getUpcomingDeadlines(
   }
 
   return lines.length ? lines.join('\n') : 'No deadlines in the next 14 days.';
+}
+
+/**
+ * Get today's and tomorrow's viewings for the agent (injected into system prompt).
+ */
+export async function getViewingsSummary(
+  supabase: SupabaseClient,
+  agentContext: AgentContext
+): Promise<string> {
+  const today = new Date().toISOString().split('T')[0];
+  const tomorrow = new Date(Date.now() + 86400000).toISOString().split('T')[0];
+
+  const { data: viewings } = await supabase
+    .from('agent_viewings')
+    .select('buyer_name, scheme_name, unit_ref, viewing_date, viewing_time, status, notes')
+    .eq('agent_id', agentContext.agentId)
+    .in('viewing_date', [today, tomorrow])
+    .in('status', ['confirmed', 'pending'])
+    .order('viewing_date', { ascending: true })
+    .order('viewing_time', { ascending: true });
+
+  if (!viewings?.length) return 'No viewings scheduled for today or tomorrow.';
+
+  const todayViewings = viewings.filter((v: any) => v.viewing_date === today);
+  const tomorrowViewings = viewings.filter((v: any) => v.viewing_date === tomorrow);
+
+  const formatViewing = (v: any) => {
+    const time = v.viewing_time ? ` at ${v.viewing_time}` : '';
+    const unit = v.unit_ref ? `, Unit ${v.unit_ref}` : '';
+    const status = v.status === 'pending' ? ' (PENDING CONFIRMATION)' : '';
+    return `- ${v.buyer_name}${time} — ${v.scheme_name}${unit}${status}`;
+  };
+
+  const lines: string[] = [];
+  if (todayViewings.length) {
+    lines.push(`TODAY (${todayViewings.length}):`);
+    lines.push(...todayViewings.map(formatViewing));
+  }
+  if (tomorrowViewings.length) {
+    lines.push(`TOMORROW (${tomorrowViewings.length}):`);
+    lines.push(...tomorrowViewings.map(formatViewing));
+  }
+
+  return lines.join('\n');
 }
 
 /**

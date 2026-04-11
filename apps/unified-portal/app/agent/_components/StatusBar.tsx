@@ -197,10 +197,14 @@ export default function StatusBar({
           style={{
             position: 'relative',
             display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
             background: 'none',
             border: 'none',
-            padding: 4,
-            margin: -4,
+            padding: 12,
+            margin: -12,
+            minWidth: 44,
+            minHeight: 44,
             cursor: 'pointer',
           }}
         >
