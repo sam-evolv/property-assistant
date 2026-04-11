@@ -2715,12 +2715,13 @@ export async function POST(request: NextRequest) {
       
       // Filter out superseded documents before scoring
       // Also filter out technical/engineering documents that are NOT homeowner-facing
-      const EXCLUDED_DISCIPLINES = [
-        'structural', 'engineering', 'electrical', 'mechanical', 'plumbing',
-        'mep', 'hvac', 'fire_strategy', 'fire_engineering', 'gas', 'construction',
-        'as_built', 'detailed_design', 'technical', 'contractor'
-      ];
-      
+      // EXCEPTION: Solar/renewable energy docs are tagged "electrical" but ARE homeowner-relevant
+      const isSolarOrRenewableQuestion = /\b(solar|photovoltaic|pv\s*panel|renewable|panel[s]?\s*(on|fitted|installed|brand|type|spec|model)|heat\s*pump|inverter|energy\s*rating|ber|nzeb)\b/i.test(message);
+
+      const EXCLUDED_DISCIPLINES = isSolarOrRenewableQuestion
+        ? ['structural', 'engineering', 'mechanical', 'plumbing', 'mep', 'hvac', 'fire_strategy', 'fire_engineering', 'gas', 'construction', 'as_built', 'detailed_design', 'technical', 'contractor']
+        : ['structural', 'engineering', 'electrical', 'mechanical', 'plumbing', 'mep', 'hvac', 'fire_strategy', 'fire_engineering', 'gas', 'construction', 'as_built', 'detailed_design', 'technical', 'contractor'];
+
       const EXCLUDED_FILENAME_PATTERNS = [
         /structural/i, /engineer/i, /\bSE\b/, /\bMEP\b/, /electrical.*schematic/i,
         /gas.*schematic/i, /fire.*strategy/i, /construction.*issue/i, /as.?built/i,
@@ -3454,10 +3455,13 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
     // ROOM DIMENSION INJECTION: Look up actual dimensions from unit_room_dimensions table
     // and inject them into the system prompt so the LLM can give precise answers
+    // NOTE: unit_room_dimensions may be stored under the legacy supabase_project_id (57dc3919)
+    // rather than the unit's development_id (e0833063), so try both.
     let roomDimensionData: RoomDimensionResult | null = null;
     if (isDimensionQuestion && extractedRoom) {
       try {
         const dimSupabase = getSupabaseClient();
+        // Try primary development_id first
         roomDimensionData = await lookupRoomDimensions(
           dimSupabase,
           userTenantId,
@@ -3466,6 +3470,18 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           actualUnitId || undefined,
           extractedRoom
         );
+        // Fallback: try legacy supabase_project_id if primary didn't find data
+        const legacyProjectId = userUnitDetails.unitInfo?.supabase_project_id;
+        if (!roomDimensionData?.found && legacyProjectId && legacyProjectId !== userDevelopmentId) {
+          roomDimensionData = await lookupRoomDimensions(
+            dimSupabase,
+            userTenantId,
+            legacyProjectId,
+            userHouseTypeCode || undefined,
+            actualUnitId || undefined,
+            extractedRoom
+          );
+        }
         if (roomDimensionData?.found) {
           const dimParts: string[] = [];
           if (roomDimensionData.length_m && roomDimensionData.width_m) {
