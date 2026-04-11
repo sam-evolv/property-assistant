@@ -9,6 +9,9 @@ const BADGE_CONFIG: Record<BadgeStatus, { bg: string; border: string; dot: strin
   available:     { bg: '#ECFDF5', border: 'rgba(16,185,129,0.2)',  dot: '#10B981', text: '#065F46', label: 'AVAILABLE'     },
   confirmed:     { bg: '#ECFDF5', border: 'rgba(16,185,129,0.2)',  dot: '#10B981', text: '#065F46', label: 'CONFIRMED'     },
   pending:       { bg: '#FFFBEB', border: 'rgba(245,158,11,0.2)',  dot: '#F59E0B', text: '#92400E', label: 'PENDING'       },
+  completed:     { bg: '#F0FDF4', border: 'rgba(34,197,94,0.2)',   dot: '#22C55E', text: '#166534', label: 'COMPLETED'     },
+  cancelled:     { bg: '#F5F5F5', border: 'rgba(163,163,163,0.2)', dot: '#A3A3A3', text: '#525252', label: 'CANCELLED'     },
+  no_show:       { bg: '#FEF2F2', border: 'rgba(239,68,68,0.2)',   dot: '#EF4444', text: '#B91C1C', label: 'NO SHOW'       },
 };
 
 interface StatusBadgeProps {

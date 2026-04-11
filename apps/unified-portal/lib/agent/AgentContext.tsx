@@ -68,8 +68,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             setPipeline(data.pipeline || []);
             setDevelopmentIds((data.developments || []).map((d: any) => d.id));
 
-            // Compute development summaries from pipeline
-            const devSummaries = getDevelopmentSummaries(data.pipeline || []);
+            // Compute development summaries from pipeline, enriched with API metadata
+            const devSummaries = getDevelopmentSummaries(data.pipeline || [], data.developments || []);
             setDevelopments(devSummaries);
             setAlerts(data.alerts || []);
             setLoading(false);

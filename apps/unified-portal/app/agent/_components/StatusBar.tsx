@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import NotificationPanel from './NotificationPanel';
 import type { Notification } from './NotificationPanel';
-import { BUYERS, AGENT_STATS } from '@/lib/agent/demo-data';
+import { useAgent } from '@/lib/agent/AgentContext';
+import { type Alert, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
 
 interface UserContext {
   id: string;
@@ -18,92 +19,49 @@ interface UserContext {
   last_active_at: string | null;
 }
 
-/* ─── Build notifications from demo data ─── */
+/* ─── Build notifications from real pipeline alerts ─── */
 
-function buildNotifications(): Notification[] {
+function buildNotificationsFromAlerts(alerts: Alert[], pipeline: PipelineUnit[]): Notification[] {
   const notifs: Notification[] = [];
 
-  // Contract overdue notifications — from urgent buyers
-  const urgent = BUYERS.filter((b) => b.urgent)
-    .sort((a, b) => (b.daysSinceIssued ?? 0) - (a.daysSinceIssued ?? 0));
+  // Contract overdue notifications from real alerts
+  const overdueAlerts = alerts
+    .filter((a) => a.type === 'overdue_contracts')
+    .sort((a, b) => (b.daysOverdue || 0) - (a.daysOverdue || 0));
 
-  urgent.forEach((b) => {
-    const days = b.daysSinceIssued ?? 0;
+  overdueAlerts.forEach((a) => {
+    const days = a.daysOverdue || 0;
     notifs.push({
-      id: `contract-${b.id}`,
+      id: `contract-${a.unitId}`,
       type: 'contract_overdue',
-      title: `${b.name.split(' ').slice(0, 2).join(' ')}`,
-      body: `Contracts issued ${days} days ago for ${b.unit}, ${b.scheme}. No signature received.`,
+      title: a.purchaserName.split(' ').slice(0, 2).join(' '),
+      body: `Contracts issued ${days} days ago for Unit ${a.unitNumber}, ${a.developmentName}. No signature received.`,
       time: days > 100 ? `${days}d overdue` : `${days}d ago`,
       read: days < 70,
       actionLabel: 'View buyer',
-      actionHref: '/agent/pipeline/riverside',
+      actionHref: `/agent/pipeline/${a.unitId}`,
       urgency: days > 120 ? 'critical' : days > 80 ? 'high' : 'normal',
-      buyerInitials: b.initials,
+      buyerInitials: getInitials(a.purchaserName),
     });
   });
 
-  // Viewing notifications
-  notifs.push({
-    id: 'viewing-1',
-    type: 'viewing_upcoming',
-    title: 'Viewing today at 10:00',
-    body: 'Sarah & Michael Kelly — Riverside Gardens, Unit 12. Second viewing.',
-    time: '2h from now',
-    read: false,
-    actionLabel: 'View schedule',
-    actionHref: '/agent/viewings',
-    urgency: 'normal',
-  });
+  // Mortgage expiry alerts
+  const mortgageAlerts = alerts
+    .filter((a) => a.type === 'mortgage_expiry')
+    .sort((a, b) => (a.daysUntilExpiry || 0) - (b.daysUntilExpiry || 0));
 
-  notifs.push({
-    id: 'viewing-2',
-    type: 'viewing_upcoming',
-    title: '3 viewings scheduled tomorrow',
-    body: 'Meadow View (2) and Harbour View (1). All confirmed.',
-    time: 'Tomorrow',
-    read: true,
-    actionLabel: 'View schedule',
-    actionHref: '/agent/viewings',
-    urgency: 'normal',
-  });
-
-  // Document notification
-  notifs.push({
-    id: 'doc-1',
-    type: 'document_pending',
-    title: 'BER certs updated',
-    body: 'Riverside Gardens BER certificate pack has been updated. Review required.',
-    time: '3h ago',
-    read: false,
-    actionLabel: 'View docs',
-    actionHref: '/agent/docs',
-    urgency: 'normal',
-  });
-
-  // Milestone
-  notifs.push({
-    id: 'milestone-1',
-    type: 'milestone',
-    title: 'Meadow View — 75% sold',
-    body: '39 of 52 units now progressed. Revenue: €17.3m.',
-    time: 'Yesterday',
-    read: true,
-    actionLabel: 'View scheme',
-    actionHref: '/agent/pipeline/meadow',
-    urgency: 'normal',
-  });
-
-  notifs.push({
-    id: 'milestone-2',
-    type: 'milestone',
-    title: 'Rory O\'Connor — sale closed',
-    body: 'Unit 15, Meadow View handed over successfully.',
-    time: '2 days ago',
-    read: true,
-    actionLabel: 'View pipeline',
-    actionHref: '/agent/pipeline/meadow',
-    urgency: 'normal',
+  mortgageAlerts.forEach((a) => {
+    notifs.push({
+      id: `mortgage-${a.unitId}`,
+      type: 'document_pending',
+      title: a.purchaserName.split(' ').slice(0, 2).join(' '),
+      body: `Mortgage approval expires in ${a.daysUntilExpiry} days. Unit ${a.unitNumber}, ${a.developmentName}.`,
+      time: `${a.daysUntilExpiry}d left`,
+      read: (a.daysUntilExpiry || 0) > 30,
+      actionLabel: 'View buyer',
+      actionHref: `/agent/pipeline/${a.unitId}`,
+      urgency: (a.daysUntilExpiry || 0) < 14 ? 'high' : 'normal',
+    });
   });
 
   return notifs;
@@ -137,10 +95,14 @@ function getContextEmoji(ctx: UserContext): string {
 export default function StatusBar({
   agentName = 'Sam',
 }: StatusBarProps) {
+  const { alerts, pipeline } = useAgent();
   const [panelOpen, setPanelOpen] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>(() =>
-    buildNotifications()
-  );
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Rebuild notifications when real alerts change
+  useEffect(() => {
+    setNotifications(buildNotificationsFromAlerts(alerts, pipeline));
+  }, [alerts, pipeline]);
   const [contexts, setContexts] = useState<UserContext[]>([]);
   const [showSwitcher, setShowSwitcher] = useState(false);
   const router = useRouter();

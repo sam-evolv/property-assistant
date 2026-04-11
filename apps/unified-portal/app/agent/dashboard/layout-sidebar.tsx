@@ -16,13 +16,7 @@ import {
   LogOut,
 } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-
-interface AgentProfile {
-  id: string;
-  display_name: string;
-  agency_name: string;
-  agent_type: 'scheme' | 'independent' | 'hybrid';
-}
+import type { DashboardAgentProfile } from './layout-provider';
 
 const NAV_ITEMS = [
   { label: 'Overview',       href: '/agent/dashboard/overview',     icon: LayoutDashboard },
@@ -35,7 +29,7 @@ const NAV_ITEMS = [
   { label: 'Settings',       href: '/agent/dashboard/settings',     icon: Settings },
 ];
 
-export function AgentDashboardSidebar({ profile }: { profile: AgentProfile }) {
+export function AgentDashboardSidebar({ profile }: { profile: DashboardAgentProfile }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClientComponentClient();

@@ -1,13 +1,10 @@
-export interface AgentProfile {
-  id: string;
-  user_id: string;
-  name: string;
-  firm: string | null;
-  title: string | null;
-  avatar_initials: string | null;
-  phone: string | null;
-  created_at: string;
-}
+/**
+ * NOTE: The canonical AgentProfile type for the agent app is in
+ * lib/agent/agentPipelineService.ts (camelCase, used by AgentContext).
+ * The database-layer types below (AgentScheme, AgentUnit, AgentBuyer)
+ * use snake_case matching Supabase column names and are consumed by
+ * components/agent/ components.
+ */
 
 export interface AgentScheme {
   id: string;

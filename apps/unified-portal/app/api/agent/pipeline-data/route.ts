@@ -81,13 +81,22 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     });
   }
 
-  // 5. Get development names (service role - no RLS issues)
+  // 5. Get development details and tenant name (service role - no RLS issues)
   const { data: developments } = await supabase
     .from('developments')
-    .select('id, name, code, address')
+    .select('id, name, code, address, county')
     .in('id', devIds);
 
   const devNameMap = new Map((developments || []).map((d: any) => [d.id, d.name]));
+
+  // Get developer (tenant) name
+  const { data: tenant } = await supabase
+    .from('tenants')
+    .select('name')
+    .eq('id', tenantId)
+    .single();
+
+  const developerName = tenant?.name || null;
 
   // 6. Get all units for these developments
   const { data: allUnits } = await supabase
@@ -242,6 +251,8 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
       name: d.name,
       code: d.code,
       address: d.address,
+      county: d.county || null,
+      developerName,
     })),
     pipeline,
     alerts,

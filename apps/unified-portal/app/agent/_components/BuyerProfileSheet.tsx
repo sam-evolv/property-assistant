@@ -3,8 +3,48 @@
 import { useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import type { BuyerProfile } from '@/lib/agent/buyer-profiles';
 import StatusBadge from './StatusBadge';
+
+/** Buyer profile shape used by this sheet. */
+export interface BuyerProfile {
+  id: number | string;
+  name: string;
+  initials: string;
+  unit: string;
+  scheme: string;
+  type: string;
+  beds: number;
+  price: number;
+  status: string;
+  urgent: boolean;
+  daysSinceIssued: number | null;
+  saleAgreedDate: string | null;
+  depositDate: string | null;
+  contractsIssuedDate: string | null;
+  contractsSignedDate: string | null;
+  handoverDate: string | null;
+  snagDate: string | null;
+  estimatedCloseDate: string | null;
+  kitchenSelected: boolean | null;
+  sqMetres: number;
+  sqFeet: number;
+  ber: string;
+  floors: number;
+  parking: string;
+  heating: string;
+  orientation: string;
+  phone: string;
+  email: string;
+  address: string;
+  solicitorFirm: string;
+  solicitorContact: string;
+  solicitorPhone: string;
+  solicitorEmail: string;
+  lender: string | null;
+  approvalAmount: number | null;
+  mortgageExpiry: string | null;
+  intelligenceNotes: Array<{ date: string; action: string; detail: string }>;
+}
 import type { BadgeStatus } from './types';
 
 interface BuyerProfileSheetProps {

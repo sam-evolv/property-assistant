@@ -40,8 +40,8 @@ function buildSchemes(pipeline: PipelineUnit[], developments: DevelopmentSummary
     return {
       id: dev.id,
       name: dev.name,
-      developer: 'Longview Estates',
-      location: 'Co. Cork',
+      developer: dev.developerName || '',
+      location: dev.location || '',
       totalUnits: dev.totalUnits,
       sold: dev.sold,
       reserved: dev.saleAgreed,

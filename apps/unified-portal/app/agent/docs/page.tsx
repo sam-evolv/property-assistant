@@ -16,18 +16,9 @@ interface Doc {
   size: string;
 }
 
-const INITIAL_DOCS: Doc[] = [
-  { id: '1', name: 'BER Certificates Pack', type: 'ber', schemeName: 'Riverside Gardens', schemeId: 'riverside', updatedAt: '2 Mar', size: '4.2 MB' },
-  { id: '2', name: 'Sales Brochure 2026', type: 'brochure', schemeName: 'Riverside Gardens', schemeId: 'riverside', updatedAt: '28 Feb', size: '12.8 MB' },
-  { id: '3', name: 'Booking Form Template', type: 'form', schemeName: 'Riverside Gardens', schemeId: 'riverside', updatedAt: '15 Feb', size: '340 KB' },
-  { id: '4', name: 'Price List Q1 2026', type: 'price_list', schemeName: 'Riverside Gardens', schemeId: 'riverside', updatedAt: '1 Jan', size: '180 KB' },
-  { id: '5', name: 'BER Certificates', type: 'ber', schemeName: 'Meadow View', schemeId: 'meadow', updatedAt: '10 Mar', size: '3.8 MB' },
-  { id: '6', name: 'Particulars & Floorplans', type: 'brochure', schemeName: 'Meadow View', schemeId: 'meadow', updatedAt: '5 Mar', size: '8.4 MB' },
-  { id: '7', name: 'Reservation Agreement', type: 'form', schemeName: 'Meadow View', schemeId: 'meadow', updatedAt: '20 Feb', size: '220 KB' },
-  { id: '8', name: 'Oak Hill Site Map', type: 'brochure', schemeName: 'Oak Hill Estate', schemeId: 'oak-hill', updatedAt: '12 Jan', size: '6.1 MB' },
-  { id: '9', name: 'Price List Update', type: 'price_list', schemeName: 'Oak Hill Estate', schemeId: 'oak-hill', updatedAt: '8 Jan', size: '95 KB' },
-  { id: '10', name: 'Harbour View Brochure', type: 'brochure', schemeName: 'Harbour View Apartments', schemeId: 'harbour', updatedAt: '20 Mar', size: '15.2 MB' },
-];
+// Documents will be loaded from the database once document management is implemented.
+// For now, start with an empty array (no fake data).
+const INITIAL_DOCS: Doc[] = [];
 
 const DOC_ICON_CONFIG: Record<string, { bg: string; border: string; color: string }> = {
   ber: { bg: 'rgba(16,185,129,0.08)', border: 'rgba(16,185,129,0.2)', color: '#10B981' },

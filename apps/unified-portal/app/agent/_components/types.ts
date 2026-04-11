@@ -1,4 +1,6 @@
-/* ─── Shared types for OpenHouse Agent PWA ─── */
+/* ─── UI-layer types for OpenHouse Agent PWA ─── */
+/* Pipeline types (PipelineUnit, Alert, DevelopmentSummary) live in lib/agent/agentPipelineService.ts */
+/* Database-layer types (AgentScheme, AgentUnit, AgentBuyer) live in lib/agent/types.ts */
 
 export type BadgeStatus =
   | 'contracts_out'
@@ -6,7 +8,10 @@ export type BadgeStatus =
   | 'exchanged'
   | 'available'
   | 'confirmed'
-  | 'pending';
+  | 'pending'
+  | 'completed'
+  | 'cancelled'
+  | 'no_show';
 
 export interface Buyer {
   id: string;
@@ -37,26 +42,6 @@ export interface Scheme {
   activeBuyers: number;
   urgentCount: number;
   buyers: Buyer[];
-}
-
-export interface Viewing {
-  id: string;
-  time: string;
-  buyerName: string;
-  schemeName: string;
-  unit: string;
-  status: 'confirmed' | 'pending' | 'cancelled';
-  note?: string;
-}
-
-export interface Document {
-  id: string;
-  name: string;
-  type: 'ber' | 'brochure' | 'form' | 'price_list' | 'contract';
-  schemeName: string;
-  schemeId: string;
-  updatedAt: string;
-  size: string;
 }
 
 export type StatModalType = 'sold' | 'active' | 'urgent' | null;

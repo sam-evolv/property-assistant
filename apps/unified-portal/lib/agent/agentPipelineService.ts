@@ -96,6 +96,8 @@ export interface AgentProfile {
 export interface DevelopmentSummary {
   id: string;
   name: string;
+  developerName: string | null;
+  location: string | null;
   totalUnits: number;
   forSale: number;
   saleAgreed: number;
@@ -379,20 +381,37 @@ export async function getAgentPipelineAll(agentId: string, developmentIds: strin
 }
 
 // Get development summaries from pipeline data
-export function getDevelopmentSummaries(pipeline: PipelineUnit[]): DevelopmentSummary[] {
+export function getDevelopmentSummaries(
+  pipeline: PipelineUnit[],
+  apiDevelopments?: Array<{ id: string; developerName?: string; county?: string }>
+): DevelopmentSummary[] {
   const devMap = new Map<string, PipelineUnit[]>();
   for (const p of pipeline) {
     if (!devMap.has(p.developmentId)) devMap.set(p.developmentId, []);
     devMap.get(p.developmentId)!.push(p);
   }
 
+  // Build lookup for API metadata (developer name, county)
+  const metaMap = new Map<string, { developerName: string | null; county: string | null }>();
+  if (apiDevelopments) {
+    for (const d of apiDevelopments) {
+      metaMap.set(d.id, {
+        developerName: d.developerName || null,
+        county: d.county || null,
+      });
+    }
+  }
+
   const summaries: DevelopmentSummary[] = [];
   for (const [devId, units] of devMap) {
     const total = units.length;
     const sold = units.filter(u => u.status === 'sold').length;
+    const meta = metaMap.get(devId);
     summaries.push({
       id: devId,
       name: units[0]?.developmentName || 'Unknown',
+      developerName: meta?.developerName || null,
+      location: meta?.county ? `Co. ${meta.county}` : null,
       totalUnits: total,
       forSale: units.filter(u => u.status === 'for_sale').length,
       saleAgreed: units.filter(u => u.status === 'sale_agreed').length,
@@ -493,17 +512,35 @@ export async function logPipelineNote(
   pipelineId: string,
   content: string,
   noteType: string = 'manual',
-  tenantId: string = '4cee69c6-be4b-486e-9c33-2b5a7d30e287'
 ): Promise<boolean> {
+  // Resolve tenant and user from the authenticated session
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    console.error('[logPipelineNote] No authenticated user');
+    return false;
+  }
+
+  // Get agent profile to find tenant_id
+  const { data: profile } = await supabase
+    .from('agent_profiles')
+    .select('tenant_id')
+    .eq('user_id', user.id)
+    .single();
+
+  if (!profile?.tenant_id) {
+    console.error('[logPipelineNote] Could not resolve tenant_id from agent profile');
+    return false;
+  }
+
   const { error } = await supabase
     .from('unit_pipeline_notes')
     .insert({
-      tenant_id: tenantId,
+      tenant_id: profile.tenant_id,
       pipeline_id: pipelineId,
       unit_id: unitId,
       note_type: noteType,
       content,
-      created_by: '32a250fb-279f-40fb-949a-bf10630c8808',
+      created_by: user.id,
     });
   return !error;
 }

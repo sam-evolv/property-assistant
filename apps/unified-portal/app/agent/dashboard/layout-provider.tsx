@@ -3,7 +3,8 @@
 import { createContext, useContext, ReactNode } from 'react';
 import { AgentDashboardSidebar } from './layout-sidebar';
 
-interface AgentProfile {
+/** Dashboard-layer profile (snake_case from Supabase row). */
+export interface DashboardAgentProfile {
   id: string;
   display_name: string;
   agency_name: string;
@@ -11,7 +12,7 @@ interface AgentProfile {
 }
 
 interface AgentDashboardContextType {
-  profile: AgentProfile;
+  profile: DashboardAgentProfile;
 }
 
 const AgentDashboardContext = createContext<AgentDashboardContextType | null>(null);
@@ -27,7 +28,7 @@ export function AgentDashboardLayoutProvider({
   profile,
 }: {
   children: ReactNode;
-  profile: AgentProfile;
+  profile: DashboardAgentProfile;
 }) {
   return (
     <AgentDashboardContext.Provider value={{ profile }}>
