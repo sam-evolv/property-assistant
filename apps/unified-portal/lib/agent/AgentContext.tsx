@@ -65,7 +65,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
           if (data.agent) {
             const profile: AgentProfile = data.agent;
             setAgent(profile);
-            setPipeline(data.pipeline || []);
+
+            // Build a name lookup from the developments array (always populated by service role)
+            const devNameLookup = new Map<string, string>();
+            for (const d of data.developments || []) {
+              devNameLookup.set(String(d.id), d.name);
+            }
+
+            // Enrich pipeline units with development names (defensive: fixes any Map key mismatch in API)
+            const enrichedPipeline = (data.pipeline || []).map((p: PipelineUnit) => ({
+              ...p,
+              developmentName: p.developmentName || devNameLookup.get(String(p.developmentId)) || 'Unknown',
+            }));
+            setPipeline(enrichedPipeline);
             setDevelopmentIds((data.developments || []).map((d: any) => d.id));
 
             // Compute development summaries from pipeline, enriched with API metadata
@@ -131,8 +143,17 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         if (data.pipeline) {
-          setPipeline(data.pipeline);
-          setDevelopments(getDevelopmentSummaries(data.pipeline));
+          // Enrich with development names from the developments array
+          const devNameLookup = new Map<string, string>();
+          for (const d of data.developments || []) {
+            devNameLookup.set(String(d.id), d.name);
+          }
+          const enrichedPipeline = (data.pipeline || []).map((p: PipelineUnit) => ({
+            ...p,
+            developmentName: p.developmentName || devNameLookup.get(String(p.developmentId)) || 'Unknown',
+          }));
+          setPipeline(enrichedPipeline);
+          setDevelopments(getDevelopmentSummaries(enrichedPipeline, data.developments || []));
           setAlerts(data.alerts || []);
           return;
         }

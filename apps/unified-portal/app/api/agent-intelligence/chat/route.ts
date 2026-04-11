@@ -38,13 +38,22 @@ export async function POST(request: NextRequest) {
     // 1. Resolve the auth.users ID
     // adminContext.id is the admins table PK, NOT auth.users.id.
     // agent_profiles.user_id references auth.users(id), so we need the real auth UID.
-    let authUserId = adminContext.id; // fallback
+    // Strategy: look up agent_profiles by tenant first (fast), fall back to auth lookup.
+    let authUserId = adminContext.id; // fallback (admin table PK)
     try {
-      const { data: usersData } = await supabase.auth.admin.listUsers();
-      const matchedUser = usersData?.users?.find((u: any) => u.email === adminContext.email);
-      if (matchedUser?.id) authUserId = matchedUser.id;
+      // Fast path: find the agent profile for this tenant and get its user_id
+      const { data: profileLookup } = await supabase
+        .from('agent_profiles')
+        .select('user_id')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (profileLookup?.user_id) {
+        authUserId = profileLookup.user_id;
+      }
     } catch (_err) {
-        // error handled silently
+      console.error('[agent-intelligence] Failed to resolve auth user ID:', _err);
     }
 
     // 2. Load agent context (profile + assigned schemes)

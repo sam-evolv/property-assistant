@@ -82,10 +82,14 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
   }
 
   // 5. Get development details and tenant name (service role - no RLS issues)
-  const { data: developments } = await supabase
+  const { data: developments, error: devError } = await supabase
     .from('developments')
     .select('id, name, code, address, county')
     .in('id', devIds);
+
+  if (devError) {
+    console.error('[agent/pipeline-data] developments query error:', devError.message);
+  }
 
   // Coerce IDs to strings — development_id may be UUID or integer across tables
   const devNameMap = new Map((developments || []).map((d: any) => [String(d.id), d.name]));
