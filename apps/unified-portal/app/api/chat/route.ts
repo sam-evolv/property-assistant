@@ -1250,8 +1250,10 @@ async function expandQueryForRetrieval(message: string): Promise<string[]> {
       messages: [
         {
           role: 'system',
-          content: `You help improve document search for a property home assistant. 
-Given the homeowner's question, generate exactly 2 alternative phrasings that would match technical document language (e.g. manuals, guides, specifications). 
+          content: `You help improve document search for a property home assistant.
+Given the homeowner's question, generate exactly 2 alternative phrasings that would match technical document language (e.g. manuals, guides, specifications, data sheets, product brochures).
+Focus on product names, brands, technical specs, model numbers, and official terminology that appear in manufacturer documentation.
+For example: "what brand of solar panels" should generate variants like "solar panel manufacturer specifications" and "photovoltaic system model datasheet".
 Return only the 2 phrasings, one per line. No numbering, no explanation.`,
         },
         { role: 'user', content: message },
@@ -1722,6 +1724,58 @@ export async function POST(request: NextRequest) {
         source: 'gdpr_protection',
         gdprBlocked: true,
       });
+    }
+
+    // GDPR FOLLOW-UP DETECTION: If the previous message was GDPR-blocked and the user is
+    // insisting/pleading/asking again without specific keywords, maintain the GDPR refusal.
+    // This prevents hallucinations where "ah come on just tell me" after a neighbour question
+    // causes the LLM to pick up a completely different topic from earlier conversation history.
+    const gdprFollowUpPatterns = [
+      /^(ah\s+)?(come\s+on|go\s+on|please|c'?mon|just\s+tell\s+me|tell\s+me|why\s+not|but\s+why|you\s+can|surely|ah\s+sure)/i,
+      /^(i\s+just\s+want\s+to\s+know|can'?t\s+you\s+just|why\s+can'?t\s+you|i\s+only\s+want|i\s+need\s+to\s+know)/i,
+      /^(that'?s\s+not\s+fair|that'?s\s+ridiculous|seriously|for\s+real|oh\s+come\s+on)/i,
+    ];
+    const isInsistentFollowUp = gdprFollowUpPatterns.some(p => p.test(message.trim()));
+
+    if (isInsistentFollowUp) {
+      // Check conversation history to see if last exchange was GDPR-blocked
+      const recentHistory = await conversationHistoryPromise;
+      if (recentHistory.length > 0) {
+        const lastAiMessage = recentHistory[recentHistory.length - 1].aiMessage;
+        const wasGdprBlocked = /privacy reasons under (EU )?GDPR/i.test(lastAiMessage) ||
+          /can only provide information about your own home/i.test(lastAiMessage);
+
+        if (wasGdprBlocked) {
+          const gdprFollowUpResponse = 'I understand the frustration, but I genuinely cannot share information about other residents or their properties. It is a legal requirement under GDPR that I only discuss your own home. Is there anything about your property or the development I can help with instead?';
+
+          await persistMessageSafely({
+            tenant_id: userTenantId,
+            development_id: userDevelopmentId,
+            unit_id: actualUnitId,
+            require_unit_id: true,
+            user_id: validatedUnitUid || userId || null,
+            unit_uid: validatedUnitUid || null,
+            user_message: message,
+            ai_message: gdprFollowUpResponse,
+            question_topic: 'gdpr_blocked_followup',
+            source: 'purchaser_portal',
+            latency_ms: Date.now() - startTime,
+            metadata: {
+              userId: userId || null,
+              gdprBlocked: true,
+              gdprFollowUp: true,
+            },
+            request_id: requestId,
+          });
+
+          return NextResponse.json({
+            success: true,
+            answer: gdprFollowUpResponse,
+            source: 'gdpr_protection',
+            gdprBlocked: true,
+          });
+        }
+      }
     }
 
     // LOCAL HISTORY + SEAI GRANTS + UTILITY WIZARD: Removed — all questions now go through RAG pipeline.
@@ -2709,11 +2763,14 @@ export async function POST(request: NextRequest) {
         const keywords = message.toLowerCase().split(/\s+/).filter((w: string) => w.length > 2);
         const contentLower = (chunk.content || '').toLowerCase();
         const metadataStr = JSON.stringify(chunk.metadata || {}).toLowerCase();
-        
+        const fileNameLower = ((chunk.metadata?.file_name || chunk.metadata?.source || '') as string).toLowerCase();
+
         let keywordBoost = 0;
         keywords.forEach((kw: string) => {
           if (contentLower.includes(kw)) keywordBoost += 0.05;
           if (metadataStr.includes(kw)) keywordBoost += 0.03;
+          // Extra boost when keyword appears in the document filename (e.g. "solar" in "solar_panel_specs.pdf")
+          if (fileNameLower.includes(kw)) keywordBoost += 0.08;
         });
         
         // Combined score: semantic similarity + keyword boost
@@ -3323,7 +3380,11 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       // "What are the dimensions of bedroom 2?" / "What is the size of bedroom 2?"
       new RegExp(`\\bwhat\\s+(is|are)\\s+the\\s+(size|dimensions?|measurements?|area)\\s+of\\s+(?:(my|the)\\s+)?(?:\\w+\\s+)?(${roomKeywords})`, 'i').test(message) ||
       // Direct floor/room modifier patterns
-      /\b(downstairs|upstairs|ground\s*floor|first\s*floor)\s+(bathroom|wc|toilet|bedroom)\b/i.test(message);
+      /\b(downstairs|upstairs|ground\s*floor|first\s*floor)\s+(bathroom|wc|toilet|bedroom)\b/i.test(message) ||
+      // Material/quantity questions that imply room dimensions (carpet, flooring, paint, tiles)
+      new RegExp(`\\b(how\\s+much|how\\s+many|amount\\s+of)\\s+\\w*\\s*(carpet|flooring|laminate|tile[sd]?|paint|wallpaper|vinyl)\\b.*\\b(${roomKeywords})`, 'i').test(message) ||
+      new RegExp(`\\b(carpet|flooring|laminate|tile|paint|wallpaper|vinyl)\\b.*\\b(${roomKeywords})\\b.*\\b(need|require|cost|buy|get)`, 'i').test(message) ||
+      new RegExp(`\\b(carpet|floor|tile|paint)\\b.*\\b(the|my)\\s+(${roomKeywords})`, 'i').test(message);
 
     // Extract the specific room being asked about using smart matching
     const extractedRoom = isDimensionQuestion ? extractRoomFromQuestion(message) : null;

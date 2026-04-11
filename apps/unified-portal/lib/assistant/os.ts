@@ -332,8 +332,13 @@ export function classifyIntent(message: string): IntentClassification {
   // EXCEPTION: "public transport" questions should NOT go to Google Places - use document search instead
   // Transport docs contain detailed bus route info that Google Places doesn't have
   const isPublicTransportQuestion = /\b(public\s*transport|transport\s*options?|bus\s*routes?|bus\s*services?)\b/i.test(lower);
-  
-  if (matchesPatterns(message, LOCATION_PATTERNS) && !isPublicTransportQuestion) {
+
+  // EXCEPTION: "history of the local area" and similar knowledge questions should go to RAG, not Places
+  // "local area" matches LOCATION_PATTERNS but the user wants historical/contextual info, not POIs
+  const isKnowledgeAboutArea = /\b(history|background|about|tell\s*me\s*about|describe|overview|info\s*about|information\s*about)\b.*\b(local\s*area|area|neighbourhood|neighborhood|locality|locale|community|town|village|suburb)\b/i.test(lower) ||
+    /\b(local\s*area|area|neighbourhood|neighborhood)\b.*\b(history|background|heritage|culture|story)\b/i.test(lower);
+
+  if (matchesPatterns(message, LOCATION_PATTERNS) && !isPublicTransportQuestion && !isKnowledgeAboutArea) {
     return {
       intent: 'location_amenities',
       confidence: 0.85,
