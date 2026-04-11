@@ -32,6 +32,12 @@ export default function PipelinePage() {
   const [chaseSuccess, setChaseSuccess] = useState(false);
 
   const schemes = useMemo((): SchemeGroup[] => {
+    // Build a name lookup from the developments array (most reliable source)
+    const devNameMap = new Map<string, string>();
+    for (const d of developments) {
+      devNameMap.set(String(d.id), d.name);
+    }
+
     const devMap = new Map<string, PipelineUnit[]>();
     for (const unit of pipeline) {
       if (!devMap.has(unit.developmentId)) devMap.set(unit.developmentId, []);
@@ -45,9 +51,12 @@ export default function PipelinePage() {
       const total = allUnits.length;
       const urgentCount = alerts.filter(a => allUnits.some(u => u.unitId === a.unitId)).length;
 
+      // Look up name from developments array first, then fall back to unit's developmentName
+      const name = devNameMap.get(String(devId)) || allUnits[0]?.developmentName || devId;
+
       return {
         id: devId,
-        name: allUnits[0]?.developmentName || 'Unknown',
+        name,
         allUnits,
         sold,
         reserved,

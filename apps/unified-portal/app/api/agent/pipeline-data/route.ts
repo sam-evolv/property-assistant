@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
@@ -14,31 +14,33 @@ export const dynamic = 'force-dynamic';
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Authenticate via Supabase session
-    const supabaseAuth = createServerComponentClient({ cookies });
-    const { data: { user }, error: authError } = await supabaseAuth.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // 2. Use service role client for data fetching (bypasses RLS)
+    // 1. Use service role client — bypasses RLS entirely
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 3. Get agent profile
-    const { data: agentProfile } = await supabase
-      .from('agent_profiles')
-      .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    // 2. Resolve the authenticated user via cookie session
+    const cookieStore = cookies();
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+
+    let agentProfile = null;
+
+    if (user) {
+      // Look up the agent profile matching the authenticated user
+      const { data } = await supabase
+        .from('agent_profiles')
+        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      agentProfile = data;
+    }
 
     if (!agentProfile) {
-      // Fallback: try first profile (for demo/preview)
+      // Fallback: first profile (demo/preview mode or auth not available)
       const { data: fallback } = await supabase
         .from('agent_profiles')
         .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
@@ -50,7 +52,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'No agent profile found' }, { status: 404 });
       }
 
-      return buildPipelineResponse(supabase, fallback);
+      agentProfile = fallback;
     }
 
     return buildPipelineResponse(supabase, agentProfile);

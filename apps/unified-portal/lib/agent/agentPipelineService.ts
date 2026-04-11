@@ -383,7 +383,7 @@ export async function getAgentPipelineAll(agentId: string, developmentIds: strin
 // Get development summaries from pipeline data
 export function getDevelopmentSummaries(
   pipeline: PipelineUnit[],
-  apiDevelopments?: Array<{ id: string; developerName?: string; county?: string }>
+  apiDevelopments?: Array<{ id: string; name?: string; developerName?: string; county?: string }>
 ): DevelopmentSummary[] {
   const devMap = new Map<string, PipelineUnit[]>();
   for (const p of pipeline) {
@@ -391,11 +391,12 @@ export function getDevelopmentSummaries(
     devMap.get(p.developmentId)!.push(p);
   }
 
-  // Build lookup for API metadata (developer name, county)
-  const metaMap = new Map<string, { developerName: string | null; county: string | null }>();
+  // Build lookup for API metadata (name, developer name, county)
+  const metaMap = new Map<string, { name: string | null; developerName: string | null; county: string | null }>();
   if (apiDevelopments) {
     for (const d of apiDevelopments) {
-      metaMap.set(d.id, {
+      metaMap.set(String(d.id), {
+        name: d.name || null,
         developerName: d.developerName || null,
         county: d.county || null,
       });
@@ -406,10 +407,11 @@ export function getDevelopmentSummaries(
   for (const [devId, units] of devMap) {
     const total = units.length;
     const sold = units.filter(u => u.status === 'sold').length;
-    const meta = metaMap.get(devId);
+    const meta = metaMap.get(String(devId));
     summaries.push({
       id: devId,
-      name: units[0]?.developmentName || 'Unknown',
+      // Use API metadata name as primary source (always accurate), fall back to pipeline unit's name
+      name: meta?.name || units[0]?.developmentName || devId,
       developerName: meta?.developerName || null,
       location: meta?.county ? `Co. ${meta.county}` : null,
       totalUnits: total,

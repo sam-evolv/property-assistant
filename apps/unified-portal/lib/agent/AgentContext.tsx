@@ -80,8 +80,8 @@ export function AgentProvider({ children }: { children: ReactNode }) {
             setPipeline(enrichedPipeline);
             setDevelopmentIds((data.developments || []).map((d: any) => d.id));
 
-            // Compute development summaries from pipeline, enriched with API metadata
-            const devSummaries = getDevelopmentSummaries(data.pipeline || [], data.developments || []);
+            // Compute development summaries from enriched pipeline + API metadata
+            const devSummaries = getDevelopmentSummaries(enrichedPipeline, data.developments || []);
             setDevelopments(devSummaries);
             setAlerts(data.alerts || []);
             setLoading(false);
