@@ -87,7 +87,8 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     .select('id, name, code, address, county')
     .in('id', devIds);
 
-  const devNameMap = new Map((developments || []).map((d: any) => [d.id, d.name]));
+  // Coerce IDs to strings — development_id may be UUID or integer across tables
+  const devNameMap = new Map((developments || []).map((d: any) => [String(d.id), d.name]));
 
   // Get developer (tenant) name
   const { data: tenant } = await supabase
@@ -105,7 +106,7 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     .eq('tenant_id', tenantId)
     .in('development_id', devIds);
 
-  const unitMap = new Map((allUnits || []).map((u: any) => [u.id, u]));
+  const unitMap = new Map((allUnits || []).map((u: any) => [String(u.id), u]));
 
   // 7. Get pipeline data
   const { data: pipelineData } = await supabase
@@ -125,15 +126,16 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
 
   // Units WITH pipeline records
   for (const p of pipelineData || []) {
-    const unit = unitMap.get(p.unit_id);
+    const unit = unitMap.get(String(p.unit_id));
     const devId = p.development_id || unit?.development_id;
+    const devIdStr = devId ? String(devId) : '';
     pipeline.push({
       id: p.id,
       unitId: p.unit_id,
       unitNumber: unit?.unit_number || 'Unknown',
       unitAddress: unit?.address || '',
-      developmentId: devId,
-      developmentName: devNameMap.get(devId) || '',
+      developmentId: devIdStr,
+      developmentName: devNameMap.get(devIdStr) || '',
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
       status: normalizeStatus(p.status || 'for_sale'),
@@ -164,8 +166,8 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
         unitId: u.id,
         unitNumber: u.unit_number || 'Unknown',
         unitAddress: u.address || '',
-        developmentId: u.development_id,
-        developmentName: devNameMap.get(u.development_id) || '',
+        developmentId: String(u.development_id),
+        developmentName: devNameMap.get(String(u.development_id)) || '',
         bedrooms: u.bedrooms || null,
         unitTypeName: null,
         status: 'for_sale',

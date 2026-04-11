@@ -129,7 +129,7 @@ export default function IntelligencePage() {
         throw new Error('Failed to get response');
       }
 
-      // Parse the streaming response
+      // Parse the streaming response token-by-token
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No response body');
 
@@ -138,6 +138,8 @@ export default function IntelligencePage() {
       let followups: string[] = [];
       let toolsUsed: Array<{ name: string; summary: string }> = [];
       let newSessionId = sessionId;
+      const streamingMsgId = (Date.now() + 1).toString();
+      let streamingStarted = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -151,6 +153,20 @@ export default function IntelligencePage() {
             const data = JSON.parse(line);
             if (data.type === 'token') {
               fullContent += data.content;
+
+              // Add or update the streaming message in real time
+              if (!streamingStarted) {
+                streamingStarted = true;
+                setMessages(prev => [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: fullContent,
+                }]);
+              } else {
+                setMessages(prev => prev.map(m =>
+                  m.id === streamingMsgId ? { ...m, content: fullContent } : m
+                ));
+              }
             } else if (data.type === 'followups') {
               followups = data.questions || [];
             } else if (data.type === 'tools_used') {
@@ -166,18 +182,18 @@ export default function IntelligencePage() {
 
       setSessionId(newSessionId);
 
-      // Parse any email drafts from the response
+      // Final update with emails parsed and followups/tools attached
       const { emails, cleanText } = parseEmails(fullContent);
 
-      const aiMsg: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: cleanText || fullContent,
-        emails: emails.length > 0 ? emails : undefined,
-        followups: followups.length > 0 ? followups : undefined,
-        toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
-      };
-      setMessages(prev => [...prev, aiMsg]);
+      setMessages(prev => prev.map(m =>
+        m.id === streamingMsgId ? {
+          ...m,
+          content: cleanText || fullContent,
+          emails: emails.length > 0 ? emails : undefined,
+          followups: followups.length > 0 ? followups : undefined,
+          toolsUsed: toolsUsed.length > 0 ? toolsUsed : undefined,
+        } : m
+      ));
     } catch {
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),

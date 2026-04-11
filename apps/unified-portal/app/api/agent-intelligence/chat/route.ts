@@ -131,25 +131,38 @@ export async function POST(request: NextRequest) {
 
     messages.push({ role: 'user', content: message });
 
-    // 5. Call LLM with tool definitions
+    // 5. Call LLM with tool definitions (non-streaming for tool-calling rounds)
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const tools = getToolDefinitionsForOpenAI();
-
-    let completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages,
-      tools,
-      tool_choice: 'auto',
-      temperature: 0.3,
-      max_tokens: 4000,
-    });
-
-    let responseMessage = completion.choices[0]?.message;
     const toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }> = [];
 
-    // 6. Execute tool calls (up to 3 rounds of tool calling)
+    // Run tool-calling rounds (non-streaming so we can parse tool calls)
+    let needsFinalStream = true;
     let rounds = 0;
-    while (responseMessage?.tool_calls?.length && rounds < 3) {
+    const MAX_TOOL_ROUNDS = 3;
+
+    while (rounds <= MAX_TOOL_ROUNDS) {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages,
+        tools,
+        tool_choice: 'auto',
+        temperature: 0.3,
+        max_tokens: 4000,
+      });
+
+      const responseMessage = completion.choices[0]?.message;
+      if (!responseMessage) break;
+
+      // If no tool calls, we have a final text response but it came non-streamed.
+      // We'll re-do this call as streaming below.
+      if (!responseMessage.tool_calls?.length) {
+        // Remove the last user message temporarily; we'll stream the final call
+        needsFinalStream = true;
+        break;
+      }
+
+      // Process tool calls
       rounds++;
       messages.push(responseMessage);
 
@@ -181,44 +194,16 @@ export async function POST(request: NextRequest) {
           content: toolResult,
         });
       }
-
-      // Call LLM again with tool results
-      completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages,
-        tools,
-        tool_choice: 'auto',
-        temperature: 0.3,
-        max_tokens: 4000,
-      });
-
-      responseMessage = completion.choices[0]?.message;
     }
 
-    const responseText = responseMessage?.content || 'I wasn\'t able to generate a response. Please try again.';
-
-    // 7. Store conversation memory (async, non-blocking)
+    // 6. Stream the final response token-by-token
     const currentSessionId = sessionId || `session_${Date.now()}`;
-    storeConversationMemory(supabase, agentContext, currentSessionId, message, responseText, toolsCalled).catch(
-      () => { /* memory storage failure is non-blocking */ }
-    );
-
-    // 8. Log intelligence interaction (async, non-blocking)
-    logInteraction(supabase, tenantId, authUserId, message, responseText, toolsCalled, startTime).catch(
-      () => { /* interaction logging failure is non-blocking */ }
-    );
-
-    // 9. Stream the response
     const encoder = new TextEncoder();
+
     const readable = new ReadableStream({
       async start(controller) {
         try {
-          // Send the full response as tokens (for consistency with existing pattern)
-          controller.enqueue(
-            encoder.encode(JSON.stringify({ type: 'token', content: responseText }) + '\n')
-          );
-
-          // Send tool call metadata
+          // Send tool call metadata first so the UI knows tools were used
           if (toolsCalled.length > 0) {
             controller.enqueue(
               encoder.encode(JSON.stringify({
@@ -228,7 +213,39 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Generate follow-up suggestions
+          // Stream the final LLM response
+          let fullContent = '';
+          const stream = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages,
+            tools: undefined, // No tools on final streaming call
+            temperature: 0.3,
+            max_tokens: 4000,
+            stream: true,
+          });
+
+          for await (const chunk of stream) {
+            const delta = chunk.choices[0]?.delta?.content;
+            if (delta) {
+              fullContent += delta;
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'token', content: delta }) + '\n')
+              );
+            }
+          }
+
+          if (!fullContent) {
+            fullContent = 'I wasn\'t able to generate a response. Please try again.';
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'token', content: fullContent }) + '\n')
+            );
+          }
+
+          // Store memory and log interaction (async, non-blocking)
+          storeConversationMemory(supabase, agentContext, currentSessionId, message, fullContent, toolsCalled).catch(() => {});
+          logInteraction(supabase, tenantId, authUserId, message, fullContent, toolsCalled, startTime).catch(() => {});
+
+          // Generate follow-up suggestions (non-blocking, appended after main response)
           try {
             const toolNames = toolsCalled.map(t => t.tool_name).join(', ');
             const followUpCompletion = await openai.chat.completions.create({
@@ -244,17 +261,11 @@ RULES:
 - Never ask the agent a clarifying question. Never use "Would you like..." or "Should I..."
 - Keep each suggestion under 8 words.
 - Make suggestions contextual to what was just discussed.
-- Return ONLY a JSON array of strings, no explanation.
-
-EXAMPLES by context:
-- After a unit/buyer lookup: ["Draft a follow-up email to the buyer", "Check outstanding items in this scheme", "Log a communication for this unit"]
-- After drafting an email: ["Check what else is due this week", "Create a follow-up task", "Draft the next outstanding email"]
-- After a scheme overview: ["Show me the overdue items", "Generate the developer report", "Which units need attention first?"]
-- After creating a task: ["Show my task list", "What else is outstanding?", "Draft a reminder for the buyer"]`,
+- Return ONLY a JSON array of strings, no explanation.`,
                 },
                 {
                   role: 'user',
-                  content: `Agent asked: ${message}\n\nTools used: ${toolNames || 'none'}\n\nAssistant replied: ${responseText.slice(0, 500)}`,
+                  content: `Agent asked: ${message}\n\nTools used: ${toolNames || 'none'}\n\nAssistant replied: ${fullContent.slice(0, 500)}`,
                 },
               ],
               temperature: 0.5,
