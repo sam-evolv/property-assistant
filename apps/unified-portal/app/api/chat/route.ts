@@ -1739,42 +1739,48 @@ export async function POST(request: NextRequest) {
 
     if (isInsistentFollowUp) {
       // Check conversation history to see if last exchange was GDPR-blocked
-      const recentHistory = await conversationHistoryPromise;
-      if (recentHistory.length > 0) {
-        const lastAiMessage = recentHistory[recentHistory.length - 1].aiMessage;
-        const wasGdprBlocked = /privacy reasons under (EU )?GDPR/i.test(lastAiMessage) ||
-          /can only provide information about your own home/i.test(lastAiMessage);
+      // Load history directly here (main conversationHistory is loaded later in the pipeline)
+      try {
+        const gdprHistoryUserId = effectiveUnitUid || userId || '';
+        const recentHistory = await loadConversationHistory(gdprHistoryUserId, userTenantId, userDevelopmentId);
+        if (recentHistory.length > 0) {
+          const lastAiMessage = recentHistory[recentHistory.length - 1].aiMessage;
+          const wasGdprBlocked = /privacy reasons under (EU )?GDPR/i.test(lastAiMessage) ||
+            /can only provide information about your own home/i.test(lastAiMessage);
 
-        if (wasGdprBlocked) {
-          const gdprFollowUpResponse = 'I understand the frustration, but I genuinely cannot share information about other residents or their properties. It is a legal requirement under GDPR that I only discuss your own home. Is there anything about your property or the development I can help with instead?';
+          if (wasGdprBlocked) {
+            const gdprFollowUpResponse = 'I understand the frustration, but I genuinely cannot share information about other residents or their properties. It is a legal requirement under GDPR that I only discuss your own home. Is there anything about your property or the development I can help with instead?';
 
-          await persistMessageSafely({
-            tenant_id: userTenantId,
-            development_id: userDevelopmentId,
-            unit_id: actualUnitId,
-            require_unit_id: true,
-            user_id: validatedUnitUid || userId || null,
-            unit_uid: validatedUnitUid || null,
-            user_message: message,
-            ai_message: gdprFollowUpResponse,
-            question_topic: 'gdpr_blocked_followup',
-            source: 'purchaser_portal',
-            latency_ms: Date.now() - startTime,
-            metadata: {
-              userId: userId || null,
+            await persistMessageSafely({
+              tenant_id: userTenantId,
+              development_id: userDevelopmentId,
+              unit_id: actualUnitId,
+              require_unit_id: false,
+              user_id: validatedUnitUid || userId || null,
+              unit_uid: validatedUnitUid || null,
+              user_message: message,
+              ai_message: gdprFollowUpResponse,
+              question_topic: 'gdpr_blocked_followup',
+              source: 'purchaser_portal',
+              latency_ms: Date.now() - startTime,
+              metadata: {
+                userId: userId || null,
+                gdprBlocked: true,
+                gdprFollowUp: true,
+              },
+              request_id: requestId,
+            });
+
+            return NextResponse.json({
+              success: true,
+              answer: gdprFollowUpResponse,
+              source: 'gdpr_protection',
               gdprBlocked: true,
-              gdprFollowUp: true,
-            },
-            request_id: requestId,
-          });
-
-          return NextResponse.json({
-            success: true,
-            answer: gdprFollowUpResponse,
-            source: 'gdpr_protection',
-            gdprBlocked: true,
-          });
+            });
+          }
         }
+      } catch (_gdprHistoryErr) {
+        // If history lookup fails, fall through to normal pipeline — never crash
       }
     }
 
@@ -2652,6 +2658,43 @@ export async function POST(request: NextRequest) {
       }, { status: 503 });
     }
 
+    // SUPPLEMENTAL KEYWORD SEARCH: Fetch extra chunks via text matching on content
+    // This catches documents that are keyword-relevant but semantically distant from the query embedding
+    // (e.g. "what brand of solar panels" vs a document titled "solar_panel_specifications.pdf")
+    try {
+      const significantKeywords = message.toLowerCase()
+        .split(/\s+/)
+        .filter((w: string) => w.length > 3)
+        .filter((w: string) => !['what', 'which', 'where', 'when', 'does', 'have', 'that', 'this', 'with', 'from', 'about', 'they', 'their', 'there', 'your', 'will', 'been', 'would', 'could', 'should', 'into', 'more', 'some', 'than', 'them', 'very', 'just', 'also', 'over'].includes(w));
+
+      if (significantKeywords.length > 0) {
+        const existingIds = new Set(allChunks.map(c => c.id));
+        const supabase = getSupabaseClient();
+
+        // Text search on content field using Postgres ILIKE matching
+        const { data: keywordChunks } = await supabase
+          .from('document_sections')
+          .select('id, content, metadata')
+          .eq('project_id', userSupabaseProjectId)
+          .or(significantKeywords.slice(0, 3).map(kw => `content.ilike.%${kw}%`).join(','))
+          .limit(20);
+
+        if (keywordChunks && keywordChunks.length > 0) {
+          for (const kc of keywordChunks) {
+            if (!existingIds.has(kc.id)) {
+              allChunks.push({
+                ...kc,
+                _pgvector_similarity: null, // No vector score — scored by keyword boost only
+              } as DocumentChunk);
+              existingIds.add(kc.id);
+            }
+          }
+        }
+      }
+    } catch (_keywordErr) {
+      // Keyword search failed — continue with vector results only
+    }
+
     // Calculate similarity scores for ALL chunks
     let chunks: DocumentChunk[] = [];
     if (allChunks && allChunks.length > 0) {
@@ -2790,11 +2833,11 @@ export async function POST(request: NextRequest) {
       scoredChunks.sort((a, b) => b.score - a.score);
       
       // MINIMUM RELEVANCE THRESHOLD - if top chunks aren't relevant enough, treat as "no info"
-      // This prevents forcing irrelevant context into the prompt
-      const MIN_RELEVANCE_SIMILARITY = 0.20; // Lowered — let the LLM decide relevance; 0.40 was discarding useful chunks
-      const topChunkSimilarity = scoredChunks[0]?.similarity || 0;
-      
-      if (topChunkSimilarity < MIN_RELEVANCE_SIMILARITY) {
+      // Uses combined score (similarity + keyword boost) so keyword-matched docs aren't unfairly filtered
+      const MIN_RELEVANCE_SCORE = 0.20;
+      const topChunkScore = scoredChunks[0]?.score || 0;
+
+      if (topChunkScore < MIN_RELEVANCE_SCORE) {
         // Don't add any chunks - this will trigger the "no documents" prompt
       } else {
         // Take top chunks that fit within context limit
@@ -3406,6 +3449,37 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         }
       } catch (_fpErr) {
         // Floor plan lookup failed — continue without attachments
+      }
+    }
+
+    // ROOM DIMENSION INJECTION: Look up actual dimensions from unit_room_dimensions table
+    // and inject them into the system prompt so the LLM can give precise answers
+    let roomDimensionData: RoomDimensionResult | null = null;
+    if (isDimensionQuestion && extractedRoom) {
+      try {
+        const dimSupabase = getSupabaseClient();
+        roomDimensionData = await lookupRoomDimensions(
+          dimSupabase,
+          userTenantId,
+          userDevelopmentId,
+          userHouseTypeCode || undefined,
+          actualUnitId || undefined,
+          extractedRoom
+        );
+        if (roomDimensionData?.found) {
+          const dimParts: string[] = [];
+          if (roomDimensionData.length_m && roomDimensionData.width_m) {
+            dimParts.push(`${roomDimensionData.width_m}m x ${roomDimensionData.length_m}m`);
+          }
+          if (roomDimensionData.area_sqm) {
+            dimParts.push(`${roomDimensionData.area_sqm} sq m`);
+          }
+          const dimStr = dimParts.join(', ');
+          const roomLabel = roomDimensionData.roomName || extractedRoom.displayName;
+          systemMessage = systemMessage + `\n\nROOM DIMENSIONS (from verified database):\n${roomLabel}: ${dimStr}\nUse these exact dimensions when answering. For carpet/flooring calculations, multiply width x length to get the area needed.`;
+        }
+      } catch (_dimErr) {
+        // Dimension lookup failed — continue without, LLM will use reference data or floor plan
       }
     }
 
