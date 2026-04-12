@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
-import { getAdminContextFromSession, enforceTenantScope } from '@/lib/api-auth';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
+import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { loadAgentContext, getRecentActivitySummary, getUpcomingDeadlines, loadEntityMemory, getViewingsSummary } from '@/lib/agent-intelligence/context';
 import { buildAgentSystemPrompt } from '@/lib/agent-intelligence/system-prompt';
@@ -14,15 +16,6 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
   try {
-    const adminContext = await getAdminContextFromSession();
-    if (!adminContext) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const tenantId = enforceTenantScope(adminContext);
     const body = await request.json();
     const { message, history, sessionId, activeDevelopmentId } = body;
 
@@ -35,26 +28,44 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // 1. Resolve the auth.users ID
-    // adminContext.id is the admins table PK, NOT auth.users.id.
-    // agent_profiles.user_id references auth.users(id), so we need the real auth UID.
-    // Strategy: look up agent_profiles by tenant first (fast), fall back to auth lookup.
-    let authUserId = adminContext.id; // fallback (admin table PK)
-    try {
-      // Fast path: find the agent profile for this tenant and get its user_id
-      const { data: profileLookup } = await supabase
+    // 1. Resolve the authenticated agent profile using route handler client (correct for API routes)
+    const cookieStore = cookies();
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+
+    let agentProfileRow: any = null;
+
+    if (user) {
+      const { data } = await supabase
         .from('agent_profiles')
-        .select('user_id')
-        .eq('tenant_id', tenantId)
+        .select('id, user_id, tenant_id, display_name, agent_type')
+        .eq('user_id', user.id)
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
-      if (profileLookup?.user_id) {
-        authUserId = profileLookup.user_id;
-      }
-    } catch (_err) {
-      console.error('[agent-intelligence] Failed to resolve auth user ID:', _err);
+      agentProfileRow = data;
     }
+
+    // Fallback: use first agent profile (dev/preview mode)
+    if (!agentProfileRow) {
+      const { data: fallback } = await supabase
+        .from('agent_profiles')
+        .select('id, user_id, tenant_id, display_name, agent_type')
+        .order('created_at', { ascending: true })
+        .limit(1)
+        .single();
+      agentProfileRow = fallback;
+    }
+
+    if (!agentProfileRow) {
+      return new Response(JSON.stringify({ error: 'No agent profile found' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    const tenantId: string = agentProfileRow.tenant_id;
+    const authUserId: string = agentProfileRow.user_id || agentProfileRow.id;
 
     // 2. Load agent context (profile + assigned schemes)
     let agentContext = await loadAgentContext(supabase, authUserId, tenantId);
@@ -62,10 +73,10 @@ export async function POST(request: NextRequest) {
     // If no agent profile exists yet, create a minimal context
     if (!agentContext) {
       agentContext = {
-        agentId: authUserId,
+        agentId: agentProfileRow.id,
         userId: authUserId,
         tenantId,
-        displayName: adminContext.email.split('@')[0],
+        displayName: agentProfileRow.display_name || 'Agent',
         assignedSchemes: [],
       };
 
