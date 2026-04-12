@@ -115,9 +115,22 @@ export default function AgentDashboardPipelinePage() {
     fetchData();
   }, []);
 
+  // ─── Derive development list from pipeline data (works even if context is empty) ───
+  const derivedDevelopments = useMemo(() => {
+    // Use context developments if available, otherwise derive from pipeline data
+    if (developments.length > 0) return developments;
+    const map = new Map<string, { id: string; name: string }>();
+    for (const p of pipeline) {
+      if (p.developmentId && !map.has(p.developmentId)) {
+        map.set(p.developmentId, { id: p.developmentId, name: p.developmentName || 'Unknown' });
+      }
+    }
+    return Array.from(map.values());
+  }, [pipeline, developments]);
+
   // ─── Level 1: All Developments ───
   const devStats = useMemo(() => {
-    return developments.map(d => {
+    return derivedDevelopments.map(d => {
       const items = pipeline.filter(p => p.developmentId === d.id);
       const available = items.filter(p => p.status === 'for_sale').length;
       const inProgress = items.filter(p => ['agreed', 'sale_agreed', 'in_progress', 'signed', 'contracts_issued', 'contracts_signed'].includes(p.status)).length;
@@ -125,7 +138,7 @@ export default function AgentDashboardPipelinePage() {
       const overdue = items.filter(p => isOverdue(p)).length;
       return { ...d, total: items.length, available, inProgress, complete, overdue };
     });
-  }, [pipeline, developments]);
+  }, [pipeline, derivedDevelopments]);
 
   const aggregateStats = useMemo(() => devStats.reduce((acc, d) => ({
     total: acc.total + d.total, available: acc.available + d.available,
@@ -144,7 +157,7 @@ export default function AgentDashboardPipelinePage() {
     return items;
   }, [pipeline, activeSchemeId, statusFilter]);
 
-  const schemeName = developments.find(d => d.id === activeSchemeId)?.name || '';
+  const schemeName = derivedDevelopments.find(d => d.id === activeSchemeId)?.name || '';
   const schemeTotal = activeSchemeId ? pipeline.filter(p => p.developmentId === activeSchemeId) : [];
   const schemeAgg = {
     total: schemeTotal.length,
@@ -376,7 +389,7 @@ export default function AgentDashboardPipelinePage() {
       <div className="p-8">
         <div className="mb-8">
           <h1 className="text-2xl font-bold" style={{ color: tokens.dark }}>Sales Pipeline</h1>
-          <p className="text-sm text-gray-500 mt-0.5">{developments.length} development{developments.length !== 1 ? 's' : ''} \u00B7 {aggregateStats.total} total units</p>
+          <p className="text-sm text-gray-500 mt-0.5">{derivedDevelopments.length} development{derivedDevelopments.length !== 1 ? 's' : ''} \u00B7 {aggregateStats.total} total units</p>
         </div>
 
         <div className="grid grid-cols-5 gap-5 mb-8">
@@ -391,7 +404,7 @@ export default function AgentDashboardPipelinePage() {
           <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h2 className="text-sm font-semibold" style={{ color: tokens.dark }}>All Developments</h2>
-              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{developments.length} developments</span>
+              <span className="text-xs px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">{derivedDevelopments.length} developments</span>
             </div>
             <button onClick={() => router.push('/agent/dashboard/analytics')}
               className="flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all hover:shadow-md"

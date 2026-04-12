@@ -1,15 +1,25 @@
 import { AgentDashboardLayoutProvider } from './layout-provider';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
+
+function getSupabaseAdmin() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+  );
+}
 
 export default async function AgentDashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Auth check uses the user's session
   const supabase = createServerComponentClient({ cookies });
   const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -17,8 +27,10 @@ export default async function AgentDashboardLayout({
     redirect('/login/agent');
   }
 
-  // Use order + limit instead of .single() because a user may have multiple agent profiles
-  const { data: profiles } = await supabase
+  // Use admin client for data queries (bypasses RLS)
+  const admin = getSupabaseAdmin();
+
+  const { data: profiles } = await admin
     .from('agent_profiles')
     .select('id, display_name, agency_name, agent_type')
     .eq('user_id', user.id)
@@ -31,8 +43,8 @@ export default async function AgentDashboardLayout({
     redirect('/login/agent');
   }
 
-  // Fetch scheme assignments with development names
-  const { data: assignments } = await supabase
+  // Fetch scheme assignments with development names using admin client
+  const { data: assignments } = await admin
     .from('agent_scheme_assignments')
     .select('development_id, developments(id, name)')
     .eq('agent_id', profile.id)
