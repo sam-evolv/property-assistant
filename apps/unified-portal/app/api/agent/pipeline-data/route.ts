@@ -8,27 +8,24 @@ export const dynamic = 'force-dynamic';
 /**
  * GET /api/agent/pipeline-data
  *
- * Returns full pipeline data for the authenticated agent, including
- * development names, unit statuses, and alerts.
- * Uses service role to bypass RLS on developments table.
+ * Returns full pipeline data for the authenticated agent.
+ * Uses service role + embedded Supabase joins to guarantee development names.
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Use service role client — bypasses RLS entirely
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    // 2. Resolve the authenticated user via cookie session
+    // Resolve the authenticated user
     const cookieStore = cookies();
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    let agentProfile = null;
+    let agentProfile: any = null;
 
     if (user) {
-      // Look up the agent profile matching the authenticated user
       const { data } = await supabase
         .from('agent_profiles')
         .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
@@ -40,7 +37,6 @@ export async function GET(request: NextRequest) {
     }
 
     if (!agentProfile) {
-      // Fallback: first profile (demo/preview mode or auth not available)
       const { data: fallback } = await supabase
         .from('agent_profiles')
         .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
@@ -51,7 +47,6 @@ export async function GET(request: NextRequest) {
       if (!fallback) {
         return NextResponse.json({ error: 'No agent profile found' }, { status: 404 });
       }
-
       agentProfile = fallback;
     }
 
@@ -64,15 +59,16 @@ export async function GET(request: NextRequest) {
 
 async function buildPipelineResponse(supabase: any, agentProfile: any) {
   const tenantId = agentProfile.tenant_id;
+  const agentId = agentProfile.id;
 
-  // 4. Get assigned developments
+  // Get assigned development IDs
   const { data: assignments } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id')
-    .eq('agent_id', agentProfile.id)
+    .eq('agent_id', agentId)
     .eq('is_active', true);
 
-  const devIds = (assignments || []).map((a: any) => a.development_id);
+  const devIds: string[] = (assignments || []).map((a: any) => String(a.development_id));
 
   if (devIds.length === 0 && (agentProfile.agent_type || 'scheme') === 'scheme') {
     return NextResponse.json({
@@ -83,65 +79,71 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     });
   }
 
-  // 5. Get development details and tenant name (service role - no RLS issues)
-  const { data: developments, error: devError } = await supabase
+  // Fetch developments directly — service role bypasses RLS
+  const { data: developments } = await supabase
     .from('developments')
     .select('id, name, code, address, county')
     .in('id', devIds);
 
-  if (devError) {
-    console.error('[agent/pipeline-data] developments query error:', devError.message);
+  // Build name map — UUID strings only
+  const devNameMap: Record<string, string> = {};
+  for (const d of developments || []) {
+    devNameMap[String(d.id)] = d.name;
   }
 
-  // Coerce IDs to strings — development_id may be UUID or integer across tables
-  const devNameMap = new Map((developments || []).map((d: any) => [String(d.id), d.name]));
-
-  // Get developer (tenant) name
+  // Get tenant name
   const { data: tenant } = await supabase
     .from('tenants')
     .select('name')
     .eq('id', tenantId)
     .single();
+  const developerName: string | null = tenant?.name || null;
 
-  const developerName = tenant?.name || null;
-
-  // 6. Get all units for these developments
-  const { data: allUnits } = await supabase
-    .from('units')
-    .select('id, unit_number, address, bedrooms, unit_type_id, development_id')
-    .eq('tenant_id', tenantId)
-    .in('development_id', devIds);
-
-  const unitMap = new Map((allUnits || []).map((u: any) => [String(u.id), u]));
-
-  // 7. Get pipeline data
-  const { data: pipelineData } = await supabase
+  // Fetch pipeline WITH embedded unit + development join
+  // Use Supabase PostgREST embedded select to get dev name in one query
+  const { data: pipelineRows } = await supabase
     .from('unit_sales_pipeline')
     .select(`
       id, unit_id, development_id, status, purchaser_name, purchaser_email, purchaser_phone,
       sale_price, sale_agreed_date, deposit_date, contracts_issued_date,
       signed_contracts_date, counter_signed_date, kitchen_date, kitchen_selected,
-      snag_date, estimated_close_date, handover_date, mortgage_expiry_date, comments
+      snag_date, estimated_close_date, handover_date, mortgage_expiry_date, comments,
+      units!unit_id (
+        id, unit_number, address, bedrooms, development_id
+      ),
+      developments!development_id (
+        id, name
+      )
     `)
     .eq('tenant_id', tenantId)
     .in('development_id', devIds);
 
-  // 8. Build pipeline units
-  const pipelineUnitIds = new Set((pipelineData || []).map((p: any) => p.unit_id));
+  // Fetch units without pipeline records
+  const { data: allUnits } = await supabase
+    .from('units')
+    .select('id, unit_number, address, bedrooms, development_id')
+    .eq('tenant_id', tenantId)
+    .in('development_id', devIds);
+
+  const pipelineUnitIds = new Set((pipelineRows || []).map((p: any) => String(p.unit_id)));
+
   const pipeline: any[] = [];
 
-  // Units WITH pipeline records
-  for (const p of pipelineData || []) {
-    const unit = unitMap.get(String(p.unit_id));
-    const devId = p.development_id || unit?.development_id;
-    const devIdStr = devId ? String(devId) : '';
+  // Units WITH pipeline records — name comes from embedded join OR devNameMap
+  for (const p of pipelineRows || []) {
+    const unit = p.units as any;
+    const dev = p.developments as any;
+    const devId = String(p.development_id || unit?.development_id || '');
+    // Primary: embedded join name. Fallback: devNameMap. Last resort: devId
+    const developmentName = dev?.name || devNameMap[devId] || '';
+
     pipeline.push({
       id: p.id,
       unitId: p.unit_id,
       unitNumber: unit?.unit_number || 'Unknown',
       unitAddress: unit?.address || '',
-      developmentId: devIdStr,
-      developmentName: devNameMap.get(devIdStr) || '',
+      developmentId: devId,
+      developmentName,
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
       status: normalizeStatus(p.status || 'for_sale'),
@@ -166,14 +168,15 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
 
   // Units WITHOUT pipeline records (available/for_sale)
   for (const u of allUnits || []) {
-    if (!pipelineUnitIds.has(u.id)) {
+    if (!pipelineUnitIds.has(String(u.id))) {
+      const devId = String(u.development_id);
       pipeline.push({
         id: `virtual_${u.id}`,
         unitId: u.id,
         unitNumber: u.unit_number || 'Unknown',
         unitAddress: u.address || '',
-        developmentId: String(u.development_id),
-        developmentName: devNameMap.get(String(u.development_id)) || '',
+        developmentId: devId,
+        developmentName: devNameMap[devId] || '',
         bedrooms: u.bedrooms || null,
         unitTypeName: null,
         status: 'for_sale',
@@ -205,7 +208,7 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     return (a.unitNumber || '').localeCompare(b.unitNumber || '');
   });
 
-  // 9. Compute alerts
+  // Compute alerts
   const now = new Date();
   const alerts: any[] = [];
 
