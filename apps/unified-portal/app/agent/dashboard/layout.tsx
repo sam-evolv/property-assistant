@@ -17,11 +17,15 @@ export default async function AgentDashboardLayout({
     redirect('/login/agent');
   }
 
-  const { data: profile } = await supabase
+  // Use order + limit instead of .single() because a user may have multiple agent profiles
+  const { data: profiles } = await supabase
     .from('agent_profiles')
     .select('id, display_name, agency_name, agent_type')
     .eq('user_id', user.id)
-    .single();
+    .order('created_at', { ascending: true })
+    .limit(1);
+
+  const profile = profiles?.[0] ?? null;
 
   if (!profile) {
     redirect('/login/agent');

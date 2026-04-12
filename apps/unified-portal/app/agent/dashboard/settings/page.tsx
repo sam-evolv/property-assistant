@@ -41,13 +41,15 @@ export default function AgentDashboardSettingsPage() {
           .from('agent_profiles')
           .select('phone, psra_licence, agent_type')
           .eq('user_id', user.id)
-          .single();
-        if (data) {
+          .order('created_at', { ascending: true })
+          .limit(1);
+        const row = Array.isArray(data) ? data[0] : data;
+        if (row) {
           setForm(f => ({
             ...f,
-            phone: data.phone || '',
-            psra: data.psra_licence || '',
-            agentType: data.agent_type || 'scheme',
+            phone: row.phone || '',
+            psra: row.psra_licence || '',
+            agentType: row.agent_type || 'scheme',
           }));
         }
       }
@@ -69,7 +71,7 @@ export default function AgentDashboardSettingsPage() {
           psra_licence: form.psra,
           agent_type: form.agentType,
         })
-        .eq('user_id', user.id);
+        .eq('id', profile.id);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch { /* silent */ }
