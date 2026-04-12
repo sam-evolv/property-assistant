@@ -14,6 +14,7 @@ import {
   X,
   Zap,
   FileDown,
+  BarChart3,
 } from 'lucide-react';
 import { useAgentDashboard } from '../layout-provider';
 
