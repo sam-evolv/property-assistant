@@ -146,7 +146,7 @@ export default function AgentDashboardClientsPage() {
               <p className="text-sm font-medium text-gray-900 truncate">{buyer.purchaserName}</p>
               {overdue && (
                 <p className="text-[10px] text-red-600 font-medium">
-                  Contracts overdue \u2014 {daysSince(buyer.dates?.contractsIssued)}d
+                  Contracts overdue — {daysSince(buyer.dates?.contractsIssued)}d
                 </p>
               )}
             </div>

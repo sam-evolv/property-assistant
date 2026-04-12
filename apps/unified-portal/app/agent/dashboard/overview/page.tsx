@@ -310,7 +310,7 @@ export default function AgentDashboardOverview() {
                               {scheme.overdue}
                             </span>
                           ) : (
-                            <span className="text-gray-400">\u2014</span>
+                            <span className="text-gray-400">—</span>
                           )}
                         </td>
                         <td className="px-5 py-4">

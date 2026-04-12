@@ -267,7 +267,7 @@ export default function AgentDashboardPipelinePage() {
                                 ) : isPending ? (
                                   <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">Pending</span>
                                 ) : (
-                                  <span className="text-gray-300">\u2014</span>
+                                  <span className="text-gray-300">—</span>
                                 )}
                               </td>
                             );
@@ -285,7 +285,7 @@ export default function AgentDashboardPipelinePage() {
                               <span className={`text-[11px] font-semibold px-2 py-1 rounded-md ${estPast ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
                                 {fmtDate(p.dates.estimatedClose)}
                               </span>
-                            ) : <span className="text-gray-300">\u2014</span>}
+                            ) : <span className="text-gray-300">—</span>}
                           </td>
                         </tr>
                       );
@@ -443,7 +443,7 @@ export default function AgentDashboardPipelinePage() {
                       <td className="px-6 py-4 text-center">
                         {dev.overdue > 0 ? (
                           <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-xs font-bold text-white" style={{ backgroundColor: tokens.danger }}>{dev.overdue}</span>
-                        ) : <span className="text-gray-400">\u2014</span>}
+                        ) : <span className="text-gray-400">—</span>}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">

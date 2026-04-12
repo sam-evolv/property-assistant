@@ -98,7 +98,7 @@ export default function AgentDashboardAnalyticsPage() {
                   <td className="px-5 py-3 text-sm text-gray-600">{s.total}</td>
                   <td className="px-5 py-3 text-sm font-medium text-green-600">{s.sold}</td>
                   <td className="px-5 py-3 text-sm font-medium" style={{ color: tokens.gold }}>{s.active}</td>
-                  <td className="px-5 py-3">{s.overdue > 0 ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">{s.overdue}</span> : <span className="text-gray-400">\u2014</span>}</td>
+                  <td className="px-5 py-3">{s.overdue > 0 ? <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-700">{s.overdue}</span> : <span className="text-gray-400">—</span>}</td>
                   <td className="px-5 py-3 text-sm text-gray-900">{fmtShort(s.revenue)}</td>
                   <td className="px-5 py-3 w-32"><div className="flex items-center gap-2"><div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden"><div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: `linear-gradient(90deg, ${tokens.gold}, ${tokens.goldLight})` }} /></div><span className="text-xs font-semibold text-gray-500">{s.pct}%</span></div></td>
                 </tr>
