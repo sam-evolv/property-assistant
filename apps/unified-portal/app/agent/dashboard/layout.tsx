@@ -17,7 +17,6 @@ export default async function AgentDashboardLayout({
     redirect('/login/agent');
   }
 
-  // Verify this user has an agent profile
   const { data: profile } = await supabase
     .from('agent_profiles')
     .select('id, display_name, agency_name, agent_type')
@@ -28,8 +27,20 @@ export default async function AgentDashboardLayout({
     redirect('/login/agent');
   }
 
+  // Fetch scheme assignments with development names
+  const { data: assignments } = await supabase
+    .from('agent_scheme_assignments')
+    .select('development_id, developments(id, name)')
+    .eq('agent_id', profile.id)
+    .eq('is_active', true);
+
+  const developments = (assignments ?? []).map((a: any) => ({
+    id: (a.developments as any)?.id ?? a.development_id,
+    name: (a.developments as any)?.name ?? 'Unknown Scheme',
+  }));
+
   return (
-    <AgentDashboardLayoutProvider profile={profile}>
+    <AgentDashboardLayoutProvider profile={profile} developments={developments}>
       {children}
     </AgentDashboardLayoutProvider>
   );
