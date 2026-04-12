@@ -1,20 +1,31 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
+  Building2,
+  Users,
+  AlertTriangle,
+  TrendingUp,
+  Target,
   CalendarPlus,
   Mail,
-  FileDown,
   BarChart3,
-  AlertTriangle,
-  ArrowRight,
-  Clock,
-  TrendingUp,
-  Users,
-  Zap,
+  Sparkles,
+  RefreshCw,
+  ChevronRight,
+  AlertCircle,
+  FolderArchive,
 } from 'lucide-react';
+import { StatCard, StatCardGrid } from '@/components/ui/StatCard';
+import { QuickActionsBar } from '@/components/ui/QuickActions';
+import type { QuickAction } from '@/components/ui/QuickActions';
+import { ProactiveAlertsWidget } from '@/components/ui/ProactiveAlerts';
+import type { Alert, AlertItem } from '@/components/ui/ProactiveAlerts';
+import { ActivityFeedWidget } from '@/components/ui/ActivityFeed';
+import type { ActivityItem } from '@/components/ui/ActivityFeed';
 import { useAgentDashboard } from '../layout-provider';
+import Link from 'next/link';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,57 +50,33 @@ interface PipelineItem {
   prices: { sale?: number };
 }
 
-interface ViewingItem {
-  id: string;
-  buyer_name: string;
-  scheduled_at: string;
-  status: string;
-  development_name?: string;
-  unit_number?: string;
-}
-
-interface ActivityItem {
-  id: string;
-  type: string;
-  subject: string;
-  recipient_name: string;
-  created_at: string;
-  development_name?: string;
-}
+const tokens = {
+  gold: '#D4AF37',
+  goldDark: '#B8934C',
+  cream: '#fafaf8',
+  dark: '#1a1a1a',
+};
 
 export default function AgentDashboardOverview() {
   const router = useRouter();
   const { profile, developments, selectedSchemeId } = useAgentDashboard();
   const [pipeline, setPipeline] = useState<PipelineItem[]>([]);
-  const [viewings, setViewings] = useState<ViewingItem[]>([]);
-  const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch('/api/agent/pipeline-data');
-        if (!res.ok) return;
-        const data = await res.json();
-        setPipeline(data.pipeline ?? []);
-      } catch { /* silent */ }
-
-      // Fetch today's viewings
-      try {
-        const today = new Date();
-        const from = today.toISOString().split('T')[0];
-        const to = from;
-        const res = await fetch(`/api/agent/viewings?from=${from}&to=${to}`);
-        if (res.ok) {
-          const data = await res.json();
-          setViewings(data.viewings ?? []);
-        }
-      } catch { /* silent */ }
-
-      setLoading(false);
-    }
-    fetchData();
+  const fetchData = useCallback(async (isRefresh = false) => {
+    if (isRefresh) setRefreshing(true);
+    try {
+      const res = await fetch('/api/agent/pipeline-data');
+      if (!res.ok) return;
+      const data = await res.json();
+      setPipeline(data.pipeline ?? []);
+    } catch { /* silent */ }
+    setLoading(false);
+    setRefreshing(false);
   }, []);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   const filtered = useMemo(() => {
     if (!selectedSchemeId) return pipeline;
@@ -133,14 +120,81 @@ export default function AgentDashboardOverview() {
     return `\u20AC${v}`;
   };
 
+  // Quick actions
+  const quickActions: QuickAction[] = [
+    { id: 'new-viewing', label: 'New Viewing', icon: CalendarPlus, onClick: () => router.push('/agent/dashboard/viewings'), variant: 'primary' },
+    { id: 'draft-email', label: 'Draft Email', icon: Mail, onClick: () => router.push('/agent/dashboard/communications') },
+    { id: 'view-analytics', label: 'View Analytics', icon: BarChart3, onClick: () => router.push('/agent/dashboard/analytics') },
+    { id: 'ask-intelligence', label: 'Ask Intelligence', icon: Sparkles, onClick: () => router.push('/agent/dashboard/intelligence') },
+  ];
+
+  // Proactive alerts
+  const alerts: Alert[] = useMemo(() => {
+    const result: Alert[] = [];
+
+    if (stats.overdueCount > 0) {
+      result.push({
+        id: 'overdue-contracts',
+        title: `${stats.overdueCount} overdue contracts`,
+        description: 'Contracts issued but not signed within 21 days',
+        priority: stats.overdueCount >= 5 ? 'critical' : 'warning',
+        count: stats.overdueCount,
+        link: '/agent/dashboard/analytics',
+        linkLabel: 'View Risk Register',
+        items: stats.overdue.slice(0, 5).map(p => ({
+          id: p.id,
+          label: `${p.purchaserName || p.unitNumber} \u2014 ${p.developmentName}`,
+          sublabel: `Contracts issued ${Math.floor((Date.now() - new Date(p.dates.contractsIssued!).getTime()) / 86400000)}d ago`,
+          link: `/agent/dashboard/intelligence?prompt=${encodeURIComponent(`Chase solicitor for ${p.purchaserName} on ${p.unitNumber} in ${p.developmentName}`)}`,
+        })),
+      });
+    }
+
+    if (result.length === 0) {
+      result.push({
+        id: 'all-clear',
+        title: 'All systems operational',
+        description: 'No immediate action required',
+        priority: 'ready',
+      });
+    }
+    return result;
+  }, [stats]);
+
+  // Activity feed
+  const activityItems: ActivityItem[] = useMemo(() => {
+    const items: ActivityItem[] = [];
+    // Recent overdue items as alerts
+    stats.overdue.slice(0, 3).forEach(p => {
+      items.push({
+        id: `overdue-${p.id}`,
+        type: 'alert',
+        title: `Contract overdue \u2014 ${p.purchaserName || p.unitNumber}`,
+        description: `${p.developmentName}`,
+        timestamp: p.dates.contractsIssued || new Date().toISOString(),
+      });
+    });
+    // Recent sale agreed
+    pipeline.filter(p => p.dates?.saleAgreed).sort((a, b) => new Date(b.dates.saleAgreed!).getTime() - new Date(a.dates.saleAgreed!).getTime()).slice(0, 4).forEach(p => {
+      items.push({
+        id: `agreed-${p.id}`,
+        type: 'completion',
+        title: `Sale agreed \u2014 ${p.purchaserName || p.unitNumber}`,
+        description: `${p.developmentName}`,
+        timestamp: p.dates.saleAgreed!,
+      });
+    });
+    return items;
+  }, [stats, pipeline]);
+
   if (loading) {
     return (
-      <div style={{ padding: '32px 32px' }}>
-        <div style={{ height: 28, width: 200, background: 'rgba(0,0,0,0.06)', borderRadius: 6, marginBottom: 8 }} />
-        <div style={{ height: 20, width: 300, background: 'rgba(0,0,0,0.04)', borderRadius: 6, marginBottom: 32 }} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 14 }}>
+      <div className="min-h-full p-6 lg:p-8" style={{ backgroundColor: tokens.cream }}>
+        <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse mb-2" />
+        <div className="h-5 w-96 bg-gray-100 rounded-lg animate-pulse mb-8" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           {[1,2,3,4,5].map(i => (
-            <div key={i} style={{ height: 100, background: '#fff', borderRadius: 12, border: '0.5px solid rgba(0,0,0,0.07)' }} />
+            <div key={i} className="h-28 bg-white rounded-xl border border-gray-200 animate-pulse" />
           ))}
         </div>
       </div>
@@ -148,420 +202,181 @@ export default function AgentDashboardOverview() {
   }
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* Quick Actions Bar */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 8,
-        padding: '10px 32px',
-        background: '#fff',
-        borderBottom: '1px solid rgba(0,0,0,0.07)',
-      }}>
-        <span style={{
-          fontSize: 10,
-          fontWeight: 700,
-          letterSpacing: '0.08em',
-          color: 'rgba(0,0,0,0.35)',
-          textTransform: 'uppercase' as const,
-          marginRight: 8,
-        }}>
-          QUICK ACTIONS
-        </span>
-        <button
-          onClick={() => router.push('/agent/dashboard/viewings')}
-          style={{
-            height: 30, padding: '0 14px', background: '#c8960a', border: 'none',
-            borderRadius: 7, color: '#fff', fontSize: 12, fontWeight: 600,
-            cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <CalendarPlus size={13} /> + New Viewing
-        </button>
-        <button
-          onClick={() => router.push('/agent/dashboard/communications')}
-          style={{
-            height: 30, padding: '0 12px', background: '#fff',
-            border: '1px solid rgba(0,0,0,0.12)', borderRadius: 7,
-            color: '#374151', fontSize: 12, fontWeight: 500,
-            cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <Mail size={13} /> Draft Email
-        </button>
-        <button
-          onClick={() => router.push('/agent/dashboard/analytics')}
-          style={{
-            height: 30, padding: '0 12px', background: '#fff',
-            border: '1px solid rgba(0,0,0,0.12)', borderRadius: 7,
-            color: '#374151', fontSize: 12, fontWeight: 500,
-            cursor: 'pointer', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 5,
-          }}
-        >
-          <BarChart3 size={13} /> View Analytics
-        </button>
-      </div>
-
-      <div style={{ padding: '28px 32px' }}>
-        {/* Greeting + LIVE status */}
-        <div style={{ marginBottom: 24 }}>
-          <h1 style={{
-            color: '#111', fontSize: 20, fontWeight: 700,
-            letterSpacing: '-0.04em', margin: '0 0 4px',
-          }}>
-            {greeting}, {firstName}.
-          </h1>
-          <p style={{ color: 'rgba(0,0,0,0.45)', fontSize: 13.5, margin: '0 0 12px' }}>
-            Here&apos;s what&apos;s happening across your schemes today.
-          </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
-            <span style={{
-              display: 'inline-flex', alignItems: 'center', gap: 5,
-              fontSize: 11.5, fontWeight: 600, color: '#15803d',
-              background: '#f0fdf4', padding: '4px 10px', borderRadius: 20,
-              border: '1px solid rgba(21,128,61,0.2)',
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: 3, background: '#15803d' }} />
-              LIVE
-            </span>
-            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Users size={13} color="rgba(0,0,0,0.35)" /> {stats.active} active buyers
-            </span>
-            <span style={{ fontSize: 12.5, color: stats.overdueCount > 0 ? '#b91c1c' : 'rgba(0,0,0,0.5)', fontWeight: stats.overdueCount > 0 ? 600 : 400, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Clock size={13} color={stats.overdueCount > 0 ? '#b91c1c' : 'rgba(0,0,0,0.35)'} /> {stats.overdueCount} overdue contracts
-            </span>
-            <span style={{ fontSize: 12.5, color: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <CalendarPlus size={13} color="rgba(0,0,0,0.35)" /> {viewings.length} viewings today
-            </span>
+    <div className="min-h-full" style={{ backgroundColor: tokens.cream }}>
+      <div className="p-6 lg:p-8 space-y-6">
+        {/* Header */}
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">
+              {greeting}, {firstName}
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Here&apos;s what&apos;s happening across your schemes today
+            </p>
           </div>
+          <button
+            onClick={() => fetchData(true)}
+            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
-        {/* Needs Attention */}
-        {stats.overdueCount > 0 && (
-          <div style={{
-            background: '#fffbeb',
-            border: '1px solid rgba(146,64,14,0.2)',
-            borderRadius: 12,
-            padding: '14px 18px',
-            marginBottom: 20,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <AlertTriangle size={18} color="#92400e" />
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: '#92400e', margin: 0 }}>
-                  Needs Attention
-                </p>
-                <p style={{ fontSize: 12, color: '#92400e', margin: '2px 0 0', opacity: 0.8 }}>
-                  {stats.overdueCount} contracts past 21 days without signed copies returned
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push(`/agent/dashboard/intelligence?prompt=${encodeURIComponent('Draft chasing emails for all overdue contracts. Contracts are past 21 days outstanding. Tone: firm but professional. Include all purchaser names and unit numbers.')}`)}
-              style={{
-                height: 30, padding: '0 14px',
-                background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
-                border: 'none', borderRadius: 7, color: '#fff',
-                fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                fontFamily: 'inherit', whiteSpace: 'nowrap',
-                display: 'flex', alignItems: 'center', gap: 5,
-              }}
-            >
-              <Zap size={13} /> Chase all with Intelligence
-            </button>
-          </div>
-        )}
+        {/* Quick Actions */}
+        <QuickActionsBar actions={quickActions} />
 
-        {/* KPI Row */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(5, 1fr)',
-          gap: 14,
-          marginBottom: 24,
-        }}>
-          {[
-            { label: 'TOTAL UNITS', value: filtered.length.toString(), color: '#111' },
-            { label: 'ACTIVE', value: stats.active.toString(), color: '#1d4ed8' },
-            { label: 'OVERDUE', value: stats.overdueCount.toString(), color: stats.overdueCount > 0 ? '#b91c1c' : '#15803d' },
-            { label: 'REVENUE SOLD', value: formatCurrency(stats.revenueSold), color: '#15803d' },
-            { label: 'PIPELINE VALUE', value: formatCurrency(stats.pipelineValue), color: '#111' },
-          ].map(kpi => (
-            <div key={kpi.label} style={{
-              background: '#fff',
-              borderRadius: 12,
-              border: '0.5px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
-              padding: '16px 18px',
-            }}>
-              <p style={{
-                color: 'rgba(0,0,0,0.35)', fontSize: 9.5, fontWeight: 700,
-                letterSpacing: '0.07em', textTransform: 'uppercase' as const,
-                margin: '0 0 8px',
-              }}>
-                {kpi.label}
-              </p>
-              <p style={{
-                color: kpi.color, fontSize: 26, fontWeight: 700,
-                letterSpacing: '-0.04em', margin: 0, lineHeight: 1,
-              }}>
-                {kpi.value}
-              </p>
-            </div>
-          ))}
+        {/* Live Activity Pulse */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-2 bg-white border border-gray-200 rounded-full px-3.5 py-1.5 shadow-sm">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
+            </span>
+            <span className="text-xs font-semibold text-green-700">LIVE</span>
+          </div>
+          <span className="text-sm text-gray-500">{stats.active} active buyers</span>
+          {stats.overdueCount > 0 && (
+            <span className="text-sm text-red-600 font-medium">{stats.overdueCount} overdue contracts</span>
+          )}
         </div>
 
-        {/* Main content: Schemes + Right panel */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: 20 }}>
-          {/* Left: Schemes table */}
-          <div style={{
-            background: '#fff',
-            borderRadius: 12,
-            border: '0.5px solid rgba(0,0,0,0.07)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              padding: '14px 18px',
-              borderBottom: '1px solid rgba(0,0,0,0.07)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-            }}>
-              <h2 style={{ color: '#111', fontSize: 13.5, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>
-                Active Schemes
-              </h2>
-              <button
-                onClick={() => router.push('/agent/dashboard/pipeline')}
-                style={{
-                  color: '#c8960a', fontSize: 12, fontWeight: 600,
-                  background: 'none', border: 'none', cursor: 'pointer',
-                  fontFamily: 'inherit', letterSpacing: '-0.01em',
-                  display: 'flex', alignItems: 'center', gap: 4,
-                }}
+        {/* Proactive Alerts */}
+        <ProactiveAlertsWidget alerts={alerts} collapsible defaultExpanded />
+
+        {/* Stat Cards */}
+        <StatCardGrid columns={5}>
+          <StatCard label="Total Units" value={filtered.length} icon={Building2} iconColor="text-gold-500" />
+          <StatCard label="Active Buyers" value={stats.active} icon={Users} iconColor="text-blue-500" />
+          <StatCard label="Overdue" value={stats.overdueCount} icon={AlertTriangle} iconColor="text-red-500" />
+          <StatCard label="Revenue Sold" value={formatCurrency(stats.revenueSold)} icon={TrendingUp} iconColor="text-green-500" />
+          <StatCard label="Pipeline Value" value={formatCurrency(stats.pipelineValue)} icon={Target} iconColor="text-purple-500" />
+        </StatCardGrid>
+
+        {/* Schemes Table + Activity Feed */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Schemes Table (2/3) */}
+          <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200">
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-gray-900">Active Schemes</h2>
+              <Link
+                href="/agent/dashboard/pipeline"
+                className="text-sm font-medium text-gold-600 hover:text-gold-700 flex items-center gap-1"
               >
-                View pipeline <ArrowRight size={12} />
-              </button>
+                View pipeline <ChevronRight className="w-4 h-4" />
+              </Link>
             </div>
-
-            {/* Table header */}
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '2fr 0.8fr 0.8fr 0.8fr 0.8fr 1.2fr',
-              padding: '10px 18px',
-              background: '#f9f8f5',
-              borderBottom: '1px solid rgba(0,0,0,0.07)',
-            }}>
-              {['Scheme', 'Units', 'Sold', 'Active', 'Overdue', 'Progress'].map(h => (
-                <span key={h} style={{
-                  color: 'rgba(0,0,0,0.35)', fontSize: 9.5, fontWeight: 700,
-                  letterSpacing: '0.07em', textTransform: 'uppercase' as const,
-                }}>
-                  {h}
-                </span>
-              ))}
-            </div>
-
-            {schemeStats.map((scheme, i) => {
-              const pct = scheme.total > 0 ? Math.round(((scheme.sold) / scheme.total) * 100) : 0;
-              return (
-                <div
-                  key={scheme.id}
-                  onClick={() => router.push(`/agent/dashboard/pipeline?scheme=${scheme.id}`)}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '2fr 0.8fr 0.8fr 0.8fr 0.8fr 1.2fr',
-                    padding: '12px 18px',
-                    borderBottom: i < schemeStats.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
-                    cursor: 'pointer',
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => (e.currentTarget as HTMLElement).style.background = '#faf9f7'}
-                  onMouseLeave={e => (e.currentTarget as HTMLElement).style.background = 'transparent'}
-                >
-                  <div>
-                    <p style={{ color: '#111', fontSize: 13, fontWeight: 500, margin: 0, letterSpacing: '-0.01em' }}>
-                      {scheme.name}
-                    </p>
-                  </div>
-                  <span style={{ color: '#374151', fontSize: 13, fontWeight: 500, alignSelf: 'center' }}>
-                    {scheme.total}
-                  </span>
-                  <span style={{ color: '#15803d', fontSize: 13, fontWeight: 600, alignSelf: 'center' }}>
-                    {scheme.sold}
-                  </span>
-                  <span style={{ color: '#1d4ed8', fontSize: 13, fontWeight: 600, alignSelf: 'center' }}>
-                    {scheme.active}
-                  </span>
-                  <span style={{
-                    color: scheme.overdue > 0 ? '#b91c1c' : 'rgba(0,0,0,0.25)',
-                    fontSize: 13, fontWeight: scheme.overdue > 0 ? 600 : 400, alignSelf: 'center',
-                  }}>
-                    {scheme.overdue > 0 ? scheme.overdue : '\u2014'}
-                  </span>
-                  <div style={{ alignSelf: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div style={{
-                        flex: 1, height: 4, background: '#e5e7eb',
-                        borderRadius: 2, overflow: 'hidden',
-                      }}>
-                        <div style={{
-                          height: '100%', width: `${pct}%`,
-                          background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
-                          borderRadius: 2,
-                        }} />
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(0,0,0,0.4)', minWidth: 30, textAlign: 'right' }}>
-                        {pct}%
-                      </span>
-                    </div>
-                  </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Scheme</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Units</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Sold</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Active</th>
+                    <th className="px-5 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Overdue</th>
+                    <th className="px-5 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider w-40">Progress</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {schemeStats.map((scheme) => {
+                    const pct = scheme.total > 0 ? Math.round((scheme.sold / scheme.total) * 100) : 0;
+                    return (
+                      <tr
+                        key={scheme.id}
+                        onClick={() => router.push(`/agent/dashboard/pipeline?scheme=${scheme.id}`)}
+                        className="group cursor-pointer transition-colors hover:bg-gray-50/50"
+                      >
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className="w-9 h-9 rounded-xl flex items-center justify-center"
+                              style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, color: tokens.dark }}
+                            >
+                              <Building2 className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-gray-900">{scheme.name}</p>
+                              <p className="text-xs text-gray-500">{scheme.total} units</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-4 text-center text-sm font-medium text-gray-600">{scheme.total}</td>
+                        <td className="px-5 py-4 text-center text-sm font-medium text-green-600">{scheme.sold}</td>
+                        <td className="px-5 py-4 text-center text-sm font-medium" style={{ color: tokens.gold }}>{scheme.active}</td>
+                        <td className="px-5 py-4 text-center">
+                          {scheme.overdue > 0 ? (
+                            <span className="inline-flex items-center justify-center min-w-[24px] h-6 px-2 rounded-full text-xs font-bold text-white bg-red-500">
+                              {scheme.overdue}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">\u2014</span>
+                          )}
+                        </td>
+                        <td className="px-5 py-4">
+                          <div className="flex items-center gap-3">
+                            {pct > 0 && (
+                              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: tokens.gold }} />
+                            )}
+                            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-500"
+                                style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${tokens.gold} 0%, ${tokens.gold}99 100%)` }}
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-gray-500 w-10 text-right">{pct}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {schemeStats.length === 0 && (
+                <div className="px-5 py-12 text-center">
+                  <Building2 className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500">No schemes assigned</p>
                 </div>
-              );
-            })}
-
-            {schemeStats.length === 0 && (
-              <div style={{ padding: '24px 18px', textAlign: 'center' }}>
-                <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: 13 }}>No schemes assigned</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
 
-          {/* Right panel */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {/* Recent Activity */}
-            <div style={{
-              background: '#fff',
-              borderRadius: 12,
-              border: '0.5px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                padding: '14px 18px',
-                borderBottom: '1px solid rgba(0,0,0,0.07)',
-              }}>
-                <h2 style={{ color: '#111', fontSize: 13.5, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>
-                  Recent Activity
-                </h2>
-              </div>
-              <div style={{ padding: '8px 0', maxHeight: 280, overflowY: 'auto' }}>
-                {stats.overdue.slice(0, 5).map((item, i) => (
-                  <div key={item.id} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '8px 18px',
-                    borderBottom: i < 4 ? '1px solid rgba(0,0,0,0.04)' : 'none',
-                  }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 7,
-                      background: '#fef2f2',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, marginTop: 1,
-                    }}>
-                      <AlertTriangle size={13} color="#b91c1c" />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 12.5, fontWeight: 500, color: '#111', margin: 0 }}>
-                        Contract overdue \u2014 {item.purchaserName || item.unitNumber}
-                      </p>
-                      <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', margin: '2px 0 0' }}>
-                        {item.developmentName} \u00B7 {item.unitNumber}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {pipeline.filter(p => ['agreed', 'sale_agreed'].includes(p.status)).slice(0, 5).map((item, i) => (
-                  <div key={`active-${item.id}`} style={{
-                    display: 'flex', alignItems: 'flex-start', gap: 10,
-                    padding: '8px 18px',
-                    borderBottom: '1px solid rgba(0,0,0,0.04)',
-                  }}>
-                    <div style={{
-                      width: 28, height: 28, borderRadius: 7,
-                      background: '#eff6ff',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0, marginTop: 1,
-                    }}>
-                      <TrendingUp size={13} color="#1d4ed8" />
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 12.5, fontWeight: 500, color: '#111', margin: 0 }}>
-                        Sale agreed \u2014 {item.purchaserName || item.unitNumber}
-                      </p>
-                      <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', margin: '2px 0 0' }}>
-                        {item.developmentName} \u00B7 {item.unitNumber}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-                {pipeline.length === 0 && (
-                  <div style={{ padding: '16px 18px', textAlign: 'center' }}>
-                    <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12 }}>No recent activity</p>
-                  </div>
-                )}
-              </div>
-            </div>
+          {/* Right Column */}
+          <div className="space-y-6">
+            {/* Activity Feed */}
+            <ActivityFeedWidget
+              activities={activityItems}
+              title="Recent Activity"
+              maxItems={6}
+              groupByDate
+            />
 
-            {/* Today's Viewings */}
-            <div style={{
-              background: '#fff',
-              borderRadius: 12,
-              border: '0.5px solid rgba(0,0,0,0.07)',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05)',
-              overflow: 'hidden',
-            }}>
-              <div style={{
-                padding: '14px 18px',
-                borderBottom: '1px solid rgba(0,0,0,0.07)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <h2 style={{ color: '#111', fontSize: 13.5, fontWeight: 600, margin: 0, letterSpacing: '-0.02em' }}>
-                  Today&apos;s Viewings
-                </h2>
-                <span style={{
-                  fontSize: 11, fontWeight: 600, color: '#1d4ed8',
-                  background: '#eff6ff', padding: '3px 8px', borderRadius: 10,
-                }}>
-                  {viewings.length}
-                </span>
+            {/* Quick Links */}
+            <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h3 className="text-sm font-semibold text-gray-900">Quick Links</h3>
               </div>
-              <div style={{ padding: '4px 0' }}>
-                {viewings.length === 0 ? (
-                  <div style={{ padding: '20px 18px', textAlign: 'center' }}>
-                    <p style={{ color: 'rgba(0,0,0,0.35)', fontSize: 12, margin: 0 }}>No viewings scheduled today</p>
-                  </div>
-                ) : (
-                  viewings.map((v, i) => {
-                    const time = new Date(v.scheduled_at).toLocaleTimeString('en-IE', { hour: '2-digit', minute: '2-digit' });
-                    return (
-                      <div key={v.id} style={{
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '10px 18px',
-                        borderBottom: i < viewings.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
-                      }}>
-                        <span style={{
-                          fontSize: 12, fontWeight: 600, color: '#c8960a',
-                          background: 'rgba(200,150,10,0.1)',
-                          padding: '4px 8px', borderRadius: 6,
-                          fontVariantNumeric: 'tabular-nums',
-                        }}>
-                          {time}
-                        </span>
-                        <div>
-                          <p style={{ fontSize: 13, fontWeight: 500, color: '#111', margin: 0 }}>
-                            {v.buyer_name}
-                          </p>
-                          <p style={{ fontSize: 11, color: 'rgba(0,0,0,0.38)', margin: '1px 0 0' }}>
-                            {v.development_name}{v.unit_number ? ` \u00B7 ${v.unit_number}` : ''}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              {[
+                { label: 'Clients & Buyers', href: '/agent/dashboard/clients', icon: Users },
+                { label: 'Documents', href: '/agent/dashboard/documents', icon: FolderArchive },
+                { label: 'Analytics', href: '/agent/dashboard/analytics', icon: BarChart3 },
+                { label: 'Intelligence', href: '/agent/dashboard/intelligence', icon: Sparkles },
+              ].map((link) => {
+                const Icon = link.icon;
+                return (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <Icon className="w-4 h-4 text-gray-500" />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700 flex-1">{link.label}</span>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </div>

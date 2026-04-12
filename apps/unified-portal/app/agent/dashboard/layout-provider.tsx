@@ -59,19 +59,9 @@ export function AgentDashboardLayoutProvider({
 
   return (
     <AgentDashboardContext.Provider value={{ profile, developments, selectedSchemeId, setSelectedSchemeId }}>
-      <div style={{
-        display: 'flex',
-        height: '100vh',
-        background: '#f5f4f0',
-        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
-        WebkitFontSmoothing: 'antialiased',
-      }}>
+      <div className="flex h-screen bg-white font-sans antialiased">
         <AgentDashboardSidebar />
-        <main style={{
-          flex: 1,
-          overflowY: 'auto',
-          overflowX: 'hidden',
-        }}>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
           {children}
         </main>
       </div>
