@@ -37,7 +37,7 @@ export async function getUnitStatus(
   // Get pipeline data
   const { data: pipeline } = await supabase
     .from('unit_sales_pipeline')
-    .select('purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, drawdown_date, handover_date, release_date, mortgage_expiry_date, kitchen_selected, estimated_close_date, comments')
+    .select('status, purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, drawdown_date, handover_date, release_date, mortgage_expiry_date, kitchen_selected, estimated_close_date, comments')
     .eq('tenant_id', tenantId)
     .eq('unit_id', unit.id)
     .maybeSingle();
@@ -52,17 +52,17 @@ export async function getUnitStatus(
     .order('created_at', { ascending: false })
     .limit(5);
 
-  // Determine status from pipeline dates
+  // Determine status — use the status column first, fall back to date-based derivation
   let status = 'for_sale';
   if (pipeline) {
-    if (pipeline.handover_date && new Date(pipeline.handover_date) <= new Date()) status = 'sold';
-    else if (pipeline.drawdown_date) status = 'closing';
-    else if (pipeline.counter_signed_date) status = 'contracts_signed';
-    else if (pipeline.signed_contracts_date) status = 'contracts_signed';
-    else if (pipeline.contracts_issued_date) status = 'contracts_issued';
-    else if (pipeline.deposit_date) status = 'reserved';
-    else if (pipeline.sale_agreed_date) status = 'sale_agreed';
-    else if (pipeline.release_date) status = 'for_sale';
+    const dbStatus = pipeline.status;
+    if (dbStatus === 'sold' || (pipeline.handover_date && new Date(pipeline.handover_date) <= new Date())) status = 'sold';
+    else if (dbStatus === 'signed' || pipeline.counter_signed_date || pipeline.signed_contracts_date) status = 'contracts_signed';
+    else if (dbStatus === 'contracts_issued' || pipeline.contracts_issued_date) status = 'contracts_issued';
+    else if (dbStatus === 'closing' || pipeline.drawdown_date) status = 'closing';
+    else if (dbStatus === 'sale_agreed' || pipeline.sale_agreed_date) status = 'sale_agreed';
+    else if (dbStatus === 'reserved' || pipeline.deposit_date) status = 'reserved';
+    else status = 'for_sale';
   }
 
   const result = {
@@ -113,7 +113,7 @@ export async function getBuyerDetails(
   // Search across unit_sales_pipeline for buyer name
   const { data: matches } = await supabase
     .from('unit_sales_pipeline')
-    .select('unit_id, purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date')
+    .select('unit_id, status, purchaser_name, purchaser_email, purchaser_phone, sale_price, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date')
     .eq('tenant_id', tenantId)
     .ilike('purchaser_name', `%${params.buyer_name}%`);
 
@@ -178,10 +178,11 @@ export async function getBuyerDetails(
       .eq('tenant_id', tenantId);
 
     let status = 'for_sale';
-    if (m.handover_date && new Date(m.handover_date) <= new Date()) status = 'sold';
-    else if (m.counter_signed_date) status = 'contracts_signed';
-    else if (m.contracts_issued_date) status = 'contracts_issued';
-    else if (m.sale_agreed_date) status = 'sale_agreed';
+    const dbStatus = m.status;
+    if (dbStatus === 'sold' || (m.handover_date && new Date(m.handover_date) <= new Date())) status = 'sold';
+    else if (dbStatus === 'signed' || m.counter_signed_date || m.signed_contracts_date) status = 'contracts_signed';
+    else if (dbStatus === 'contracts_issued' || m.contracts_issued_date) status = 'contracts_issued';
+    else if (dbStatus === 'sale_agreed' || m.sale_agreed_date) status = 'sale_agreed';
 
     return {
       name: m.purchaser_name,
@@ -238,11 +239,11 @@ export async function getSchemeOverview(
   // Get pipeline data
   const { data: pipeline } = await supabase
     .from('unit_sales_pipeline')
-    .select('unit_id, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, deposit_date')
+    .select('unit_id, status, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, deposit_date')
     .eq('tenant_id', tenantId)
     .eq('development_id', dev.id);
 
-  // Count by status
+  // Count by status — use status column as primary source, fall back to dates
   const breakdown = {
     for_sale: 0,
     reserved: 0,
@@ -258,11 +259,12 @@ export async function getSchemeOverview(
   for (const p of pipeline || []) {
     totalExpectedRevenue += Number(p.sale_price) || 0;
 
-    if (p.handover_date && new Date(p.handover_date) <= now) breakdown.sold++;
-    else if (p.counter_signed_date || p.signed_contracts_date) breakdown.contracts_signed++;
-    else if (p.contracts_issued_date) breakdown.contracts_issued++;
-    else if (p.sale_agreed_date) breakdown.sale_agreed++;
-    else if (p.deposit_date) breakdown.reserved++;
+    const dbStatus = p.status;
+    if (dbStatus === 'sold' || (p.handover_date && new Date(p.handover_date) <= now)) breakdown.sold++;
+    else if (dbStatus === 'signed' || p.counter_signed_date || p.signed_contracts_date) breakdown.contracts_signed++;
+    else if (dbStatus === 'contracts_issued' || p.contracts_issued_date) breakdown.contracts_issued++;
+    else if (dbStatus === 'sale_agreed' || p.sale_agreed_date) breakdown.sale_agreed++;
+    else if (dbStatus === 'reserved' || p.deposit_date) breakdown.reserved++;
     else breakdown.for_sale++;
   }
 
@@ -338,7 +340,7 @@ export async function getOutstandingItems(
   // Get pipeline data for unsigned contracts, overdue selections
   let pipelineQuery = supabase
     .from('unit_sales_pipeline')
-    .select('unit_id, development_id, purchaser_name, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_selected')
+    .select('unit_id, development_id, status, purchaser_name, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_selected')
     .eq('tenant_id', tenantId);
 
   if (developmentId) {
@@ -371,8 +373,9 @@ export async function getOutstandingItems(
     const unitNum: string = unit?.unit_number || unit?.unit_uid || 'Unknown';
     const schemeName: string = (devMap.get(unit?.development_id || '') as string) || 'Unknown';
 
-    // Unsigned contracts (contracts issued but not signed)
-    if (p.contracts_issued_date && !p.signed_contracts_date && !p.counter_signed_date) {
+    // Unsigned contracts (contracts issued but not signed) — skip if status already shows signed/sold
+    const alreadySigned = p.status === 'signed' || p.status === 'sold' || p.signed_contracts_date || p.counter_signed_date;
+    if (p.contracts_issued_date && !alreadySigned) {
       const issuedDate = new Date(p.contracts_issued_date);
       const daysSinceIssued = Math.floor((now.getTime() - issuedDate.getTime()) / 86400000);
       const priority = daysSinceIssued > 14 ? 'high' : daysSinceIssued > 7 ? 'medium' : 'low';

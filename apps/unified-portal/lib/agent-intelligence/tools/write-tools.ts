@@ -331,7 +331,7 @@ export async function generateDeveloperReport(
     // Get pipeline data
     const { data: pipeline } = await supabase
       .from('unit_sales_pipeline')
-      .select('unit_id, purchaser_name, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, kitchen_selected')
+      .select('unit_id, status, purchaser_name, sale_price, handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, sale_agreed_date, kitchen_selected')
       .eq('tenant_id', tenantId)
       .eq('development_id', dev.id);
 
@@ -341,15 +341,16 @@ export async function generateDeveloperReport(
       .eq('tenant_id', tenantId)
       .eq('development_id', dev.id);
 
-    // Count statuses
+    // Count statuses — use status column as primary source, fall back to dates
     const statusCounts: Record<string, number> = { sold: 0, contracts_signed: 0, contracts_issued: 0, sale_agreed: 0, available: 0 };
     const now = new Date();
 
     for (const p of pipeline || []) {
-      if (p.handover_date && new Date(p.handover_date) <= now) statusCounts.sold++;
-      else if (p.counter_signed_date || p.signed_contracts_date) statusCounts.contracts_signed++;
-      else if (p.contracts_issued_date) statusCounts.contracts_issued++;
-      else if (p.sale_agreed_date) statusCounts.sale_agreed++;
+      const dbStatus = p.status;
+      if (dbStatus === 'sold' || (p.handover_date && new Date(p.handover_date) <= now)) statusCounts.sold++;
+      else if (dbStatus === 'signed' || p.counter_signed_date || p.signed_contracts_date) statusCounts.contracts_signed++;
+      else if (dbStatus === 'contracts_issued' || p.contracts_issued_date) statusCounts.contracts_issued++;
+      else if (dbStatus === 'sale_agreed' || p.sale_agreed_date) statusCounts.sale_agreed++;
       else statusCounts.available++;
     }
 
@@ -367,9 +368,9 @@ export async function generateDeveloperReport(
       .order('created_at', { ascending: false })
       .limit(5);
 
-    // Outstanding items
+    // Outstanding items — only flag unsigned if status doesn't already show signed/sold
     const unsignedContracts = (pipeline || []).filter(
-      (p: any) => p.contracts_issued_date && !p.signed_contracts_date && !p.counter_signed_date
+      (p: any) => p.contracts_issued_date && p.status !== 'signed' && p.status !== 'sold' && !p.signed_contracts_date && !p.counter_signed_date
     ).length;
 
     const pendingSelections = (pipeline || []).filter(
