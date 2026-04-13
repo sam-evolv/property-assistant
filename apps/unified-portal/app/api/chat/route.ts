@@ -3504,9 +3504,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     const shouldOverrideForLiability = isDimensionQuestion && drawing && drawing.drawingType === 'room_sizes';
     const isDimensionQuestionWithNoDrawing = isDimensionQuestion && !drawing;
 
-    // FLOOR PLAN ATTACHMENTS: For dimension questions, fetch all floor plan documents
+    // FLOOR PLAN ATTACHMENTS: For dimension/floor plan questions, fetch all floor plan documents
+    const floorPlanKeywords = ['floor plan', 'drawing', 'room size', 'living room', 'bedroom', 'kitchen', 'bathroom', 'hall', 'dimension', 'size', 'layout', 'elevation', 'section', 'how big'];
+    const isFloorPlanQuestion = floorPlanKeywords.some(k => message.toLowerCase().includes(k));
+
     let floorPlanAttachments: FloorPlanAttachment[] = [];
-    if (isDimensionQuestion && effectiveUnitUid) {
+    if ((isDimensionQuestion || isFloorPlanQuestion) && effectiveUnitUid) {
       try {
         const fpResult = await findFloorPlanDocuments(
           effectiveUnitUid,
@@ -3518,6 +3521,127 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         }
       } catch (_fpErr) {
         // Floor plan lookup failed — continue without attachments
+      }
+
+      // Fallback: direct document_sections query when findFloorPlanDocuments returns nothing
+      if (floorPlanAttachments.length === 0 && userHouseTypeCode && userSupabaseProjectId) {
+        try {
+          const fbSupabase = getSupabaseClient();
+          const { data: drawingDocs } = await fbSupabase
+            .from('document_sections')
+            .select('id, metadata')
+            .eq('project_id', userSupabaseProjectId)
+            .filter('metadata->>house_type_code', 'eq', userHouseTypeCode)
+            .limit(50);
+
+          if (drawingDocs && drawingDocs.length > 0) {
+            const uniqueDrawings = new Map<string, any>();
+            for (const section of drawingDocs) {
+              const metadata = section.metadata as any;
+              const key = metadata.file_name;
+              if (key && !uniqueDrawings.has(key)) {
+                uniqueDrawings.set(key, metadata);
+              }
+            }
+
+            for (const [key, doc] of Array.from(uniqueDrawings.entries())) {
+              const fileUrl = doc.file_url || '';
+              let signedUrl = fileUrl;
+              let downloadUrl = fileUrl;
+
+              if (fileUrl.includes('development_docs')) {
+                try {
+                  const storagePath = fileUrl.split('/development_docs/').pop() || '';
+                  if (storagePath) {
+                    const { data: signedData } = await fbSupabase.storage
+                      .from('development_docs')
+                      .createSignedUrl(storagePath, 3600);
+                    if (signedData?.signedUrl) signedUrl = signedData.signedUrl;
+
+                    const { data: downloadData } = await fbSupabase.storage
+                      .from('development_docs')
+                      .createSignedUrl(storagePath, 3600, { download: true });
+                    if (downloadData?.signedUrl) downloadUrl = downloadData.signedUrl;
+                  }
+                } catch {
+                  // signed URL creation failed — fall back to raw file URL
+                }
+              }
+
+              floorPlanAttachments.push({
+                id: doc.file_name || key,
+                title: doc.title || doc.file_name || 'Floor Plan',
+                fileName: doc.file_name || key,
+                fileUrl,
+                signedUrl,
+                downloadUrl,
+                discipline: doc.discipline || 'architectural',
+                docType: doc.drawing_type || 'floor_plan',
+                houseTypeCode: doc.house_type_code || null,
+              });
+            }
+          }
+
+          // Second fallback: search by filename containing house type code
+          if (floorPlanAttachments.length === 0) {
+            const { data: filenameDocs } = await fbSupabase
+              .from('document_sections')
+              .select('id, metadata')
+              .eq('project_id', userSupabaseProjectId)
+              .filter('metadata->>file_name', 'ilike', `%${userHouseTypeCode}%`)
+              .limit(50);
+
+            if (filenameDocs && filenameDocs.length > 0) {
+              const uniqueDrawings = new Map<string, any>();
+              for (const section of filenameDocs) {
+                const metadata = section.metadata as any;
+                const key = metadata.file_name;
+                if (key && !uniqueDrawings.has(key)) {
+                  uniqueDrawings.set(key, metadata);
+                }
+              }
+
+              for (const [key, doc] of Array.from(uniqueDrawings.entries())) {
+                const fileUrl = doc.file_url || '';
+                let signedUrl = fileUrl;
+                let downloadUrl = fileUrl;
+
+                if (fileUrl.includes('development_docs')) {
+                  try {
+                    const storagePath = fileUrl.split('/development_docs/').pop() || '';
+                    if (storagePath) {
+                      const { data: signedData } = await fbSupabase.storage
+                        .from('development_docs')
+                        .createSignedUrl(storagePath, 3600);
+                      if (signedData?.signedUrl) signedUrl = signedData.signedUrl;
+
+                      const { data: downloadData } = await fbSupabase.storage
+                        .from('development_docs')
+                        .createSignedUrl(storagePath, 3600, { download: true });
+                      if (downloadData?.signedUrl) downloadUrl = downloadData.signedUrl;
+                    }
+                  } catch {
+                    // signed URL creation failed — fall back to raw file URL
+                  }
+                }
+
+                floorPlanAttachments.push({
+                  id: doc.file_name || key,
+                  title: doc.title || doc.file_name || 'Floor Plan',
+                  fileName: doc.file_name || key,
+                  fileUrl,
+                  signedUrl,
+                  downloadUrl,
+                  discipline: doc.discipline || 'architectural',
+                  docType: doc.drawing_type || 'floor_plan',
+                  houseTypeCode: doc.house_type_code || null,
+                });
+              }
+            }
+          }
+        } catch (_fbErr) {
+          // Fallback query failed — continue without attachments
+        }
       }
     }
 
