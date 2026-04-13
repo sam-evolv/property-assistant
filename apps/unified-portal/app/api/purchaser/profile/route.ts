@@ -115,6 +115,7 @@ export async function GET(request: NextRequest) {
 
     // Prefer the direct house_type_code column; fall back to unit_types.name for display name only
     let houseTypeCode = (supabaseUnit.house_type_code as string | null) || '';
+    console.log(`[profile] houseTypeCode="${houseTypeCode}" unitId="${unitUid}"`);
     let houseTypeName = houseTypeCode;
     let bedrooms: number | null = null;
     let bathrooms: number | null = null;
@@ -175,10 +176,10 @@ export async function GET(request: NextRequest) {
           const isDrawing = sectionDiscipline === 'architectural' ||
                             source.toLowerCase().includes('281-mhl');
 
-          if (isDrawing) {
+          if (isDrawing && unitHouseCodeLower) {
             // Drawing must match the homeowner's house_type_code exactly — fail closed
             const docHouseCodeLower = ((meta.house_type_code as string | undefined) || '').toLowerCase().trim();
-            if (!unitHouseCodeLower || !docHouseCodeLower || docHouseCodeLower !== unitHouseCodeLower) {
+            if (!docHouseCodeLower || docHouseCodeLower !== unitHouseCodeLower) {
               continue;
             }
           }

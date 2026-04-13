@@ -2695,6 +2695,37 @@ export async function POST(request: NextRequest) {
       // Keyword search failed — continue with vector results only
     }
 
+    // SUPPLEMENTAL FLOOR PLAN SEARCH: When user asks about floor plans and we know their house type,
+    // explicitly fetch architectural chunks for their house type so they always surface regardless of
+    // vector similarity (coded drawing filenames like "2R1-MHL-BS08-ZZ-DR-A-0040" are semantically
+    // distant from "can you give me the floor plans").
+    const isFloorPlanMessage = /\b(floor\s*plan|drawing|layout|elevation|section)\b/i.test(message);
+    if (isFloorPlanMessage && userHouseTypeCode && userSupabaseProjectId) {
+      try {
+        const existingIds = new Set(allChunks.map(c => c.id));
+        const supabase = getSupabaseClient();
+        const { data: drawingChunks } = await supabase
+          .from('document_sections')
+          .select('id, content, metadata')
+          .eq('project_id', userSupabaseProjectId)
+          .filter('metadata->>house_type_code', 'eq', userHouseTypeCode)
+          .limit(20);
+        if (drawingChunks) {
+          for (const dc of drawingChunks) {
+            if (!existingIds.has(dc.id)) {
+              allChunks.push({
+                ...dc,
+                _pgvector_similarity: null,
+              } as DocumentChunk);
+              existingIds.add(dc.id);
+            }
+          }
+        }
+      } catch (_fpSearchErr) {
+        // Floor plan search failed — continue with existing chunks
+      }
+    }
+
     // Calculate similarity scores for ALL chunks
     let chunks: DocumentChunk[] = [];
     if (allChunks && allChunks.length > 0) {
@@ -2929,7 +2960,9 @@ export async function POST(request: NextRequest) {
       systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
 
 ${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
-
+${userHouseTypeCode ? `
+HOME TYPE: Your home is house type ${userHouseTypeCode}. Your floor plans and architectural drawings are available in the Documents tab. When asked about floor plans, tell the homeowner their ${userHouseTypeCode} drawings are in the Docs tab and describe what's there: ground and first floor plans, elevations, sections, and house pad.
+` : ''}
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}TONE & FORMAT:
 - Warm and helpful, like a knowledgeable neighbour — match the homeowner's energy
 - Lead with the answer, supporting context after
