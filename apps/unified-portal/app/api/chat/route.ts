@@ -682,6 +682,53 @@ function getOpenAIClient() {
   });
 }
 
+// Fetch BER rating from intel profiles (silent fallback on error)
+async function fetchBerRating(
+  tenantId: string,
+  developmentId: string,
+  houseTypeCode: string | null
+): Promise<string | null> {
+  if (!houseTypeCode) return null;
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT ber_rating FROM unit_intelligence_profiles
+      WHERE tenant_id = ${tenantId}::uuid
+        AND development_id = ${developmentId}::uuid
+        AND house_type_code = ${houseTypeCode}
+        AND is_current = true
+        AND ber_rating IS NOT NULL
+      LIMIT 1
+    `);
+    return (rows[0] as { ber_rating: string } | undefined)?.ber_rating || null;
+  } catch {
+    return null;
+  }
+}
+
+// Fetch key dates from unit sales pipeline (silent fallback on error)
+async function fetchKeyDates(unitId: string | null): Promise<{ snagDate: string | null; handoverDate: string | null }> {
+  if (!unitId) return { snagDate: null, handoverDate: null };
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT snag_date, handover_date FROM unit_sales_pipeline
+      WHERE unit_id = ${unitId}::uuid
+      LIMIT 1
+    `);
+    const row = rows[0] as { snag_date: Date | string | null; handover_date: Date | string | null } | undefined;
+    const formatDate = (d: Date | string | null) => {
+      if (!d) return null;
+      const date = typeof d === 'string' ? new Date(d) : d;
+      return date.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+    };
+    return {
+      snagDate: formatDate(row?.snag_date || null),
+      handoverDate: formatDate(row?.handover_date || null),
+    };
+  } catch {
+    return { snagDate: null, handoverDate: null };
+  }
+}
+
 // MULTILINGUAL SUPPORT: Translate non-English queries to English for better RAG retrieval
 // Documents are embedded in English, so queries should be in English for best semantic match
 async function translateQueryToEnglish(query: string, sourceLanguage: string): Promise<string> {
@@ -2547,7 +2594,13 @@ export async function POST(request: NextRequest) {
     // Use effective unit UID (validated token OR client-provided) as user identifier for session isolation
     // This ensures conversation continuity even when QR token validation fails but client unit UID exists
     const conversationUserId = effectiveUnitUid || userId || '';
-    const conversationHistory = await loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId);
+    const [conversationHistory, berRating, keyDates] = await Promise.all([
+      loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId),
+      fetchBerRating(userTenantId, userDevelopmentId, userHouseTypeCode),
+      fetchKeyDates(actualUnitId),
+    ]);
+    const unitSnagDate = keyDates.snagDate;
+    const unitHandoverDate = keyDates.handoverDate;
     
     // Check if this is a follow-up question that needs context expansion
     const needsContext = isFollowUpQuestion(message) && conversationHistory.length > 0;
@@ -2856,6 +2909,28 @@ export async function POST(request: NextRequest) {
     }
 
     // STEP 3: Build System Message with relevant context only
+
+    // Build structured homeowner context for system prompt injection
+    const homeownerName = userUnitDetails.unitInfo?.purchaser_name || null;
+    const unitFloorAreaSqm = userUnitDetails.unitInfo?.floor_area_sqm || null;
+    const unitBedroomsCount = userUnitDetails.unitInfo?.bedrooms || null;
+    const unitBathroomsCount = userUnitDetails.unitInfo?.bathrooms || null;
+
+    const homeContextLines: string[] = [];
+    if (userUnitDetails.address) homeContextLines.push(`Address: ${userUnitDetails.address}`);
+    if (developmentName) homeContextLines.push(`Development: ${developmentName}`);
+    if (userHouseTypeCode) homeContextLines.push(`House type: ${userHouseTypeCode}`);
+    if (unitBedroomsCount) homeContextLines.push(`Bedrooms: ${unitBedroomsCount}`);
+    if (unitBathroomsCount) homeContextLines.push(`Bathrooms: ${unitBathroomsCount}`);
+    if (unitFloorAreaSqm) homeContextLines.push(`Total floor area: approx. ${unitFloorAreaSqm} m²`);
+    if (berRating) homeContextLines.push(`BER rating: ${berRating}`);
+    if (unitHandoverDate) homeContextLines.push(`Handover date: ${unitHandoverDate}`);
+    if (unitSnagDate) homeContextLines.push(`Snag date: ${unitSnagDate}`);
+
+    const homeContextBlock = homeContextLines.length > 0
+      ? `YOUR HOME:\n${homeContextLines.map(l => `- ${l}`).join('\n')}\n\n`
+      : '';
+
     let systemMessage: string;
     
     // Check if this is the first message ever for this user (for greeting logic)
@@ -2926,18 +3001,21 @@ export async function POST(request: NextRequest) {
 
       const sources = Array.from(new Set(chunks.map((c) => (c.metadata?.file_name || c.metadata?.source || 'Document') as string)));
 
-      systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      systemMessage = `You are the home assistant for ${homeownerName ? `${homeownerName}'s home` : 'this home'} at ${developmentName || 'this development'}. You help homeowners with questions about their specific property, the wider development, and the local area.
 
-${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
+${homeContextBlock}${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
 
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}TONE & FORMAT:
-- Warm and helpful, like a knowledgeable neighbour — match the homeowner's energy
-- Lead with the answer, supporting context after
-- Irish/UK English: colour, centre, realise; natural phrases (no bother, grand, cheers) are fine when they fit
+- Warm and knowledgeable, like a helpful neighbour who knows the house inside out
+- Lead with the answer, supporting detail after
+- Irish/UK English: colour, centre, realise, storey
+- Never start with "That's a great question" or similar openers
 - Never use filler phrases like "feel free to ask", "don't hesitate to reach out", or "I hope this helps"
 - Plain text only — no markdown (#, *, _, >, backticks). Section labels use a colon: "Heating:" not "**Heating:**"
 - Lists use dashes or numbers. Natural paragraph breaks for structure.
-- If asked about room sizes, give the actual dimensions (width x length) from the reference data, not just area.
+- Room sizes: when asked, give width × length from the YOUR HOME data or reference data, then mention the floor plan. Never just give area — give the actual dimensions.
+- BER rating: if the BER rating is listed in YOUR HOME above, state it directly. Never just say "check your BER certificate" when you know the value.
+- Missing data: if a specific detail is not in your data, say "I don't have that specific detail for your property — worth checking with the developer directly." Never invent property-specific facts.
 
 ${getFollowUpInstruction()}
 
@@ -2982,7 +3060,7 @@ ROOM DIMENSIONS:
 - If no dimensions are in the reference data, say: "I've popped the floor plan below — that'll have the accurate dimensions."
 
 GDPR — PRIVACY (LEGAL REQUIREMENT):
-- Only discuss the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
+- Only discuss ${homeownerName ? `${homeownerName}'s` : 'the logged-in homeowner\'s'} own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
 - Never provide information about other residents, units, or neighbours
 - If asked about another unit: "I can only provide information about your own home or general development information. For privacy reasons under GDPR, I can't share details about other residents."
 - Allowed: development/estate info, community amenities, shared facilities, local area
@@ -3044,9 +3122,11 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         hasDrawings: false,
         isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
       });
-      systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      systemMessage = `You are the home assistant for ${homeownerName ? `${homeownerName}'s home` : 'this home'} at ${developmentName || 'this development'}. You help homeowners with questions about their specific property, the wider development, and the local area.
 
-${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}NO REFERENCE DATA: You don't have documents that answer this specific question. Acknowledge this honestly and conversationally — don't be robotic. Never invent, guess, or infer any property-specific facts.
+${homeContextBlock}${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}NO REFERENCE DATA: You don't have documents that answer this specific question. Use the YOUR HOME data above to answer factual questions about the property if relevant. For anything else, acknowledge the gap honestly — don't be robotic. Never invent, guess, or infer property-specific facts not in YOUR HOME above.
+- BER rating: if listed in YOUR HOME above, state it directly. Never just say "check your BER certificate" when you know the value.
+- Missing data: say "I don't have that specific detail for your property — worth checking with the developer directly."
 
 NEARBY AMENITIES — STRICT:
 - NEVER invent or name specific businesses, shops, cafes, pubs, restaurants, or venues
@@ -3072,7 +3152,7 @@ SAFETY RULES — MANDATORY:
 - If immediate danger (gas smell, burning, electrical arcing, major leak, structural movement): instruct to call 999 or 112 immediately
 
 GDPR — PRIVACY (LEGAL REQUIREMENT):
-- Only discuss the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
+- Only discuss ${homeownerName ? `${homeownerName}'s` : 'the logged-in homeowner\'s'} own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
 - Never provide information about other residents, units, or neighbours
 - If asked about another unit: "I can only provide information about your own home or general development information. For privacy reasons under GDPR, I can't share details about other residents."
 - Allowed: development/estate info, community amenities, shared facilities, local area

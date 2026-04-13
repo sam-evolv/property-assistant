@@ -19,6 +19,7 @@ export interface UnitInfo {
   purchaser_name?: string;
   bedrooms?: number | null;
   bathrooms?: number | null;
+  floor_area_sqm?: number | null;
   development_name?: string;
 }
 
@@ -97,6 +98,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
     const specJson = unitType?.specification_json || {};
     const bedrooms = specJson.bedrooms ? parseInt(specJson.bedrooms) || null : null;
     const bathrooms = specJson.bathrooms ? parseInt(specJson.bathrooms) || null : null;
+    const floorAreaSqm = specJson.floor_area_sqm ? parseFloat(String(specJson.floor_area_sqm)) || null : null;
 
     return {
       id: supabaseUnit.id,
@@ -108,6 +110,7 @@ export async function getUnitInfo(unitUid: string): Promise<UnitInfo | null> {
       purchaser_name: supabaseUnit.purchaser_name,
       bedrooms,
       bathrooms,
+      floor_area_sqm: floorAreaSqm,
       development_name: developmentName || undefined,
     };
   } catch (err) {
