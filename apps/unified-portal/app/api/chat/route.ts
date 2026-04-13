@@ -2886,6 +2886,32 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ROOM DIMENSIONS ALL: Fetch complete room dimension list for this house type
+    // Injected into system prompt so the LLM can answer any room-size question with exact figures
+    let allRoomDimensions: { room_name: string; width_m: number | null; length_m: number | null; area_sqm: number | null; floor: number | null }[] | null = null;
+    if (actualUnitId && userDevelopmentId) {
+      try {
+        const rdSupabase = getSupabaseClient();
+        const { data: unitRow } = await rdSupabase
+          .from('units')
+          .select('unit_type_id')
+          .eq('id', actualUnitId)
+          .single();
+
+        if (unitRow?.unit_type_id) {
+          const { data: roomDimensions } = await rdSupabase
+            .from('unit_room_dimensions')
+            .select('room_name, width_m, length_m, area_sqm, floor')
+            .eq('development_id', userDevelopmentId)
+            .eq('house_type_id', unitRow.unit_type_id)
+            .order('floor', { ascending: true });
+          allRoomDimensions = roomDimensions;
+        }
+      } catch (_rdErr) {
+        // Room dimensions query failed — continue without
+      }
+    }
+
     // STEP 3: Build System Message with relevant context only
     let systemMessage: string;
     
@@ -3014,12 +3040,27 @@ ROOM DIMENSIONS:
 - Always add a disclaimer that these are approximate and the official floor plan has exact measurements
 - If no dimensions are in the reference data, say: "I've popped the floor plan below — that'll have the accurate dimensions."
 
+FLOOR PLANS RULE: Whenever a homeowner asks about room sizes, dimensions, layouts, or floor plans, ALWAYS end your response by telling them: "Your ${userHouseTypeCode || 'home'} floor plans are available in the Documents tab — ground floor plan, first floor plan, elevations, sections, and house pad drawing are all there for reference."
+
+This applies whether or not you have the exact dimensions. Always point them to the floor plans.
+
 GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Only discuss the logged-in homeowner's own unit${userUnitDetails.address ? ` (${userUnitDetails.address})` : ''}
 - Never provide information about other residents, units, or neighbours
 - If asked about another unit: "I can only provide information about your own home or general development information. For privacy reasons under GDPR, I can't share details about other residents."
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties`;
+
+      // ROOM DIMENSIONS ALL: Inject complete room dimension list for this house type
+      if (allRoomDimensions !== null && allRoomDimensions.length > 0) {
+        const houseTypeLabel = userHouseTypeCode || 'your home';
+        const dimList = allRoomDimensions
+          .map(r => `- ${r.room_name}: ${r.width_m}m × ${r.length_m}m (${r.area_sqm}sqm)`)
+          .join('\n');
+        systemMessage = systemMessage + `\n\nROOM DIMENSIONS FOR YOUR HOME (House Type ${houseTypeLabel}):\n${dimList}\n\nWhen asked about room sizes, give the exact dimensions above as width × length.`;
+      } else if (allRoomDimensions !== null && allRoomDimensions.length === 0) {
+        systemMessage = systemMessage + `\n\nRoom dimensions for your specific home have not yet been added to the system. Direct the homeowner to their floor plans in the Documents tab for exact measurements.`;
+      }
 
       // TIER 2 HOME KNOWLEDGE: Inject general factual guidance when relevant to the question
       const homeKnowledgeEntries = getRelevantHomeKnowledge(message);
@@ -3111,6 +3152,10 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties
 
+FLOOR PLANS RULE: Whenever a homeowner asks about room sizes, dimensions, layouts, or floor plans, ALWAYS end your response by telling them: "Your ${userHouseTypeCode || 'home'} floor plans are available in the Documents tab — ground floor plan, first floor plan, elevations, sections, and house pad drawing are all there for reference."
+
+This applies whether or not you have the exact dimensions. Always point them to the floor plans.
+
 SMART FALLBACK GUIDANCE — When You Don't Have Documents:
 Be specific and helpful — don't just say "I don't have that." Based on what the homeowner is asking:
 - Snagging / defects / repairs: "You can report this to your developer via the Documents tab or by contacting them directly. If your home is within the first 12 months, most defects are covered."
@@ -3120,6 +3165,17 @@ Be specific and helpful — don't just say "I don't have that." Based on what th
 - Planning / building regulations: "Refer to your local council or contact your developer. Your architect's cert in the Documents tab may be relevant."
 - If you genuinely cannot help: Acknowledge the gap clearly, name the specific person/resource they should contact, and offer to help with what you do know about their home.
 Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not sure" as a complete answer — provide a specific redirect.`;
+
+      // ROOM DIMENSIONS ALL: Inject complete room dimension list for this house type (no docs path)
+      if (allRoomDimensions !== null && allRoomDimensions.length > 0) {
+        const houseTypeLabelNoDocs = userHouseTypeCode || 'your home';
+        const dimListNoDocs = allRoomDimensions
+          .map(r => `- ${r.room_name}: ${r.width_m}m × ${r.length_m}m (${r.area_sqm}sqm)`)
+          .join('\n');
+        systemMessage = systemMessage + `\n\nROOM DIMENSIONS FOR YOUR HOME (House Type ${houseTypeLabelNoDocs}):\n${dimListNoDocs}\n\nWhen asked about room sizes, give the exact dimensions above as width × length.`;
+      } else if (allRoomDimensions !== null && allRoomDimensions.length === 0) {
+        systemMessage = systemMessage + `\n\nRoom dimensions for your specific home have not yet been added to the system. Direct the homeowner to their floor plans in the Documents tab for exact measurements.`;
+      }
 
       // TIER 2 HOME KNOWLEDGE: Inject even when no scheme docs — this is general guidance
       const homeKnowledgeEntriesNoDocs = getRelevantHomeKnowledge(message);
