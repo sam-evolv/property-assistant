@@ -3871,7 +3871,40 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         },
         request_id: requestId,
       });
-      
+
+      // FLOOR PLAN DOCUMENTS: Attach architectural documents for floor plan related questions
+      const floorPlanTriggers = ['floor plan','room size','living room','bedroom','kitchen','bathroom','hall','dimension','size','layout','elevation','section','how big','drawing'];
+      const isFloorPlanQ = floorPlanTriggers.some(k => (message || '').toLowerCase().includes(k));
+
+      let responseDocuments: { id: string; title: string; file_url: string; type: string }[] = [];
+      if (isFloorPlanQ && userHouseTypeCode && userSupabaseProjectId) {
+        const fpDocSupabase = getSupabaseClient();
+        const { data: archDocs } = await fpDocSupabase
+          .from('document_sections')
+          .select('id, metadata')
+          .eq('project_id', userSupabaseProjectId)
+          .eq('metadata->>discipline', 'architectural')
+          .eq('metadata->>house_type_code', userHouseTypeCode);
+
+        if (archDocs) {
+          const seen = new Map<string, { id: string; title: string; file_url: string; type: string }>();
+          for (const doc of archDocs) {
+            const meta = doc.metadata as any;
+            const src = meta?.source;
+            const url = meta?.file_url;
+            if (src && url && !seen.has(src)) {
+              seen.set(src, {
+                id: doc.id,
+                title: src.replace(/-/g,' ').replace(/\.[^.]+$/,''),
+                file_url: url,
+                type: 'floor_plan'
+              });
+            }
+          }
+          responseDocuments = Array.from(seen.values());
+        }
+      }
+
       return NextResponse.json({
         success: true,
         answer: fullAnswer,
@@ -3879,6 +3912,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
         chunksUsed: chunks?.length || 0,
         safetyIntercept: false,
         suggested_questions: generateFollowUpQuestions(activeIntentKey || 'documents', message),
+        documents: responseDocuments,
       });
     }
 
@@ -4014,12 +4048,46 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           const berKeywords = /\b(ber|building energy rating|energy rating|energy certificate|energy label|a1 rated|a2 rated|a3 rated|nzeb|near zero energy)\b/i;
           const warrantyKeywords = /\b(warranty|structural warranty|homebond|premier guarantee|defect|10 year|latent defect|snag(ging)?|builder guarantee)\b/i;
 
+          // FLOOR PLAN DOCUMENTS: Attach architectural documents for floor plan related questions (streaming)
+          const streamFloorPlanTriggers = ['floor plan','room size','living room','bedroom','kitchen','bathroom','hall','dimension','size','layout','elevation','section','how big','drawing'];
+          const streamIsFloorPlanQ = streamFloorPlanTriggers.some(k => (message || '').toLowerCase().includes(k));
+
+          let streamResponseDocuments: { id: string; title: string; file_url: string; type: string }[] = [];
+          if (streamIsFloorPlanQ && userHouseTypeCode && userSupabaseProjectId) {
+            const fpDocSupabase = getSupabaseClient();
+            const { data: archDocs } = await fpDocSupabase
+              .from('document_sections')
+              .select('id, metadata')
+              .eq('project_id', userSupabaseProjectId)
+              .eq('metadata->>discipline', 'architectural')
+              .eq('metadata->>house_type_code', userHouseTypeCode);
+
+            if (archDocs) {
+              const seen = new Map<string, { id: string; title: string; file_url: string; type: string }>();
+              for (const doc of archDocs) {
+                const meta = doc.metadata as any;
+                const src = meta?.source;
+                const url = meta?.file_url;
+                if (src && url && !seen.has(src)) {
+                  seen.set(src, {
+                    id: doc.id,
+                    title: src.replace(/-/g,' ').replace(/\.[^.]+$/,''),
+                    file_url: url,
+                    type: 'floor_plan'
+                  });
+                }
+              }
+              streamResponseDocuments = Array.from(seen.values());
+            }
+          }
+
           const metadata = {
             type: 'metadata',
             source: chunks && chunks.length > 0 ? 'semantic_search' : 'no_documents',
             chunksUsed: chunks?.length || 0,
             sources: sourceDocuments,
             suggested_questions: generateFollowUpQuestions(activeIntentKey || intentClassification?.intent || 'documents', message),
+            documents: streamResponseDocuments,
             drawing: drawing ? {
               fileName: drawing.fileName,
               drawingType: drawing.drawingType,
