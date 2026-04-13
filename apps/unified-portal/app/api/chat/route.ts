@@ -3245,10 +3245,13 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       /\b(what|how)\s+.*(house|home|property)\s*.*(size|dimensions?|big|large)\b/i.test(message);
     
     // Start drawing lookup in parallel with topic extraction
-    const drawingPromise = effectiveUnitUid 
-      ? findDrawingForQuestion(effectiveUnitUid, await questionTopicPromise).catch(err => {
-          return { found: false, drawing: null, explanation: '' };
-        })
+    const drawingPromise = effectiveUnitUid
+      ? findDrawingForQuestion(
+          effectiveUnitUid,
+          await questionTopicPromise,
+          userSupabaseProjectId || undefined,
+          userHouseTypeCode || undefined
+        ).catch(() => ({ found: false, drawing: null, explanation: '' }))
       : Promise.resolve({ found: false, drawing: null, explanation: '' });
 
     const [questionTopic, drawingResult] = await Promise.all([

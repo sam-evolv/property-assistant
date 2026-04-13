@@ -34,10 +34,12 @@ export async function getUnitHouseType(unitId: string): Promise<string | null> {
 
 export async function findDrawingForQuestion(
   unitUid: string,
-  questionTopic: string
+  questionTopic: string,
+  verifiedProjectId?: string,
+  verifiedHouseTypeCode?: string
 ): Promise<DrawingResolverResult> {
   const drawingTypes = getDrawingTypeForQuestion(questionTopic);
-  
+
   if (drawingTypes.length === 0) {
     return {
       found: false,
@@ -45,9 +47,9 @@ export async function findDrawingForQuestion(
       explanation: '',
     };
   }
-  
-  const houseTypeCode = await getUnitHouseType(unitUid);
-  
+
+  const houseTypeCode = verifiedHouseTypeCode || await getUnitHouseType(unitUid);
+
   if (!houseTypeCode) {
     return {
       found: false,
@@ -55,16 +57,18 @@ export async function findDrawingForQuestion(
       explanation: 'Unable to determine your house type.',
     };
   }
-  
+
+  const projectId = verifiedProjectId || PROJECT_ID;
   const supabase = getSupabaseClient();
-  
+
+  // Primary query: filter by explicit house_type_code metadata field
   const { data: sections, error } = await supabase
     .from('document_sections')
     .select('id, metadata')
-    .eq('project_id', PROJECT_ID)
+    .eq('project_id', projectId)
     .filter('metadata->>house_type_code', 'eq', houseTypeCode)
     .limit(50);
-  
+
   if (error) {
     return {
       found: false,
@@ -72,27 +76,41 @@ export async function findDrawingForQuestion(
       explanation: 'Error searching for drawings.',
     };
   }
-  
-  if (!sections || sections.length === 0) {
+
+  let sectionsToSearch = sections || [];
+
+  // Fallback: if no results by metadata house_type_code, search by filename
+  // Handles documents where house_type_code isn't set in metadata (e.g. 'RS-BS08.pdf')
+  if (sectionsToSearch.length === 0) {
+    const { data: filenameSections } = await supabase
+      .from('document_sections')
+      .select('id, metadata')
+      .eq('project_id', projectId)
+      .filter('metadata->>file_name', 'ilike', `%${houseTypeCode}%`)
+      .limit(50);
+    sectionsToSearch = filenameSections || [];
+  }
+
+  if (sectionsToSearch.length === 0) {
     return {
       found: false,
       drawing: null,
       explanation: `No drawings available for your house type (${houseTypeCode}).`,
     };
   }
-  
+
   const uniqueDrawings = new Map<string, any>();
-  for (const section of sections) {
+  for (const section of sectionsToSearch) {
     const metadata = section.metadata as any;
     const key = metadata.file_name;
     if (key && !uniqueDrawings.has(key)) {
       uniqueDrawings.set(key, metadata);
     }
   }
-  
+
   let matchedDrawing: any = null;
   const drawingsList = Array.from(uniqueDrawings.values());
-  
+
   for (const drawingType of drawingTypes) {
     for (const metadata of drawingsList) {
       if (metadata.drawing_type === drawingType) {

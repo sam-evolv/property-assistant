@@ -446,8 +446,11 @@ export async function findFloorPlanDocuments(
       continue;
     }
     
-    const isHouseTypeMatch = normalizedHouseType 
-      ? normalizedDocHouseType === normalizedHouseType 
+    // Match if extracted code equals user's house type, OR if code couldn't be extracted
+    // but the house type appears as a substring in the filename (e.g. 'RS-BS08.pdf')
+    const isHouseTypeMatch = normalizedHouseType
+      ? (normalizedDocHouseType === normalizedHouseType ||
+         (!normalizedDocHouseType && fileName.includes(normalizedHouseType)))
       : true; // When house type unknown, treat all as matching
     
     const docEntry = {
