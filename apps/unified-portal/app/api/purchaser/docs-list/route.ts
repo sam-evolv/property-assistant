@@ -137,12 +137,14 @@ export async function GET(request: NextRequest) {
     }
     
     // STEP 1: Resolve unit's project_id and house_type_code from Supabase
+    // Select house_type_code directly — it is a first-class column on units.
+    // The unit_types(name) join is kept as a fallback only.
     const { data: supabaseUnit, error: unitError } = await supabase
       .from('units')
-      .select('id, project_id, unit_type_id, unit_types(name)')
+      .select('id, project_id, house_type_code, unit_type_id, unit_types(name)')
       .eq('id', unitUid)
       .single();
-    
+
     if (unitError || !supabaseUnit) {
       logAuditEvent({
         requestId,
@@ -153,8 +155,8 @@ export async function GET(request: NextRequest) {
         timestamp,
       });
       return NextResponse.json(
-        { 
-          documents: [], 
+        {
+          documents: [],
           requestId,
           message: 'No documents available for this unit yet'
         }
@@ -162,10 +164,11 @@ export async function GET(request: NextRequest) {
     }
 
     const projectId = supabaseUnit.project_id;
-    const unitType = Array.isArray(supabaseUnit.unit_types) 
-      ? supabaseUnit.unit_types[0] 
+    // Prefer the direct house_type_code column; fall back to unit_types.name if not set
+    const unitType = Array.isArray(supabaseUnit.unit_types)
+      ? supabaseUnit.unit_types[0]
       : supabaseUnit.unit_types;
-    const houseTypeCode = unitType?.name || null;
+    const houseTypeCode = (supabaseUnit.house_type_code as string | null) || unitType?.name || null;
     const normalizedHouseType = (houseTypeCode || '').toLowerCase().trim();
     
     // FAIL CLOSED: If no project_id, return empty (do NOT fallback to a default project)
