@@ -196,7 +196,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        documents.push(...Array.from(uniqueDocs.values()).slice(0, 10));
+        documents.push(...Array.from(uniqueDocs.values()).slice(0, 50));
       }
 
     } catch (_docErr) {
