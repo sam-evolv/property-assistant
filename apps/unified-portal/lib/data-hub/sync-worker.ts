@@ -183,15 +183,29 @@ export async function syncConnection(connectionId: string): Promise<{ filesIndex
                 .limit(1)
 
               if (existing.length === 0) {
+                // Look up the Supabase project_id for this development
+                const { data: unitData } = await supabase
+                  .from('units')
+                  .select('project_id')
+                  .eq('development_id', watchedFolder.development_id)
+                  .limit(1)
+                  .single()
+                const supabaseProjectId: string | null = unitData?.project_id || null
+
                 const discipline = inferDisciplineFromName(file.name)
                 const [newDoc] = await db.insert(documents).values({
                   tenant_id: connection.tenant_id,
                   development_id: watchedFolder.development_id,
+                  project_id: supabaseProjectId,
                   document_type: 'archive',
                   discipline,
                   title: file.name.replace(/\.[^.]+$/, ''),
                   file_name: file.name,
                   original_file_name: file.name,
+                  // relative_path is required NOT NULL; for cloud files use the web URL as a
+                  // marker — the ingest route skips paths starting with 'http' and falls back
+                  // to file_url for the actual download.
+                  relative_path: file.webUrl,
                   file_url: file.webUrl,
                   storage_url: file.webUrl,
                   mime_type: file.mimeType,

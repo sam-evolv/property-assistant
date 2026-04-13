@@ -178,7 +178,9 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
-  const supabaseProjectId = getSupabaseProjectId(doc.development_id || '');
+  // Prefer the project_id stored on the document row (set at upload time).
+  // Fall back to the hardcoded mapping for documents inserted before this column existed.
+  const supabaseProjectId = doc.project_id || getSupabaseProjectId(doc.development_id || '');
 
   try {
     // ── Idempotency: remove any existing sections for this document ───────

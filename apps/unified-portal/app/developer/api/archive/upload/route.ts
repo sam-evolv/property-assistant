@@ -171,6 +171,7 @@ export async function POST(request: NextRequest) {
           const [newDoc] = await db.insert(documents).values({
             tenant_id: tenantId,
             development_id: developmentId,
+            project_id: supabaseProjectId, // Supabase project_id for document_sections queries
             house_type_id: metadata.houseTypeId || null,
             document_type: 'archive',
             discipline,

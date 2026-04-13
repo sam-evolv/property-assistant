@@ -130,6 +130,7 @@ export const documents = pgTable('documents', {
   id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
   tenant_id: uuid('tenant_id').references(() => tenants.id).notNull(),
   development_id: uuid('development_id').references(() => developments.id),
+  project_id: text('project_id'), // Supabase project_id — used as document_sections.project_id
   house_type_id: uuid('house_type_id').references(() => houseTypes.id),
   house_type_code: text('house_type_code'),
   document_type: text('document_type').notNull(),
