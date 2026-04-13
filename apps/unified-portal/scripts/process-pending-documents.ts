@@ -8,7 +8,7 @@
  * Usage:
  *   INGEST_SECRET=openhouse-ingest-2026 \
  *   NEXT_PUBLIC_APP_URL=https://portal.openhouseai.ie \
- *   npx ts-node --project tsconfig.json scripts/process-pending-documents.ts
+ *   npx tsx scripts/process-pending-documents.ts
  *
  * Optional env:
  *   ONLY_FAILED=true   — reprocess only documents with processing_status = 'failed'
@@ -16,9 +16,9 @@
  *   BATCH_DELAY_MS=500 — milliseconds to wait between ingest calls (default 500)
  */
 
-import { db } from '@openhouse/db/client';
+import { db } from '@openhouse/db';
 import { documents } from '@openhouse/db/schema';
-import { or, eq, and, isNotNull } from 'drizzle-orm';
+import { or, eq } from 'drizzle-orm';
 
 const INGEST_SECRET = process.env.INGEST_SECRET;
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
