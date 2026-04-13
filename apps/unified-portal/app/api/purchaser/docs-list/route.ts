@@ -241,20 +241,42 @@ export async function GET(request: NextRequest) {
                                extractHouseTypeFromFilename(source);
       const normalizedDocHouseType = (docHouseTypeCode || '').toLowerCase().trim();
       
+      // Drawings: architectural discipline OR source referencing a drawing set (e.g. 281-MHL project ref)
+      const sectionDiscipline = (metadata.discipline || '').toLowerCase();
+      const isDrawing = sectionDiscipline === 'architectural' ||
+                        source.toLowerCase().includes('281-mhl');
+
       // SECURITY CHECK: Filter by house type
-      // If document has a house_type_code, it MUST match the unit's house type
-      if (docHouseTypeCode && normalizedDocHouseType) {
+      // Drawings must ALWAYS match the homeowner's house_type_code (they are unit-specific).
+      // Non-drawings are only filtered when the document itself carries a house_type_code.
+      if (isDrawing) {
         if (!normalizedHouseType) {
-          // Unit has no house type assigned - cannot safely show house-specific docs
+          // Unit has no house type assigned — cannot safely show any drawings
           filteredOutCount++;
           if (!filteredReasons.includes('unit_missing_house_type')) {
             filteredReasons.push('unit_missing_house_type');
           }
           continue;
         }
-        
+        if (!normalizedDocHouseType || normalizedDocHouseType !== normalizedHouseType) {
+          // Drawing is for a different (or unknown) house type — FILTER OUT
+          filteredOutCount++;
+          const reason = `drawing_house_type_mismatch:${normalizedDocHouseType || 'unknown'}`;
+          if (!filteredReasons.includes(reason)) {
+            filteredReasons.push(reason);
+          }
+          continue;
+        }
+      } else if (docHouseTypeCode && normalizedDocHouseType) {
+        // Non-drawing that carries an explicit house_type_code — enforce match
+        if (!normalizedHouseType) {
+          filteredOutCount++;
+          if (!filteredReasons.includes('unit_missing_house_type')) {
+            filteredReasons.push('unit_missing_house_type');
+          }
+          continue;
+        }
         if (normalizedDocHouseType !== normalizedHouseType) {
-          // Document is for a different house type - FILTER OUT
           filteredOutCount++;
           if (!filteredReasons.includes(`house_type_mismatch:${normalizedDocHouseType}`)) {
             filteredReasons.push(`house_type_mismatch:${normalizedDocHouseType}`);
