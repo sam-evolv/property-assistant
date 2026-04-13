@@ -5,18 +5,45 @@ import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import LoginCard from '../_components/LoginCard';
 import {
-  inputClassName, inputStyle, labelClassName, labelStyle,
-  primaryButtonClassName, primaryButtonStyle, errorStyle,
-  handleInputFocus, handleInputBlur,
+  inputClassName,
+  inputStyle,
+  labelClassName,
+  labelStyle,
+  primaryButtonClassName,
+  primaryButtonStyle,
+  errorStyle,
+  handleInputFocus,
+  handleInputBlur,
 } from '../_components/LoginField';
 
-type Step = 'form' | 'check-email' | 'admin-password';
+type Step = 'code' | 'confirm' | 'signin' | 'admin-password';
+
+interface UnitInfo {
+  unitId: string;
+  address: string;
+  name: string;
+}
 
 export default function HomeownerLogin() {
-  const [step, setStep] = useState<Step>('form');
+  const [step, setStep] = useState<Step>('code');
+
+  // Screen 1 — property code
+  const [propertyCode, setPropertyCode] = useState('');
+
+  // Screen 2 — confirm + register
+  const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [propertyCode, setPropertyCode] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Screen 3 — return sign-in
+  const [siEmail, setSiEmail] = useState('');
+  const [siPassword, setSiPassword] = useState('');
+
+  // Admin screen
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
@@ -26,16 +53,119 @@ export default function HomeownerLogin() {
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
 
+  // ─── Screen 1: Property code lookup ─────────────────────────────────────────
+
+  async function handleCodeSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+
+    const res = await fetch('/api/homeowner/lookup-code', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: propertyCode }),
+    });
+
+    const data = await res.json();
+    setLoading(false);
+
+    if (!res.ok) {
+      setError(data.error || 'Code not found. Check your handover pack.');
+      return;
+    }
+
+    if (data.alreadyRegistered) {
+      // Unit already has an account — send them to the sign-in screen
+      setStep('signin');
+      return;
+    }
+
+    setUnitInfo({ unitId: data.unitId, address: data.address, name: data.name });
+    setStep('confirm');
+  }
+
+  // ─── Screen 2: Confirm address + create account ──────────────────────────────
+
+  async function handleRegister(e: React.FormEvent) {
+    e.preventDefault();
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    const res = await fetch('/api/homeowner/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ unitId: unitInfo!.unitId, email, password }),
+    });
+
+    const data = await res.json();
+    setLoading(false);
+
+    if (!res.ok) {
+      setError(data.error || 'Registration failed. Please try again.');
+      return;
+    }
+
+    if (data.redirect) {
+      router.push(data.redirect);
+    }
+  }
+
+  // ─── Screen 3: Return sign-in ────────────────────────────────────────────────
+
+  async function handleSignIn(e: React.FormEvent) {
+    e.preventDefault();
+    if (!supabase) {
+      setError('Authentication is temporarily unavailable.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    const { data, error: authError } = await supabase.auth.signInWithPassword({
+      email: siEmail.trim().toLowerCase(),
+      password: siPassword,
+    });
+
+    if (authError || !data.session) {
+      setError('Incorrect email or password.');
+      setLoading(false);
+      return;
+    }
+
+    // Look up homeowner context to find their unit
+    const { data: ctx } = await supabase
+      .from('user_contexts')
+      .select('context_id')
+      .eq('product', 'homeowner')
+      .limit(1)
+      .single();
+
+    if (ctx?.context_id) {
+      router.push(`/homes/${ctx.context_id}`);
+    } else {
+      router.push('/homes');
+    }
+  }
+
+  // ─── Admin login (unchanged from previous flow) ──────────────────────────────
+
   async function handleAdminLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
     setLoading(true);
     setError('');
 
-    // Authenticate with password
     const { data, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password,
+      email: adminEmail.trim().toLowerCase(),
+      password: adminPassword,
     });
 
     if (authError || !data.session) {
@@ -44,7 +174,6 @@ export default function HomeownerLogin() {
       return;
     }
 
-    // Verify admin role via server-side API (bypasses RLS)
     const meRes = await fetch('/api/auth/me');
     const meData = meRes.ok ? await meRes.json() : null;
 
@@ -55,156 +184,54 @@ export default function HomeownerLogin() {
       return;
     }
 
-    // Find a unit linked to this admin's email, or fall back to first unit
     const { data: ownUnit } = await supabase
       .from('units')
       .select('id, address_line_1')
-      .eq('purchaser_email', email.trim().toLowerCase())
+      .eq('purchaser_email', adminEmail.trim().toLowerCase())
       .limit(1)
       .single();
 
-    const unit = ownUnit || (await supabase
-      .from('units')
-      .select('id, address_line_1')
-      .limit(1)
-      .single()
-    ).data;
+    const unitFallback = ownUnit
+      ? ownUnit
+      : (await supabase.from('units').select('id, address_line_1').limit(1).single()).data;
 
-    if (unit) {
-      await supabase.from('user_contexts').upsert({
-        auth_user_id: data.session.user.id,
-        product: 'homeowner',
-        context_type: 'unit',
-        context_id: unit.id,
-        display_name: unit.address_line_1 || 'Test Property',
-        display_subtitle: 'Homeowner (Admin Access)',
-        display_icon: 'home',
-        last_active_at: new Date().toISOString(),
-      }, { onConflict: 'auth_user_id,context_type,context_id' });
-
-      router.push(`/homes/${unit.id}`);
+    if (unitFallback) {
+      await supabase.from('user_contexts').upsert(
+        {
+          auth_user_id: data.session.user.id,
+          product: 'homeowner',
+          context_type: 'unit',
+          context_id: unitFallback.id,
+          display_name: unitFallback.address_line_1 || 'Test Property',
+          display_subtitle: 'Homeowner (Admin Access)',
+          display_icon: 'home',
+          last_active_at: new Date().toISOString(),
+        },
+        { onConflict: 'auth_user_id,context_type,context_id' }
+      );
+      router.push(`/homes/${unitFallback.id}`);
     } else {
       router.push('/homes');
     }
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!supabase) {
-      setError('Authentication is temporarily unavailable.');
-      return;
-    }
-    setLoading(true);
-    setError('');
-
-    // First, try to sign in with password to check if admin
-    // This is a quick check — if they have a password-based account, they're likely an admin
-    const { data: authCheck } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password: '__admin_check__', // intentionally wrong — we just want to see if the account exists with password auth
-    });
-
-    // If they somehow got in (shouldn't with wrong password), sign out
-    if (authCheck?.session) {
-      await supabase.auth.signOut();
-    }
-
-    // Check via a server endpoint if this email is an admin
-    // We use the login API to check — but we don't want to actually log in
-    // Instead, just try the admins table approach but through a different method
-    // Simplest: just show the admin password step if the property code field is empty
-    // and the email matches a known admin pattern
-
-    // Actually, the simplest reliable approach: attempt login, check /api/auth/me
-    // But we can't do that without a real password. So let's use a different strategy:
-    // Check if the email has a password-based account by attempting sign-in
-    // Supabase returns a specific error for "Invalid login credentials" vs "User not found"
-
-    // Clean approach: just proceed with normal flow. If property code is provided, use magic link.
-    // If property code is empty but email is provided, check if they're admin by trying login API
-
-    // For the form step, just do the standard homeowner flow
-    // 1. Verify property code exists
-    const { data: unit, error: unitError } = await supabase
-      .from('units')
-      .select('id, address_line_1, unit_code')
-      .eq('unit_code', propertyCode.toUpperCase().trim())
-      .single();
-
-    if (unitError || !unit) {
-      setError("Property code not found. Check your welcome pack or contact your developer.");
-      setLoading(false);
-      return;
-    }
-
-    // 2. Send magic link
-    const redirectTo = `${window.location.origin}/auth/callback?context=homeowner&unit_id=${unit.id}`;
-
-    const { error: otpError } = await supabase.auth.signInWithOtp({
-      email: email.trim().toLowerCase(),
-      options: {
-        emailRedirectTo: redirectTo,
-        data: { product: 'homeowner', unit_id: unit.id },
-      },
-    });
-
-    if (otpError) {
-      setError("Couldn't send the link. Please try again.");
-      setLoading(false);
-      return;
-    }
-
-    setStep('check-email');
-    setLoading(false);
-  }
-
-  if (step === 'check-email') {
-    return (
-      <LoginCard title="Check your email" subtitle={`We've sent a link to ${email}`} showBack={false}>
-        <div className="text-center py-2 pb-4">
-          <div style={{ fontSize: 48, marginBottom: 20 }}>&#x1F4EC;</div>
-          <p className="text-sm mb-7" style={{ color: 'rgba(255,255,255,0.5)', lineHeight: 1.6 }}>
-            Tap the link in your email to access your property portal. The link expires in 1 hour.
-          </p>
-          <button
-            onClick={() => setStep('form')}
-            className="text-sm transition-colors"
-            style={{ background: 'none', border: 'none', color: '#b8934c', cursor: 'pointer', fontFamily: 'inherit' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
-          >
-            &larr; Try a different email
-          </button>
-        </div>
-      </LoginCard>
-    );
-  }
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   if (step === 'admin-password') {
     return (
       <LoginCard title="Welcome Home" subtitle="Admin access — enter your password">
         <form onSubmit={handleAdminLogin} className="space-y-5">
           <div>
-            <label htmlFor="ho-email-admin" className={labelClassName} style={labelStyle}>Email Address</label>
+            <label htmlFor="admin-email" className={labelClassName} style={labelStyle}>
+              Email Address
+            </label>
             <input
-              id="ho-email-admin"
+              id="admin-email"
               type="email"
-              value={email}
-              disabled
-              className={inputClassName}
-              style={{ ...inputStyle, opacity: 0.6 }}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="ho-password" className={labelClassName} style={labelStyle}>Password</label>
-            <input
-              id="ho-password"
-              type="password"
               required
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Enter your password"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              placeholder="you@example.com"
               className={inputClassName}
               style={inputStyle}
               onFocus={handleInputFocus}
@@ -213,9 +240,35 @@ export default function HomeownerLogin() {
             />
           </div>
 
+          <div>
+            <label htmlFor="admin-password" className={labelClassName} style={labelStyle}>
+              Password
+            </label>
+            <input
+              id="admin-password"
+              type="password"
+              required
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              placeholder="Enter your password"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+            />
+          </div>
+
           {error && (
-            <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(185, 28, 28, 0.3)' }}>
-              <p className="text-sm" style={errorStyle}>{error}</p>
+            <div
+              className="rounded-xl p-4"
+              style={{
+                backgroundColor: 'rgba(127, 29, 29, 0.2)',
+                border: '1px solid rgba(185, 28, 28, 0.3)',
+              }}
+            >
+              <p className="text-sm" style={errorStyle}>
+                {error}
+              </p>
             </div>
           )}
 
@@ -223,16 +276,32 @@ export default function HomeownerLogin() {
             type="submit"
             disabled={loading}
             className={primaryButtonClassName}
-            style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+            style={{
+              ...primaryButtonStyle,
+              marginTop: 8,
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
 
           <button
             type="button"
-            onClick={() => { setStep('form'); setError(''); setPassword(''); }}
+            onClick={() => {
+              setStep('code');
+              setError('');
+              setAdminEmail('');
+              setAdminPassword('');
+            }}
             className="text-center text-sm w-full transition-colors"
-            style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+            style={{
+              color: '#6b7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
           >
             &larr; Back
           </button>
@@ -241,65 +310,341 @@ export default function HomeownerLogin() {
     );
   }
 
-  return (
-    <LoginCard title="Welcome Home" subtitle="Access your property information">
-      <form onSubmit={handleSubmit} className="space-y-5">
-        <div>
-          <label htmlFor="ho-email" className={labelClassName} style={labelStyle}>Your email address</label>
-          <input
-            id="ho-email"
-            type="email"
-            required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            placeholder="you@example.com"
-            className={inputClassName}
-            style={inputStyle}
-            onFocus={handleInputFocus}
-            onBlur={handleInputBlur}
-          />
-        </div>
+  if (step === 'confirm' && unitInfo) {
+    return (
+      <LoginCard
+        title="Is this your home?"
+        subtitle={unitInfo.address || 'Confirm your address below'}
+        showBack={false}
+      >
+        <form onSubmit={handleRegister} className="space-y-5">
+          {unitInfo.name && (
+            <p
+              className="text-center text-sm -mt-4 mb-2"
+              style={{ color: 'rgba(255,255,255,0.4)' }}
+            >
+              {unitInfo.name}
+            </p>
+          )}
 
+          <div>
+            <label htmlFor="reg-email" className={labelClassName} style={labelStyle}>
+              Your email address
+            </label>
+            <input
+              id="reg-email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label htmlFor="reg-password" className={labelClassName} style={labelStyle}>
+              Choose a password
+            </label>
+            <input
+              id="reg-password"
+              type="password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="At least 8 characters"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+            />
+          </div>
+
+          <div>
+            <label htmlFor="reg-confirm" className={labelClassName} style={labelStyle}>
+              Confirm password
+            </label>
+            <input
+              id="reg-confirm"
+              type="password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repeat your password"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+            />
+          </div>
+
+          {error && (
+            <div
+              className="rounded-xl p-4"
+              style={{
+                backgroundColor: 'rgba(127, 29, 29, 0.2)',
+                border: '1px solid rgba(185, 28, 28, 0.3)',
+              }}
+            >
+              <p className="text-sm" style={errorStyle}>
+                {error}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={primaryButtonClassName}
+            style={{
+              ...primaryButtonStyle,
+              marginTop: 8,
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Creating your account...' : 'Create my account'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setStep('code');
+              setError('');
+              setEmail('');
+              setPassword('');
+              setConfirmPassword('');
+            }}
+            className="text-center text-sm w-full transition-colors"
+            style={{
+              color: '#6b7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            &larr; Different code
+          </button>
+        </form>
+      </LoginCard>
+    );
+  }
+
+  if (step === 'signin') {
+    return (
+      <LoginCard title="Welcome back" subtitle="Sign in with your email and password">
+        <form onSubmit={handleSignIn} className="space-y-5">
+          <div>
+            <label htmlFor="si-email" className={labelClassName} style={labelStyle}>
+              Email address
+            </label>
+            <input
+              id="si-email"
+              type="email"
+              required
+              value={siEmail}
+              onChange={(e) => setSiEmail(e.target.value)}
+              placeholder="you@example.com"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label htmlFor="si-password" className={labelClassName} style={labelStyle}>
+              Password
+            </label>
+            <input
+              id="si-password"
+              type="password"
+              required
+              value={siPassword}
+              onChange={(e) => setSiPassword(e.target.value)}
+              placeholder="Your password"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+            />
+          </div>
+
+          {error && (
+            <div
+              className="rounded-xl p-4"
+              style={{
+                backgroundColor: 'rgba(127, 29, 29, 0.2)',
+                border: '1px solid rgba(185, 28, 28, 0.3)',
+              }}
+            >
+              <p className="text-sm" style={errorStyle}>
+                {error}
+              </p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={loading}
+            className={primaryButtonClassName}
+            style={{
+              ...primaryButtonStyle,
+              marginTop: 8,
+              opacity: loading ? 0.6 : 1,
+              cursor: loading ? 'not-allowed' : 'pointer',
+            }}
+          >
+            {loading ? 'Signing in...' : 'Sign in'}
+          </button>
+
+          <div
+            className="text-center mt-4"
+            style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setStep('code');
+                setError('');
+                setSiEmail('');
+                setSiPassword('');
+              }}
+              className="text-sm transition-colors"
+              style={{
+                color: '#6b7280',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = '#a1a1aa')}
+              onMouseLeave={(e) => (e.currentTarget.style.color = '#6b7280')}
+            >
+              First time? Enter your property code
+            </button>
+          </div>
+        </form>
+      </LoginCard>
+    );
+  }
+
+  // ─── Default: Screen 1 — Property code entry ─────────────────────────────────
+
+  return (
+    <LoginCard
+      title="Welcome to your new home"
+      subtitle="Enter the property code from your handover pack"
+    >
+      <form onSubmit={handleCodeSubmit} className="space-y-5">
         <div>
-          <label htmlFor="ho-code" className={labelClassName} style={labelStyle}>Property code</label>
+          <label htmlFor="property-code" className={labelClassName} style={labelStyle}>
+            Property code
+          </label>
           <input
-            id="ho-code"
+            id="property-code"
             type="text"
             required
             value={propertyCode}
-            onChange={e => setPropertyCode(e.target.value.toUpperCase())}
-            placeholder="e.g. OHR-2024-001"
+            onChange={(e) => setPropertyCode(e.target.value.toUpperCase())}
+            placeholder="AV-000-0000"
             className={inputClassName}
-            style={{ ...inputStyle, fontFamily: 'monospace', letterSpacing: '0.1em', textTransform: 'uppercase' as const }}
+            style={{
+              ...inputStyle,
+              fontFamily: 'monospace',
+              letterSpacing: '0.1em',
+              textTransform: 'uppercase',
+              textAlign: 'center',
+              fontSize: '1.1rem',
+            }}
             maxLength={20}
             onFocus={handleInputFocus}
             onBlur={handleInputBlur}
+            autoFocus
+            autoComplete="off"
+            spellCheck={false}
           />
         </div>
 
         {error && (
-          <div className="rounded-xl p-4" style={{ backgroundColor: 'rgba(127, 29, 29, 0.2)', border: '1px solid rgba(185, 28, 28, 0.3)' }}>
-            <p className="text-sm" style={errorStyle}>{error}</p>
+          <div
+            className="rounded-xl p-4"
+            style={{
+              backgroundColor: 'rgba(127, 29, 29, 0.2)',
+              border: '1px solid rgba(185, 28, 28, 0.3)',
+            }}
+          >
+            <p className="text-sm" style={errorStyle}>
+              {error}
+            </p>
           </div>
         )}
 
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || !propertyCode.trim()}
           className={primaryButtonClassName}
-          style={{ ...primaryButtonStyle, marginTop: 8, opacity: loading ? 0.6 : 1, cursor: loading ? 'not-allowed' : 'pointer' }}
+          style={{
+            ...primaryButtonStyle,
+            marginTop: 8,
+            opacity: loading || !propertyCode.trim() ? 0.6 : 1,
+            cursor: loading || !propertyCode.trim() ? 'not-allowed' : 'pointer',
+          }}
         >
           {loading ? 'Checking...' : 'Continue'}
         </button>
 
-        <div className="text-center mt-4" style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}>
+        <div
+          className="text-center mt-4"
+          style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}
+        >
           <button
             type="button"
-            onClick={() => { setStep('admin-password'); setError(''); }}
+            onClick={() => {
+              setStep('signin');
+              setError('');
+              setPropertyCode('');
+            }}
             className="text-sm transition-colors"
-            style={{ color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}
-            onMouseEnter={(e) => e.currentTarget.style.color = '#a1a1aa'}
-            onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
+            style={{
+              color: '#6b7280',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#a1a1aa')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#6b7280')}
+          >
+            Already registered? Sign in
+          </button>
+        </div>
+
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => {
+              setStep('admin-password');
+              setError('');
+            }}
+            className="text-sm transition-colors"
+            style={{
+              color: '#4b5563',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = '#6b7280')}
+            onMouseLeave={(e) => (e.currentTarget.style.color = '#4b5563')}
           >
             Admin / developer? Sign in with password
           </button>

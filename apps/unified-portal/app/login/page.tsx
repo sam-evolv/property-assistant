@@ -13,7 +13,7 @@ const PRODUCTS = [
     ),
     title: 'My Home',
     subtitle: 'Access your new home portal',
-    href: '/purchaser',
+    href: '/login/homeowner',
   },
   {
     id: 'select',
