@@ -151,53 +151,64 @@ export async function GET(request: NextRequest) {
       : (supabaseUnit.address || developmentAddress || 'Address not available');
     
     const documents: { id: string; title: string; file_url: string | null; mime_type: string; category: string }[] = [];
+
     try {
-      const { data: docSections } = await supabase
+      // Query 1: fetch ONLY this homeowner's drawings (architectural + matching house type)
+      const { data: drawingSections } = await supabase
         .from('document_sections')
         .select('id, metadata')
-        .eq('project_id', supabaseUnit.project_id);
+        .eq('project_id', supabaseUnit.project_id)
+        .eq('metadata->>discipline', 'architectural')
+        .eq('metadata->>house_type_code', houseTypeCode);
 
-      if (docSections && docSections.length > 0) {
-        const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
-        const unitHouseCodeLower = houseTypeCode.toLowerCase();
+      // Query 2: fetch general docs (non-architectural, no house type restriction)
+      const { data: generalSections } = await supabase
+        .from('document_sections')
+        .select('id, metadata')
+        .eq('project_id', supabaseUnit.project_id)
+        .neq('metadata->>discipline', 'architectural')
+        .not('metadata->>source', 'ilike', '%281-mhl%');
 
-        for (const section of docSections) {
-          const meta = section.metadata as Record<string, unknown>;
-          if (!meta) continue;
+      const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
 
-          const source = (meta.source as string | undefined) || (meta.file_name as string | undefined) || 'Unknown';
-          const fileUrl = (meta.file_url as string | undefined) || null;
-          const sectionDiscipline = ((meta.discipline as string | undefined) || '').toLowerCase();
-
-          // Drawings: architectural discipline OR source referencing a drawing set
-          const isDrawing = sectionDiscipline === 'architectural' ||
-                            source.toLowerCase().includes('281-mhl');
-
-          if (isDrawing && unitHouseCodeLower) {
-            // Drawing must match the homeowner's house_type_code exactly — fail closed
-            const docHouseCodeLower = ((meta.house_type_code as string | undefined) || '').toLowerCase().trim();
-            if (!docHouseCodeLower || docHouseCodeLower !== unitHouseCodeLower) {
-              continue;
-            }
-          }
-          // Non-drawings: include without house type restriction
-
-          if (!uniqueDocs.has(source)) {
-            uniqueDocs.set(source, {
-              id: section.id,
-              title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
-              file_url: fileUrl,
-              mime_type: 'application/pdf',
-              category: getDocCategory(source),
-            });
-          }
+      // Add drawings first
+      for (const section of (drawingSections || [])) {
+        const meta = section.metadata as Record<string, unknown>;
+        if (!meta) continue;
+        const source = (meta.source as string | undefined) || 'Unknown';
+        const fileUrl = (meta.file_url as string | undefined) || null;
+        if (!uniqueDocs.has(source)) {
+          uniqueDocs.set(source, {
+            id: section.id,
+            title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
+            file_url: fileUrl,
+            mime_type: 'application/pdf',
+            category: getDocCategory(source),
+          });
         }
-
-        documents.push(...Array.from(uniqueDocs.values()).slice(0, 50));
       }
 
+      // Then add general docs
+      for (const section of (generalSections || [])) {
+        const meta = section.metadata as Record<string, unknown>;
+        if (!meta) continue;
+        const source = (meta.source as string | undefined) || 'Unknown';
+        const fileUrl = (meta.file_url as string | undefined) || null;
+        if (!uniqueDocs.has(source)) {
+          uniqueDocs.set(source, {
+            id: section.id,
+            title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
+            file_url: fileUrl,
+            mime_type: 'application/pdf',
+            category: getDocCategory(source),
+          });
+        }
+      }
+
+      documents.push(...Array.from(uniqueDocs.values()));
+
     } catch (_docErr) {
-        // error handled silently
+      // silent
     }
 
     const profile = {
