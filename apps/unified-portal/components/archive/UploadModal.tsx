@@ -180,7 +180,7 @@ export function UploadModal({
     });
 
     try {
-      const response = await fetch('/api/documents/upload', {
+      const response = await fetch('/developer/api/archive/upload', {
         method: 'POST',
         body: formData,
       });
