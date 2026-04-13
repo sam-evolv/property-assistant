@@ -87,9 +87,10 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+    // Select house_type_code directly — it is a first-class column on units.
     const { data: supabaseUnit, error } = await supabase
       .from('units')
-      .select('id, address, purchaser_name, project_id, unit_type_id')
+      .select('id, address, purchaser_name, project_id, unit_type_id, house_type_code')
       .eq('id', unitUid)
       .single();
     
@@ -112,23 +113,25 @@ export async function GET(request: NextRequest) {
       address: developmentAddress,
     };
 
-    let houseTypeCode = '';
-    let houseTypeName = '';
+    // Prefer the direct house_type_code column; fall back to unit_types.name for display name only
+    let houseTypeCode = (supabaseUnit.house_type_code as string | null) || '';
+    let houseTypeName = houseTypeCode;
     let bedrooms: number | null = null;
     let bathrooms: number | null = null;
     let floorAreaSqm: number | null = null;
-    
+
     if (supabaseUnit.unit_type_id) {
       const { data: unitType } = await supabase
         .from('unit_types')
         .select('name, specification_json')
         .eq('id', supabaseUnit.unit_type_id)
         .single();
-      
+
       if (unitType) {
-        houseTypeCode = unitType.name || '';
-        houseTypeName = unitType.name || '';
-        
+        // Use direct column as authoritative code; unit_types.name gives us a display name
+        if (!houseTypeCode) houseTypeCode = unitType.name || '';
+        houseTypeName = unitType.name || houseTypeCode;
+
         const specs = unitType.specification_json as Record<string, unknown>;
         if (specs) {
           bedrooms = parseNumericValue(specs.bedrooms);
@@ -158,40 +161,43 @@ export async function GET(request: NextRequest) {
 
       if (docSections && docSections.length > 0) {
         const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
-        const houseCodeLower = houseTypeCode.toLowerCase();
-        
+        const unitHouseCodeLower = houseTypeCode.toLowerCase();
+
         for (const section of docSections) {
           const meta = section.metadata as Record<string, unknown>;
           if (!meta) continue;
-          
-          const fileName = (meta.file_name as string | undefined) || (meta.source as string | undefined) || 'Unknown';
+
+          const source = (meta.source as string | undefined) || (meta.file_name as string | undefined) || 'Unknown';
           const fileUrl = (meta.file_url as string | undefined) || null;
-          const fileNameLower = fileName.toLowerCase();
-          
-          const isThisHouseType = fileNameLower.includes(houseCodeLower);
-          const isFloorPlanOrElevation = 
-            fileNameLower.includes('floor') ||
-            fileNameLower.includes('plan') ||
-            fileNameLower.includes('elevation') ||
-            fileNameLower.includes('layout') ||
-            fileNameLower.includes('ground') ||
-            fileNameLower.includes('first') ||
-            fileNameLower.match(/\d+hd.*rs/i);
-          
-          if (isThisHouseType && isFloorPlanOrElevation && !uniqueDocs.has(fileName)) {
-            uniqueDocs.set(fileName, {
+          const sectionDiscipline = ((meta.discipline as string | undefined) || '').toLowerCase();
+
+          // Drawings: architectural discipline OR source referencing a drawing set
+          const isDrawing = sectionDiscipline === 'architectural' ||
+                            source.toLowerCase().includes('281-mhl');
+
+          if (isDrawing) {
+            // Drawing must match the homeowner's house_type_code exactly — fail closed
+            const docHouseCodeLower = ((meta.house_type_code as string | undefined) || '').toLowerCase().trim();
+            if (!unitHouseCodeLower || !docHouseCodeLower || docHouseCodeLower !== unitHouseCodeLower) {
+              continue;
+            }
+          }
+          // Non-drawings: include without house type restriction
+
+          if (!uniqueDocs.has(source)) {
+            uniqueDocs.set(source, {
               id: section.id,
-              title: fileName.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
+              title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
               file_url: fileUrl,
               mime_type: 'application/pdf',
-              category: getDocCategory(fileName),
+              category: getDocCategory(source),
             });
           }
         }
-        
+
         documents.push(...Array.from(uniqueDocs.values()).slice(0, 10));
       }
-      
+
     } catch (_docErr) {
         // error handled silently
     }
