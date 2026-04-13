@@ -76,10 +76,7 @@ export async function GET(request: NextRequest) {
     }
 
     const cacheKey = `profile:${unitUid}`;
-    const cached = globalCache.get(cacheKey);
-    if (cached) {
-      return NextResponse.json(cached, { headers: { 'x-request-id': requestId, 'x-cache': 'HIT' } });
-    }
+    // Cache disabled — every request goes fresh to avoid stale responses after deploys
 
     const tokenResult = await validatePurchaserToken(token, unitUid);
     if (!tokenResult.valid) {
@@ -228,7 +225,7 @@ export async function GET(request: NextRequest) {
       documents: documents,
     };
 
-    globalCache.set(cacheKey, profile, 60000);
+    globalCache.set(cacheKey, profile, 0);
     return NextResponse.json(profile, { headers: { 'x-request-id': requestId, 'x-cache': 'MISS' } });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch profile' }, { status: 500, headers: { 'x-request-id': requestId } });
