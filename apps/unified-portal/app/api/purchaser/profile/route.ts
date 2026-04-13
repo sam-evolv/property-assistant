@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
     const documents: { id: string; title: string; file_url: string | null; mime_type: string; category: string }[] = [];
 
     try {
-      // Query 1: fetch ONLY this homeowner's drawings (architectural + matching house type)
+      // Fetch only this homeowner's architectural drawings matching their house type
       const { data: drawingSections } = await supabase
         .from('document_sections')
         .select('id, metadata')
@@ -161,35 +161,9 @@ export async function GET(request: NextRequest) {
         .eq('metadata->>discipline', 'architectural')
         .eq('metadata->>house_type_code', houseTypeCode);
 
-      // Query 2: fetch general docs (non-architectural, no house type restriction)
-      const { data: generalSections } = await supabase
-        .from('document_sections')
-        .select('id, metadata')
-        .eq('project_id', supabaseUnit.project_id)
-        .neq('metadata->>discipline', 'architectural')
-        .not('metadata->>source', 'ilike', '%281-mhl%');
-
       const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
 
-      // Add drawings first
       for (const section of (drawingSections || [])) {
-        const meta = section.metadata as Record<string, unknown>;
-        if (!meta) continue;
-        const source = (meta.source as string | undefined) || 'Unknown';
-        const fileUrl = (meta.file_url as string | undefined) || null;
-        if (!uniqueDocs.has(source)) {
-          uniqueDocs.set(source, {
-            id: section.id,
-            title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
-            file_url: fileUrl,
-            mime_type: 'application/pdf',
-            category: getDocCategory(source),
-          });
-        }
-      }
-
-      // Then add general docs
-      for (const section of (generalSections || [])) {
         const meta = section.metadata as Record<string, unknown>;
         if (!meta) continue;
         const source = (meta.source as string | undefined) || 'Unknown';
