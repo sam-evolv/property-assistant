@@ -11,6 +11,20 @@ import { GoogleDriveProvider } from './providers/google-drive-provider'
 import { MicrosoftStorageProvider } from './providers/microsoft-storage-provider'
 import { classifyFile } from './classifier'
 import type { StorageProvider, StorageFile } from './storage-provider'
+import { db } from '@openhouse/db/client'
+import { documents } from '@openhouse/db/schema'
+import { eq } from 'drizzle-orm'
+
+function inferDisciplineFromName(fileName: string): string {
+  const lower = fileName.toLowerCase();
+  if (/\b(arch|architectural|floor.?plan|elevation|section|detail|ga\b)/i.test(lower)) return 'architectural';
+  if (/\b(struct|structural|foundation|beam|column|slab)/i.test(lower)) return 'structural';
+  if (/\b(mech|mechanical|hvac|ventilat|heating|boiler)/i.test(lower)) return 'mechanical';
+  if (/\b(elec|electrical|lighting|power|circuit)/i.test(lower)) return 'electrical';
+  if (/\b(plumb|plumbing|drainage|sanitary)/i.test(lower)) return 'plumbing';
+  if (/\b(handover|warranty|manual|certificate|o&m)/i.test(lower)) return 'handover';
+  return 'other';
+}
 
 function getSupabaseAdmin() {
   return createClient(
@@ -156,6 +170,53 @@ export async function syncConnection(connectionId: string): Promise<{ filesIndex
           errors.push(`Upsert failed for ${file.name}: ${upsertError.message}`)
         } else {
           filesIndexed++
+
+          // Trigger document ingestion for PDFs and text files that belong to a development
+          const isPdf = file.mimeType === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')
+          const isText = file.mimeType === 'text/plain' || file.name.toLowerCase().endsWith('.txt')
+          if ((isPdf || isText) && watchedFolder?.development_id && file.webUrl) {
+            try {
+              // Only create a documents row if one doesn't already exist for this URL
+              const existing = await db.select({ id: documents.id })
+                .from(documents)
+                .where(eq(documents.file_url, file.webUrl))
+                .limit(1)
+
+              if (existing.length === 0) {
+                const discipline = inferDisciplineFromName(file.name)
+                const [newDoc] = await db.insert(documents).values({
+                  tenant_id: connection.tenant_id,
+                  development_id: watchedFolder.development_id,
+                  document_type: 'archive',
+                  discipline,
+                  title: file.name.replace(/\.[^.]+$/, ''),
+                  file_name: file.name,
+                  original_file_name: file.name,
+                  file_url: file.webUrl,
+                  storage_url: file.webUrl,
+                  mime_type: file.mimeType,
+                  size_kb: file.sizeBytes ? Math.ceil(file.sizeBytes / 1024) : null,
+                  version: 1,
+                  status: 'active',
+                  processing_status: 'pending',
+                  upload_status: 'pending',
+                }).returning()
+
+                const ingestUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ingest/document`
+                fetch(ingestUrl, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'x-ingest-secret': process.env.INGEST_SECRET ?? '',
+                  },
+                  body: JSON.stringify({ document_id: newDoc.id }),
+                }).catch(err => console.error('[sync-worker] Ingest trigger failed for', file.name, err))
+              }
+            } catch (ingestErr) {
+              // Non-fatal — log and continue
+              console.error('[sync-worker] Failed to create documents row for', file.name, ingestErr)
+            }
+          }
         }
       } catch (fileErr: unknown) {
         const msg = fileErr instanceof Error ? fileErr.message : String(fileErr)

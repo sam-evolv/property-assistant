@@ -200,58 +200,23 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Phase 3: Create initial document_sections entry in Supabase for immediate visibility
-        try {
-          const { error: sectionError } = await supabaseAdmin
-            .from('document_sections')
-            .insert({
-              project_id: supabaseProjectId,
-              content: `Document: ${file.name}`,
-              metadata: {
-                source: file.name,
-                file_name: file.name,
-                file_url: fileUrl,
-                discipline,
-                doc_kind: 'specification',
-                is_important: metadata.isImportant || false,
-                must_read: metadata.mustRead || false,
-                house_type_code: null,
-              },
-            });
-
-          if (sectionError) {
-            result.phases.indexing = 'partial';
-            result.indexingErrors?.push(sectionError.message);
-          } else {
-            result.phases.indexing = 'success';
-            result.chunksIndexed = 1;
-            result.totalChunks = 1;
-          }
-        } catch (indexError: unknown) {
-          const indexErrorMessage = indexError instanceof Error ? indexError.message : 'Unknown error';
-          result.phases.indexing = 'failed';
-          result.indexingErrors?.push(indexErrorMessage);
+        // Phase 3: Fire-and-forget background ingestion (chunk + embed + index)
+        if (result.documentId) {
+          const ingestUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/ingest/document`;
+          fetch(ingestUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-ingest-secret': process.env.INGEST_SECRET ?? '',
+            },
+            body: JSON.stringify({ document_id: result.documentId }),
+          }).catch(err => console.error('[archive/upload] Ingest trigger failed:', err));
+          result.phases.indexing = 'pending';
         }
 
         // Phase 4: Verification
         result.phases.verification = 'success';
         result.success = result.phases.storage === 'success' && result.phases.dbWrite === 'success';
-
-        // Update upload_status based on indexing
-        if (result.documentId) {
-          try {
-            const { eq } = await import('drizzle-orm');
-            const uploadStatus = result.phases.indexing === 'success' ? 'indexed' :
-                                 result.phases.indexing === 'partial' ? 'pending' : 'failed';
-            await db.update(documents)
-              .set({
-                upload_status: uploadStatus as any,
-                processing_status: uploadStatus === 'indexed' ? 'complete' : 'pending',
-              })
-              .where(eq(documents.id, result.documentId));
-          } catch {
-          }
-        }
       } catch (error: unknown) {
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         result.error = errorMessage || 'Unexpected error';
