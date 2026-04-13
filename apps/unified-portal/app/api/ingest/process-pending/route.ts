@@ -40,25 +40,7 @@ interface DocumentResult {
   error?: string;
 }
 
-export async function POST(request: NextRequest) {
-  // Auth check
-  const authHeader = request.headers.get('authorization');
-  const secret = process.env.INGEST_SECRET;
-  if (!secret || authHeader !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  // Optional limit in request body (default 50, max 200)
-  let limit = 50;
-  try {
-    const body = await request.json();
-    if (typeof body.limit === 'number' && body.limit > 0) {
-      limit = Math.min(body.limit, 200);
-    }
-  } catch {
-    // no body — use default
-  }
-
+async function runProcessing(limit: number) {
   // Fetch pending documents ordered oldest-first so nothing starves
   const queryResult = await db.execute<PendingDocument>(sql`
     SELECT
@@ -75,14 +57,7 @@ export async function POST(request: NextRequest) {
   const docs: PendingDocument[] = queryResult.rows ?? [];
 
   if (docs.length === 0) {
-    return NextResponse.json({
-      message: 'No pending documents found',
-      processed: 0,
-      failed: 0,
-      skipped: 0,
-      total: 0,
-      results: [] as DocumentResult[],
-    });
+    return { message: 'No pending documents found', processed: 0, failed: 0, skipped: 0, total: 0, results: [] as DocumentResult[] };
   }
 
   const results: DocumentResult[] = [];
@@ -103,12 +78,7 @@ export async function POST(request: NextRequest) {
     try {
       const fetchResponse = await fetch(fileUrl);
       if (!fetchResponse.ok) {
-        results.push({
-          id: doc.id,
-          fileName,
-          status: 'error',
-          error: `Download failed: ${fetchResponse.status} ${fetchResponse.statusText}`,
-        });
+        results.push({ id: doc.id, fileName, status: 'error', error: `Download failed: ${fetchResponse.status} ${fetchResponse.statusText}` });
         failed++;
         continue;
       }
@@ -130,21 +100,10 @@ export async function POST(request: NextRequest) {
       );
 
       if (processingResult.success) {
-        results.push({
-          id: doc.id,
-          fileName,
-          status: 'success',
-          chunksCreated: processingResult.chunksCreated,
-          visionExtracted: processingResult.visionExtracted,
-        });
+        results.push({ id: doc.id, fileName, status: 'success', chunksCreated: processingResult.chunksCreated, visionExtracted: processingResult.visionExtracted });
         processed++;
       } else {
-        results.push({
-          id: doc.id,
-          fileName,
-          status: 'error',
-          error: processingResult.error,
-        });
+        results.push({ id: doc.id, fileName, status: 'error', error: processingResult.error });
         failed++;
       }
     } catch (err: unknown) {
@@ -154,5 +113,45 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ processed, failed, skipped, total: docs.length, results });
+  return { processed, failed, skipped, total: docs.length, results };
+}
+
+function checkAuth(secret: string | null, provided: string | null): boolean {
+  const envSecret = process.env.INGEST_SECRET;
+  if (!envSecret) return false;
+  return provided === envSecret || provided === `Bearer ${envSecret}`;
+}
+
+export async function GET(request: NextRequest) {
+  const { searchParams } = new URL(request.url);
+  const provided = searchParams.get('secret');
+  if (!checkAuth(provided, provided)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+  const limitParam = searchParams.get('limit');
+  const limit = limitParam ? Math.min(parseInt(limitParam, 10) || 50, 200) : 50;
+  const result = await runProcessing(limit);
+  return NextResponse.json(result);
+}
+
+export async function POST(request: NextRequest) {
+  // Auth check
+  const authHeader = request.headers.get('authorization');
+  if (!checkAuth(null, authHeader)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Optional limit in request body (default 50, max 200)
+  let limit = 50;
+  try {
+    const body = await request.json();
+    if (typeof body.limit === 'number' && body.limit > 0) {
+      limit = Math.min(body.limit, 200);
+    }
+  } catch {
+    // no body — use default
+  }
+
+  const result = await runProcessing(limit);
+  return NextResponse.json(result);
 }
