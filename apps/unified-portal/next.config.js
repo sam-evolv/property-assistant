@@ -127,6 +127,7 @@ const nextConfig = {
         'pdf-parse': 'commonjs pdf-parse',
         'canvas': 'commonjs canvas',
         'pdfkit': 'commonjs pdfkit',
+        'tesseract.js': 'commonjs tesseract.js',
       });
     }
     
