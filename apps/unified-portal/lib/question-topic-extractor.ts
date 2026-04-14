@@ -19,7 +19,9 @@ const EXACT_MATCH_TOPICS: Record<string, string[]> = {
   'planning_report': ['planning', 'planning report', 'permission'],
   'warranty_guarantee': ['warranty', 'guarantee', 'defect', 'snag', 'snagging'],
   'internal_floor_plans': ['internal floor plan', 'floor plans please', 'internal layout', 'room layout', 'floor plans', 'floor plan', 'link my floor plan', 'my floor plans', 'show floor plan', 'ground floor plan', 'first floor plan'],
-  'external_elevations': ['external elevation', 'elevations please', 'outside appearance', 'external appearance', 'exterior view'],
+  'external_elevations': ['external elevation', 'elevations please', 'outside appearance', 'external appearance', 'exterior view', 'elevation drawings', 'elevations drawing', 'can i see my elevation', 'show my elevations', 'elevation drawing'],
+  'section_drawings': ['section drawing', 'sections drawing', 'house sections', 'can i see my sections', 'show my sections'],
+  'foundation_drawings': ['house pad drawing', 'house pad and foundation', 'foundation drawing', 'pad drawing', 'house pad', 'can i see my house pad', 'show my house pad', 'foundation plan', 'my house pad'],
 };
 
 const ROOM_SIZE_PATTERNS: Record<string, RegExp[]> = {

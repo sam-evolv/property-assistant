@@ -203,7 +203,7 @@ const CATEGORY_MAPPINGS: Record<POICategory, { types: string[]; keywords?: strin
   gp: { types: ['doctor'] },
   hospital: { types: ['hospital'] },
   childcare: { types: ['school'], keywords: ['creche', 'montessori', 'preschool', 'daycare', 'childcare', 'nursery'] },
-  primary_school: { types: ['primary_school', 'school'], keywords: ['primary', 'national school', 'n.s.', 'ns'] },
+  primary_school: { types: ['primary_school'], keywords: ['primary', 'national school', 'n.s.', 'ns'] },
   secondary_school: { types: ['secondary_school', 'school'], keywords: ['secondary', 'college', 'post-primary', 'high school'] },
   train_station: { types: ['train_station'] },
   bus_stop: { types: ['bus_station', 'transit_station'] },
@@ -601,6 +601,15 @@ async function fetchFromGooglePlaces(
     });
     if (keywordFiltered.length > 0) {
       filteredResults = keywordFiltered;
+    }
+  }
+
+  // EXCLUSION FILTER for primary_school: remove secondary schools, colleges, music schools, etc.
+  if (category === 'primary_school') {
+    const EXCLUDE_NON_PRIMARY = /\b(secondary|college|music|piano|community|post[\s-]?primary|high\s+school|institute|academy|montessori|grinds|tutor)\b/i;
+    const excluded = filteredResults.filter(place => !EXCLUDE_NON_PRIMARY.test(place.name || ''));
+    if (excluded.length > 0) {
+      filteredResults = excluded;
     }
   }
 
