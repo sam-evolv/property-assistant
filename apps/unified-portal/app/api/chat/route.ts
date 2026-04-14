@@ -1633,11 +1633,31 @@ export async function POST(request: NextRequest) {
     // For vector search (document_sections.project_id), use the developmentId from the request body first.
     // This ensures the filter matches the actual project_id stored in document_sections rows.
     // supabase_project_id is a legacy field that may hold a stale value — only use as last resort.
-    const userSupabaseProjectId = clientDevelopmentId  // Request body developmentId — matches document_sections.project_id
+    let userSupabaseProjectId: string | null = clientDevelopmentId  // Request body developmentId — matches document_sections.project_id
       || userDevelopmentId    // Unit's development_id from DB lookup
       || userUnitDetails.unitInfo?.supabase_project_id  // Legacy fallback
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null)
       || null;
+
+    // PROJECT_ID RESOLUTION: When the resolved ID is a development_id (not a Supabase project_id),
+    // document_sections may be indexed under a different project_id. Look up projects.development_id
+    // to find the canonical project_id where documents are actually stored.
+    // Example: Árdan View development_id=34316432... but docs live under project_id=84a559d1...
+    if (userDevelopmentId && userSupabaseProjectId === userDevelopmentId) {
+      try {
+        const supabase = getSupabaseClient();
+        const { data: projectByDev } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('development_id', userDevelopmentId)
+          .maybeSingle();
+        if (projectByDev?.id) {
+          userSupabaseProjectId = projectByDev.id;
+        }
+      } catch (_projLookupErr) {
+        // Continue with existing ID — don't fail the request over this
+      }
+    }
 
     // Determine scheme resolution path for diagnostics
     let schemeResolutionPath = 'unknown';
