@@ -594,6 +594,16 @@ async function fetchFromGooglePlaces(
     filteredResults = []; // Clear mismatched results
   }
 
+  // For primary_school, exclude results that are clearly secondary schools,
+  // music schools, colleges, etc. before applying the inclusion keyword filter.
+  if (category === 'primary_school') {
+    const EXCLUDE_NON_PRIMARY = /\b(secondary|college|music|piano|community\s+college|post[\s-]?primary|high\s+school)\b/i;
+    const excluded = filteredResults.filter(place => !EXCLUDE_NON_PRIMARY.test(place.name || ''));
+    if (excluded.length > 0) {
+      filteredResults = excluded;
+    }
+  }
+
   if (mapping.keywords && mapping.keywords.length > 0) {
     const keywordFiltered = filteredResults.filter(place => {
       const name = (place.name || '').toLowerCase();

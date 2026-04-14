@@ -2018,10 +2018,18 @@ export async function POST(request: NextRequest) {
     // This prevents hallucinated venue names, opening hours, and travel times
     if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
       const poiCategoryResult = detectPOICategoryExpanded(message);
-      const poiCategory = poiCategoryResult.category;
+      let poiCategory = poiCategoryResult.category;
       const expandedIntent = poiCategoryResult.expandedIntent;
       const expandedCategories = poiCategoryResult.categories;
-      const dynamicKeyword = poiCategoryResult.dynamicKeyword;
+      let dynamicKeyword = poiCategoryResult.dynamicKeyword;
+
+      // Normalise café/cafes/coffee variants that fall through to the dynamic keyword
+      // path back to the named 'cafe' category so they follow the standard path
+      // that includes the map card.
+      if (!poiCategory && dynamicKeyword && /^(caf[eé]s?|coffee(\s*shops?)?)$/i.test(dynamicKeyword.trim())) {
+        poiCategory = 'cafe';
+        dynamicKeyword = undefined;
+      }
       const schemeAddress = userUnitDetails?.address || 'your development';
       const developmentName = userUnitDetails?.unitInfo?.development_name || null;
       
@@ -3002,11 +3010,15 @@ HOME TYPE: Your home is house type ${userHouseTypeCode}. Your floor plans and ar
 ${roomDimensions && roomDimensions.length > 0 ? `ROOM DIMENSIONS FOR THIS HOME:
 Ground Floor:
 ${roomDimensions.filter(r => r.floor === 'Ground').map(r => `- ${r.room_name}: ${r.width_m}m × ${r.length_m}m (${r.area_sqm}m²)`).join('\n')}
+Ground floor total area: ${Math.round(roomDimensions.filter(r => r.floor === 'Ground' && r.area_sqm != null).reduce((sum, r) => sum + (r.area_sqm as number), 0) * 10) / 10}m²
 
 First Floor:
 ${roomDimensions.filter(r => r.floor === 'First').map(r => `- ${r.room_name}: ${r.width_m}m × ${r.length_m}m (${r.area_sqm}m²)`).join('\n')}
+First floor total area: ${Math.round(roomDimensions.filter(r => r.floor === 'First' && r.area_sqm != null).reduce((sum, r) => sum + (r.area_sqm as number), 0) * 10) / 10}m²
 
-When asked about room sizes, give the exact dimensions above — width × length and area. Always end by telling the homeowner their floor plans are in the Documents tab.
+Combined total floor area: ${Math.round(roomDimensions.filter(r => r.area_sqm != null).reduce((sum, r) => sum + (r.area_sqm as number), 0) * 10) / 10}m²
+
+When asked about total floor area, square footage, or the overall size of the home, give the floor totals and combined total above. When asked about room sizes, give the exact dimensions above — width × length and area. Always end by telling the homeowner their floor plans are in the Documents tab.
 ` : ''}${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}TONE & FORMAT:
 - Warm and helpful, like a knowledgeable neighbour — match the homeowner's energy
 - Lead with the answer, supporting context after
@@ -3264,11 +3276,17 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     const isAmbiguousSizeQuestion = /\b(how\s*(big|large)|size|dimensions?)\s*(of|is)?\s*(my|the)?\s*(house|home|property)\b/i.test(message) ||
       /\b(what|how)\s+.*(house|home|property)\s*.*(size|dimensions?|big|large)\b/i.test(message);
     
-    // Start drawing lookup in parallel with topic extraction
-    const drawingPromise = effectiveUnitUid
+    // Only fetch drawings for dimension/layout topics — not for maintenance, snagging, plumbing, etc.
+    const DRAWING_TOPIC_ALLOWLIST = [
+      'living_room_size', 'kitchen_size', 'bedroom_size', 'floor_area',
+      'room_dimensions', 'house_layout', 'internal_floor_plans', 'floor_plans',
+      'external_elevations', 'section_drawings', 'foundation_drawings',
+    ];
+    const resolvedTopicForDrawing = await questionTopicPromise;
+    const drawingPromise = effectiveUnitUid && DRAWING_TOPIC_ALLOWLIST.includes(resolvedTopicForDrawing)
       ? findDrawingForQuestion(
           effectiveUnitUid,
-          await questionTopicPromise,
+          resolvedTopicForDrawing,
           userSupabaseProjectId || undefined,
           userHouseTypeCode || undefined
         ).catch(() => ({ found: false, drawing: null, explanation: '' }))

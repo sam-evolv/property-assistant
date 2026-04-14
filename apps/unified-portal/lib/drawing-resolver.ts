@@ -193,6 +193,7 @@ function generateDrawingExplanation(
     elevation: `Here are the Elevation drawings for your house type (${houseTypeCode}). These show the external appearance of your home from different angles.`,
     site_plan: `I've found the Site Plan for your development. This shows how your property sits within the overall scheme.`,
     section: `Here's a Section drawing for your house type (${houseTypeCode}). This shows a cross-section view of the building construction.`,
+    foundation: `Here's the Foundation and House Pad drawing for your house type (${houseTypeCode}). This shows the foundation layout and ground pad details.`,
     detail: `I've found a Construction Detail drawing for your house type (${houseTypeCode}).`,
     other: `I've found a relevant drawing for your house type (${houseTypeCode}).`,
   };

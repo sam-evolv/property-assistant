@@ -6,12 +6,13 @@ function getOpenAIClient() {
   });
 }
 
-export type DrawingType = 
+export type DrawingType =
   | 'floor_plan'
   | 'elevation'
   | 'room_sizes'
   | 'site_plan'
   | 'section'
+  | 'foundation'
   | 'detail'
   | 'other';
 
@@ -35,6 +36,7 @@ const DRAWING_TYPE_KEYWORDS: Record<DrawingType, string[]> = {
   room_sizes: ['room size', 'room sizes', 'dimensions', 'room dimensions', 'areas', 'measurements'],
   site_plan: ['site plan', 'site layout', 'location plan', 'block plan'],
   section: ['section', 'cross section', 'longitudinal section', 'building section'],
+  foundation: ['foundation', 'house pad', 'pad drawing', 'pad and foundation'],
   detail: ['detail', 'construction detail', 'junction detail', 'eaves detail'],
   other: [],
 };
@@ -160,6 +162,7 @@ function generateDescription(drawingType: DrawingType, houseTypeCode: string | n
     room_sizes: 'Room sizes document with measurements for each room',
     site_plan: 'Site plan showing building location and surroundings',
     section: 'Section drawing showing building cross-section',
+    foundation: 'Foundation and house pad drawing',
     detail: 'Construction detail drawing',
     other: 'Architectural drawing',
   };
@@ -179,20 +182,28 @@ export function getDrawingTypeForQuestion(questionTopic: string): DrawingType[] 
     'floor_area', 'room_sizes', 'room_dimensions', 'house_layout',
     'internal_floor_plans', 'floor_plans',
   ];
-  
+
   // External appearance questions that benefit from elevation drawings
   const externalAppearanceTopics = [
     'house_exterior', 'external_appearance', 'external_elevations', 'elevations',
   ];
-  
+
   if (dimensionTopics.includes(questionTopic)) {
     return ['room_sizes', 'floor_plan'];
   }
-  
+
   if (externalAppearanceTopics.includes(questionTopic)) {
     return ['elevation'];
   }
-  
+
+  if (questionTopic === 'section_drawings') {
+    return ['section'];
+  }
+
+  if (questionTopic === 'foundation_drawings') {
+    return ['foundation'];
+  }
+
   // For all other topics (materials, products, features), don't show drawings
   return [];
 }
