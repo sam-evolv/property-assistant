@@ -787,7 +787,10 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
 
 // SCHEME PROFILE FACTS: Build a structured block from scheme_profile data for injection into system prompts
 function buildSchemeFactsBlock(profile: Record<string, unknown>): string {
-  const lines: string[] = ['SCHEME PROFILE — AUTHORITATIVE FACTS (provided by developer):'];
+  const lines: string[] = [
+    'NOTE: Any reference to "Longview Developments" in documents is an old trading name. The correct legal developer name is Longview Estates Limited. Always use Longview Estates Limited.',
+    'SCHEME PROFILE — AUTHORITATIVE FACTS (provided by developer):',
+  ];
 
   if (profile.scheme_address) lines.push(`Address: ${profile.scheme_address}`);
   if (profile.homes_count) lines.push(`Number of homes: ${profile.homes_count}`);
