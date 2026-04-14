@@ -2805,6 +2805,29 @@ export async function POST(request: NextRequest) {
           }
         }
       }
+      // Also fetch is_important chunks — these are handover narrative docs (development overview,
+      // solar PV, bin collection, etc.) that should always be available regardless of keyword match
+      if (userSupabaseProjectId) {
+        const importantExistingIds = new Set(allChunks.map(c => c.id));
+        const { data: importantChunks } = await getSupabaseClient()
+          .from('document_sections')
+          .select('id, content, metadata')
+          .eq('project_id', userSupabaseProjectId)
+          .eq('metadata->>is_important', 'true')
+          .limit(20);
+
+        if (importantChunks && importantChunks.length > 0) {
+          for (const ic of importantChunks) {
+            if (!importantExistingIds.has(ic.id)) {
+              allChunks.push({
+                ...ic,
+                _pgvector_similarity: null,
+              } as DocumentChunk);
+              importantExistingIds.add(ic.id);
+            }
+          }
+        }
+      }
     } catch (_keywordErr) {
       // Keyword search failed — continue with vector results only
     }
