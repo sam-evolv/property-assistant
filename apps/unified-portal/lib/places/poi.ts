@@ -606,10 +606,35 @@ async function fetchFromGooglePlaces(
 
   // EXCLUSION FILTER for primary_school: remove secondary schools, colleges, music schools, etc.
   if (category === 'primary_school') {
-    const EXCLUDE_NON_PRIMARY = /\b(secondary|college|music|piano|community|post[\s-]?primary|high\s+school|institute|academy|montessori|grinds|tutor)\b/i;
-    const excluded = filteredResults.filter(place => !EXCLUDE_NON_PRIMARY.test(place.name || ''));
-    if (excluded.length > 0) {
-      filteredResults = excluded;
+    const EXCLUDE_PATTERN = /\b(secondary|college|music|piano|community\s+school|community\s+college|post[\s-]?primary|high\s+school|institute|academy|montessori|grinds|tutor|pre[\s-]?school|preschool|crèche|creche|daycare|childcare|nursery|learning\s+centre|training|university|institute)\b/i;
+
+    const PRIMARY_KEYWORDS = ['national school', 'n.s.', ' ns ', 'gaelscoil', 'naíonra', 'naionra', 'scoil', 'primary school', 'primary', 'junior school', 'boys school', 'girls school', "boys' school", "girls' school", 'boys national', 'girls national', 'mixed national'];
+
+    const isLikelyPrimary = (name: string): boolean => {
+      const lower = name.toLowerCase();
+      // Must either have a primary keyword OR have primary_school in its Google types
+      return PRIMARY_KEYWORDS.some(kw => lower.includes(kw));
+    };
+
+    const isLikelyExcluded = (name: string): boolean => EXCLUDE_PATTERN.test(name);
+
+    // First pass: keep only results that look like primary schools
+    const primaryOnly = filteredResults.filter(place => {
+      const name = place.name || '';
+      const types: string[] = place.types || [];
+      // Keep if Google types it as primary_school
+      if (types.includes('primary_school')) return true;
+      // Keep if name has primary keywords
+      if (isLikelyPrimary(name)) return true;
+      // Drop if it matches exclusion patterns
+      if (isLikelyExcluded(name)) return false;
+      // Drop anything ambiguous that isn't clearly a primary school
+      return false;
+    });
+
+    // Only apply if we got results; otherwise fall back
+    if (primaryOnly.length > 0) {
+      filteredResults = primaryOnly;
     }
   }
 

@@ -2085,8 +2085,8 @@ export async function POST(request: NextRequest) {
     // POI handler answer instead — it already returns walk times via Distance Matrix.
     // Bug fix: "How far of a walk is it to the closest pharmacy?" was routing here
     // instead of the pharmacy POI lookup, giving city-centre times instead of pharmacy distance.
-    if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
-      const activeTravelKeywords = /\b(walk|walking|walkable|on foot|cycle|cycling|cyclable|bike|biking|cycle to work|walk to (town|city|centre|center)|how far (is|to)|cycling distance|cycle time|walk time)\b/i;
+    {
+      const activeTravelKeywords = /\b(walk|walking|walkable|on foot|cycle|cycling|cyclable|bike|biking|cycle to work|walk to (town|city|centre|center)|how far (is|to|am i from)|cycling distance|cycle time|walk time|drive to (town|city|centre|center)|how long (to|does it take)|distance (to|from) (town|city|centre|center)|far from town|far from (the )?city|get to (town|city|centre|center)|travel time|how long (to get|to drive|to walk|to cycle))\b/i;
       // If a specific amenity is detected, skip active travel and let POI handler answer with real distances
       const mentionsSpecificAmenity = detectPOICategoryExpanded(message).category !== null;
       if (activeTravelKeywords.test(message) && !mentionsSpecificAmenity) {

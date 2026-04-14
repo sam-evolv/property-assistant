@@ -288,6 +288,7 @@ function formatVehicleLabel(type: TransitRoute['vehicle_type']): string {
 export interface ActiveTravelResult {
   walk_min: number | null;
   cycle_min: number | null;
+  drive_min: number | null;
   destination: string;
   fetched_at: Date;
   from_cache: boolean;
@@ -312,7 +313,7 @@ async function getCachedActiveTravel(schemeId: string, cacheKey: string): Promis
     const data = record.results_json as any;
     if (data?.walk_min === undefined && data?.cycle_min === undefined) return null;
 
-    return { walk_min: data.walk_min, cycle_min: data.cycle_min, destination: data.destination, fetched_at: fetchedAt, from_cache: true };
+    return { walk_min: data.walk_min, cycle_min: data.cycle_min, drive_min: data.drive_min ?? null, destination: data.destination, fetched_at: fetchedAt, from_cache: true };
   } catch { return null; }
 }
 
@@ -320,7 +321,7 @@ async function storeActiveTravelCache(schemeId: string, cacheKey: string, result
   try {
     const existing = await db.select({ id: poi_cache.id }).from(poi_cache)
       .where(and(eq(poi_cache.scheme_id, schemeId), eq(poi_cache.category, cacheKey))).limit(1);
-    const payload = { walk_min: result.walk_min, cycle_min: result.cycle_min, destination: result.destination };
+    const payload = { walk_min: result.walk_min, cycle_min: result.cycle_min, drive_min: result.drive_min, destination: result.destination };
     const now = new Date();
     if (existing.length > 0) {
       await db.update(poi_cache).set({ results_json: payload, fetched_at: now, ttl_days: ACTIVE_TRAVEL_TTL_DAYS }).where(eq(poi_cache.id, existing[0].id));
@@ -330,7 +331,7 @@ async function storeActiveTravelCache(schemeId: string, cacheKey: string, result
   } catch (err) { /* Cache store failure is non-critical */ }
 }
 
-async function fetchDirectionsTime(origin: string, destination: string, mode: 'walking' | 'bicycling', apiKey: string): Promise<number | null> {
+async function fetchDirectionsTime(origin: string, destination: string, mode: 'walking' | 'bicycling' | 'driving', apiKey: string): Promise<number | null> {
   const url = new URL('https://maps.googleapis.com/maps/api/directions/json');
   url.searchParams.set('origin', origin);
   url.searchParams.set('destination', destination);
@@ -354,7 +355,7 @@ async function fetchDirectionsTime(origin: string, destination: string, mode: 'w
  * Get walking and cycling travel times from a development to its nearest city centre.
  */
 export async function getActiveTravelTimes(schemeId: string): Promise<ActiveTravelResult> {
-  const empty: ActiveTravelResult = { walk_min: null, cycle_min: null, destination: '', fetched_at: new Date(), from_cache: false };
+  const empty: ActiveTravelResult = { walk_min: null, cycle_min: null, drive_min: null, destination: '', fetched_at: new Date(), from_cache: false };
 
   const location = await getSchemeLocation(schemeId);
   if (!location) return empty;
@@ -369,12 +370,13 @@ export async function getActiveTravelTimes(schemeId: string): Promise<ActiveTrav
   if (!apiKey) return empty;
 
   const origin = `${location.lat},${location.lng}`;
-  const [walk_min, cycle_min] = await Promise.all([
+  const [walk_min, cycle_min, drive_min] = await Promise.all([
     fetchDirectionsTime(origin, destination, 'walking', apiKey),
     fetchDirectionsTime(origin, destination, 'bicycling', apiKey),
+    fetchDirectionsTime(origin, destination, 'driving', apiKey),
   ]);
 
-  const result: ActiveTravelResult = { walk_min, cycle_min, destination, fetched_at: new Date(), from_cache: false };
+  const result: ActiveTravelResult = { walk_min, cycle_min, drive_min, destination, fetched_at: new Date(), from_cache: false };
   await storeActiveTravelCache(schemeId, cacheKey, result);
   return result;
 }
@@ -382,28 +384,25 @@ export async function getActiveTravelTimes(schemeId: string): Promise<ActiveTrav
 export function formatActiveTravelResponse(result: ActiveTravelResult): string {
   const shortCity = result.destination.split(',')[0] || 'the city centre';
 
-  if (result.walk_min === null && result.cycle_min === null) {
-    return `I wasn't able to get walking and cycling times right now. Google Maps will give you accurate directions from your home.`;
+  if (result.drive_min === null && result.walk_min === null && result.cycle_min === null) {
+    return `I wasn't able to get travel times right now. Google Maps will give you accurate directions from your home.`;
   }
 
   const lines: string[] = [];
 
-  if (result.walk_min !== null) {
-    const walkDesc = result.walk_min <= 20 ? 'a comfortable walk' : result.walk_min <= 40 ? 'a long but doable walk' : 'quite a long walk';
-    lines.push(`🚶 **Walking to ${shortCity}:** approx. ${result.walk_min} minutes (${walkDesc})`);
+  if (result.drive_min !== null) {
+    lines.push(`🚗 **Driving to ${shortCity}:** approx. ${result.drive_min} minutes`);
   }
-
+  if (result.walk_min !== null) {
+    const walkDesc = result.walk_min <= 20 ? 'a comfortable walk' : result.walk_min <= 40 ? 'a long walk' : 'quite a long walk';
+    lines.push(`🚶 **Walking:** approx. ${result.walk_min} minutes (${walkDesc})`);
+  }
   if (result.cycle_min !== null) {
     const cycleDesc = result.cycle_min <= 10 ? 'a quick cycle' : result.cycle_min <= 20 ? 'a comfortable cycle' : 'a moderate cycle';
-    lines.push(`🚲 **Cycling to ${shortCity}:** approx. ${result.cycle_min} minutes (${cycleDesc})`);
+    lines.push(`🚲 **Cycling:** approx. ${result.cycle_min} minutes (${cycleDesc})`);
   }
 
-  if (result.walk_min !== null && result.cycle_min !== null) {
-    const saving = result.walk_min - result.cycle_min;
-    if (saving > 5) lines.push(`\nCycling saves you about ${saving} minutes each way.`);
-  }
-
-  lines.push(`\nFor cycling routes and infrastructure, Google Maps cycling mode or Strava Routes will show you the best paths.`);
+  lines.push(`\nFor live traffic and directions, Google Maps will give you the most accurate route from your home.`);
 
   return lines.join('\n');
 }
