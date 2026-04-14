@@ -330,25 +330,39 @@ async function getSchemeLocation(supabaseProjectId: string): Promise<SchemeLocat
     };
   }
 
-  // FALLBACK 2: Supabase projects table — the ID may be a legacy Supabase project_id
+  // FALLBACK 2: The ID may be a Supabase project_id — resolve to development via units table
   try {
     const supabase = getSupabaseClient();
-    const { data: project } = await supabase
-      .from('projects')
-      .select('id, latitude, longitude, address')
-      .eq('id', supabaseProjectId)
+    const { data: unit } = await supabase
+      .from('units')
+      .select('development_id')
+      .eq('project_id', supabaseProjectId)
+      .limit(1)
       .single();
 
-    if (project?.latitude && project?.longitude) {
-      return {
-        lat: parseFloat(project.latitude),
-        lng: parseFloat(project.longitude),
-        address: project.address || undefined,
-        source: 'developments',
-      };
+    if (unit?.development_id) {
+      const devsByProject = await db
+        .select({
+          id: developments.id,
+          lat: developments.latitude,
+          lng: developments.longitude,
+          address: developments.address,
+        })
+        .from(developments)
+        .where(eq(developments.id, unit.development_id))
+        .limit(1);
+
+      if (devsByProject.length > 0 && devsByProject[0].lat && devsByProject[0].lng) {
+        return {
+          lat: parseFloat(devsByProject[0].lat),
+          lng: parseFloat(devsByProject[0].lng),
+          address: devsByProject[0].address || undefined,
+          source: 'developments',
+        };
+      }
     }
   } catch (_supabaseErr) {
-    // Supabase projects lookup failed — continue to return null
+    // project_id → development_id lookup failed — continue to return null
   }
 
   return null;

@@ -52,9 +52,10 @@ const IRISH_LOCATIONS: Record<string, { lat: number; lng: number }> = {
 const PROJECT_COORDINATES: Record<string, { lat: number; lng: number }> = {
   '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (Supabase project ID)
   '6d3789de-2e46-430c-bf31-22224bd878da': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (alternate Supabase ID)
-  'e0833063-55ac-4201-a50e-f329c090fbd6': { lat: 51.928542, lng: -8.446790 }, // Rathard Park (Drizzle development ID)
+  'e0833063-55ac-4201-a50e-f329c090fbd6': { lat: 51.928542, lng: -8.446790 }, // Longview Park (development ID)
   '57dc3919-2725-4575-8046-9179075ac88e': { lat: 51.9265, lng: -8.4532 }, // Longview Park (Supabase project ID)
-  '34316432-f1e8-4297-b993-d9b5c88ee2d8': { lat: 51.9265, lng: -8.4532 }, // Longview Park (Drizzle development ID)
+  '84a559d1-89f1-4eb6-a48b-7ca068bcc164': { lat: 51.9279, lng: -8.4440 }, // Árdan View (Supabase project ID)
+  '34316432-f1e8-4297-b993-d9b5c88ee2d8': { lat: 51.9279, lng: -8.4440 }, // Árdan View (development ID)
 };
 
 // Get coordinates from project/development ID
