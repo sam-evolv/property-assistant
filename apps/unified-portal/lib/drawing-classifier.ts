@@ -6,13 +6,14 @@ function getOpenAIClient() {
   });
 }
 
-export type DrawingType = 
+export type DrawingType =
   | 'floor_plan'
   | 'elevation'
   | 'room_sizes'
   | 'site_plan'
   | 'section'
   | 'detail'
+  | 'foundation'
   | 'other';
 
 export interface DrawingClassification {
@@ -36,6 +37,7 @@ const DRAWING_TYPE_KEYWORDS: Record<DrawingType, string[]> = {
   site_plan: ['site plan', 'site layout', 'location plan', 'block plan'],
   section: ['section', 'cross section', 'longitudinal section', 'building section'],
   detail: ['detail', 'construction detail', 'junction detail', 'eaves detail'],
+  foundation: ['foundation', 'house pad', 'pad drawing', 'ground bearing', 'substructure'],
   other: [],
 };
 
@@ -161,6 +163,7 @@ function generateDescription(drawingType: DrawingType, houseTypeCode: string | n
     site_plan: 'Site plan showing building location and surroundings',
     section: 'Section drawing showing building cross-section',
     detail: 'Construction detail drawing',
+    foundation: 'Foundation and house pad drawing showing substructure details',
     other: 'Architectural drawing',
   };
   
@@ -188,11 +191,19 @@ export function getDrawingTypeForQuestion(questionTopic: string): DrawingType[] 
   if (dimensionTopics.includes(questionTopic)) {
     return ['room_sizes', 'floor_plan'];
   }
-  
+
   if (externalAppearanceTopics.includes(questionTopic)) {
     return ['elevation'];
   }
-  
+
+  if (questionTopic === 'section_drawings') {
+    return ['section'];
+  }
+
+  if (questionTopic === 'foundation_drawings') {
+    return ['foundation'];
+  }
+
   // For all other topics (materials, products, features), don't show drawings
   return [];
 }

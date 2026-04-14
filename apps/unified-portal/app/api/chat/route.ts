@@ -785,10 +785,85 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
   }
 }
 
+// SCHEME PROFILE FACTS: Build a structured block from scheme_profile data for injection into system prompts
+function buildSchemeFactsBlock(profile: Record<string, unknown>): string {
+  const lines: string[] = ['SCHEME PROFILE — AUTHORITATIVE FACTS (provided by developer):'];
+
+  if (profile.scheme_address) lines.push(`Address: ${profile.scheme_address}`);
+  if (profile.homes_count) lines.push(`Number of homes: ${profile.homes_count}`);
+  if (profile.scheme_status && profile.scheme_status !== 'unknown') {
+    lines.push(`Status: ${String(profile.scheme_status).replace(/_/g, ' ')}`);
+  }
+
+  if (profile.managing_agent_name) lines.push(`Managing agent: ${profile.managing_agent_name}`);
+  if (profile.contact_email) lines.push(`Contact email: ${profile.contact_email}`);
+  if (profile.contact_phone) lines.push(`Contact phone: ${profile.contact_phone}`);
+  if (profile.emergency_contact_phone) lines.push(`Emergency contact: ${profile.emergency_contact_phone}`);
+  if (profile.emergency_contact_notes) lines.push(`Emergency notes: ${profile.emergency_contact_notes}`);
+
+  if (profile.snag_reporting_method && profile.snag_reporting_method !== 'unknown') {
+    lines.push(`Snagging method: ${String(profile.snag_reporting_method).replace(/_/g, ' ')}`);
+  }
+  if (profile.snag_reporting_details) lines.push(`Snagging details: ${profile.snag_reporting_details}`);
+
+  if (profile.heating_type && profile.heating_type !== 'unknown') {
+    lines.push(`Heating type: ${String(profile.heating_type).replace(/_/g, ' ')}`);
+  }
+  if (profile.heating_controls && profile.heating_controls !== 'unknown') {
+    lines.push(`Heating controls: ${String(profile.heating_controls).replace(/_/g, ' ')}`);
+  }
+  if (profile.broadband_type && profile.broadband_type !== 'unknown') {
+    lines.push(`Broadband: ${String(profile.broadband_type).toUpperCase()}`);
+  }
+  if (profile.water_billing && profile.water_billing !== 'unknown') {
+    lines.push(`Water billing: ${String(profile.water_billing).replace(/_/g, ' ')}`);
+  }
+
+  if (profile.waste_setup && profile.waste_setup !== 'unknown') {
+    lines.push(`Waste/bins: ${String(profile.waste_setup).replace(/_/g, ' ')}`);
+  }
+  if (profile.bin_storage_notes) lines.push(`Bin storage: ${profile.bin_storage_notes}`);
+  if (profile.waste_provider) lines.push(`Waste provider: ${profile.waste_provider}`);
+
+  if (profile.parking_type && profile.parking_type !== 'unknown') {
+    lines.push(`Parking: ${String(profile.parking_type).replace(/_/g, ' ')}`);
+  }
+  if (profile.visitor_parking && profile.visitor_parking !== 'unknown') {
+    lines.push(`Visitor parking: ${String(profile.visitor_parking).replace(/_/g, ' ')}`);
+  }
+  if (profile.parking_notes) lines.push(`Parking notes: ${profile.parking_notes}`);
+
+  if (profile.exterior_changes_require_approval && profile.exterior_changes_require_approval !== 'unknown') {
+    lines.push(`Exterior changes need approval: ${profile.exterior_changes_require_approval}`);
+  }
+  if (profile.rules_notes) lines.push(`Rules: ${profile.rules_notes}`);
+
+  if (lines.length <= 1) return '';
+
+  lines.push('Use these facts when answering questions. They take precedence over general guidance.');
+  return lines.join('\n');
+}
+
 // SAFETY-CRITICAL PRE-FILTER: Intercept dangerous queries BEFORE they hit the LLM
 // Uses both exact keywords and regex patterns for robust matching
 function isSafetyCriticalQuery(message: string): { isCritical: boolean; matchedKeyword: string | null } {
   const lower = message.toLowerCase().replace(/['']/g, "'");
+
+  // DRAWING REQUEST GUARD: "house pad drawing", "foundation drawing" etc. are document info requests,
+  // not structural safety questions — allow them through before the broad keyword scan.
+  const DRAWING_REQUEST_PATTERNS = [
+    /\b(house\s+pad|foundation)\s+(drawing|plan|document|doc)\b/i,
+    /\b(show|see|view|get|find)\s+(my\s+)?(house\s+pad|foundation\s+(drawing|plan))\b/i,
+    /\bcan\s+i\s+see\s+my\s+house\s+pad\b/i,
+    /\bshow\s+my\s+house\s+pad\b/i,
+    /\bmy\s+house\s+pad\b/i,
+    /\bfoundation\s+plan\b/i,
+  ];
+  for (const dp of DRAWING_REQUEST_PATTERNS) {
+    if (dp.test(message)) {
+      return { isCritical: false, matchedKeyword: null };
+    }
+  }
 
   const keywords = [
     "load bearing", "load-bearing", "loadbearing",
@@ -1656,6 +1731,22 @@ export async function POST(request: NextRequest) {
         }
       } catch (_projLookupErr) {
         // Continue with existing ID — don't fail the request over this
+      }
+    }
+
+    // SCHEME PROFILE: Fetch structured authority data for this scheme
+    let schemeProfileData: Record<string, unknown> | null = null;
+    if (userSupabaseProjectId) {
+      try {
+        const spSupabase = getSupabaseClient();
+        const { data: spData } = await spSupabase
+          .from('scheme_profile')
+          .select('*')
+          .eq('id', userSupabaseProjectId)
+          .maybeSingle();
+        schemeProfileData = spData as Record<string, unknown> | null;
+      } catch {
+        // scheme_profile fetch failed — continue without it
       }
     }
 
@@ -3069,6 +3160,14 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties`;
 
+      // SCHEME PROFILE FACTS: Inject authoritative scheme-level facts when available
+      if (schemeProfileData) {
+        const schemeFactsBlock = buildSchemeFactsBlock(schemeProfileData);
+        if (schemeFactsBlock) {
+          systemMessage = systemMessage + `\n\n${schemeFactsBlock}`;
+        }
+      }
+
       // TIER 2 HOME KNOWLEDGE: Inject general factual guidance when relevant to the question
       const homeKnowledgeEntries = getRelevantHomeKnowledge(message);
       if (homeKnowledgeEntries.length > 0) {
@@ -3172,6 +3271,14 @@ Be specific and helpful — don't just say "I don't have that." Based on what th
 - Planning / building regulations: "Refer to your local council or contact your developer. Your architect's cert in the Documents tab may be relevant."
 - If you genuinely cannot help: Acknowledge the gap clearly, name the specific person/resource they should contact, and offer to help with what you do know about their home.
 Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not sure" as a complete answer — provide a specific redirect.`;
+
+      // SCHEME PROFILE FACTS: Inject authoritative scheme-level facts when available (no documents path)
+      if (schemeProfileData) {
+        const schemeFactsBlock = buildSchemeFactsBlock(schemeProfileData);
+        if (schemeFactsBlock) {
+          systemMessage = systemMessage + `\n\n${schemeFactsBlock}`;
+        }
+      }
 
       // TIER 2 HOME KNOWLEDGE: Inject even when no scheme docs — this is general guidance
       const homeKnowledgeEntriesNoDocs = getRelevantHomeKnowledge(message);
