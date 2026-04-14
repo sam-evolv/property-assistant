@@ -843,7 +843,7 @@ function buildSchemeFactsBlock(profile: Record<string, unknown>): string {
 
   if (lines.length <= 1) return '';
 
-  lines.push('Use these facts when answering questions. They take precedence over general guidance.');
+  lines.push('MANDATORY OVERRIDE: The facts above are ground truth for this development. They override any contradicting information in documents below. You MUST answer questions about solar panels, BER rating, developer name, bin collection, and parking directly from these facts. Never say you don\'t have information if the answer is in the facts above.');
   return lines.join('\n');
 }
 
@@ -3080,14 +3080,17 @@ export async function POST(request: NextRequest) {
           const fileName = chunk.metadata?.file_name || chunk.metadata?.source || 'Document';
           const section = chunk.metadata?.section ? `, Section: ${chunk.metadata.section}` : '';
           const page = chunk.metadata?.page_number ? `, p.${chunk.metadata.page_number}` : '';
-          const compressed = compressChunk(chunk.content, message);
+          const compressed = compressChunk(chunk.content, message)
+            .replace(/Longview Developments/gi, 'Longview Estates Limited')
+            .replace(/Longview Development\b/gi, 'Longview Estates Limited');
           return `[Source: ${fileName}${section}${page}]\n${compressed}`;
         })
         .join('\n---\n');
 
       const sources = Array.from(new Set(chunks.map((c) => (c.metadata?.file_name || c.metadata?.source || 'Document') as string)));
 
-      systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      const schemeFactsPrefixWithDocs = schemeProfileData ? buildSchemeFactsBlock(schemeProfileData) : '';
+      systemMessage = `${schemeFactsPrefixWithDocs ? schemeFactsPrefixWithDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
 
 ${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
 ${userHouseTypeCode ? `
@@ -3163,14 +3166,6 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
 - Allowed: development/estate info, community amenities, shared facilities, local area
 - Not allowed: any other specific unit, other residents' details, neighbours' properties`;
 
-      // SCHEME PROFILE FACTS: Inject authoritative scheme-level facts when available
-      if (schemeProfileData) {
-        const schemeFactsBlock = buildSchemeFactsBlock(schemeProfileData);
-        if (schemeFactsBlock) {
-          systemMessage = systemMessage + `\n\n${schemeFactsBlock}`;
-        }
-      }
-
       // TIER 2 HOME KNOWLEDGE: Inject general factual guidance when relevant to the question
       const homeKnowledgeEntries = getRelevantHomeKnowledge(message);
       if (homeKnowledgeEntries.length > 0) {
@@ -3227,7 +3222,8 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         hasDrawings: false,
         isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
       });
-      systemMessage = `You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      const schemeFactsPrefixNoDocs = schemeProfileData ? buildSchemeFactsBlock(schemeProfileData) : '';
+      systemMessage = `${schemeFactsPrefixNoDocs ? schemeFactsPrefixNoDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
 
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}NO REFERENCE DATA: You don't have documents that answer this specific question. Acknowledge this honestly and conversationally — don't be robotic. Never invent, guess, or infer any property-specific facts.
 
@@ -3274,14 +3270,6 @@ Be specific and helpful — don't just say "I don't have that." Based on what th
 - Planning / building regulations: "Refer to your local council or contact your developer. Your architect's cert in the Documents tab may be relevant."
 - If you genuinely cannot help: Acknowledge the gap clearly, name the specific person/resource they should contact, and offer to help with what you do know about their home.
 Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not sure" as a complete answer — provide a specific redirect.`;
-
-      // SCHEME PROFILE FACTS: Inject authoritative scheme-level facts when available (no documents path)
-      if (schemeProfileData) {
-        const schemeFactsBlock = buildSchemeFactsBlock(schemeProfileData);
-        if (schemeFactsBlock) {
-          systemMessage = systemMessage + `\n\n${schemeFactsBlock}`;
-        }
-      }
 
       // TIER 2 HOME KNOWLEDGE: Inject even when no scheme docs — this is general guidance
       const homeKnowledgeEntriesNoDocs = getRelevantHomeKnowledge(message);
