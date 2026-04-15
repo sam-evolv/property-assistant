@@ -60,44 +60,47 @@ export function AgentDashboardSidebar({ profile }: { profile: DashboardAgentProf
       overflowX: 'hidden',
     }}>
 
-      {/* Logo + agency */}
+      {/* OpenHouse logo */}
       <div style={{
-        padding: '20px 20px 0',
-        marginBottom: 8,
+        padding: '20px 20px 16px',
+        borderBottom: '1px solid rgba(0,0,0,0.06)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <Image
-            src="/oh-logo.png"
-            alt="OpenHouse"
-            width={28}
-            height={28}
-            style={{ objectFit: 'contain', mixBlendMode: 'multiply' }}
-          />
-          <div>
-            <p style={{
-              color: '#0D0D12',
-              fontSize: 13,
-              fontWeight: 700,
-              letterSpacing: '-0.02em',
-              margin: 0,
-              lineHeight: 1.2,
-            }}>
-              {profile.agency_name || 'OpenHouse Agent'}
-            </p>
-            <p style={{ color: '#A0A8B0', fontSize: 11, margin: 0 }}>
-              {profile.display_name}
-            </p>
-          </div>
-        </div>
+        <Image
+          src="/branding/openhouse-logo.png"
+          alt="OpenHouse"
+          width={160}
+          height={56}
+          style={{ objectFit: 'contain', mixBlendMode: 'multiply' }}
+          priority
+        />
+      </div>
 
-        {/* Section label */}
+      {/* Agency / agent info + section label */}
+      <div style={{ padding: '0 20px 8px' }}>
+        <p style={{
+          color: '#0D0D12',
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: '-0.02em',
+          margin: '0 0 1px',
+          lineHeight: 1.3,
+        }}>
+          {profile.agency_name || 'OpenHouse Agent'}
+        </p>
+        <p style={{ color: '#A0A8B0', fontSize: 11, margin: '0 0 14px' }}>
+          {profile.display_name}
+        </p>
         <p style={{
           color: '#C0C8D0',
           fontSize: 10,
           fontWeight: 600,
           letterSpacing: '0.07em',
           textTransform: 'uppercase',
-          margin: '0 0 6px',
+          margin: 0,
           paddingLeft: 2,
         }}>
           Dashboard
