@@ -13,14 +13,26 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 /* ── SE Systems Logo ── */
 function SESystemsLogo({ dark = true }: { dark?: boolean }) {
+  if (dark) {
+    return (
+      <Image
+        src="/branding/se-systems-logo.svg"
+        alt="SE Systems"
+        width={160}
+        height={42}
+        className="h-[38px] w-auto object-contain"
+      />
+    );
+  }
+  // Light background: amber badge + text
   return (
     <div className="flex items-center gap-2.5">
       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md">
         <span className="text-white font-bold text-sm leading-none">SE</span>
       </div>
       <div>
-        <p className={`font-bold text-sm leading-tight ${dark ? 'text-white' : 'text-gray-900'}`}>SE Systems</p>
-        <p className={`text-xs leading-tight ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Cork</p>
+        <p className="font-bold text-sm leading-tight text-gray-900">SE Systems</p>
+        <p className="text-xs leading-tight text-gray-500">Cork</p>
       </div>
     </div>
   );
@@ -132,9 +144,6 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
               hover:bg-white/10 transition-all duration-150 group
               disabled:opacity-50 disabled:pointer-events-none"
           >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0">
-              <span className="text-xs font-bold text-white">SE</span>
-            </div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-white truncate">SE Systems Cork</p>
               <p className="text-xs truncate" style={{ color: '#9CA3AF' }}>Installer account</p>

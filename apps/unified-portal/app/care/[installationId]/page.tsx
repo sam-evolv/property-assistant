@@ -103,14 +103,26 @@ export default function CareInstallationPage() {
 
       {/* Header */}
       <header className="flex-shrink-0 border-b border-gray-200 bg-white z-50">
-        <div className="flex items-center px-4 py-2.5 max-w-4xl mx-auto">
+        <div className="flex items-center justify-between px-4 py-2.5 max-w-4xl mx-auto">
           <Image
             src="/branding/openhouse-ai-logo.png"
             alt="OpenHouse AI"
             width={156}
             height={47}
-            className="h-[50px] w-auto object-contain"
+            className="h-[40px] w-auto object-contain"
           />
+          <div className="flex items-center gap-3">
+            <span className="text-gray-200 text-lg leading-none select-none">|</span>
+            <div className="flex items-center gap-1.5 bg-gray-900 rounded-lg px-2.5 py-1.5">
+              <Image
+                src="/branding/se-systems-logo.svg"
+                alt={installation.installer_name || 'SE Systems'}
+                width={120}
+                height={30}
+                className="h-[26px] w-auto object-contain"
+              />
+            </div>
+          </div>
         </div>
       </header>
 
