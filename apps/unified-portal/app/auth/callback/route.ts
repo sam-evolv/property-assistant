@@ -76,17 +76,39 @@ export async function GET(request: NextRequest) {
         return NextResponse.redirect(new URL(`/care/${installationId}`, requestUrl.origin));
       }
 
+      // No product-specific context — detect user type and route accordingly.
+      // Agents arriving via magic link should land on /agent/select, not the
+      // developer portal.
+      const { data: agentProfile } = await supabase
+        .from('agent_profiles')
+        .select('id')
+        .eq('user_id', session.user.id)
+        .maybeSingle();
+
+      if (agentProfile) {
+        return NextResponse.redirect(new URL('/agent/select', requestUrl.origin));
+      }
+
+      // Honour an explicit redirectTo for developer / admin flows
+      const redirectTo = requestUrl.searchParams.get('redirectTo');
+      const safeRedirectTo =
+        redirectTo && redirectTo.startsWith('/') && !redirectTo.startsWith('//')
+          ? redirectTo
+          : '/developer/overview';
+
+      return NextResponse.redirect(new URL(safeRedirectTo, requestUrl.origin));
+
     } catch (error) {
       console.error('Error exchanging code for session:', error);
       return NextResponse.redirect(new URL('/login?error=auth_failed', requestUrl.origin));
     }
   }
 
-  // Preserve the redirectTo parameter if it exists (existing developer/admin flow)
+  // No code param — fallback for direct hits or misconfigured links
   const redirectTo = requestUrl.searchParams.get('redirectTo') || '/developer/overview';
-  // Prevent open redirect attacks - only allow internal paths
-  const safeRedirectTo = redirectTo.startsWith('/') && !redirectTo.startsWith('//')
-    ? redirectTo
-    : '/developer/overview';
+  const safeRedirectTo =
+    redirectTo.startsWith('/') && !redirectTo.startsWith('//')
+      ? redirectTo
+      : '/developer/overview';
   return NextResponse.redirect(new URL(safeRedirectTo, requestUrl.origin));
 }

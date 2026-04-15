@@ -46,6 +46,8 @@ const PROTECTED_PATHS = [
 ];
 
 function isPublicPath(pathname: string): boolean {
+  // Agent dashboard requires authentication even though /agent is listed as public
+  if (pathname.startsWith('/agent/dashboard')) return false;
   return PUBLIC_PATHS.some(path => pathname === path || pathname.startsWith(path + '/')) ||
          Boolean(pathname.match(/^\/developments\/[^\/]+\/units\/[^\/]+$/));
 }
@@ -112,7 +114,6 @@ export async function middleware(req: NextRequest) {
     pathname.startsWith('/static/') ||
     pathname.startsWith('/auth/callback') ||
     pathname.startsWith('/branding/') ||
-    pathname.startsWith('/agent') ||
     pathname.includes('.')
   ) {
     return res;

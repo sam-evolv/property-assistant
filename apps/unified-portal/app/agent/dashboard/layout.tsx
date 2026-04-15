@@ -1,4 +1,5 @@
 import { AgentDashboardLayoutProvider } from './layout-provider';
+import { AgentDashboardAuthGuard } from './auth-guard';
 import { redirect } from 'next/navigation';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
@@ -10,7 +11,10 @@ export default async function AgentDashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const supabase = createServerComponentClient({ cookies });
+  // Capture cookie store synchronously before any await — required for
+  // @supabase/auth-helpers-nextjs to read refreshed tokens written by middleware.
+  const cookieStore = cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
   const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error || !user) {
@@ -29,8 +33,14 @@ export default async function AgentDashboardLayout({
   }
 
   return (
-    <AgentDashboardLayoutProvider profile={profile}>
-      {children}
-    </AgentDashboardLayoutProvider>
+    // AgentDashboardAuthGuard listens to onAuthStateChange client-side so that
+    // if the session is invalidated after the initial server render (e.g. signed
+    // out in another tab) the user is redirected without waiting for a full
+    // server round-trip.
+    <AgentDashboardAuthGuard>
+      <AgentDashboardLayoutProvider profile={profile}>
+        {children}
+      </AgentDashboardLayoutProvider>
+    </AgentDashboardAuthGuard>
   );
 }
