@@ -271,8 +271,8 @@ async function executeTool(
       const monthlyKwh = annualKwh / 12;
       const dailyKwh = annualKwh / 365;
 
-      // Irish electricity rate ~€0.35/kWh
-      const rate = 0.35;
+      // Irish electricity rate ~€0.30/kWh (average residential)
+      const rate = 0.30;
 
       const figures: Record<string, any> = {
         daily: {
@@ -374,16 +374,39 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
-    // Get installation
-    const { data: installation, error: instErr } = await supabase
+    // Get installation — fall back to demo data if not in DB (e.g. demo portal URLs)
+    const { data: dbInstallation } = await supabase
       .from('installations')
       .select('id, tenant_id, system_type, system_specs, health_status, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, heat_pump_model, heat_pump_serial, heat_pump_cop, flow_temp_current, hot_water_temp_current, controls_model, installer_name, installer_contact, system_category, next_service_due')
       .eq('id', installationId)
       .single();
 
-    if (instErr || !installation) {
-      return NextResponse.json({ error: 'Installation not found' }, { status: 404 });
-    }
+    const installation = dbInstallation ?? {
+      id: installationId,
+      customer_name: 'Mary Murphy',
+      system_type: 'solar_pv',
+      system_size_kwp: 3.69,
+      inverter_model: 'SolarEdge SE3680H',
+      panel_model: 'JA Solar 410W',
+      panel_count: 9,
+      install_date: '2026-01-14',
+      warranty_expiry: '2036-01-14',
+      health_status: 'healthy',
+      portal_status: 'active',
+      system_specs: {
+        battery: 'SolarEdge Home Battery 4.6kWh',
+        optimizer_count: 9,
+        roof_orientation: 'south',
+        panel_warranty_years: 25,
+        inverter_warranty_years: 12,
+        workmanship_warranty_years: 10,
+      },
+      installer_name: 'SE Systems',
+      job_reference: 'SE-2026-0312',
+      address_line_1: '12 Meadow Drive, Ballincollig',
+      city: 'Cork',
+      county: 'Cork',
+    };
 
     // PARALLEL: conversation management + history loading
     let convoId = conversation_id;
@@ -471,7 +494,8 @@ export async function POST(request: NextRequest) {
           `Battery: ${specs.battery || 'none'}`,
           `Installed: ${installation.install_date || 'not recorded'}`,
           `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
-        ].join('\n');
+          installation.installer_name ? `Installer: ${installation.installer_name}` : null,
+        ].filter(Boolean).join('\n');
 
     const seSystemsContext = isSeSystemsInstallation(installation)
       ? `\n${getSeSystemsInstallerContext()}`
