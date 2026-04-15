@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import { useCareApp } from '../care-app-provider';
 import {
@@ -37,6 +37,21 @@ function getGreeting(): string {
   return 'Good evening';
 }
 function getFirstName(name: string) { return name.split(' ')[0]; }
+
+/* ── Fallback hourly solar profile (used when telemetry API is unavailable) ── */
+function generateHourlyProfile(): Array<{ hour: number; generation: number }> {
+  const hours = [];
+  for (let h = 0; h < 24; h++) {
+    let generation = 0;
+    if (h >= 6 && h <= 20) {
+      const peak = 13;
+      const spread = 4;
+      generation = Math.max(0, 1.2 * Math.exp(-Math.pow(h - peak, 2) / (2 * spread * spread)));
+    }
+    hours.push({ hour: h, generation: Math.round(generation * 100) / 100 });
+  }
+  return hours;
+}
 
 /* ── Animated number ── */
 function Counter({ target, prefix = '', decimals = 0 }: { target: number; prefix?: string; decimals?: number }) {
@@ -133,6 +148,9 @@ export default function HomeScreen() {
       .catch(() => setTelemetryLoading(false));
   }, [installationId]);
 
+  const fallbackGeneration = (installation.system_size_kwp * 850) / 365;
+  const fallbackHourlyProfile = useMemo(() => generateHourlyProfile(), []);
+
   const daysSince = Math.floor((Date.now() - new Date(installation.install_date).getTime()) / 86400000);
   const savings = daysSince * 5.8;
 
@@ -226,7 +244,7 @@ export default function HomeScreen() {
         <div className="card-item grid grid-cols-3 gap-2.5 sm:gap-3">
           {[
             { label: 'Generated\nToday', value: telemetryLoading ? '...' : (telemetry?.generation?.today?.toFixed(1) ?? ((installation.system_size_kwp * 850) / 365).toFixed(1)), unit: 'kWh', icon: Sun, iconColor: 'text-amber-500', bg: 'bg-amber-50' },
-            { label: 'Saved\nToday', value: telemetryLoading ? '...' : '€' + ((telemetry?.generation?.today || 0) * 0.35).toFixed(2), icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'Saved\nToday', value: telemetryLoading ? '...' : '€' + ((telemetry?.generation?.today ?? fallbackGeneration) * 0.30).toFixed(2), icon: TrendingUp, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
             { label: 'Self-\nUse', value: telemetryLoading ? '...' : Math.round(telemetry?.selfConsumption || 68) + '%', icon: Leaf, iconColor: 'text-emerald-500', bg: 'bg-emerald-50' },
           ].map((m) => (
             <div key={m.label} className="rounded-2xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-3.5 sm:p-4 text-center hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
@@ -243,7 +261,7 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Generation Chart ── */}
-        <GenerationChart hourlyProfile={telemetry?.hourlyProfile || []} loading={telemetryLoading} />
+        <GenerationChart hourlyProfile={telemetry?.hourlyProfile || fallbackHourlyProfile} loading={telemetryLoading} />
 
         {/* ── Savings Card — green gradient ── */}
         <div className="card-item relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 sm:p-6 text-white shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/25 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
