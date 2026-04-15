@@ -64,6 +64,22 @@ function Counter({ target, prefix = '', decimals = 0 }: { target: number; prefix
   return <span ref={ref}>{prefix}{val.toFixed(decimals)}</span>;
 }
 
+/* ── Mock hourly solar profile (used when API data is unavailable) ── */
+function generateMockHourlyProfile() {
+  const now = new Date().getHours();
+  return Array.from({ length: 24 }, (_, hour) => {
+    let generation = 0;
+    if (hour >= 6 && hour <= 20) {
+      const peakHour = 13;
+      const sigma = 3.5;
+      const maxGeneration = 1.1;
+      generation = maxGeneration * Math.exp(-Math.pow(hour - peakHour, 2) / (2 * sigma * sigma));
+      if (hour > now) generation = 0;
+    }
+    return { hour, generation: Math.round(generation * 100) / 100 };
+  });
+}
+
 /* ── Generation Chart ── */
 function GenerationChart({ hourlyProfile, loading }: { hourlyProfile: Array<{ hour: number; generation: number }>, loading: boolean }) {
   if (loading) {
@@ -99,7 +115,7 @@ function GenerationChart({ hourlyProfile, loading }: { hourlyProfile: Array<{ ho
               x={i * barWidth + barWidth * 0.1}
               y={40 - barH}
               width={barWidth * 0.8}
-              height={barH}
+              height={Math.max(barH, 0.5)}
               rx="1"
               fill={isCurrent ? '#D4AF37' : isPast ? '#10b981' : '#e2e8f0'}
               opacity={isCurrent ? 1 : isPast ? 0.7 : 0.4}
@@ -243,7 +259,10 @@ export default function HomeScreen() {
         </div>
 
         {/* ── Generation Chart ── */}
-        <GenerationChart hourlyProfile={telemetry?.hourlyProfile || []} loading={telemetryLoading} />
+        <GenerationChart
+          hourlyProfile={telemetry?.hourlyProfile?.length > 0 ? telemetry.hourlyProfile : generateMockHourlyProfile()}
+          loading={telemetryLoading}
+        />
 
         {/* ── Savings Card — green gradient ── */}
         <div className="card-item relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-emerald-500 to-teal-500 p-5 sm:p-6 text-white shadow-lg shadow-emerald-500/15 hover:shadow-xl hover:shadow-emerald-500/25 hover:-translate-y-1 transition-all duration-300 cursor-pointer">
