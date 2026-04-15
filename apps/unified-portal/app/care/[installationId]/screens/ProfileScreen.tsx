@@ -117,10 +117,13 @@ export default function ProfileScreen() {
                     <Sun className="w-5 h-5 text-[#D4AF37] mx-auto mb-2" />
                     <p className="text-2xl font-bold text-slate-900">{installation.panel_count}</p>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Panels</p>
+                    {installation.panel_model && (
+                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{installation.panel_model}</p>
+                    )}
                   </div>
                   <div className="rounded-xl border border-[#D4AF37]/20 p-4 text-center">
                     <Zap className="w-5 h-5 text-[#D4AF37] mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-slate-900">1</p>
+                    <p className="text-sm font-bold text-slate-900 leading-tight">{installation.inverter_model || '—'}</p>
                     <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Inverter</p>
                   </div>
                 </div>
@@ -140,11 +143,15 @@ export default function ProfileScreen() {
                     {[
                       { label: 'Panel Model', value: installation.panel_model },
                       { label: 'Inverter', value: installation.inverter_model },
+                      installation.system_specs?.optimizer_count
+                        ? { label: 'Optimisers', value: `${installation.system_specs.optimizer_count}x panel optimisers` }
+                        : null,
                       { label: 'Installer', value: installation.installer_name },
+                      installation.job_reference ? { label: 'Job Reference', value: installation.job_reference } : null,
                       { label: 'Install Date', value: new Date(installation.install_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) },
                       { label: 'System Orientation', value: installation.system_specs?.roof_orientation || 'Not recorded' },
                       { label: 'Roof Pitch', value: installation.system_specs?.roof_pitch ? installation.system_specs.roof_pitch + '\u00B0' : 'Not recorded' },
-                    ].map((item) => (
+                    ].filter((item): item is { label: string; value: string } => item !== null).map((item) => (
                       <div key={item.label} className="flex items-center justify-between">
                         <span className="text-sm text-slate-500">{item.label}</span>
                         <span className="text-sm font-medium text-slate-900">{item.value}</span>
