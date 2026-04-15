@@ -1,798 +1,267 @@
 'use client';
 
-import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, AlertCircle, Video, AlertTriangle, CheckCircle, Upload } from 'lucide-react';
-import Link from 'next/link';
-import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
-import { InsightsTab } from '@/components/archive/InsightsTab';
-import { ImportantDocsTab } from '@/components/archive/ImportantDocsTab';
-import { CreateFolderModal } from '@/components/archive/CreateFolderModal';
-import { isAllSchemes, getSchemeId, createSchemeScope, createAllSchemesScope } from '@/lib/archive-scope';
-import type { ArchiveScope } from '@/lib/archive-scope';
-import type { DisciplineSummary } from '@/lib/archive-constants';
-import type { CustomDisciplineFolder } from '@/components/archive/DisciplineGrid';
+import { useState, useEffect, useCallback } from 'react';
+import {
+  FolderArchive, Play, FileText, BookOpen, HelpCircle,
+  RefreshCw, Search, Loader2, Sun, Zap,
+} from 'lucide-react';
 
-const LazyVideosTab = lazy(() => import('@/components/archive/VideosTab').then(m => ({ default: m.VideosTab })));
-const VIDEOS_ENABLED = process.env.NEXT_PUBLIC_FEATURE_VIDEOS === 'true';
-
-interface HouseType {
+/* ── Types ── */
+interface InstallerContentItem {
   id: string;
-  house_type_code: string;
-  name: string | null;
+  title: string;
+  content_type: 'video' | 'document' | 'guide' | 'faq' | string;
+  system_type: string | null;
+  description: string | null;
+  url: string | null;
+  is_published: boolean | null;
+  created_at: string;
 }
 
-interface Development {
-  id: string;
-  name: string;
-}
+type FilterType = 'all' | 'video' | 'document' | 'guide' | 'faq';
 
-interface EmbeddingStats {
-  totalDocuments: number;
-  withEmbeddings: number;
-  withoutEmbeddings: number;
-  pending: number;
-  processing: number;
-  errors: number;
-}
+/* ── SE Systems demo tenant fallback ── */
+const SE_SYSTEMS_TENANT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
-type TabType = 'archive' | 'important' | 'insights' | 'gaps' | 'videos';
-
-/**
- * Helper to read a cookie value by name on the client side.
- */
 function getCookie(name: string): string | null {
   if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+  const match = document.cookie.match(
+    new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)')
+  );
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-/** Demo fallback tenant ID used when no cookie is present */
-const DEMO_TENANT_ID = 'demo-care-tenant';
+/* ── Content-type config ── */
+const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; iconColor: string; bg: string; badge: string }> = {
+  video:    { label: 'Video',    icon: Play,       iconColor: 'text-purple-500', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700' },
+  document: { label: 'Document', icon: FileText,   iconColor: 'text-blue-500',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700' },
+  guide:    { label: 'Guide',    icon: BookOpen,   iconColor: 'text-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700' },
+  faq:      { label: 'FAQ',      icon: HelpCircle, iconColor: 'text-amber-500',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700' },
+};
 
-export default function CareDocumentArchivePage() {
-  // Care dashboard doesn't have a CurrentContext provider, so we manage state locally.
-  // tenantId is read from the tenant_id cookie (set by auth), falling back to a demo value.
-  const [tenantId] = useState<string>(() => getCookie('tenant_id') || DEMO_TENANT_ID);
-  const [archiveScope, setArchiveScope] = useState<ArchiveScope>(createAllSchemesScope());
+const SYSTEM_LABELS: Record<string, string> = {
+  solar_pv: 'Solar PV',
+  heat_pump: 'Heat Pump',
+  mvhr: 'MVHR',
+  ev_charger: 'EV Charger',
+};
 
-  const developmentId = getSchemeId(archiveScope);
-  const isViewingAllSchemes = isAllSchemes(archiveScope);
+/* ── Filter tab pill ── */
+function FilterTab({
+  label, count, active, onClick,
+}: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+        active
+          ? 'bg-gray-900 text-white'
+          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+      }`}
+    >
+      {label}
+      {count > 0 && (
+        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
+          active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+        }`}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}
 
-  const [disciplines, setDisciplines] = useState<DisciplineSummary[]>([]);
-  const [customFolders, setCustomFolders] = useState<CustomDisciplineFolder[]>([]);
-  const [houseTypes, setHouseTypes] = useState<HouseType[]>([]);
-  const [developments, setDevelopments] = useState<Development[]>([]);
+/* ── Content card ── */
+function ContentCard({ item }: { item: InstallerContentItem }) {
+  const cfg = TYPE_CONFIG[item.content_type] ?? TYPE_CONFIG.document;
+  const Icon = cfg.icon;
+  const systemLabel = item.system_type ? (SYSTEM_LABELS[item.system_type] ?? item.system_type) : null;
+  const date = new Date(item.created_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+
+  const card = (
+    <div className={`group rounded-2xl bg-white border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${item.url ? 'cursor-pointer' : ''}`}>
+      <div className="flex items-start gap-3.5">
+        <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200`}>
+          <Icon className={`w-5 h-5 ${cfg.iconColor}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-gold-600 transition-colors">{item.title}</p>
+          {item.description && (
+            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">{item.description}</p>
+          )}
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>
+              {cfg.label}
+            </span>
+            {systemLabel && (
+              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex items-center gap-1">
+                <Sun className="w-2.5 h-2.5" />
+                {systemLabel}
+              </span>
+            )}
+            <span className="text-[10px] text-gray-400 ml-auto">{date}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (item.url) {
+    return (
+      <a href={item.url} target="_blank" rel="noopener noreferrer">
+        {card}
+      </a>
+    );
+  }
+
+  return card;
+}
+
+/* ── Main page ── */
+export default function CareArchivePage() {
+  const [tenantId] = useState<string>(() => getCookie('tenant_id') || SE_SYSTEMS_TENANT_ID);
+  const [items, setItems] = useState<InstallerContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showUploadModal, setShowUploadModal] = useState(false);
-  const [showSchemeSelectionModal, setShowSchemeSelectionModal] = useState(false);
-  const [showCreateFolderModal, setShowCreateFolderModal] = useState(false);
-  const [editingFolder, setEditingFolder] = useState<CustomDisciplineFolder | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('archive');
-  const [unclassifiedCount, setUnclassifiedCount] = useState(0);
-  const [isClassifying, setIsClassifying] = useState(false);
-  const [classifyProgress, setClassifyProgress] = useState<string | null>(null);
-  const [embeddingStats, setEmbeddingStats] = useState<EmbeddingStats | null>(null);
-  const [isReprocessing, setIsReprocessing] = useState(false);
-  const [reprocessProgress, setReprocessProgress] = useState<string | null>(null);
-  const [selectedUploadSchemeId, setSelectedUploadSchemeId] = useState<string | null>(null);
-  const [knowledgeGaps, setKnowledgeGaps] = useState<any[]>([]);
-  const [gapsLoading, setGapsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [search, setSearch] = useState('');
 
-  const loadDevelopments = useCallback(async () => {
-    if (!tenantId) return;
-
-    try {
-      const response = await fetch('/api/developer/developments');
-      if (response.ok) {
-        const data = await response.json();
-        setDevelopments(data.developments || []);
-      }
-    } catch {
-      // Failed to load developments
-    }
-  }, [tenantId]);
-
-  const loadDisciplines = useCallback(async () => {
-    if (!tenantId) return;
-
+  const loadContent = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
-      const params = new URLSearchParams();
-      params.set('tenantId', tenantId);
-      params.set('mode', isViewingAllSchemes ? 'ALL_SCHEMES' : 'SCHEME');
-      if (developmentId) {
-        params.set('schemeId', developmentId);
-      }
-
-      const response = await fetch(`/api/archive/disciplines?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setDisciplines(data.disciplines || []);
-      }
-    } catch {
-      // Failed to load disciplines
+      const res = await fetch(`/api/care/installer-content?tenantId=${encodeURIComponent(tenantId)}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setItems(data.content || []);
+    } catch (err) {
+      setError('Failed to load content. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }, [tenantId, developmentId, isViewingAllSchemes]);
+  }, [tenantId]);
 
-  const loadHouseTypes = useCallback(async () => {
-    if (!tenantId || !developmentId) {
-      setHouseTypes([]);
-      return;
-    }
+  useEffect(() => { loadContent(); }, [loadContent]);
 
-    try {
-      const response = await fetch(`/api/developments/${developmentId}/houses`);
-      if (response.ok) {
-        const data = await response.json();
-        setHouseTypes(data.houseTypes || []);
-      }
-    } catch {
-      // Failed to load house types
-    }
-  }, [tenantId, developmentId]);
-
-  const checkUnclassified = useCallback(async () => {
-    if (!tenantId) return;
-
-    try {
-      const params = new URLSearchParams();
-      params.set('tenantId', tenantId);
-      if (developmentId) {
-        params.set('developmentId', developmentId);
-      }
-
-      const response = await fetch(`/developer/api/archive/bulk-classify?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setUnclassifiedCount(data.unclassifiedCount || 0);
-      }
-    } catch {
-      // Failed to check unclassified
-    }
-  }, [tenantId, developmentId]);
-
-  const loadEmbeddingStats = useCallback(async () => {
-    if (!tenantId) return;
-
-    try {
-      const params = new URLSearchParams();
-      params.set('tenantId', tenantId);
-      if (developmentId) {
-        params.set('developmentId', developmentId);
-      }
-
-      const response = await fetch(`/developer/api/archive/reprocess-all?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setEmbeddingStats(data);
-      }
-    } catch {
-      // Failed to load embedding stats
-    }
-  }, [tenantId, developmentId]);
-
-  const loadCustomFolders = useCallback(async () => {
-    if (!tenantId) return;
-
-    try {
-      const params = new URLSearchParams();
-      params.set('tenantId', tenantId);
-      if (developmentId) {
-        params.set('developmentId', developmentId);
-      }
-      params.set('discipline', '__root__');
-
-      const response = await fetch(`/api/archive/folders?${params}`);
-      if (response.ok) {
-        const data = await response.json();
-        setCustomFolders(data.folders || []);
-      }
-    } catch {
-      // Failed to load custom folders
-    }
-  }, [tenantId, developmentId]);
-
-  const loadKnowledgeGaps = useCallback(async () => {
-    if (!tenantId) return;
-    setGapsLoading(true);
-    try {
-      const schemeId = developmentId || '';
-      const url = schemeId
-        ? `/api/archive/knowledge-gaps?schemeId=${schemeId}&tenantId=${tenantId}`
-        : `/api/archive/knowledge-gaps?tenantId=${tenantId}`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setKnowledgeGaps(data.gaps || []);
-      }
-    } catch {
-      // Failed to load knowledge gaps
-    } finally {
-      setGapsLoading(false);
-    }
-  }, [tenantId, developmentId]);
-
-  const handleReprocessAll = async () => {
-    if (!tenantId || isReprocessing) return;
-
-    setIsReprocessing(true);
-    setReprocessProgress('Starting embedding generation...');
-
-    try {
-      const response = await fetch('/developer/api/archive/reprocess-all', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId,
-          developmentId,
-          limit: 20
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setReprocessProgress(`Processed ${data.successful} of ${data.processed} documents (${data.totalChunks} chunks created)`);
-
-        setTimeout(() => {
-          setReprocessProgress(null);
-          loadEmbeddingStats();
-        }, 3000);
-      } else {
-        const error = await response.json();
-        setReprocessProgress(`Error: ${error.error || 'Reprocessing failed'}`);
-        setTimeout(() => setReprocessProgress(null), 5000);
-      }
-    } catch {
-      setReprocessProgress('Reprocessing failed');
-      setTimeout(() => setReprocessProgress(null), 3000);
-    } finally {
-      setIsReprocessing(false);
-    }
+  /* Counts per type */
+  const counts: Record<FilterType, number> = {
+    all: items.length,
+    video: items.filter(i => i.content_type === 'video').length,
+    document: items.filter(i => i.content_type === 'document').length,
+    guide: items.filter(i => i.content_type === 'guide').length,
+    faq: items.filter(i => i.content_type === 'faq').length,
   };
 
-  useEffect(() => {
-    if (!tenantId) return;
-    loadDevelopments();
-    loadDisciplines();
-    loadHouseTypes();
-    checkUnclassified();
-    loadEmbeddingStats();
-    loadCustomFolders();
-  }, [tenantId, developmentId, loadDevelopments, loadDisciplines, loadHouseTypes, checkUnclassified, loadEmbeddingStats, loadCustomFolders]);
-
-  useEffect(() => {
-    if (activeTab === 'gaps') {
-      loadKnowledgeGaps();
-    }
-  }, [activeTab, loadKnowledgeGaps]);
-
-  useEffect(() => {
-    const handler = (e: CustomEvent) => {
-      if (e.detail?.discipline) {
-        // Pre-select discipline in upload modal (stored for future use)
-      }
-      setShowUploadModal(true);
-    };
-    window.addEventListener('archive:open-upload', handler as EventListener);
-    return () => window.removeEventListener('archive:open-upload', handler as EventListener);
-  }, []);
-
-  const handleUploadClick = () => {
-    if (isViewingAllSchemes) {
-      if (developments.length === 0) {
-        alert('No schemes available. Please create a scheme first.');
-        return;
-      }
-      setShowSchemeSelectionModal(true);
-    } else if (!developmentId) {
-      alert('Select a scheme before uploading documents.');
-      return;
-    } else {
-      setShowUploadModal(true);
-    }
-  };
-
-  const handleSchemeSelected = (schemeId: string) => {
-    setSelectedUploadSchemeId(schemeId);
-    setShowSchemeSelectionModal(false);
-    setShowUploadModal(true);
-  };
-
-  const handleUploadComplete = () => {
-    loadDisciplines();
-    checkUnclassified();
-    loadEmbeddingStats();
-    setShowUploadModal(false);
-    setSelectedUploadSchemeId(null);
-  };
-
-  const handleUploadModalClose = () => {
-    setShowUploadModal(false);
-    setSelectedUploadSchemeId(null);
-  };
-
-  const handleRefresh = () => {
-    loadDevelopments();
-    loadDisciplines();
-    loadHouseTypes();
-    checkUnclassified();
-    loadEmbeddingStats();
-    loadCustomFolders();
-  };
-
-  const handleCreateFolder = () => {
-    setEditingFolder(null);
-    setShowCreateFolderModal(true);
-  };
-
-  const handleEditFolder = (folder: CustomDisciplineFolder) => {
-    setEditingFolder(folder);
-    setShowCreateFolderModal(true);
-  };
-
-  const handleDeleteFolder = async (folderId: string) => {
-    const folder = customFolders.find(f => f.id === folderId);
-    if (!folder || !tenantId) return;
-
-    try {
-      const response = await fetch('/api/archive/folders', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: folderId,
-          tenantId,
-          developmentId,
-          discipline: '__root__',
-        }),
-      });
-
-      if (response.ok) {
-        setCustomFolders(prev => prev.filter(f => f.id !== folderId));
-      } else {
-        const data = await response.json();
-        alert(data.error || 'Failed to delete category');
-      }
-    } catch {
-      // Failed to delete folder
-    }
-  };
-
-  const handleFolderCreated = () => {
-    setShowCreateFolderModal(false);
-    setEditingFolder(null);
-    loadCustomFolders();
-  };
-
-  const handleBulkClassify = async () => {
-    if (!tenantId || isClassifying) return;
-
-    setIsClassifying(true);
-    setClassifyProgress('Starting AI classification...');
-
-    try {
-      const response = await fetch('/developer/api/archive/bulk-classify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId,
-          developmentId,
-          limit: 50
-        })
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setClassifyProgress(`Classified ${data.successCount} documents`);
-
-        setTimeout(() => {
-          setClassifyProgress(null);
-          loadDisciplines();
-          checkUnclassified();
-        }, 2000);
-      } else {
-        setClassifyProgress('Classification failed');
-        setTimeout(() => setClassifyProgress(null), 3000);
-      }
-    } catch {
-      setClassifyProgress('Classification failed');
-      setTimeout(() => setClassifyProgress(null), 3000);
-    } finally {
-      setIsClassifying(false);
-    }
-  };
-
-  const setDevelopmentId = (id: string | null) => {
-    const newScope = id ? createSchemeScope(id) : createAllSchemesScope();
-    setArchiveScope(newScope);
-  };
-
-  const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
-  const showClassifyBanner = unclassifiedCount > 0;
-  const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
-  const hasDocuments = totalDocuments > 0;
-  const uploadSchemeId = selectedUploadSchemeId || developmentId;
+  /* Filtered + searched items */
+  const filtered = items.filter(item => {
+    const matchesType = activeFilter === 'all' || item.content_type === activeFilter;
+    const matchesSearch = !search || item.title.toLowerCase().includes(search.toLowerCase()) ||
+      item.description?.toLowerCase().includes(search.toLowerCase());
+    return matchesType && matchesSearch;
+  });
 
   return (
     <div className="min-h-screen bg-white">
+      {/* ── Header ── */}
       <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-start justify-between">
+          <div className="flex items-start justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-gold-500 to-gold-600 flex items-center justify-center">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
                 <FolderArchive className="w-7 h-7 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Care Document Archive</h1>
+                <h1 className="text-2xl font-bold text-gray-900">Smart Archive</h1>
                 <p className="text-gray-500 mt-0.5">
-                  {isViewingAllSchemes
-                    ? `${totalDocuments} documents across all schemes`
-                    : `Installation records, warranties, and technical documentation`
-                  }
+                  {isLoading
+                    ? 'Loading content…'
+                    : `${items.length} item${items.length !== 1 ? 's' : ''} across all system types`}
                 </p>
               </div>
             </div>
 
-            <DevelopmentSelector
-              tenantId={tenantId}
-              archiveScope={archiveScope}
-              onScopeChange={setArchiveScope}
-              selectedDevelopmentId={developmentId}
-              onDevelopmentChange={setDevelopmentId}
-            />
-
             <div className="flex items-center gap-3">
-              <Link
-                href="/care-dashboard/archive/search"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors"
-              >
-                <Search className="w-5 h-5" />
-                <span>Search</span>
-              </Link>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 w-48"
+                />
+              </div>
               <button
-                onClick={handleRefresh}
+                onClick={loadContent}
                 disabled={isLoading}
                 className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors disabled:opacity-50"
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
               </button>
-              <button
-                onClick={handleUploadClick}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-gold-500 to-gold-600 text-black font-semibold hover:from-gold-400 hover:to-gold-500 transition-all shadow-lg shadow-gold-500/20"
-              >
-                <Plus className="w-5 h-5" />
-                <span>Upload</span>
-              </button>
             </div>
           </div>
 
-          <div className="flex gap-1 mt-6">
-            <button
-              onClick={() => setActiveTab('archive')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'archive'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <FolderArchive className="w-4 h-4" />
-              <span>Documents</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('important')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'important'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <Star className="w-4 h-4" />
-              <span>Must-Read</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('insights')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'insights'
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <BarChart3 className="w-4 h-4" />
-              <span>Insights</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('gaps')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'gaps'
-                  ? 'bg-red-50 text-red-700 border border-red-200'
-                  : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-              }`}
-            >
-              <AlertTriangle className="w-4 h-4" />
-              <span>Knowledge Gaps</span>
-              {knowledgeGaps.length > 0 && (
-                <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full">
-                  {knowledgeGaps.length}
-                </span>
-              )}
-            </button>
-            {VIDEOS_ENABLED && (
-              <button
-                onClick={() => setActiveTab('videos')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  activeTab === 'videos'
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
-                }`}
-              >
-                <Video className="w-4 h-4" />
-                <span>Videos</span>
-              </button>
-            )}
+          {/* ── Filter tabs ── */}
+          <div className="flex gap-1 mt-5 flex-wrap">
+            {(['all', 'video', 'document', 'guide', 'faq'] as FilterType[]).map(f => (
+              <FilterTab
+                key={f}
+                label={f === 'all' ? 'All' : (TYPE_CONFIG[f]?.label ?? f)}
+                count={counts[f]}
+                active={activeFilter === f}
+                onClick={() => setActiveFilter(f)}
+              />
+            ))}
           </div>
         </div>
       </div>
 
-      {isViewingAllSchemes && (hasDocuments || isLoading) && (
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <FolderArchive className="w-5 h-5 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-gray-900 font-medium">Viewing All Schemes</p>
-              <p className="text-gray-500 text-sm">
-                {totalDocuments} documents across all schemes are shown below
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showClassifyBanner && (
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                  <Sparkles className="w-5 h-5 text-purple-600" />
-                </div>
-                <div>
-                  <p className="text-gray-900 font-medium">
-                    {unclassifiedCount} document{unclassifiedCount !== 1 ? 's' : ''} need{unclassifiedCount === 1 ? 's' : ''} classification
-                  </p>
-                  <p className="text-gray-500 text-sm">
-                    Use AI to automatically organise documents into disciplines
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleBulkClassify}
-                disabled={isClassifying}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 text-white font-medium hover:bg-purple-500 transition-colors disabled:opacity-50"
-              >
-                {isClassifying ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>{classifyProgress || 'Classifying...'}</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-5 h-5" />
-                    <span>Classify All</span>
-                  </>
-                )}
-              </button>
-            </div>
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-xs text-gray-500 mb-1">
-                <span>Classification progress</span>
-                <span>{totalDocuments - unclassifiedCount} / {totalDocuments} classified</span>
-              </div>
-              <div className="h-2 bg-purple-100 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-500"
-                  style={{ width: totalDocuments > 0 ? `${((totalDocuments - unclassifiedCount) / totalDocuments) * 100}%` : '0%' }}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showEmbeddingBanner && (
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-                <Database className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-gray-900 font-medium">
-                  {embeddingStats.withoutEmbeddings} document{embeddingStats.withoutEmbeddings !== 1 ? 's' : ''} not indexed for AI search
-                </p>
-                <p className="text-gray-500 text-sm">
-                  Indexed: {embeddingStats.withEmbeddings} of {embeddingStats.totalDocuments} documents
-                  {embeddingStats.errors > 0 && (
-                    <span className="text-red-500 ml-2">({embeddingStats.errors} errors)</span>
-                  )}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={handleReprocessAll}
-              disabled={isReprocessing}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 text-white font-medium hover:bg-blue-500 transition-colors disabled:opacity-50"
-            >
-              {isReprocessing ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>{reprocessProgress || 'Processing...'}</span>
-                </>
-              ) : (
-                <>
-                  <Zap className="w-5 h-5" />
-                  <span>Index All Documents</span>
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {embeddingStats && !showEmbeddingBanner && embeddingStats.totalDocuments > 0 && (
-        <div className="max-w-7xl mx-auto px-6 pt-6">
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
-              <Database className="w-5 h-5 text-green-600" />
-            </div>
-            <div>
-              <p className="text-gray-900 font-medium">All documents indexed for AI search</p>
-              <p className="text-gray-500 text-sm">
-                {embeddingStats.withEmbeddings} of {embeddingStats.totalDocuments} documents ready for the assistant
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
+      {/* ── Content ── */}
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {activeTab === 'archive' ? (
-          <>
-            {!hasDocuments && !isLoading && !isViewingAllSchemes && (
-              <div className="mb-6 p-4 rounded-xl bg-gray-50 border border-gray-200 flex items-center gap-3">
-                <FolderArchive className="w-5 h-5 text-gray-400" />
-                <p className="text-gray-500 text-sm">
-                  No documents uploaded yet for this scheme. Upload documents to populate the categories below.
-                </p>
-              </div>
-            )}
-            <DisciplineGrid
-              disciplines={disciplines}
-              customFolders={customFolders}
-              isLoading={isLoading}
-              showNewFolderButton={!isViewingAllSchemes}
-              onCreateFolder={handleCreateFolder}
-              onEditFolder={handleEditFolder}
-              onDeleteFolder={handleDeleteFolder}
-              alwaysShowCategories={true}
-            />
-          </>
-        ) : activeTab === 'important' ? (
-          <ImportantDocsTab onRefresh={handleRefresh} />
-        ) : activeTab === 'videos' && VIDEOS_ENABLED ? (
-          <Suspense fallback={<div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 text-gold-500 animate-spin" /></div>}>
-            <LazyVideosTab />
-          </Suspense>
-        ) : activeTab === 'gaps' ? (
-          <div className="p-6">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">Knowledge Gaps</h2>
-              <p className="text-sm text-gray-500 mt-1">
-                Questions homeowners asked that the AI couldn&apos;t answer from your documents. Upload content to fill these gaps.
-              </p>
-            </div>
-
-            {gapsLoading ? (
-              <div className="flex items-center justify-center py-16">
-                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
-              </div>
-            ) : knowledgeGaps.length === 0 ? (
-              <div className="text-center py-16">
-                <div className="w-12 h-12 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
-                <p className="text-sm font-medium text-gray-900">No knowledge gaps detected</p>
-                <p className="text-xs text-gray-500 mt-1">Your AI assistant is answering all questions from documents</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {knowledgeGaps.map((gap, i) => (
-                  <div key={i} className="bg-white border border-red-100 rounded-2xl p-4 flex items-start justify-between gap-4 hover:border-red-200 transition-colors">
-                    <div className="flex items-start gap-3 flex-1 min-w-0">
-                      <div className="w-8 h-8 rounded-xl bg-red-50 flex items-center justify-center flex-shrink-0 mt-0.5">
-                        <AlertTriangle className="w-4 h-4 text-red-500" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">&quot;{gap.user_question}&quot;</p>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-xs text-gray-500">
-                            Asked <span className="font-semibold text-red-600">{gap.count}x</span>
-                          </span>
-                          {gap.intent_type && (
-                            <span className="text-xs px-2 py-0.5 bg-gray-100 rounded-full text-gray-600">{gap.intent_type}</span>
-                          )}
-                          {gap.last_asked && (
-                            <span className="text-xs text-gray-400">
-                              Last: {new Date(gap.last_asked).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setActiveTab('archive');
-                        setShowUploadModal(true);
-                      }}
-                      className="flex-shrink-0 px-3 py-1.5 text-xs font-semibold text-white rounded-xl transition-all hover:opacity-90 flex items-center gap-1.5"
-                      style={{ background: 'linear-gradient(135deg, #D4AF37 0%, #b8962e 100%)' }}
-                    >
-                      <Upload className="w-3 h-3" />
-                      Upload Fix
-                    </button>
+        {isLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="rounded-2xl bg-white border border-gray-200 p-5 animate-pulse">
+                <div className="flex items-start gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-gray-100" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-100 rounded w-3/4" />
+                    <div className="h-3 bg-gray-100 rounded w-full" />
+                    <div className="h-3 bg-gray-100 rounded w-1/2" />
                   </div>
-                ))}
+                </div>
               </div>
-            )}
+            ))}
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-3">
+              <FolderArchive className="w-6 h-6 text-red-400" />
+            </div>
+            <p className="text-sm font-medium text-gray-900">{error}</p>
+            <button onClick={loadContent} className="mt-3 text-sm text-amber-600 hover:underline">Try again</button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center">
+            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
+              <FolderArchive className="w-6 h-6 text-gray-400" />
+            </div>
+            <p className="text-sm font-medium text-gray-900">
+              {search ? `No results for "${search}"` : 'No content yet'}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {search ? 'Try a different search term' : 'Content added via the Content Manager will appear here'}
+            </p>
           </div>
         ) : (
-          <InsightsTab />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filtered.map(item => (
+              <ContentCard key={item.id} item={item} />
+            ))}
+          </div>
         )}
       </div>
-
-      {tenantId && uploadSchemeId && (
-        <UploadModal
-          isOpen={showUploadModal}
-          onClose={handleUploadModalClose}
-          onUploadComplete={handleUploadComplete}
-          tenantId={tenantId}
-          developmentId={uploadSchemeId}
-          houseTypes={houseTypes}
-        />
-      )}
-
-      {tenantId && (
-        <SchemeSelectionModal
-          isOpen={showSchemeSelectionModal}
-          onClose={() => setShowSchemeSelectionModal(false)}
-          onSchemeSelected={handleSchemeSelected}
-          developments={developments}
-          title="Choose Scheme for Upload"
-          description="Select which scheme to upload documents into"
-        />
-      )}
-
-      {tenantId && developmentId && (
-        <CreateFolderModal
-          isOpen={showCreateFolderModal}
-          onClose={() => {
-            setShowCreateFolderModal(false);
-            setEditingFolder(null);
-          }}
-          onFolderCreated={handleFolderCreated}
-          tenantId={tenantId}
-          developmentId={developmentId}
-          discipline="__root__"
-          editFolder={editingFolder ? {
-            id: editingFolder.id,
-            name: editingFolder.name,
-            color: editingFolder.color,
-          } : undefined}
-        />
-      )}
     </div>
   );
 }
