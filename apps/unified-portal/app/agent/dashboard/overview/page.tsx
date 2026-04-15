@@ -1,5 +1,6 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,12 +8,23 @@ export default async function AgentDashboardOverview() {
   const supabase = createServerComponentClient({ cookies });
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch agent profile
+  if (!user) {
+    redirect('/login/agent');
+  }
+
+  // Fetch agent profile — use limit(1) + maybeSingle so that duplicate rows
+  // (which caused the previous .single() to return 406) no longer crash the page.
   const { data: profile } = await supabase
     .from('agent_profiles')
     .select('id, display_name, agency_name, agent_type')
-    .eq('user_id', user!.id)
-    .single();
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!profile) {
+    redirect('/login/agent');
+  }
 
   // Fetch assigned schemes
   const { data: assignments } = await supabase
@@ -28,7 +40,7 @@ export default async function AgentDashboardOverview() {
         )
       )
     `)
-    .eq('agent_id', profile!.id)
+    .eq('agent_id', profile.id)
     .eq('is_active', true);
 
   // Compute stats
