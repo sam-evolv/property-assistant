@@ -1,5 +1,6 @@
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,12 +8,23 @@ export default async function AgentDashboardOverview() {
   const supabase = createServerComponentClient({ cookies });
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Fetch agent profile
+  if (!user) {
+    redirect('/login/agent');
+  }
+
+  // Fetch agent profile — use limit(1) + maybeSingle so that duplicate rows
+  // (which caused the previous .single() to return 406) no longer crash the page.
   const { data: profile } = await supabase
     .from('agent_profiles')
     .select('id, display_name, agency_name, agent_type')
-    .eq('user_id', user!.id)
-    .single();
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!profile) {
+    redirect('/login/agent');
+  }
 
   // Fetch assigned schemes
   const { data: assignments } = await supabase
@@ -28,7 +40,7 @@ export default async function AgentDashboardOverview() {
         )
       )
     `)
-    .eq('agent_id', profile!.id)
+    .eq('agent_id', profile.id)
     .eq('is_active', true);
 
   // Compute stats
@@ -49,7 +61,7 @@ export default async function AgentDashboardOverview() {
   const greeting = hour < 12 ? 'Good morning' : hour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1200 }}>
+    <div style={{ padding: '32px 40px', maxWidth: 1200, margin: '0 auto' }}>
 
       {/* Header */}
       <div style={{ marginBottom: 32 }}>
@@ -76,40 +88,29 @@ export default async function AgentDashboardOverview() {
         marginBottom: 32,
       }}>
         {[
-          {
-            label: 'Units sold',
-            value: totalSold,
-            color: '#10B981',
-            bg: 'rgba(16,185,129,0.08)',
-            border: 'rgba(16,185,129,0.15)',
-          },
-          {
-            label: 'Active buyers',
-            value: totalActive,
-            color: '#3B82F6',
-            bg: 'rgba(59,130,246,0.08)',
-            border: 'rgba(59,130,246,0.15)',
-          },
-          {
-            label: 'Contracts overdue',
-            value: overdue,
-            color: overdue > 0 ? '#EF4444' : '#10B981',
-            bg: overdue > 0 ? 'rgba(239,68,68,0.08)' : 'rgba(16,185,129,0.08)',
-            border: overdue > 0 ? 'rgba(239,68,68,0.15)' : 'rgba(16,185,129,0.15)',
-          },
+          { label: 'Units Sold',        value: totalSold },
+          { label: 'Active Buyers',     value: totalActive },
+          { label: 'Contracts Overdue', value: overdue },
         ].map(stat => (
           <div key={stat.label} style={{
             background: '#fff',
-            borderRadius: 16,
-            border: '0.5px solid rgba(0,0,0,0.07)',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)',
+            borderRadius: 12,
+            border: '1px solid rgba(0,0,0,0.07)',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.04)',
             padding: '20px 24px',
           }}>
-            <p style={{ color: '#6B7280', fontSize: 13, fontWeight: 500, margin: '0 0 8px' }}>
+            <p style={{
+              color: '#6B7280',
+              fontSize: 11,
+              fontWeight: 600,
+              letterSpacing: '0.06em',
+              textTransform: 'uppercase',
+              margin: '0 0 10px',
+            }}>
               {stat.label}
             </p>
             <p style={{
-              color: stat.color,
+              color: '#111827',
               fontSize: 36,
               fontWeight: 700,
               letterSpacing: '-0.05em',
@@ -159,8 +160,11 @@ export default async function AgentDashboardOverview() {
         }}>
           {['Scheme', 'Units', 'Sold', 'Active', 'Overdue'].map(h => (
             <span key={h} style={{
-              color: '#9CA3AF', fontSize: 11, fontWeight: 600,
-              letterSpacing: '0.06em', textTransform: 'uppercase',
+              color: '#9CA3AF',
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: '0.07em',
+              textTransform: 'uppercase',
             }}>
               {h}
             </span>

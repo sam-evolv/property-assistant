@@ -35,7 +35,7 @@ export function AgentDashboardLayoutProvider({
       <div style={{
         display: 'flex',
         height: '100vh',
-        background: '#F8F8F6',
+        background: '#FAFAF8',
         fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif",
         WebkitFontSmoothing: 'antialiased',
       }}>
