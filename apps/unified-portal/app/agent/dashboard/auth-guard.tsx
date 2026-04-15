@@ -1,23 +1,28 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 /**
  * Client-side auth guard for the agent dashboard.
  *
- * The server layout already redirects unauthenticated requests, but there is a
- * narrow window where the server renders with a valid session token that the
- * browser's Supabase client has not yet seen (e.g. right after sign-in before
- * the first onAuthStateChange SIGNED_IN event fires).  Conversely, if the user
- * signs out in another tab the server would keep rendering stale pages.
+ * The server layout already redirects unauthenticated requests. This guard's
+ * only job is to detect a *subsequent* sign-out (e.g. the user signs out in
+ * another tab) and redirect without waiting for a server round-trip.
  *
- * This guard subscribes to onAuthStateChange and redirects to /login/agent
- * whenever the session is lost, matching the behaviour described in the task.
+ * Important: the Supabase browser client can fire SIGNED_OUT on initial mount
+ * before it has read the session from cookies. We must NOT redirect in that
+ * case — the server component already confirmed the session is valid.
+ * A signedIn ref tracks whether SIGNED_IN has been observed in this page
+ * lifecycle; SIGNED_OUT is only acted upon after that.
  */
 export function AgentDashboardAuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  // Becomes true once we observe SIGNED_IN (or TOKEN_REFRESHED, which implies
+  // an active session). Only after that do we treat SIGNED_OUT as a real
+  // sign-out rather than the spurious initial-mount event.
+  const signedInRef = useRef(false);
 
   useEffect(() => {
     const hasEnv =
@@ -30,8 +35,12 @@ export function AgentDashboardAuthGuard({ children }: { children: React.ReactNod
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        signedInRef.current = true;
+      }
+
+      if (event === 'SIGNED_OUT' && signedInRef.current) {
         router.replace('/login/agent');
       }
     });
