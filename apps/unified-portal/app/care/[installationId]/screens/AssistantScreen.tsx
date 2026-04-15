@@ -81,8 +81,8 @@ function formatContent(text: string): string {
 function TypingIndicator() {
   return (
     <div className="flex items-end gap-2 py-2 message-bubble">
-      <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-        <Image src="/branding/openhouse-ai-logo.png" alt="" width={28} height={28} className="w-full h-full object-contain" />
+      <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-slate-900 flex items-center justify-center">
+        <Image src="/branding/se-systems-logo.svg" alt="" width={20} height={20} className="w-5 h-5 object-contain" />
       </div>
       <div className="bg-[#E9E9EB] rounded-[20px] rounded-bl-[6px] px-4 py-3">
         <div className="typing-dot dot-1 bg-gray-400" />
@@ -311,14 +311,14 @@ export default function AssistantScreen({ installationId }: { installationId: st
         /* ═══ WELCOME STATE — matches Property PurchaserChatTab layout ═══ */
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto pb-4 welcome-container">
 
-          {/* Logo — transparent PNG, same size as Property (h-[147px]) */}
-          <div className="logo-container drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+          {/* SE Systems logo — white on dark container */}
+          <div className="logo-container bg-slate-900 rounded-2xl px-6 py-4 drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
             <Image
-              src="/branding/openhouse-ai-logo.png"
-              alt="OpenHouse AI"
-              width={147}
-              height={147}
-              className="h-[120px] w-auto object-contain"
+              src="/branding/se-systems-logo.svg"
+              alt="SE Systems"
+              width={180}
+              height={34}
+              className="object-contain"
             />
           </div>
 
@@ -361,8 +361,8 @@ export default function AssistantScreen({ installationId }: { installationId: st
                 </div>
               ) : (
                 <div key={idx} className="flex justify-start items-end gap-2">
-                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                    <Image src="/branding/openhouse-ai-logo.png" alt="" width={28} height={28} className="w-full h-full object-contain" />
+                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-slate-900 flex items-center justify-center">
+                    <Image src="/branding/se-systems-logo.svg" alt="" width={20} height={20} className="w-5 h-5 object-contain" />
                   </div>
                   <div className="message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 bg-[#E9E9EB] text-gray-900 shadow-sm shadow-black/5">
                     <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} />
@@ -374,8 +374,8 @@ export default function AssistantScreen({ installationId }: { installationId: st
 
             {sending && streamText && (
               <div className="flex justify-start items-end gap-2">
-                <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                  <Image src="/branding/openhouse-ai-logo.png" alt="" width={28} height={28} className="w-full h-full object-contain" />
+                <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0 bg-slate-900 flex items-center justify-center">
+                  <Image src="/branding/se-systems-logo.svg" alt="" width={20} height={20} className="w-5 h-5 object-contain" />
                 </div>
                 <div className="message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 bg-[#E9E9EB] text-gray-900 shadow-sm shadow-black/5">
                   <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formatContent(streamText) }} />

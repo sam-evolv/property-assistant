@@ -102,27 +102,9 @@ export default function CareInstallationPage() {
       <style>{TAB_STYLES}</style>
 
       {/* Header */}
-      <header className="flex-shrink-0 border-b border-gray-200 bg-white z-50">
-        <div className="flex items-center justify-between px-4 py-2.5 max-w-4xl mx-auto">
-          <Image
-            src="/branding/openhouse-ai-logo.png"
-            alt="OpenHouse AI"
-            width={156}
-            height={47}
-            className="h-[40px] w-auto object-contain"
-          />
-          <div className="flex items-center gap-3">
-            <span className="text-gray-200 text-lg leading-none select-none">|</span>
-            <div className="flex items-center gap-1.5 bg-gray-900 rounded-lg px-2.5 py-1.5">
-              <Image
-                src="/branding/se-systems-logo.svg"
-                alt={installation.installer_name || 'SE Systems'}
-                width={120}
-                height={30}
-                className="h-[26px] w-auto object-contain"
-              />
-            </div>
-          </div>
+      <header className="flex-shrink-0 border-b border-gray-100 bg-white z-50">
+        <div className="flex items-center justify-center px-4 py-3 max-w-4xl mx-auto">
+          <span className="text-xs text-gray-400">Powered by OpenHouse AI</span>
         </div>
       </header>
 
