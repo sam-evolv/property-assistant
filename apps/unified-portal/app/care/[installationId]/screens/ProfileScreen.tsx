@@ -11,6 +11,35 @@ import {
   ChevronRight, ExternalLink, LogOut,
 } from 'lucide-react';
 
+/* ── Spec section component ── */
+function SpecSection({
+  icon: Icon, iconColor, title, rows,
+}: {
+  icon: React.ElementType;
+  iconColor: string;
+  title: string;
+  rows: { label: string; value: string | null | undefined }[];
+}) {
+  const visible = rows.filter(r => r.value != null && r.value !== '');
+  if (!visible.length) return null;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Icon className={`w-4 h-4 ${iconColor}`} />
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{title}</p>
+      </div>
+      <div className="space-y-2.5">
+        {visible.map(row => (
+          <div key={row.label} className="flex items-center justify-between gap-4">
+            <span className="text-sm text-slate-500 flex-shrink-0">{row.label}</span>
+            <span className="text-sm font-medium text-slate-900 text-right">{row.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function ProfileScreen() {
   const { installation } = useCareApp();
   const [activeSection, setActiveSection] = useState<'system' | 'documents' | 'warranty'>('system');
@@ -103,64 +132,86 @@ export default function ProfileScreen() {
               return <HeatPumpProfileContent installation={installation} />;
             })()}
 
-            {activeSection === 'system' && !isHeatPump && (
-              <div className="space-y-4">
-                {/* System type card — matches Property HOUSE TYPE card */}
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-1">System Type</p>
-                  <p className="text-lg font-bold text-slate-900">{installation.system_size_kwp} kWp Solar PV</p>
-                </div>
+            {activeSection === 'system' && !isHeatPump && (() => {
+              const specs = installation.system_specs || {};
+              // Parse battery string e.g. "SolarEdge Home Battery 4.6kWh"
+              const batteryStr: string = specs.battery || '';
+              const kwhMatch = batteryStr.match(/(\d+\.?\d*)\s*kWh/i);
+              const batteryCapacity = kwhMatch ? `${kwhMatch[1]} kWh` : null;
+              const batteryModel = batteryStr.replace(/\s*\d+\.?\d*\s*kWh/i, '').trim() || batteryStr;
+              const orientationLabel = specs.roof_orientation
+                ? specs.roof_orientation.charAt(0).toUpperCase() + specs.roof_orientation.slice(1) + '-facing'
+                : null;
+              const installerPhone = typeof installation.installer_contact?.phone === 'string'
+                ? installation.installer_contact.phone : null;
+              return (
+                <div className="space-y-3">
+                  <SpecSection
+                    icon={Sun}
+                    iconColor="text-amber-500"
+                    title="System Overview"
+                    rows={[
+                      { label: 'System Size', value: installation.system_size_kwp ? `${installation.system_size_kwp} kWp` : null },
+                      { label: 'System Type', value: batteryStr ? 'Solar PV with Battery Storage' : 'Solar PV' },
+                      { label: 'Orientation', value: orientationLabel },
+                      { label: 'Roof Pitch', value: specs.roof_pitch ? `${specs.roof_pitch}°` : null },
+                      { label: 'Installation Date', value: installation.install_date ? new Date(installation.install_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) : null },
+                    ]}
+                  />
 
-                {/* Grid — matches Property BEDROOMS/BATHROOMS layout */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl border border-[#D4AF37]/20 p-4 text-center">
-                    <Sun className="w-5 h-5 text-[#D4AF37] mx-auto mb-2" />
-                    <p className="text-2xl font-bold text-slate-900">{installation.panel_count}</p>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Panels</p>
-                    {installation.panel_model && (
-                      <p className="text-[10px] text-slate-400 mt-0.5 truncate">{installation.panel_model}</p>
-                    )}
-                  </div>
-                  <div className="rounded-xl border border-[#D4AF37]/20 p-4 text-center">
-                    <Zap className="w-5 h-5 text-[#D4AF37] mx-auto mb-2" />
-                    <p className="text-sm font-bold text-slate-900 leading-tight">{installation.inverter_model || '—'}</p>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Inverter</p>
-                  </div>
-                </div>
+                  <SpecSection
+                    icon={Sun}
+                    iconColor="text-amber-500"
+                    title="Panels"
+                    rows={[
+                      { label: 'Model', value: installation.panel_model },
+                      { label: 'Count', value: installation.panel_count ? `${installation.panel_count} panels` : null },
+                      { label: 'Total Capacity', value: installation.system_size_kwp ? `${installation.system_size_kwp} kWp` : null },
+                      { label: 'Warranty', value: specs.panel_warranty_years ? `${specs.panel_warranty_years} years` : null },
+                    ]}
+                  />
 
-                {installation.system_specs.battery && (
-                  <div className="rounded-xl border border-[#D4AF37]/20 p-4 text-center">
-                    <Battery className="w-5 h-5 text-[#D4AF37] mx-auto mb-2" />
-                    <p className="text-lg font-bold text-slate-900">{installation.system_specs.battery}</p>
-                    <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mt-1">Battery Storage</p>
-                  </div>
-                )}
+                  <SpecSection
+                    icon={Zap}
+                    iconColor="text-blue-500"
+                    title="Inverter"
+                    rows={[
+                      { label: 'Model', value: installation.inverter_model },
+                      { label: 'Type', value: specs.optimizer_count ? 'String Inverter with Optimisers' : 'String Inverter' },
+                      { label: 'Optimisers', value: specs.optimizer_count ? `${specs.optimizer_count}x panel optimisers` : null },
+                      { label: 'Max Output', value: installation.system_size_kwp ? `${installation.system_size_kwp} kW` : null },
+                      { label: 'Warranty', value: specs.inverter_warranty_years ? `${specs.inverter_warranty_years} years` : null },
+                    ]}
+                  />
 
-                {/* Equipment details */}
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-3">Equipment</p>
-                  <div className="space-y-3">
-                    {[
-                      { label: 'Panel Model', value: installation.panel_model },
-                      { label: 'Inverter', value: installation.inverter_model },
-                      installation.system_specs?.optimizer_count
-                        ? { label: 'Optimisers', value: `${installation.system_specs.optimizer_count}x panel optimisers` }
-                        : null,
-                      { label: 'Installer', value: installation.installer_name },
-                      installation.job_reference ? { label: 'Job Reference', value: installation.job_reference } : null,
-                      { label: 'Install Date', value: new Date(installation.install_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' }) },
-                      { label: 'System Orientation', value: installation.system_specs?.roof_orientation || 'Not recorded' },
-                      { label: 'Roof Pitch', value: installation.system_specs?.roof_pitch ? installation.system_specs.roof_pitch + '\u00B0' : 'Not recorded' },
-                    ].filter((item): item is { label: string; value: string } => item !== null).map((item) => (
-                      <div key={item.label} className="flex items-center justify-between">
-                        <span className="text-sm text-slate-500">{item.label}</span>
-                        <span className="text-sm font-medium text-slate-900">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
+                  {batteryStr && (
+                    <SpecSection
+                      icon={Battery}
+                      iconColor="text-emerald-500"
+                      title="Battery Storage"
+                      rows={[
+                        { label: 'Model', value: batteryModel },
+                        { label: 'Capacity', value: batteryCapacity },
+                        { label: 'Type', value: 'Lithium-ion' },
+                      ]}
+                    />
+                  )}
+
+                  <SpecSection
+                    icon={Wrench}
+                    iconColor="text-slate-500"
+                    title="Installer"
+                    rows={[
+                      { label: 'Company', value: installation.installer_name },
+                      { label: 'Location', value: [installation.city, installation.county].filter(Boolean).join(', ') || null },
+                      { label: 'Job Reference', value: installation.job_reference },
+                      { label: 'Phone', value: installerPhone },
+                      { label: 'Workmanship Warranty', value: specs.workmanship_warranty_years ? `${specs.workmanship_warranty_years} years` : null },
+                    ]}
+                  />
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {activeSection === 'documents' && (
               <div className="space-y-3">
