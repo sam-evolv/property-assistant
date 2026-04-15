@@ -11,15 +11,18 @@ import {
 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-/* ── SE Systems Logo (inline SVG — no external deps) ── */
-function SESystemsLogo({ width = 160 }: { width?: number }) {
+/* ── SE Systems Logo ── */
+function SESystemsLogo({ dark = true }: { dark?: boolean }) {
   return (
-    <svg width={width} height={width * (36 / 160)} viewBox="0 0 160 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <ellipse cx="18" cy="18" rx="16" ry="7" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(-35 18 18)" />
-      <ellipse cx="18" cy="18" rx="16" ry="7" stroke="white" strokeWidth="1.8" fill="none" transform="rotate(35 18 18)" />
-      <circle cx="18" cy="18" r="2.8" fill="white" />
-      <text x="44" y="23" fontFamily="Inter, sans-serif" fontSize="14" fontWeight="700" fill="white" letterSpacing="2.5">SESYSTEMS</text>
-    </svg>
+    <div className="flex items-center gap-2.5">
+      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md">
+        <span className="text-white font-bold text-sm leading-none">SE</span>
+      </div>
+      <div>
+        <p className={`font-bold text-sm leading-tight ${dark ? 'text-white' : 'text-gray-900'}`}>SE Systems</p>
+        <p className={`text-xs leading-tight ${dark ? 'text-gray-400' : 'text-gray-500'}`}>Cork</p>
+      </div>
+    </div>
   );
 }
 
@@ -73,7 +76,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
         {/* SE Systems Logo — white label */}
         <div style={{ padding: '24px 20px 20px' }} className="border-b border-gold-900/20 flex items-center justify-center">
-          <SESystemsLogo width={160} />
+          <SESystemsLogo />
         </div>
 
         {/* Installer Context Switcher */}
@@ -129,9 +132,8 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
               hover:bg-white/10 transition-all duration-150 group
               disabled:opacity-50 disabled:pointer-events-none"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-              style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)' }}>
-              <span className="text-xs font-semibold text-white">SE</span>
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0">
+              <span className="text-xs font-bold text-white">SE</span>
             </div>
             <div className="flex-1 min-w-0 text-left">
               <p className="text-sm font-medium text-white truncate">SE Systems Cork</p>
@@ -153,7 +155,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
         {/* Mobile Header */}
         <div className="md:hidden border-b border-gold-200/30 px-4 py-4 flex items-center justify-between bg-white/50 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <SESystemsLogo width={100} />
+            <SESystemsLogo dark={false} />
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
