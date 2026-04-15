@@ -2,6 +2,7 @@
   "compilerOptions": {
     "target": "es2017",
     "downlevelIteration": true,
+    "ignoreDeprecations": "6.0",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
