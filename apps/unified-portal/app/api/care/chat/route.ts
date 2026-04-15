@@ -475,26 +475,44 @@ export async function POST(request: NextRequest) {
     const isHeatPumpSystem = installation.system_type?.toLowerCase().includes('heat_pump') ||
       installation.system_type?.toLowerCase().includes('heat pump');
 
+    const address = [installation.address_line_1, installation.city, installation.county]
+      .filter(Boolean).join(', ');
+
+    const formatDate = (dateStr?: string | null) => {
+      if (!dateStr) return 'not recorded';
+      try {
+        return new Date(dateStr).toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+      } catch {
+        return dateStr;
+      }
+    };
+
     const systemSummary = isHeatPumpSystem
       ? [
-          `System: Heat Pump — ${installation.heat_pump_model || specs.model || 'unknown model'}`,
-          `Capacity: ${installation.system_specs?.capacity_heating || specs.capacity_heating || 'unknown'}`,
+          `System: ${installation.system_size_kwp ? installation.system_size_kwp + ' kW ' : ''}Heat Pump`,
+          `Model: ${installation.heat_pump_model || specs.model || 'unknown model'}`,
           `Type: ${specs.type || 'Air-to-Water heat pump'}`,
+          `Capacity: ${installation.system_specs?.capacity_heating || specs.capacity_heating || 'unknown'}`,
           `Refrigerant: ${specs.refrigerant || 'R32'}`,
           `Smart Control: ${specs.smart_control || specs.controlModule || 'standard controller'}`,
-          `Installed: ${installation.install_date || 'not recorded'}`,
-          `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
+          address ? `Address: ${address}` : null,
+          `Installed: ${formatDate(installation.install_date)}`,
+          `Warranty expires: ${formatDate(installation.warranty_expiry)}`,
           `Avg COP: ${baseline.average_cop || 'not recorded'}`,
           `Annual heating: ${baseline.annual_heating_kwh ? baseline.annual_heating_kwh + ' kWh' : 'not recorded'}`,
-        ].join('\n')
-      : [
-          `System: ${installation.system_type?.replace('_', ' ')} — ${installation.inverter_model || installation.heat_pump_model || 'unknown'}`,
-          `Size: ${installation.system_size_kwp ? installation.system_size_kwp + ' kWp' : 'unknown'}`,
-          `Panels: ${installation.panel_count ? installation.panel_count + 'x ' + installation.panel_model : specs.panels || 'not recorded'}`,
-          `Battery: ${specs.battery || 'none'}`,
-          `Installed: ${installation.install_date || 'not recorded'}`,
-          `Warranty expires: ${installation.warranty_expiry || 'not recorded'}`,
           installation.installer_name ? `Installer: ${installation.installer_name}` : null,
+          installation.job_reference ? `Job reference: ${installation.job_reference}` : null,
+        ].filter(Boolean).join('\n')
+      : [
+          `System: ${installation.system_size_kwp ? installation.system_size_kwp + ' kWp ' : ''}Solar PV`,
+          `Inverter: ${installation.inverter_model || 'unknown'}`,
+          `Panels: ${installation.panel_count ? installation.panel_count + 'x ' + installation.panel_model : specs.panels || 'not recorded'}`,
+          specs.battery ? `Battery: ${specs.battery}` : null,
+          address ? `Address: ${address}` : null,
+          `Installed: ${formatDate(installation.install_date)}`,
+          `Warranty expires: ${formatDate(installation.warranty_expiry)}`,
+          installation.installer_name ? `Installer: ${installation.installer_name}` : null,
+          installation.job_reference ? `Job reference: ${installation.job_reference}` : null,
         ].filter(Boolean).join('\n');
 
     const seSystemsContext = isSeSystemsInstallation(installation)
