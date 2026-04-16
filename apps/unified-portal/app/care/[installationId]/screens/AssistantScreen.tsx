@@ -127,22 +127,57 @@ function Sources({ sources }: { sources?: { title: string; snippet: string }[] }
 }
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
-interface Message { role: 'user' | 'assistant'; content: string; sources?: { title: string; snippet: string }[]; }
+interface Message { role: 'user' | 'assistant'; content: string; sources?: { title: string; snippet: string }[]; citation?: string; }
 
 /* ── Pills — vary by system type ──── */
 const SOLAR_PILLS = [
   'How much energy am I generating?',
   'What does the red light mean?',
   'When is my warranty up?',
-  '▶ Run Diagnostic',
+  '\u25B6 Run Diagnostic',
 ];
 
 const HEAT_PUMP_PILLS = [
   'Why is my bill higher this month?',
   'What\'s the noise from my heat pump?',
   'When is my warranty up?',
-  '▶ Run Diagnostic',
+  '\u25B6 Run Diagnostic',
 ];
+
+/* ── Citation mapping for canned quick-action prompts ── */
+function citationFor(userPrompt: string): string | undefined {
+  const p = userPrompt.trim().toLowerCase();
+  if (p === 'how much energy am i generating?') {
+    return 'Live inverter data \u00B7 Mar 14 to Apr 14, 2026';
+  }
+  if (p === 'what does the red light mean?') {
+    return 'SolarEdge SE3680H Manual \u00B7 SE Systems support guidelines';
+  }
+  if (p === 'when is my warranty up?') {
+    return 'Your installation record \u00B7 SE Systems standard warranty terms';
+  }
+  if (p === 'why is my bill higher this month?') {
+    return 'Live heat pump telemetry \u00B7 ESB Networks tariff data';
+  }
+  if (p === "what's the noise from my heat pump?") {
+    return 'Heat pump operating manual \u00B7 SE Systems support guidelines';
+  }
+  return undefined;
+}
+
+/* ── Citation line rendered below assistant bubbles ── */
+function Citation({ text }: { text?: string }) {
+  if (!text) return null;
+  return (
+    <div
+      className="mt-2 flex items-center gap-1.5"
+      style={{ fontSize: 11, color: '#778199' }}
+    >
+      <Info className="h-3 w-3 flex-shrink-0" />
+      <span>Based on: {text}</span>
+    </div>
+  );
+}
 
 /* ══════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -199,6 +234,8 @@ export default function AssistantScreen({ installationId }: { installationId: st
     setStreamText('');
     setTimeout(scroll, 100);
 
+    const citation = citationFor(msg);
+
     try {
       const res = await fetch('/api/care/chat', {
         method: 'POST',
@@ -250,7 +287,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
 
         setStreamText('');
         if (fullText) {
-          setMessages(p => [...p, { role: 'assistant', content: fullText }]);
+          setMessages(p => [...p, { role: 'assistant', content: fullText, citation }]);
         } else {
           setMessages(p => [...p, { role: 'assistant', content: 'Sorry, I couldn\'t process that.' }]);
         }
@@ -261,7 +298,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
           ? data.messages.find((m: any) => m.message_type === 'text')
           : null;
         const full = textMsg?.content || data.response || 'Sorry, I couldn\'t process that.';
-        setMessages(p => [...p, { role: 'assistant', content: full }]);
+        setMessages(p => [...p, { role: 'assistant', content: full, citation }]);
       }
     } catch {
       setStreamText('');
@@ -376,6 +413,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
                   </div>
                   <div className="message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 bg-[#E9E9EB] text-gray-900 shadow-sm shadow-black/5">
                     <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} />
+                    <Citation text={msg.citation} />
                     <Sources sources={msg.sources} />
                   </div>
                 </div>

@@ -37,6 +37,12 @@ function getGreeting(): string {
   return 'Good evening';
 }
 function getFirstName(name: string) { return name.split(' ')[0]; }
+function formatInstallDate(iso: string): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+}
 
 /* ── Fallback hourly solar profile (used when telemetry API is unavailable) ── */
 function generateHourlyProfile(): Array<{ hour: number; generation: number }> {
@@ -199,10 +205,21 @@ export default function HomeScreen() {
 
         {/* ── Greeting ── */}
         <div className="card-item">
-          <p className="text-sm text-slate-500">
-            {getGreeting()}, <span className="font-semibold text-slate-900">{getFirstName(installation.customer_name)}</span>
+          <p
+            className="font-semibold uppercase"
+            style={{ fontSize: 11, letterSpacing: '0.12em', color: '#D4AF37' }}
+          >
+            Your System {'\u00B7'} {installation.system_specs.battery ? 'Solar PV + Battery' : 'Solar PV'}
           </p>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight mt-0.5">Your Solar System</h1>
+          <h1
+            className="mt-1 font-bold tracking-tight"
+            style={{ fontSize: 24, color: '#1A1A1A' }}
+          >
+            {getGreeting()}, {getFirstName(installation.customer_name)}
+          </h1>
+          <p className="mt-1" style={{ fontSize: 14, color: '#778199' }}>
+            {installation.address_line_1}
+          </p>
         </div>
 
         {/* ── Alerts Banner ── */}
@@ -239,7 +256,18 @@ export default function HomeScreen() {
                 <div className="flex items-center gap-2 mb-3">
                   <div className={`w-2 h-2 rounded-full ${hc.dot}`} />
                   <span className={`text-sm font-semibold ${hc.text}`}>{hc.label}</span>
-                  <span className="ml-auto text-xs text-slate-400">Installed by <strong className="text-slate-600">{installation.installer_name}</strong></span>
+                  <span
+                    className="ml-auto font-medium"
+                    style={{
+                      fontSize: 11,
+                      color: '#D4AF37',
+                      background: 'rgba(212, 175, 55, 0.08)',
+                      padding: '4px 10px',
+                      borderRadius: 6,
+                    }}
+                  >
+                    Installed by {installation.installer_name}
+                  </span>
                 </div>
               );
             })()}
@@ -289,7 +317,7 @@ export default function HomeScreen() {
           <p className="text-3xl font-extrabold tabular-nums">
             <Counter target={savings} prefix="€" decimals={2} />
           </p>
-          <p className="text-sm text-white/50 mt-1">Since {installation.install_date}</p>
+          <p className="text-sm text-white/50 mt-1">Since {formatInstallDate(installation.install_date)}</p>
         </div>
 
         {/* ── Energy Tip ── */}
@@ -317,8 +345,17 @@ export default function HomeScreen() {
               { label: 'Workmanship', years: installation.system_specs.workmanship_warranty_years, icon: Shield, color: 'text-[#D4AF37]' },
             ].map((w) => {
               const used = daysSince / 365;
-              const pct = Math.min((used / w.years) * 100, 100);
-              const remaining = Math.round(w.years - used);
+              const yearsRemaining = Math.max(w.years - used, 0);
+              const percentageRemaining = Math.max(0, Math.min((yearsRemaining / w.years) * 100, 100));
+              const remaining = Math.round(yearsRemaining);
+              const barColor =
+                percentageRemaining > 50 ? '#10b981' : percentageRemaining >= 20 ? '#F59E0B' : '#EF4444';
+              const chipStyle =
+                percentageRemaining > 50
+                  ? 'text-emerald-600 bg-emerald-50'
+                  : percentageRemaining >= 20
+                  ? 'text-amber-600 bg-amber-50'
+                  : 'text-red-600 bg-red-50';
               return (
                 <div key={w.label} className="rounded-xl bg-white border border-slate-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] px-4 py-3 sm:px-5 sm:py-4 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer group">
                   <div className="flex items-center justify-between mb-2">
@@ -326,12 +363,15 @@ export default function HomeScreen() {
                       <w.icon className={`w-4 h-4 ${w.color}`} />
                       <span className="text-sm font-medium text-slate-900">{w.label}</span>
                     </div>
-                    <span className="text-[11px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${chipStyle}`}>
                       {remaining}y remaining
                     </span>
                   </div>
                   <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F5D874]" style={{ width: `${pct}%` }} />
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${percentageRemaining}%`, backgroundColor: barColor }}
+                    />
                   </div>
                 </div>
               );
