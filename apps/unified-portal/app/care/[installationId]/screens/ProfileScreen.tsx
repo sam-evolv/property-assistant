@@ -98,7 +98,7 @@ export default function ProfileScreen() {
                 🗓 Installed: {new Date(installation.install_date).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}
               </span>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700">
-                ✓ {daysSince} days active
+                ✓ {daysSince >= 30 ? `${Math.round(daysSince / 30)} months` : `${daysSince} days`} active
               </span>
             </div>
           </div>
