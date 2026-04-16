@@ -863,7 +863,7 @@ export default function CareIntelligenceClient() {
           content: m.content,
         }));
 
-        const response = await fetch('/api/care/chat', {
+        const response = await fetch('/api/care/intelligence/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
