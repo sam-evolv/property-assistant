@@ -114,7 +114,7 @@ export default function CareInstallationPage() {
       >
         <div className="flex items-center max-w-4xl mx-auto">
           <Image
-            src="/branding/se-systems-logo.png"
+            src="/branding/se-systems-logo.svg"
             alt="SE Systems"
             width={120}
             height={36}
