@@ -49,7 +49,7 @@ const PRODUCTS = [
     ),
     title: 'My Energy System',
     subtitle: 'Solar, heat pump & EV portal',
-    href: '/login/care',
+    href: '/care/select',
   },
   {
     id: 'developer',
