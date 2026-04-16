@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   const { data: content, error } = await supabase
     .from('installer_content')
-    .select('id, title, content_type, system_type, description, url, is_published, created_at')
+    .select('id, title, content_type, system_type, description, file_url, status, created_at')
     .eq('tenant_id', tenantId)
     .order('created_at', { ascending: false });
 
@@ -32,8 +32,23 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  type ContentRow = {
+    id: string; title: string; content_type: string; system_type: string | null;
+    description: string | null; file_url: string | null; status: string | null; created_at: string;
+  };
+  const mapped = ((content || []) as ContentRow[]).map(item => ({
+    id: item.id,
+    title: item.title,
+    content_type: item.content_type,
+    system_type: item.system_type,
+    description: item.description,
+    url: item.file_url ?? null,
+    is_published: item.status === 'live',
+    created_at: item.created_at,
+  }));
+
   return NextResponse.json({
-    content: content || [],
-    total: content?.length ?? 0,
+    content: mapped,
+    total: mapped.length,
   });
 }
