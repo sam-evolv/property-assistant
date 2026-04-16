@@ -308,13 +308,75 @@ const QUESTION_CATEGORIES = [
 const STORAGE_KEY = 'care-intelligence-sessions';
 const MAX_SESSIONS = 20;
 
+function buildDemoSessions(): Session[] {
+  const now = Date.now();
+  const hours = (h: number) => new Date(now - h * 60 * 60 * 1000).toISOString();
+  return [
+    {
+      id: 'demo-session-open-tickets',
+      title: 'Which installations have open support tickets?',
+      createdAt: hours(2),
+      messages: [
+        {
+          id: 'demo-open-tickets-q',
+          role: 'user',
+          content: 'Which installations have open support tickets?',
+        },
+        {
+          id: 'demo-open-tickets-a',
+          role: 'assistant',
+          content:
+            'Three installations currently have open tickets: SES-2024-010 in Douglas (Fronius Primo inverter error 567), SES-2024-006 in Midleton (portal activation link expired), and SES-2023-004 in Cobh (Daikin compressor warranty query). SES-2024-010 is the highest priority given the fault is intermittent but recurring.',
+        },
+      ],
+    },
+    {
+      id: 'demo-session-warranties-q2',
+      title: 'Show me all customers with warranties expiring in Q2',
+      createdAt: hours(24),
+      messages: [
+        {
+          id: 'demo-warranties-q',
+          role: 'user',
+          content: 'Show me all customers with warranties expiring in Q2',
+        },
+        {
+          id: 'demo-warranties-a',
+          role: 'assistant',
+          content:
+            'Two systems have warranties expiring between April and June: SES-2015-042 in Bishopstown (10 year inverter warranty, expiring 12 May) and SES-2015-051 in Ballincollig (expiring 28 June). Both are Solar PV installs and good candidates for an early renewal or service visit offer.',
+        },
+      ],
+    },
+    {
+      id: 'demo-session-common-fault',
+      title: "What's the most common inverter fault this month?",
+      createdAt: hours(72),
+      messages: [
+        {
+          id: 'demo-common-fault-q',
+          role: 'user',
+          content: "What's the most common inverter fault this month?",
+        },
+        {
+          id: 'demo-common-fault-a',
+          role: 'assistant',
+          content:
+            'Fronius error code 567 accounts for 4 of the 7 inverter faults logged this month, all on Primo 5.0 units installed in 2024. The root cause in each case was a grid voltage deviation during peak export, which typically clears itself after a restart. Worth flagging to ESB if the pattern continues.',
+        },
+      ],
+    },
+  ];
+}
+
 function loadSessions(): Session[] {
   if (typeof window === 'undefined') return [];
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const parsed = raw ? (JSON.parse(raw) as Session[]) : [];
+    return parsed.length > 0 ? parsed : buildDemoSessions();
   } catch {
-    return [];
+    return buildDemoSessions();
   }
 }
 
@@ -1119,11 +1181,10 @@ export default function CareIntelligenceClient() {
                 </div>
                 <button
                   onClick={startNewSession}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl
-                    text-sm font-medium text-white shadow-lg hover:shadow-xl
-                    hover:-translate-y-[1px] active:translate-y-0
+                  className="w-full h-10 flex items-center justify-center gap-2 px-3 rounded-lg
+                    text-sm font-medium text-white shadow-sm hover:shadow-md
                     transition-all duration-100"
-                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 2px 8px rgba(212,175,55,0.3)' }}
+                  style={{ background: `linear-gradient(135deg, ${tokens.gold} 0%, ${tokens.goldDark} 100%)`, boxShadow: '0 1px 4px rgba(212,175,55,0.25)' }}
                 >
                   <Plus className="w-4 h-4" />
                   New Chat
