@@ -311,14 +311,24 @@ export default function AssistantScreen({ installationId }: { installationId: st
         /* ═══ WELCOME STATE — matches Property PurchaserChatTab layout ═══ */
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto pb-4 welcome-container">
 
-          {/* Logo — transparent PNG, same size as Property (h-[147px]) */}
-          <div className="logo-container drop-shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+          {/* SE Systems logo in a refined container */}
+          <div
+            className="logo-container flex items-center justify-center"
+            style={{
+              width: 180,
+              background: '#FAFAF8',
+              borderRadius: 16,
+              padding: 24,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+            }}
+          >
             <Image
-              src="/branding/openhouse-ai-logo.png"
-              alt="OpenHouse AI"
-              width={147}
-              height={147}
-              className="h-[120px] w-auto object-contain"
+              src="/branding/se-systems-logo.png"
+              alt="SE Systems"
+              width={140}
+              height={42}
+              priority
+              style={{ width: 140, height: 'auto', objectFit: 'contain' }}
             />
           </div>
 
