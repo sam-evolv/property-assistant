@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 
 interface CardProps {
-  href: string | null;
+  href: string;
   iconPath: React.ReactNode;
   title: string;
   subtitle: string;
@@ -12,8 +12,6 @@ interface CardProps {
 }
 
 function Card({ href, iconPath, title, subtitle, cta }: CardProps) {
-  const disabled = !href;
-
   const cardStyle: React.CSSProperties = {
     flex: '1 1 280px',
     maxWidth: 340,
@@ -25,8 +23,8 @@ function Card({ href, iconPath, title, subtitle, cta }: CardProps) {
     display: 'flex',
     flexDirection: 'column',
     gap: 0,
-    cursor: disabled ? 'not-allowed' : 'pointer',
-    opacity: disabled ? 0.45 : 1,
+    cursor: 'pointer',
+    opacity: 1,
     transition: 'background 0.15s ease, border-color 0.15s ease',
   };
 
@@ -65,7 +63,7 @@ function Card({ href, iconPath, title, subtitle, cta }: CardProps) {
         lineHeight: 1.55,
         margin: '0 0 28px',
       }}>
-        {disabled ? 'Not available on this account' : subtitle}
+        {subtitle}
       </p>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 'auto' }}>
@@ -89,13 +87,9 @@ function Card({ href, iconPath, title, subtitle, cta }: CardProps) {
     </>
   );
 
-  if (disabled) {
-    return <div style={cardStyle}>{inner}</div>;
-  }
-
   return (
     <Link
-      href={href!}
+      href={href}
       style={cardStyle}
       onMouseEnter={(e: React.MouseEvent<HTMLAnchorElement>) => {
         e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
@@ -115,8 +109,8 @@ export default function CareSelectClient({
   dashboardHref,
   customerHref,
 }: {
-  dashboardHref: string | null;
-  customerHref: string | null;
+  dashboardHref: string;
+  customerHref: string;
 }) {
   return (
     <div style={{

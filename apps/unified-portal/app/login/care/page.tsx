@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import LoginCard from '../_components/LoginCard';
 import {
@@ -13,12 +13,23 @@ import {
 type Step = 'form' | 'check-email' | 'admin-password';
 
 export default function CareLogin() {
-  const [step, setStep] = useState<Step>('form');
+  return (
+    <Suspense fallback={null}>
+      <CareLoginInner />
+    </Suspense>
+  );
+}
+
+function CareLoginInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams?.get('next') ?? null;
+
+  const [step, setStep] = useState<Step>(nextParam ? 'admin-password' : 'form');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   const hasSupabaseClientEnv =
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
@@ -50,6 +61,11 @@ export default function CareLogin() {
       await supabase.auth.signOut();
       setError('Admin access required.');
       setLoading(false);
+      return;
+    }
+
+    if (nextParam) {
+      router.push(nextParam);
       return;
     }
 
@@ -149,9 +165,13 @@ export default function CareLogin() {
               id="care-email-admin"
               type="email"
               value={email}
-              disabled
+              onChange={e => setEmail(e.target.value)}
+              required
+              placeholder="you@example.com"
               className={inputClassName}
-              style={{ ...inputStyle, opacity: 0.6 }}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
             />
           </div>
 
