@@ -104,7 +104,13 @@ export default function CareInstallationPage() {
       {/* Header */}
       <header
         className="flex-shrink-0 bg-white z-50"
-        style={{ borderBottom: '1px solid #EEEEEE', padding: '16px 20px' }}
+        style={{
+          borderBottom: '1px solid #EEEEEE',
+          paddingTop: 'calc(16px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 16,
+          paddingLeft: 'calc(20px + env(safe-area-inset-left, 0px))',
+          paddingRight: 'calc(20px + env(safe-area-inset-right, 0px))',
+        }}
       >
         <div className="flex items-center max-w-4xl mx-auto">
           <Image
@@ -113,7 +119,7 @@ export default function CareInstallationPage() {
             width={120}
             height={36}
             priority
-            style={{ objectFit: 'contain' }}
+            style={{ objectFit: 'contain', filter: 'brightness(0)' }}
           />
         </div>
       </header>

@@ -365,7 +365,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
               width={140}
               height={42}
               priority
-              style={{ width: 140, height: 'auto', objectFit: 'contain' }}
+              style={{ width: 140, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
             />
           </div>
 
