@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   LayoutDashboard, Sparkles, ClipboardList, Wrench, Shield,
-  FolderArchive, BookOpen, Menu, X, ChevronDown, LogOut,
+  FolderArchive, BookOpen, Menu, X, ChevronDown, LogOut, TrendingUp,
 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
@@ -59,6 +59,7 @@ const NAV_SECTIONS = [
     title: 'Management',
     items: [
       { href: '/care-dashboard/archive', label: 'Smart Archive', icon: FolderArchive },
+      { href: '/care-dashboard/insights', label: 'Insights', icon: TrendingUp },
       { href: '/care-dashboard/communications', label: 'Content Manager', icon: BookOpen },
     ],
   },
