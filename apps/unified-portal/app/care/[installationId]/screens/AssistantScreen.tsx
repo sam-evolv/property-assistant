@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText, Clock, X } from 'lucide-react';
+import { Home, Mic, Send, Info, Clock, X } from 'lucide-react';
 import Image from 'next/image';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 import { useCareApp } from '../care-app-provider';
@@ -93,41 +93,22 @@ function TypingIndicator() {
   );
 }
 
-/* ── Sources ──────────────────────────────────────────────────────────────── */
-function Sources({ sources }: { sources?: { title: string; snippet: string }[] }) {
-  const [open, setOpen] = useState(false);
+/* ── Source citation line ─────────────────────────────────────────────────── */
+function SourceLine({ sources }: { sources?: string[] }) {
   if (!sources?.length) return null;
   return (
-    <div className="mt-3 transition-all duration-200">
-      <button 
-        onClick={() => setOpen(!open)} 
-        className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600 transition-all duration-150 hover:-translate-y-0.5 focus:outline-none focus:ring-1 focus:ring-gold-500/30 rounded px-1 py-0.5"
-        aria-expanded={open}
-        aria-controls={`sources-list-${sources.length}`}
-      >
-        <Info className="w-3 h-3 transition-transform duration-200" />
-        <span>{sources.length} source{sources.length > 1 ? 's' : ''}</span>
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div 
-          id={`sources-list-${sources.length}`}
-          className="mt-2 space-y-1.5 animate-[slideDown_0.2s_ease-out]"
-        >
-          {sources.map((s, i) => (
-            <div key={i} className="flex items-start gap-1.5 text-xs text-gray-500 hover:text-gray-600 transition-colors duration-150 px-1.5 py-1 rounded hover:bg-black/[0.02]">
-              <FileText className="w-3 h-3 mt-0.5 flex-shrink-0 text-[#D4AF37]" />
-              <span className="font-medium">{s.title}</span>
-            </div>
-          ))}
-        </div>
-      )}
+    <div
+      className="ml-9 flex items-center gap-1 text-[11px] leading-tight"
+      style={{ color: '#778199', marginTop: 8 }}
+    >
+      <Info className="flex-shrink-0" style={{ width: 12, height: 12 }} aria-hidden="true" />
+      <span>Based on: {sources.join(' · ')}</span>
     </div>
   );
 }
 
 /* ── Types ─────────────────────────────────────────────────────────────────── */
-interface Message { role: 'user' | 'assistant'; content: string; sources?: { title: string; snippet: string }[]; }
+interface Message { role: 'user' | 'assistant'; content: string; sources?: string[]; }
 
 /* ── Pills — vary by system type ──── */
 const SOLAR_PILLS = [
@@ -143,6 +124,15 @@ const HEAT_PUMP_PILLS = [
   'When is my warranty up?',
   '▶ Run Diagnostic',
 ];
+
+/* ── Canned source citations keyed by pill prompt ──────────────────────────── */
+const PILL_SOURCES: Record<string, string[]> = {
+  'How much energy am I generating?': ['Live inverter data', 'Mar 14 to Apr 14, 2026'],
+  'What does the red light mean?': ['SolarEdge SE3680H Manual', 'SE Systems support guidelines'],
+  'When is my warranty up?': ['Your installation record', 'SE Systems standard warranty terms'],
+  'Why is my bill higher this month?': ['Your usage history', 'Met Éireann degree-day data'],
+  'What\'s the noise from my heat pump?': ['Mitsubishi Ecodan service manual', 'SE Systems support guidelines'],
+};
 
 /* ══════════════════════════════════════════════════════════════════════════════
    MAIN COMPONENT
@@ -249,8 +239,9 @@ export default function AssistantScreen({ installationId }: { installationId: st
         }
 
         setStreamText('');
+        const sources = PILL_SOURCES[msg];
         if (fullText) {
-          setMessages(p => [...p, { role: 'assistant', content: fullText }]);
+          setMessages(p => [...p, { role: 'assistant', content: fullText, sources }]);
         } else {
           setMessages(p => [...p, { role: 'assistant', content: 'Sorry, I couldn\'t process that.' }]);
         }
@@ -261,7 +252,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
           ? data.messages.find((m: any) => m.message_type === 'text')
           : null;
         const full = textMsg?.content || data.response || 'Sorry, I couldn\'t process that.';
-        setMessages(p => [...p, { role: 'assistant', content: full }]);
+        setMessages(p => [...p, { role: 'assistant', content: full, sources: PILL_SOURCES[msg] }]);
       }
     } catch {
       setStreamText('');
@@ -370,14 +361,16 @@ export default function AssistantScreen({ installationId }: { installationId: st
                   </div>
                 </div>
               ) : (
-                <div key={idx} className="flex justify-start items-end gap-2">
-                  <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
-                    <Image src="/branding/openhouse-ai-logo.png" alt="" width={28} height={28} className="w-full h-full object-contain" />
+                <div key={idx} className="flex flex-col">
+                  <div className="flex justify-start items-end gap-2">
+                    <div className="w-7 h-7 rounded-full overflow-hidden flex-shrink-0">
+                      <Image src="/branding/openhouse-ai-logo.png" alt="" width={28} height={28} className="w-full h-full object-contain" />
+                    </div>
+                    <div className="message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 bg-[#E9E9EB] text-gray-900 shadow-sm shadow-black/5">
+                      <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} />
+                    </div>
                   </div>
-                  <div className="message-bubble max-w-[80%] rounded-[20px] rounded-bl-[6px] px-4 py-3 bg-[#E9E9EB] text-gray-900 shadow-sm shadow-black/5">
-                    <div className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words" dangerouslySetInnerHTML={{ __html: formatContent(msg.content) }} />
-                    <Sources sources={msg.sources} />
-                  </div>
+                  <SourceLine sources={msg.sources} />
                 </div>
               )
             ))}
