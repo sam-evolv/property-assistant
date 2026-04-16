@@ -235,6 +235,7 @@ export default function SESystemsUploadPage() {
             width={140}
             height={36}
             className="h-9 w-auto object-contain"
+            style={{ filter: 'brightness(0)' }}
             priority
           />
           {step !== 'done' && <Stepper step={step} />}

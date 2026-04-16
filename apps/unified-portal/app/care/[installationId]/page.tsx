@@ -113,7 +113,7 @@ export default function CareInstallationPage() {
             width={120}
             height={36}
             priority
-            style={{ objectFit: 'contain' }}
+            style={{ objectFit: 'contain', filter: 'brightness(0)' }}
           />
         </div>
       </header>
