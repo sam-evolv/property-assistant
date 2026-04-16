@@ -1,20 +1,16 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import Image from 'next/image';
 import { useCareApp } from '../care-app-provider';
 import {
   Search,
   Play,
   FileText,
-  BookOpen,
-  Wrench,
+  Download,
+  X,
+  ChevronDown,
   HelpCircle,
-  Clock,
-  ArrowRight,
-  Shield,
-  Award,
-  CheckCircle,
-  File,
 } from 'lucide-react';
 
 /* ── Scroll Reveal Hook ── */
@@ -25,15 +21,11 @@ function useScrollReveal(threshold = 0.1) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-
-    const prefersReduced = window.matchMedia(
-      '(prefers-reduced-motion: reduce)'
-    ).matches;
+    const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (prefersReduced) {
       setVisible(true);
       return;
     }
-
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
@@ -50,16 +42,8 @@ function useScrollReveal(threshold = 0.1) {
   return { ref, visible };
 }
 
-/* ── Reveal Section Wrapper ── */
-function RevealSection({
-  children,
-  delay = 0,
-}: {
-  children: React.ReactNode;
-  delay?: number;
-}) {
+function RevealSection({ children, delay = 0 }: { children: React.ReactNode; delay?: number }) {
   const { ref, visible } = useScrollReveal(0.1);
-
   return (
     <div ref={ref}>
       <div
@@ -75,152 +59,355 @@ function RevealSection({
   );
 }
 
-/* ── Filter chip types ── */
-type FilterChip = 'all' | 'video' | 'pdf' | 'interactive' | 'troubleshooting';
+/* ── Types ── */
+type FilterChip = 'all' | 'solar' | 'heat_pump' | 'documents' | 'faq';
 
-/* ── Doc icon color mapping ── */
-function getDocIconColor(title: string): { bg: string; border: string; icon: React.ElementType } {
-  const t = title.toLowerCase();
-  if (t.includes('manual') || t.includes('user')) return { bg: 'bg-blue-100', border: 'border-blue-300', icon: BookOpen };
-  if (t.includes('commission')) return { bg: 'bg-[#D4AF37]/10', border: 'border-[#D4AF37]/40', icon: CheckCircle };
-  if (t.includes('warranty')) return { bg: 'bg-green-100', border: 'border-green-300', icon: Shield };
-  if (t.includes('compliance') || t.includes('cert')) return { bg: 'bg-purple-100', border: 'border-purple-300', icon: Award };
-  if (t.includes('grant') || t.includes('seai')) return { bg: 'bg-amber-100', border: 'border-amber-300', icon: File };
-  return { bg: 'bg-orange-100', border: 'border-orange-300', icon: FileText };
+interface VideoItem {
+  id: string;
+  videoId: string | null; // null => placeholder (unverified)
+  title: string;
+  section: string; // Group header (e.g. "Solar: Getting Started")
+  category: 'solar' | 'heat_pump';
+  source: 'SolarEdge' | 'Mitsubishi' | 'Daikin';
+  duration?: string;
 }
 
-function getDocIconTextColor(title: string): string {
-  const t = title.toLowerCase();
-  if (t.includes('manual') || t.includes('user')) return 'text-blue-600';
-  if (t.includes('commission')) return 'text-[#D4AF37]';
-  if (t.includes('warranty')) return 'text-green-600';
-  if (t.includes('compliance') || t.includes('cert')) return 'text-purple-600';
-  if (t.includes('grant') || t.includes('seai')) return 'text-amber-600';
-  return 'text-orange-600';
-}
-
-interface ContentItem {
+interface DocumentItem {
   id: string;
   title: string;
-  content_type: string;
-  category: string | null;
-  description: string | null;
-  view_count: number;
+  subtitle: string;
 }
 
-const typeGradients: Record<string, string> = {
-  video: 'linear-gradient(135deg, #D4AF37, #B8934C)',
-  document: 'linear-gradient(135deg, #3B82F6, #2563EB)',
-  guide: 'linear-gradient(135deg, #8B5CF6, #6D28D9)',
-  faq: 'linear-gradient(135deg, #10B981, #059669)',
-};
+interface FaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
 
+/* ── Verified SolarEdge video IDs (solaredge.com) ── */
+const solarVideos: VideoItem[] = [
+  {
+    id: 'se-achieve',
+    videoId: 'YMa2meKFnOA',
+    title: 'Achieve Your Energy Goals',
+    section: 'Solar: Getting Started',
+    category: 'solar',
+    source: 'SolarEdge',
+  },
+  {
+    id: 'se-connect',
+    videoId: 'wMaJxhl0vl8',
+    title: 'Connect Your Inverter and Check Its Status',
+    section: 'Solar: Getting Started',
+    category: 'solar',
+    source: 'SolarEdge',
+  },
+  {
+    id: 'se-optimize',
+    videoId: 'xS7-twIUy2w',
+    title: 'Optimise Your System Performance',
+    section: 'Solar: Optimising Your System',
+    category: 'solar',
+    source: 'SolarEdge',
+  },
+  {
+    id: 'se-savings',
+    videoId: 's948ox9Bfgk',
+    title: 'Maximise Your Electricity Savings',
+    section: 'Solar: Optimising Your System',
+    category: 'solar',
+    source: 'SolarEdge',
+  },
+];
+
+// TODO: replace with verified YouTube IDs — ran in restricted network so oembed
+// verification was not possible at build time. These render as placeholder cards.
+const heatPumpVideos: VideoItem[] = [
+  {
+    id: 'mits-overview',
+    videoId: null,
+    title: 'Mitsubishi Ecodan: Homeowner Overview',
+    section: 'Heat Pump Guidance',
+    category: 'heat_pump',
+    source: 'Mitsubishi',
+  },
+  {
+    id: 'mits-melcloud',
+    videoId: null,
+    title: 'Using the MELCloud App',
+    section: 'Heat Pump Guidance',
+    category: 'heat_pump',
+    source: 'Mitsubishi',
+  },
+  {
+    id: 'daikin-altherma',
+    videoId: null,
+    title: 'Daikin Altherma: Homeowner Overview',
+    section: 'Heat Pump Guidance',
+    category: 'heat_pump',
+    source: 'Daikin',
+  },
+  {
+    id: 'daikin-onecta',
+    videoId: null,
+    title: 'Using the Daikin ONECTA App',
+    section: 'Heat Pump Guidance',
+    category: 'heat_pump',
+    source: 'Daikin',
+  },
+];
+
+const documents: DocumentItem[] = [
+  { id: 'doc-1', title: 'SolarEdge SE3680H Manual', subtitle: 'PDF \u00B7 3.1 MB' },
+  { id: 'doc-2', title: 'JA Solar 410W Datasheet', subtitle: 'PDF \u00B7 1.8 MB' },
+  { id: 'doc-3', title: 'SolarEdge Home Battery Installation Guide', subtitle: 'PDF \u00B7 2.4 MB' },
+  { id: 'doc-4', title: 'SEAI Grant Confirmation \u2014 SE-2026-0312', subtitle: 'PDF \u00B7 280 KB' },
+  { id: 'doc-5', title: 'BER Certificate \u2014 12 Meadow Drive, Ballincollig', subtitle: 'PDF \u00B7 420 KB' },
+  { id: 'doc-6', title: 'SE Systems Annual Service Guide', subtitle: 'PDF \u00B7 640 KB' },
+];
+
+const faqs: FaqItem[] = [
+  {
+    id: 'faq-1',
+    question: 'When will I see my first generation data?',
+    answer:
+      'Your SolarEdge inverter begins reporting within minutes of commissioning. Live data appears in the mySolarEdge app once your inverter is connected to your home Wi-Fi.',
+  },
+  {
+    id: 'faq-2',
+    question: 'Does my system work during a power cut?',
+    answer:
+      'Standard grid-tied solar shuts down during a power cut for safety. If a battery backup gateway was installed, essential circuits continue to run on battery until grid power is restored.',
+  },
+  {
+    id: 'faq-3',
+    question: 'How do I maximise my self-consumption?',
+    answer:
+      'Run high-draw appliances (washing machine, dishwasher, EV charger) during daylight hours. The mySolarEdge app shows real-time production so you can time usage to free solar.',
+  },
+  {
+    id: 'faq-4',
+    question: 'When is my annual service due?',
+    answer:
+      'SE Systems schedules an annual health check roughly 12 months after install. Your next service date appears on the Home tab and you will receive an email reminder two weeks in advance.',
+  },
+  {
+    id: 'faq-5',
+    question: 'What is covered by my warranty?',
+    answer:
+      'Panels carry a 25-year product warranty, the inverter a 12-year warranty, and SE Systems provides a 10-year workmanship warranty on the installation itself.',
+  },
+];
+
+/* ── Video Card ── */
+function VideoCard({ video, onPlay }: { video: VideoItem; onPlay: (v: VideoItem) => void }) {
+  const hasVideo = !!video.videoId;
+  const thumbnail = hasVideo
+    ? `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`
+    : null;
+
+  return (
+    <div className="flex flex-col">
+      <button
+        type="button"
+        onClick={() => hasVideo && onPlay(video)}
+        disabled={!hasVideo}
+        className="group relative w-full overflow-hidden rounded-xl bg-gray-900 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-default"
+        style={{ aspectRatio: '16/9', WebkitTapHighlightColor: 'transparent' }}
+        aria-label={hasVideo ? `Play ${video.title}` : `${video.title} (video coming soon)`}
+      >
+        {thumbnail ? (
+          <Image
+            src={thumbnail}
+            alt=""
+            fill
+            sizes="(max-width: 640px) 50vw, 320px"
+            className="object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-800 to-gray-900 p-3 text-center">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+              {video.source}
+            </span>
+            <span className="text-xs font-medium text-white/90">Video coming soon</span>
+          </div>
+        )}
+
+        {/* Source badge */}
+        <div
+          className="absolute left-2 top-2 rounded px-1.5 py-0.5"
+          style={{ background: 'rgba(255,255,255,0.95)' }}
+        >
+          <span
+            className="text-[10px] font-semibold uppercase text-gray-900"
+            style={{ letterSpacing: '0.08em' }}
+          >
+            {video.source}
+          </span>
+        </div>
+
+        {/* Duration badge */}
+        {video.duration && (
+          <div
+            className="absolute right-2 top-2 rounded px-1.5 py-0.5"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
+          >
+            <span className="text-[11px] font-medium text-white">{video.duration}</span>
+          </div>
+        )}
+
+        {/* Play overlay */}
+        {hasVideo && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg transition-transform duration-200 group-hover:scale-110">
+              <Play className="h-6 w-6 ml-0.5" style={{ color: '#D4AF37' }} fill="#D4AF37" />
+            </div>
+          </div>
+        )}
+      </button>
+
+      <p className="mt-2 text-[13px] font-medium leading-snug text-gray-900">{video.title}</p>
+    </div>
+  );
+}
+
+/* ── Video Modal ── */
+function VideoModal({ video, onClose }: { video: VideoItem; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    document.addEventListener('keydown', onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prev;
+    };
+  }, [onClose]);
+
+  if (!video.videoId) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 p-0 sm:p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={video.title}
+    >
+      <div
+        className="relative w-full h-full sm:h-auto sm:max-w-[900px]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute right-3 top-3 sm:-top-12 sm:right-0 z-10 rounded-full bg-black/60 p-2 text-white transition-colors hover:bg-black/80 sm:bg-transparent sm:hover:bg-white/10"
+          aria-label="Close video"
+        >
+          <X className="h-6 w-6" />
+        </button>
+        <div
+          className="w-full bg-black sm:rounded-lg sm:overflow-hidden sm:shadow-2xl"
+          style={{ aspectRatio: '16/9', height: '100%' }}
+        >
+          <iframe
+            src={`https://www.youtube.com/embed/${video.videoId}?autoplay=1&modestbranding=1&rel=0`}
+            title={video.title}
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            style={{ border: 0 }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── FAQ Accordion Row ── */
+function FaqRow({ item }: { item: FaqItem }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-gray-100 last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between py-3 text-left transition-colors"
+        aria-expanded={open}
+      >
+        <span className="pr-3 text-sm font-medium text-gray-900">{item.question}</span>
+        <ChevronDown
+          className="h-4 w-4 flex-shrink-0 text-gray-400 transition-transform duration-200"
+          style={{ transform: open ? 'rotate(180deg)' : 'rotate(0)' }}
+        />
+      </button>
+      {open && (
+        <div className="pb-3 pr-7 text-[13px] leading-relaxed text-gray-600">{item.answer}</div>
+      )}
+    </div>
+  );
+}
+
+/* ── Main Screen ── */
 export default function GuidesScreen() {
-  const { installation, installationId, setActiveTab } = useCareApp();
+  const { installation, setActiveTab } = useCareApp();
   const [mounted, setMounted] = useState(false);
-  const [content, setContent] = useState<Record<string, ContentItem[]>>({});
-  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const [activeFilter, setActiveFilter] = useState<FilterChip>('all');
+  const [playingVideo, setPlayingVideo] = useState<VideoItem | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    const fetchContent = async () => {
-      try {
-        const res = await fetch(`/api/care/content?installation_id=${installationId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setContent(data.content || {});
-        }
-      } catch {} finally {
-        setLoading(false);
-      }
-    };
-    fetchContent();
-  }, [installationId]);
+  }, []);
 
-  // Build guide sections from fetched content, falling back to defaults
-  const videoGuides = (content.video || []).map((c) => ({
-    title: c.title,
-    duration: `${c.view_count} views`,
-    meta: `Video`,
-    iconBg: typeGradients.video,
-  }));
-  const documents = (content.document || []).map((c) => ({
-    title: c.title,
-    meta: 'PDF',
-    size: '',
-    iconBg: typeGradients.document,
-  }));
-  const troubleshooting = (content.guide || content.faq || []).map((c) => ({
-    title: c.title,
-    description: c.description || 'Step-by-step diagnostic guide',
-    meta: c.content_type === 'faq' ? 'FAQ' : 'Guide',
-    iconBg: typeGradients[c.content_type] || typeGradients.guide,
-  }));
+  const systemLabel = installation.system_size_kwp
+    ? `${installation.system_size_kwp} kWp solar`
+    : 'home';
 
-  // If no data loaded yet, use fallback content based on system type
-  const isHeatPump = installation.system_category === 'heat_pump' || installation.system_type === 'heat_pump';
+  /* Filter logic */
+  const q = searchQuery.trim().toLowerCase();
+  const matchQuery = useCallback(
+    (text: string) => (q ? text.toLowerCase().includes(q) : true),
+    [q]
+  );
 
-  if (!loading && videoGuides.length === 0 && documents.length === 0 && troubleshooting.length === 0) {
-    if (isHeatPump) {
-      videoGuides.push(
-        { title: 'Understanding Your Heat Pump Dashboard', duration: '4 min', meta: 'Video', iconBg: typeGradients.video },
-        { title: 'Getting the Most from Underfloor Heating', duration: '6 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-        { title: 'How to Read Your Energy Bill', duration: '5 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #8B5CF6, #7C3AED)' },
-      );
-      documents.push(
-        { title: `${installation.heat_pump_model || 'Heat Pump'} User Manual`, meta: 'PDF', size: '2.4 MB', iconBg: typeGradients.document },
-        { title: 'Pipelife Underfloor Heating Guide', meta: 'PDF', size: '1.8 MB', iconBg: typeGradients.document },
-        { title: 'SEAI Grant - What to Expect', meta: 'PDF', size: '0.9 MB', iconBg: 'linear-gradient(135deg, #10B981, #059669)' },
-        { title: `${installation.controls_model || 'Thermostat'} Setup Guide`, meta: 'PDF', size: '1.2 MB', iconBg: typeGradients.document },
-      );
-      troubleshooting.push(
-        { title: 'Heat Pump Error Codes Guide', description: 'Look up error codes and find step-by-step fixes for common heat pump issues.', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
-        { title: 'Thermostat Not Responding', description: 'Diagnose and fix unresponsive thermostat or zone controller issues.', meta: 'Step-by-step', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-        { title: 'Underfloor Heating Not Heating', description: 'Check flow rates, valve positions and zone settings to restore heating.', meta: 'Diagnostic', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
-      );
-    } else {
-      videoGuides.push(
-        { title: 'Understanding Your Solar Dashboard', duration: '4 min', meta: 'Video', iconBg: typeGradients.video },
-        { title: 'Maximising Self-Consumption', duration: '6 min', meta: 'Video', iconBg: 'linear-gradient(135deg, #F59E0B, #D97706)' },
-      );
-      documents.push(
-        { title: `${installation.inverter_model} Manual`, meta: 'PDF', size: '3.1 MB', iconBg: typeGradients.document },
-      );
-      troubleshooting.push(
-        { title: 'Inverter Error Codes Guide', description: 'Look up error codes and find step-by-step fixes for common inverter issues.', meta: 'Interactive Guide', iconBg: 'linear-gradient(135deg, #EF4444, #DC2626)' },
-      );
+  const visibleVideos = useMemo(() => {
+    let vids: VideoItem[] = [];
+    if (activeFilter === 'all' || activeFilter === 'solar') vids = vids.concat(solarVideos);
+    if (activeFilter === 'all' || activeFilter === 'heat_pump') vids = vids.concat(heatPumpVideos);
+    return vids.filter((v) => matchQuery(v.title) || matchQuery(v.source));
+  }, [activeFilter, matchQuery]);
+
+  const videosBySection = useMemo(() => {
+    const map = new Map<string, VideoItem[]>();
+    for (const v of visibleVideos) {
+      if (!map.has(v.section)) map.set(v.section, []);
+      map.get(v.section)!.push(v);
     }
-  }
+    return Array.from(map.entries());
+  }, [visibleVideos]);
 
-  // Filter by search query
-  const q = searchQuery.toLowerCase();
-  let filteredVideos = q ? videoGuides.filter(g => g.title.toLowerCase().includes(q)) : videoGuides;
-  let filteredDocs = q ? documents.filter(g => g.title.toLowerCase().includes(q)) : documents;
-  let filteredTrouble = q ? troubleshooting.filter(g => g.title.toLowerCase().includes(q)) : troubleshooting;
+  const visibleDocs = useMemo(() => {
+    if (activeFilter !== 'all' && activeFilter !== 'documents') return [];
+    return documents.filter((d) => matchQuery(d.title));
+  }, [activeFilter, matchQuery]);
 
-  // Apply chip filter
-  if (activeFilter === 'video') {
-    filteredDocs = [];
-    filteredTrouble = [];
-  } else if (activeFilter === 'pdf') {
-    filteredVideos = [];
-    filteredTrouble = [];
-  } else if (activeFilter === 'interactive' || activeFilter === 'troubleshooting') {
-    filteredVideos = [];
-    filteredDocs = [];
-  }
+  const visibleFaqs = useMemo(() => {
+    if (activeFilter !== 'all' && activeFilter !== 'faq') return [];
+    return faqs.filter((f) => matchQuery(f.question) || matchQuery(f.answer));
+  }, [activeFilter, matchQuery]);
 
-  const noResults = (q || activeFilter !== 'all') && filteredVideos.length === 0 && filteredDocs.length === 0 && filteredTrouble.length === 0;
+  const noResults =
+    visibleVideos.length === 0 && visibleDocs.length === 0 && visibleFaqs.length === 0;
 
   const filterChips: { key: FilterChip; label: string }[] = [
     { key: 'all', label: 'All' },
-    { key: 'video', label: 'Video' },
-    { key: 'pdf', label: 'PDF' },
-    { key: 'interactive', label: 'Interactive' },
-    { key: 'troubleshooting', label: 'Troubleshooting' },
+    { key: 'solar', label: 'Solar' },
+    { key: 'heat_pump', label: 'Heat Pump' },
+    { key: 'documents', label: 'Documents' },
+    { key: 'faq', label: 'FAQ' },
   ];
 
   return (
@@ -235,10 +422,10 @@ export default function GuidesScreen() {
       }}
     >
       <div style={{ padding: '0 20px' }}>
-        {/* -- Header -- */}
+        {/* Header */}
         <div
           style={{
-            paddingTop: 56,
+            paddingTop: 32,
             marginBottom: 8,
             opacity: mounted ? 1 : 0,
             transform: mounted ? 'translateY(0)' : 'translateY(12px)',
@@ -255,20 +442,14 @@ export default function GuidesScreen() {
               margin: '0 0 4px',
             }}
           >
-            Guides & Resources
+            Guides &amp; Resources
           </h1>
-          <p
-            style={{
-              fontSize: 14,
-              color: '#888',
-              margin: '0 0 20px',
-            }}
-          >
-            Everything you need for your {isHeatPump ? (installation.heat_pump_model || 'heating') : `${installation.system_size_kwp} kWp`} system
+          <p style={{ fontSize: 14, color: '#888', margin: '0 0 20px' }}>
+            Tutorials for your {systemLabel} system
           </p>
         </div>
 
-        {/* -- Search Bar with focus effect -- */}
+        {/* Search */}
         <RevealSection delay={0}>
           <div
             className="transition-all duration-150"
@@ -305,14 +486,17 @@ export default function GuidesScreen() {
             />
           </div>
 
-          {/* -- Filter Chips -- */}
-          <div className="flex gap-2 mb-6 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+          {/* Filter chips */}
+          <div
+            className="flex gap-2 mb-6 overflow-x-auto pb-1"
+            style={{ scrollbarWidth: 'none' }}
+          >
             {filterChips.map((chip) => (
               <button
                 key={chip.key}
                 type="button"
                 onClick={() => setActiveFilter(chip.key)}
-                className={`rounded-full px-3 py-1 text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.97] ${
+                className={`rounded-full px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-all duration-150 active:scale-[0.97] ${
                   activeFilter === chip.key
                     ? 'bg-[#D4AF37] text-white border border-[#D4AF37]'
                     : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-300'
@@ -332,154 +516,89 @@ export default function GuidesScreen() {
           </RevealSection>
         ) : (
           <>
-            {/* -- Video Guides: 2-col tile grid -- */}
-            {filteredVideos.length > 0 && (
-              <RevealSection delay={60}>
-                <div style={{ marginBottom: 28 }}>
-                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
-                    Video Guides
+            {/* Video sections */}
+            {videosBySection.map(([section, items], idx) => (
+              <RevealSection key={section} delay={60 + idx * 40}>
+                <section style={{ marginBottom: 28 }}>
+                  <h2
+                    className="text-[15px] font-bold text-gray-900 mb-3"
+                    style={{ letterSpacing: '-0.01em' }}
+                  >
+                    {section}
                   </h2>
                   <div className="grid grid-cols-2 gap-3">
-                    {filteredVideos.map((guide, i) => (
-                      <button
-                        key={i}
-                        type="button"
-                        onClick={() => setActiveTab('assistant')}
-                        className="text-left rounded-2xl overflow-hidden transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md group"
-                        style={{ WebkitTapHighlightColor: 'transparent' }}
-                      >
-                        {/* Thumbnail area */}
-                        <div
-                          className="relative w-full overflow-hidden"
-                          style={{ aspectRatio: '16/9' }}
-                        >
-                          {/* Warm gradient background (no thumbnail) */}
-                          <div
-                            className="absolute inset-0"
-                            style={{ background: guide.iconBg || 'linear-gradient(135deg, #D4AF37, #B8934C)' }}
-                          />
-                          {/* Dark gradient overlay */}
-                          <div
-                            className="absolute inset-0"
-                            style={{ background: 'linear-gradient(0deg, rgba(0,0,0,0.7) 0%, transparent 60%)' }}
-                          />
-                          {/* Play button */}
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center transition-transform duration-150 group-hover:scale-110">
-                              <Play className="w-5 h-5 text-gray-900 ml-0.5" fill="currentColor" />
-                            </div>
-                          </div>
-                          {/* Duration chip */}
-                          <div className="absolute bottom-2 right-2">
-                            <span className="text-[11px] font-medium text-white bg-black/50 rounded px-1.5 py-0.5 backdrop-blur-sm flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {guide.duration}
-                            </span>
-                          </div>
-                        </div>
-                        {/* Title below tile */}
-                        <div className="pt-2 pb-1 px-0.5">
-                          <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">
-                            {guide.title}
-                          </p>
-                        </div>
-                      </button>
+                    {items.map((v) => (
+                      <VideoCard key={v.id} video={v} onPlay={setPlayingVideo} />
                     ))}
                   </div>
-                </div>
+                </section>
               </RevealSection>
-            )}
+            ))}
 
-            {/* -- Documents: 2-col tile grid -- */}
-            {filteredDocs.length > 0 && (
-              <RevealSection delay={120}>
-                <div style={{ marginBottom: 28 }}>
-                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
+            {/* Documents */}
+            {visibleDocs.length > 0 && (
+              <RevealSection delay={180}>
+                <section style={{ marginBottom: 28 }}>
+                  <h2
+                    className="text-[15px] font-bold text-gray-900 mb-3"
+                    style={{ letterSpacing: '-0.01em' }}
+                  >
                     Documents
                   </h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    {filteredDocs.map((doc, i) => {
-                      const docStyle = getDocIconColor(doc.title);
-                      const DocIcon = docStyle.icon;
-                      const iconTextColor = getDocIconTextColor(doc.title);
-                      return (
-                        <button
-                          key={i}
-                          type="button"
-                          onClick={() => setActiveTab('assistant')}
-                          className={`text-left rounded-xl border border-gray-200 bg-white p-3 transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md hover:${docStyle.border}`}
-                          style={{ WebkitTapHighlightColor: 'transparent' }}
-                        >
-                          {/* Icon square */}
-                          <div className={`w-8 h-8 rounded-lg ${docStyle.bg} flex items-center justify-center mb-2.5`}>
-                            <DocIcon className={`w-4 h-4 ${iconTextColor}`} />
-                          </div>
-                          {/* Title */}
-                          <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5">
-                            {doc.title}
-                          </p>
-                          {/* Meta */}
-                          <p className="text-[11px] text-gray-400 font-medium">
-                            {doc.meta}{doc.size ? ` \u00B7 ${doc.size}` : ''}
-                          </p>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </RevealSection>
-            )}
-
-            {/* -- Troubleshooting: 2-col tile grid -- */}
-            {filteredTrouble.length > 0 && (
-              <RevealSection delay={180}>
-                <div style={{ marginBottom: 28 }}>
-                  <h2 className="text-[17px] font-bold text-gray-900 mb-3" style={{ letterSpacing: '-0.02em' }}>
-                    Troubleshooting
-                  </h2>
-                  <div className="grid grid-cols-2 gap-3">
-                    {filteredTrouble.map((item, i) => (
+                  <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    {visibleDocs.map((doc, i) => (
                       <button
-                        key={i}
+                        key={doc.id}
                         type="button"
                         onClick={() => setActiveTab('assistant')}
-                        className="text-left rounded-xl border border-gray-200 bg-white overflow-hidden transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md"
+                        className={`flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-gray-50 ${
+                          i < visibleDocs.length - 1 ? 'border-b border-gray-100' : ''
+                        }`}
                         style={{ WebkitTapHighlightColor: 'transparent' }}
                       >
-                        {/* Red-to-orange gradient strip */}
-                        <div className="h-1" style={{ background: 'linear-gradient(90deg, #EF4444, #F97316)' }} />
-                        <div className="p-3">
-                          {/* Interactive chip */}
-                          <div className="flex justify-end mb-2">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-purple-600 bg-purple-50 border border-purple-200 rounded-full px-2 py-0.5">
-                              Interactive
-                            </span>
-                          </div>
-                          {/* Title */}
-                          <p className="text-sm font-semibold text-gray-900 leading-tight line-clamp-2 mb-1.5">
-                            {item.title}
-                          </p>
-                          {/* Description */}
-                          <p className="text-[11px] text-gray-400 leading-relaxed line-clamp-2 mb-3">
-                            {item.description}
-                          </p>
-                          {/* Gold link */}
-                          <span className="text-xs font-semibold text-[#D4AF37] flex items-center gap-1">
-                            Start guide
-                            <ArrowRight className="w-3 h-3" />
-                          </span>
+                        <div
+                          className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg"
+                          style={{ background: '#FDF6E3' }}
+                        >
+                          <FileText className="h-4 w-4" style={{ color: '#D4AF37' }} />
                         </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium text-gray-900">
+                            {doc.title}
+                          </p>
+                          <p className="text-[11px] text-gray-500">{doc.subtitle}</p>
+                        </div>
+                        <Download className="h-4 w-4 flex-shrink-0 text-gray-400" />
                       </button>
                     ))}
                   </div>
-                </div>
+                </section>
+              </RevealSection>
+            )}
+
+            {/* FAQ */}
+            {visibleFaqs.length > 0 && (
+              <RevealSection delay={240}>
+                <section style={{ marginBottom: 28 }}>
+                  <h2
+                    className="text-[15px] font-bold text-gray-900 mb-3"
+                    style={{ letterSpacing: '-0.01em' }}
+                  >
+                    Frequently Asked Questions
+                  </h2>
+                  <div className="rounded-xl border border-gray-200 bg-white px-4">
+                    {visibleFaqs.map((f) => (
+                      <FaqRow key={f.id} item={f} />
+                    ))}
+                  </div>
+                </section>
               </RevealSection>
             )}
           </>
         )}
 
-        {/* -- Help Banner -- */}
-        <RevealSection delay={240}>
+        {/* Help banner */}
+        <RevealSection delay={300}>
           <button
             onClick={() => setActiveTab('assistant')}
             className="w-full text-left rounded-2xl p-5 border-none cursor-pointer transition-all duration-150 active:scale-[0.97] hover:-translate-y-[3px] hover:shadow-md"
@@ -509,6 +628,10 @@ export default function GuidesScreen() {
           </button>
         </RevealSection>
       </div>
+
+      {playingVideo && (
+        <VideoModal video={playingVideo} onClose={() => setPlayingVideo(null)} />
+      )}
     </div>
   );
 }
