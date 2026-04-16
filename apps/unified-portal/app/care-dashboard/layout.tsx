@@ -74,6 +74,10 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
   const [pendingUploads, setPendingUploads] = useState(0);
 
   useEffect(() => {
+    document.title = 'SE Systems Cork - OpenHouse Care';
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const fetchPending = () => {
       fetch('/api/care-dashboard/third-party?status=pending')
@@ -177,9 +181,9 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
             <LogOut className="w-4 h-4 flex-shrink-0 text-gray-500 group-hover:text-white transition-colors" />
           </button>
           <div style={{ padding: '12px 4px 4px' }}>
-            <p className="text-center" style={{ fontSize: '10px', color: '#778199', marginBottom: '6px' }}>Powered by</p>
+            <p className="text-center text-white" style={{ fontSize: '11px', opacity: 0.5, marginBottom: '6px' }}>Powered by</p>
             <div className="flex justify-center" style={{ opacity: 0.6 }}>
-              <Image src="/branding/openhouse-logo.png" alt="OpenHouse AI" width={140} height={50} className="h-auto object-contain" style={{ width: '90px' }} />
+              <Image src="/branding/openhouse-logo.png" alt="OpenHouse AI" width={140} height={50} className="h-auto object-contain" style={{ width: '100px' }} />
             </div>
           </div>
         </div>

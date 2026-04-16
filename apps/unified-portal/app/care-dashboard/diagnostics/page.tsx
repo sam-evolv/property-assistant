@@ -98,7 +98,7 @@ export default function DiagnosticsPage() {
                       <div className={`p-2 rounded-lg ${colors.bg}`}>
                         <Icon className={`w-5 h-5 ${colors.text}`} />
                       </div>
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}>
+                      <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider bg-gray-100 text-gray-600">
                         {SYSTEM_LABELS[flow.system_type] || flow.system_type}
                       </span>
                     </div>

@@ -199,7 +199,13 @@ export default function CareDashboardOverview() {
   const healthyCount = active.filter(i => i.health_status === 'healthy').length;
   const healthPct = active.length > 0 ? Math.round((healthyCount / active.length) * 100) : 0;
   const faultCount = active.filter(i => i.health_status === 'fault' || i.health_status === 'warning').length;
-  const recent = [...installations].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5);
+  const recent = [...installations]
+    .sort((a, b) => {
+      const aDate = new Date(a.install_date || a.created_at).getTime();
+      const bDate = new Date(b.install_date || b.created_at).getTime();
+      return bDate - aDate;
+    })
+    .slice(0, 5);
   const alerts = generateAlerts(installations);
 
   // Callout deflection stats

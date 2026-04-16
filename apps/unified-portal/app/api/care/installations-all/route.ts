@@ -36,6 +36,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from('installations')
     .select('*')
+    .order('install_date', { ascending: false, nullsFirst: false })
     .order('created_at', { ascending: false });
 
   if (error) {
