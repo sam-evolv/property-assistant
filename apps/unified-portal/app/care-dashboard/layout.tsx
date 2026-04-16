@@ -60,7 +60,7 @@ const NAV_SECTIONS = [
     items: [
       { href: '/care-dashboard/archive', label: 'Smart Archive', icon: FolderArchive },
       { href: '/care-dashboard/insights', label: 'Insights', icon: TrendingUp },
-      { href: '/care-dashboard/communications', label: 'Content Manager', icon: BookOpen },
+      { href: '/care-dashboard/communications', label: 'Communications', icon: BookOpen },
     ],
   },
 ];

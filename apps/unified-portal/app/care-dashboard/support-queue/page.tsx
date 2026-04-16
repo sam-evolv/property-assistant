@@ -34,6 +34,15 @@ const TAB_LABELS: Record<string, string> = {
   resolved: 'Resolved',
 };
 
+function prettifyQueryType(value: string): string {
+  if (!value) return 'General';
+  if (!value.includes('_') && /[A-Z]/.test(value)) return value;
+  return value
+    .split('_')
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1).toLowerCase() : ''))
+    .join(' ');
+}
+
 export default function SupportQueuePage() {
   const [queries, setQueries] = useState<SupportQuery[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +149,7 @@ export default function SupportQueuePage() {
                             <p className="text-xs text-gray-400">{query.address}</p>
                           </td>
                           <td className="px-4 py-3">
-                            <p className="text-gray-700">{query.query_type}</p>
+                            <p className="text-gray-700">{prettifyQueryType(query.query_type)}</p>
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>

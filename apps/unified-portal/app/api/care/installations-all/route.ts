@@ -11,6 +11,25 @@ function getSupabaseAdmin() {
   );
 }
 
+// Mirrors migration 041: normalise legacy demo data at the API boundary so the
+// UI stays consistent even if the migration has not been run yet.
+function normaliseInstallation(row: Record<string, unknown>) {
+  const out = { ...row };
+  if (out.job_reference === 'SE-2024-DEMO-001') {
+    out.job_reference = 'SE-2024-0847';
+    out.address_line_1 = '23 Millbrook Gardens';
+    out.city = 'Douglas';
+    out.county = 'Cork';
+    out.system_type = 'heat_pump';
+    out.system_size_kwp = null;
+    out.inverter_model = 'Mitsubishi Ecodan 8 kW';
+  }
+  if (out.health_status === 'activated') {
+    out.health_status = 'active';
+  }
+  return out;
+}
+
 export async function GET() {
   const supabase = getSupabaseAdmin();
 
@@ -23,5 +42,6 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ installations: data || [] });
+  const installations = (data || []).map(normaliseInstallation);
+  return NextResponse.json({ installations });
 }
