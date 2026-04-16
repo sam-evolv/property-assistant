@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import {
-  FolderArchive, Play, FileText, BookOpen, HelpCircle,
-  RefreshCw, Search, Loader2, Sun, Zap, Inbox, Upload,
-  CheckCircle2,
+  Play, FileText, BookOpen, HelpCircle,
+  Search, Upload, MoreHorizontal, SlidersHorizontal,
+  CheckCircle2, FolderArchive,
 } from 'lucide-react';
 import { QuickUploadModal } from '@/components/care/QuickUploadModal';
 
@@ -19,9 +19,11 @@ interface InstallerContentItem {
   url: string | null;
   is_published: boolean | null;
   created_at: string;
+  file_size_bytes?: number | null;
 }
 
-type FilterType = 'all' | 'video' | 'document' | 'guide' | 'faq';
+type TypeFilter = 'all' | 'video' | 'document' | 'guide' | 'faq';
+type SystemFilter = 'all' | string;
 
 /* ── SE Systems demo tenant fallback ── */
 const SE_SYSTEMS_TENANT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -34,12 +36,12 @@ function getCookie(name: string): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-/* ── Content-type config ── */
-const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType; iconColor: string; bg: string; badge: string }> = {
-  video:    { label: 'Video',    icon: Play,       iconColor: 'text-purple-500', bg: 'bg-purple-50',  badge: 'bg-purple-100 text-purple-700' },
-  document: { label: 'Document', icon: FileText,   iconColor: 'text-blue-500',   bg: 'bg-blue-50',    badge: 'bg-blue-100 text-blue-700' },
-  guide:    { label: 'Guide',    icon: BookOpen,   iconColor: 'text-emerald-500',bg: 'bg-emerald-50', badge: 'bg-emerald-100 text-emerald-700' },
-  faq:      { label: 'FAQ',      icon: HelpCircle, iconColor: 'text-amber-500',  bg: 'bg-amber-50',   badge: 'bg-amber-100 text-amber-700' },
+/* ── Content-type config (neutral icons only) ── */
+const TYPE_CONFIG: Record<string, { label: string; icon: React.ElementType }> = {
+  video:    { label: 'Video',    icon: Play },
+  document: { label: 'Document', icon: FileText },
+  guide:    { label: 'Guide',    icon: BookOpen },
+  faq:      { label: 'FAQ',      icon: HelpCircle },
 };
 
 const SYSTEM_LABELS: Record<string, string> = {
@@ -47,26 +49,39 @@ const SYSTEM_LABELS: Record<string, string> = {
   heat_pump: 'Heat Pump',
   mvhr: 'MVHR',
   ev_charger: 'EV Charger',
+  battery: 'Battery',
 };
 
-/* ── Filter tab pill ── */
-function FilterTab({
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-IE', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function formatSize(bytes: number | null | undefined): string | null {
+  if (!bytes || bytes <= 0) return null;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/* ── Small chip for filters ── */
+function FilterChip({
   label, count, active, onClick,
-}: { label: string; count: number; active: boolean; onClick: () => void }) {
+}: { label: string; count?: number; active: boolean; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+      className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] font-medium transition-colors ${
         active
-          ? 'bg-gray-900 text-white'
-          : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+          ? 'bg-[#1A1A1A] text-white border border-[#1A1A1A]'
+          : 'bg-white text-[#4A4A4A] border border-[#E5E5E0] hover:border-[#1A1A1A]/30 hover:text-[#1A1A1A]'
       }`}
     >
-      {label}
-      {count > 0 && (
-        <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-full ${
-          active ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
-        }`}>
+      <span>{label}</span>
+      {typeof count === 'number' && (
+        <span className={active ? 'text-white/70' : 'text-[#778199]'}>
           {count}
         </span>
       )}
@@ -74,50 +89,104 @@ function FilterTab({
   );
 }
 
-/* ── Content card ── */
+/* ── Main archive card (redesigned) ── */
 function ContentCard({ item }: { item: InstallerContentItem }) {
   const cfg = TYPE_CONFIG[item.content_type] ?? TYPE_CONFIG.document;
   const Icon = cfg.icon;
   const systemLabel = item.system_type ? (SYSTEM_LABELS[item.system_type] ?? item.system_type) : null;
-  const date = new Date(item.created_at).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
+  const size = formatSize(item.file_size_bytes);
+  const date = formatDate(item.created_at);
 
-  const card = (
-    <div className={`group rounded-2xl bg-white border border-gray-200/80 shadow-[0_1px_3px_rgba(0,0,0,0.06)] p-4 sm:p-5 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${item.url ? 'cursor-pointer' : ''}`}>
-      <div className="flex items-start gap-3.5">
-        <div className={`w-10 h-10 rounded-xl ${cfg.bg} flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform duration-200`}>
-          <Icon className={`w-5 h-5 ${cfg.iconColor}`} />
+  const inner = (
+    <article
+      className="group relative flex flex-col h-full min-h-[200px] bg-white border border-[#E5E5E0] rounded-[12px] p-5 transition-all duration-150 hover:-translate-y-0.5 hover:border-[#D4AF37] hover:shadow-[0_8px_24px_rgba(26,26,26,0.06)]"
+    >
+      {/* Top row: icon + type + menu */}
+      <div className="flex items-center gap-3">
+        <div className="w-9 h-9 rounded-lg bg-[#F5F5F0] flex items-center justify-center flex-shrink-0">
+          <Icon className="w-[18px] h-[18px] text-[#4A4A4A]" strokeWidth={1.75} />
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900 truncate group-hover:text-gold-600 transition-colors">{item.title}</p>
-          {item.description && (
-            <p className="text-xs text-gray-500 mt-0.5 line-clamp-2 leading-relaxed">{item.description}</p>
+        <span className="text-[11px] font-semibold tracking-[0.08em] uppercase text-[#778199]">
+          {cfg.label}
+        </span>
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+          className="ml-auto w-7 h-7 rounded-md flex items-center justify-center text-[#778199] hover:text-[#1A1A1A] hover:bg-[#F5F5F0] transition-colors opacity-0 group-hover:opacity-100"
+          aria-label="More actions"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Title */}
+      <h3 className="mt-4 text-[16px] font-semibold text-[#1A1A1A] leading-[1.3] line-clamp-2">
+        {item.title}
+      </h3>
+
+      {/* Description */}
+      {item.description && (
+        <p className="mt-2 text-[13px] text-[#4A4A4A] leading-[1.5] line-clamp-2">
+          {item.description}
+        </p>
+      )}
+
+      {/* Footer */}
+      <div className="mt-auto pt-4">
+        <div className="h-px bg-[#E5E5E0]" />
+        <div className="mt-3 text-[11px] text-[#778199] flex items-center flex-wrap gap-x-1.5">
+          {systemLabel && <span>{systemLabel}</span>}
+          {systemLabel && <span aria-hidden>·</span>}
+          <span>{date}</span>
+          {size && (
+            <>
+              <span aria-hidden>·</span>
+              <span>{size}</span>
+            </>
           )}
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
-            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.badge}`}>
-              {cfg.label}
-            </span>
-            {systemLabel && (
-              <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 flex items-center gap-1">
-                <Sun className="w-2.5 h-2.5" />
-                {systemLabel}
-              </span>
-            )}
-            <span className="text-[10px] text-gray-400 ml-auto">{date}</span>
-          </div>
         </div>
       </div>
-    </div>
+    </article>
   );
 
   if (item.url) {
     return (
-      <a href={item.url} target="_blank" rel="noopener noreferrer">
-        {card}
+      <a
+        href={item.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block h-full focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37] rounded-[12px]"
+      >
+        {inner}
       </a>
     );
   }
 
-  return card;
+  return inner;
+}
+
+/* ── Small recently-accessed card ── */
+function RecentCard({
+  title, type, accessed,
+}: { title: string; type: keyof typeof TYPE_CONFIG; accessed: string }) {
+  const cfg = TYPE_CONFIG[type] ?? TYPE_CONFIG.document;
+  const Icon = cfg.icon;
+  return (
+    <div className="flex-shrink-0 w-[240px] bg-white border border-[#E5E5E0] rounded-[12px] p-4 hover:border-[#D4AF37] transition-colors cursor-pointer">
+      <div className="flex items-center gap-2">
+        <div className="w-7 h-7 rounded-md bg-[#F5F5F0] flex items-center justify-center">
+          <Icon className="w-3.5 h-3.5 text-[#4A4A4A]" strokeWidth={1.75} />
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#778199]">
+          {cfg.label}
+        </span>
+      </div>
+      <p className="mt-3 text-[13px] font-semibold text-[#1A1A1A] leading-[1.35] line-clamp-2">
+        {title}
+      </p>
+      <p className="mt-2 text-[11px] text-[#778199]">{accessed}</p>
+    </div>
+  );
 }
 
 /* ── Main page ── */
@@ -126,7 +195,8 @@ export default function CareArchivePage() {
   const [items, setItems] = useState<InstallerContentItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all');
+  const [systemFilter, setSystemFilter] = useState<SystemFilter>('all');
   const [search, setSearch] = useState('');
   const [pendingUploads, setPendingUploads] = useState(0);
   const [uploadOpen, setUploadOpen] = useState(false);
@@ -153,7 +223,7 @@ export default function CareArchivePage() {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       setItems(data.content || []);
-    } catch (err) {
+    } catch {
       setError('Failed to load content. Please try again.');
     } finally {
       setIsLoading(false);
@@ -162,151 +232,274 @@ export default function CareArchivePage() {
 
   useEffect(() => { loadContent(); }, [loadContent]);
 
-  /* Counts per type */
-  const counts: Record<FilterType, number> = {
-    all: items.length,
-    video: items.filter(i => i.content_type === 'video').length,
-    document: items.filter(i => i.content_type === 'document').length,
-    guide: items.filter(i => i.content_type === 'guide').length,
-    faq: items.filter(i => i.content_type === 'faq').length,
+  /* Type counts (after system filter applied) */
+  const systemFilteredItems = useMemo(
+    () => items.filter(i => systemFilter === 'all' || i.system_type === systemFilter),
+    [items, systemFilter]
+  );
+
+  const typeCounts: Record<TypeFilter, number> = {
+    all: systemFilteredItems.length,
+    video: systemFilteredItems.filter(i => i.content_type === 'video').length,
+    document: systemFilteredItems.filter(i => i.content_type === 'document').length,
+    guide: systemFilteredItems.filter(i => i.content_type === 'guide').length,
+    faq: systemFilteredItems.filter(i => i.content_type === 'faq').length,
   };
 
+  /* System list (only those present in data) + counts */
+  const systemOptions = useMemo(() => {
+    const set = new Set<string>();
+    items.forEach(i => { if (i.system_type) set.add(i.system_type); });
+    const order = ['solar_pv', 'heat_pump', 'battery', 'ev_charger', 'mvhr'];
+    return Array.from(set).sort((a, b) => {
+      const ai = order.indexOf(a); const bi = order.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+  }, [items]);
+
+  const systemCounts: Record<string, number> = useMemo(() => {
+    const typeScoped = items.filter(i => typeFilter === 'all' || i.content_type === typeFilter);
+    const counts: Record<string, number> = { all: typeScoped.length };
+    systemOptions.forEach(s => {
+      counts[s] = typeScoped.filter(i => i.system_type === s).length;
+    });
+    return counts;
+  }, [items, typeFilter, systemOptions]);
+
   /* Filtered + searched items */
-  const filtered = items.filter(item => {
-    const matchesType = activeFilter === 'all' || item.content_type === activeFilter;
-    const matchesSearch = !search || item.title.toLowerCase().includes(search.toLowerCase()) ||
-      item.description?.toLowerCase().includes(search.toLowerCase());
-    return matchesType && matchesSearch;
-  });
+  const filtered = useMemo(() => items.filter(item => {
+    const matchesType = typeFilter === 'all' || item.content_type === typeFilter;
+    const matchesSystem = systemFilter === 'all' || item.system_type === systemFilter;
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q
+      || item.title.toLowerCase().includes(q)
+      || (item.description?.toLowerCase().includes(q) ?? false);
+    return matchesType && matchesSystem && matchesSearch;
+  }), [items, typeFilter, systemFilter, search]);
+
+  // TODO: wire to actual view tracking — seeded for layout while telemetry is built
+  const recentlyAccessed = useMemo(() => {
+    const pool = items.slice(0, 4);
+    const stamps = ['2h ago', 'Yesterday', '3d ago', '1w ago'];
+    return pool.map((it, i) => ({
+      id: it.id,
+      title: it.title,
+      type: (it.content_type as keyof typeof TYPE_CONFIG) ?? 'document',
+      accessed: stamps[i] ?? 'Recently',
+      url: it.url,
+    }));
+  }, [items]);
+
+  const clearFilters = () => {
+    setTypeFilter('all');
+    setSystemFilter('all');
+    setSearch('');
+  };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* ── Header ── */}
-      <div className="border-b border-gray-200 bg-white sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 flex items-center justify-center">
-                <FolderArchive className="w-7 h-7 text-white" />
-              </div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Smart Archive</h1>
-                <p className="text-gray-500 mt-0.5">
-                  {isLoading
-                    ? 'Loading content…'
-                    : `${items.length} item${items.length !== 1 ? 's' : ''} across all system types`}
-                </p>
-              </div>
-            </div>
+    <div className="min-h-screen bg-[#FAFAF8]">
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-8 md:py-10">
 
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  placeholder="Search…"
-                  className="pl-9 pr-4 py-2 text-sm rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-400/30 focus:border-amber-400 w-48"
-                />
-              </div>
-              <button
-                onClick={loadContent}
-                disabled={isLoading}
-                className="p-2.5 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 hover:text-gray-900 transition-colors disabled:opacity-50"
-                title="Refresh"
-              >
-                <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
-              </button>
-              <button
-                onClick={() => setUploadOpen(true)}
-                className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-900 bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors"
-              >
-                <Upload className="w-4 h-4" />
-                Upload
-              </button>
-            </div>
+        {/* ── Header ── */}
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h1 className="text-[28px] font-semibold text-[#1A1A1A] tracking-[-0.01em] leading-tight">
+              Smart Archive
+            </h1>
+            <p className="mt-1 text-[14px] text-[#778199]">
+              {isLoading
+                ? 'Loading content…'
+                : `${items.length} item${items.length !== 1 ? 's' : ''} across all system types`}
+            </p>
           </div>
 
-          {/* ── Archive / Inbox section tabs ── */}
-          <div className="flex items-center gap-1 mt-5 flex-wrap">
-            <span className="px-3.5 py-1.5 rounded-lg text-sm font-semibold bg-gray-900 text-white inline-flex items-center gap-1.5">
-              <FolderArchive className="w-4 h-4" />
+          <button
+            onClick={() => setUploadOpen(true)}
+            className="inline-flex items-center gap-2 h-10 px-4 text-[14px] font-medium text-[#1A1A1A] bg-[#D4AF37] rounded-lg hover:bg-[#C9A961] transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Upload
+          </button>
+        </div>
+
+        {/* ── Prominent search ── */}
+        <div className="mt-6">
+          <div className="relative">
+            <Search
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#778199]"
+              strokeWidth={1.75}
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search documents, guides, videos…"
+              className="w-full h-12 pl-12 pr-12 text-[15px] text-[#1A1A1A] placeholder:text-[#778199] bg-white border border-[#E5E5E0] rounded-[12px] focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/15 transition"
+            />
+            <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[#778199]">
+              <SlidersHorizontal className="w-4 h-4" strokeWidth={1.75} />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Segmented tabs (Archive / Inbox) ── */}
+        <div className="mt-8 border-b border-[#E5E5E0]">
+          <nav className="flex items-center gap-6">
+            <button
+              className="relative h-11 flex items-center gap-2 text-[14px] font-medium text-[#1A1A1A]"
+            >
               Smart Archive
-            </span>
+              <span className="text-[12px] text-[#778199]">{items.length}</span>
+              <span className="absolute left-0 right-0 bottom-0 h-[2px] bg-[#D4AF37]" />
+            </button>
             <Link
               href="/care-dashboard/smart-archive/inbox"
-              className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors inline-flex items-center gap-1.5"
+              className="relative h-11 flex items-center gap-2 text-[14px] font-medium text-[#778199] hover:text-[#1A1A1A] transition-colors"
             >
-              <Inbox className="w-4 h-4" />
               Inbox
               {pendingUploads > 0 && (
-                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-[#D4AF37] text-white">
+                <span className="text-[11px] font-semibold px-1.5 h-[18px] min-w-[18px] rounded-full bg-[#D4AF37] text-[#1A1A1A] inline-flex items-center justify-center">
                   {pendingUploads}
                 </span>
               )}
             </Link>
-          </div>
+          </nav>
+        </div>
 
-          {/* ── Filter tabs ── */}
-          <div className="flex gap-1 mt-3 flex-wrap">
-            {(['all', 'video', 'document', 'guide', 'faq'] as FilterType[]).map(f => (
-              <FilterTab
-                key={f}
-                label={f === 'all' ? 'All' : (TYPE_CONFIG[f]?.label ?? f)}
-                count={counts[f]}
-                active={activeFilter === f}
-                onClick={() => setActiveFilter(f)}
+        {/* ── Filter chips ── */}
+        <div className="mt-5 space-y-2.5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-[12px] font-medium text-[#778199] w-14 shrink-0">Type</span>
+            <FilterChip
+              label="All"
+              count={typeCounts.all}
+              active={typeFilter === 'all'}
+              onClick={() => setTypeFilter('all')}
+            />
+            {(['video', 'document', 'guide', 'faq'] as TypeFilter[]).map(t => (
+              <FilterChip
+                key={t}
+                label={`${TYPE_CONFIG[t].label}s`}
+                count={typeCounts[t]}
+                active={typeFilter === t}
+                onClick={() => setTypeFilter(t)}
               />
             ))}
           </div>
-        </div>
-      </div>
 
-      {/* ── Content ── */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {isLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="rounded-2xl bg-white border border-gray-200 p-5 animate-pulse">
-                <div className="flex items-start gap-3.5">
-                  <div className="w-10 h-10 rounded-xl bg-gray-100" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-gray-100 rounded w-3/4" />
-                    <div className="h-3 bg-gray-100 rounded w-full" />
-                    <div className="h-3 bg-gray-100 rounded w-1/2" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-red-50 flex items-center justify-center mb-3">
-              <FolderArchive className="w-6 h-6 text-red-400" />
+          {systemOptions.length > 0 && (
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className="text-[12px] font-medium text-[#778199] w-14 shrink-0">System</span>
+              <FilterChip
+                label="All"
+                count={systemCounts.all}
+                active={systemFilter === 'all'}
+                onClick={() => setSystemFilter('all')}
+              />
+              {systemOptions.map(s => (
+                <FilterChip
+                  key={s}
+                  label={SYSTEM_LABELS[s] ?? s}
+                  count={systemCounts[s]}
+                  active={systemFilter === s}
+                  onClick={() => setSystemFilter(s)}
+                />
+              ))}
             </div>
-            <p className="text-sm font-medium text-gray-900">{error}</p>
-            <button onClick={loadContent} className="mt-3 text-sm text-amber-600 hover:underline">Try again</button>
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="w-12 h-12 rounded-2xl bg-gray-100 flex items-center justify-center mb-3">
-              <FolderArchive className="w-6 h-6 text-gray-400" />
+          )}
+        </div>
+
+        {/* ── Recently accessed ── */}
+        {!isLoading && !error && recentlyAccessed.length > 0 && (
+          <section className="mt-10">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase text-[#4A4A4A]">
+                Recently accessed
+              </h2>
             </div>
-            <p className="text-sm font-medium text-gray-900">
-              {search ? `No results for "${search}"` : 'No content yet'}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              {search ? 'Try a different search term' : 'Content added via the Content Manager will appear here'}
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(item => (
-              <ContentCard key={item.id} item={item} />
-            ))}
-          </div>
+            <div className="mt-3 -mx-2 px-2 flex gap-3 overflow-x-auto pb-2 [scrollbar-width:thin]">
+              {recentlyAccessed.map(r => {
+                const card = <RecentCard title={r.title} type={r.type} accessed={r.accessed} />;
+                return r.url ? (
+                  <a
+                    key={r.id}
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-[12px] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D4AF37]"
+                  >
+                    {card}
+                  </a>
+                ) : (
+                  <div key={r.id}>{card}</div>
+                );
+              })}
+            </div>
+          </section>
         )}
+
+        {/* ── Main grid ── */}
+        <section className="mt-10">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[13px] font-semibold tracking-[0.06em] uppercase text-[#4A4A4A]">
+              All content
+            </h2>
+            <span className="text-[12px] text-[#778199]">
+              {isLoading ? '—' : `${filtered.length} of ${items.length}`}
+            </span>
+          </div>
+
+          <div className="mt-4">
+            {isLoading ? (
+              <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="min-h-[200px] rounded-[12px] bg-white border border-[#E5E5E0] p-5 animate-pulse">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-[#F5F5F0]" />
+                      <div className="h-3 w-16 bg-[#F5F5F0] rounded" />
+                    </div>
+                    <div className="mt-5 h-4 w-3/4 bg-[#F5F5F0] rounded" />
+                    <div className="mt-2 h-3 w-full bg-[#F5F5F0] rounded" />
+                    <div className="mt-1.5 h-3 w-2/3 bg-[#F5F5F0] rounded" />
+                  </div>
+                ))}
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center bg-white border border-[#E5E5E0] rounded-[12px]">
+                <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
+                  <FolderArchive className="w-6 h-6 text-red-400" />
+                </div>
+                <p className="text-[14px] font-medium text-[#1A1A1A]">{error}</p>
+                <button
+                  onClick={loadContent}
+                  className="mt-3 text-[13px] text-[#D4AF37] hover:underline"
+                >
+                  Try again
+                </button>
+              </div>
+            ) : filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-20 text-center bg-white border border-[#E5E5E0] rounded-[12px]">
+                <div className="w-12 h-12 rounded-full bg-[#F5F5F0] flex items-center justify-center mb-3">
+                  <Search className="w-6 h-6 text-[#778199]" strokeWidth={1.75} />
+                </div>
+                <p className="text-[14px] font-medium text-[#1A1A1A]">No matching documents</p>
+                <p className="mt-1 text-[13px] text-[#778199]">Try adjusting filters or search</p>
+                <button
+                  onClick={clearFilters}
+                  className="mt-4 inline-flex items-center h-9 px-3.5 text-[13px] font-medium text-[#1A1A1A] bg-white border border-[#E5E5E0] rounded-lg hover:border-[#D4AF37] transition-colors"
+                >
+                  Clear filters
+                </button>
+              </div>
+            ) : (
+              <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
+                {filtered.map(item => (
+                  <ContentCard key={item.id} item={item} />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       <QuickUploadModal
@@ -319,7 +512,7 @@ export default function CareArchivePage() {
       />
 
       {toast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 bg-gray-900 text-white text-sm font-medium rounded-xl px-4 py-2.5 shadow-lg">
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 bg-[#1A1A1A] text-white text-[13px] font-medium rounded-xl px-4 py-2.5 shadow-lg">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           {toast}
         </div>
