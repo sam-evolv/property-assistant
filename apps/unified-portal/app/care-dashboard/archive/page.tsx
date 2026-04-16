@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   FolderArchive, Play, FileText, BookOpen, HelpCircle,
-  RefreshCw, Search, Loader2, Sun, Zap,
+  RefreshCw, Search, Loader2, Sun, Zap, Inbox,
 } from 'lucide-react';
 
 /* ── Types ── */
@@ -125,6 +126,14 @@ export default function CareArchivePage() {
   const [error, setError] = useState<string | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
+  const [pendingUploads, setPendingUploads] = useState(0);
+
+  useEffect(() => {
+    fetch('/api/care-dashboard/third-party?status=pending')
+      .then((r) => (r.ok ? r.json() : { pendingCount: 0 }))
+      .then((d) => setPendingUploads(d.pendingCount ?? 0))
+      .catch(() => setPendingUploads(0));
+  }, []);
 
   const loadContent = useCallback(async () => {
     setIsLoading(true);
@@ -202,8 +211,28 @@ export default function CareArchivePage() {
             </div>
           </div>
 
+          {/* ── Archive / Inbox section tabs ── */}
+          <div className="flex items-center gap-1 mt-5 flex-wrap">
+            <span className="px-3.5 py-1.5 rounded-lg text-sm font-semibold bg-gray-900 text-white inline-flex items-center gap-1.5">
+              <FolderArchive className="w-4 h-4" />
+              Smart Archive
+            </span>
+            <Link
+              href="/care-dashboard/smart-archive/inbox"
+              className="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors inline-flex items-center gap-1.5"
+            >
+              <Inbox className="w-4 h-4" />
+              Inbox
+              {pendingUploads > 0 && (
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full bg-[#D4AF37] text-white">
+                  {pendingUploads}
+                </span>
+              )}
+            </Link>
+          </div>
+
           {/* ── Filter tabs ── */}
-          <div className="flex gap-1 mt-5 flex-wrap">
+          <div className="flex gap-1 mt-3 flex-wrap">
             {(['all', 'video', 'document', 'guide', 'faq'] as FilterType[]).map(f => (
               <FilterTab
                 key={f}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
@@ -71,6 +71,23 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
   const supabase = createClientComponentClient();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
+  const [pendingUploads, setPendingUploads] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    const fetchPending = () => {
+      fetch('/api/care-dashboard/third-party?status=pending')
+        .then((r) => (r.ok ? r.json() : { pendingCount: 0 }))
+        .then((d) => !cancelled && setPendingUploads(d.pendingCount ?? 0))
+        .catch(() => {});
+    };
+    fetchPending();
+    const id = setInterval(fetchPending, 60_000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   const handleSignOut = async () => {
     setSigningOut(true);
@@ -114,6 +131,8 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
                 {section.items.map((item) => {
                   const Icon = item.icon;
                   const active = isActive(item.href);
+                  const showDot =
+                    item.href === '/care-dashboard/archive' && pendingUploads > 0;
 
                   return (
                     <Link
@@ -128,6 +147,12 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       <span>{item.label}</span>
+                      {showDot && (
+                        <span
+                          className="ml-auto w-2 h-2 rounded-full bg-[#D4AF37] shadow-[0_0_6px_rgba(212,175,55,0.6)]"
+                          title={`${pendingUploads} pending upload${pendingUploads === 1 ? '' : 's'}`}
+                        />
+                      )}
                     </Link>
                   );
                 })}
