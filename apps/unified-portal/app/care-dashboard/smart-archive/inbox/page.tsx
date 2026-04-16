@@ -13,10 +13,12 @@ import {
   Mail,
   RefreshCw,
   Search,
+  Upload,
   X,
   XCircle,
   ArrowUpRight,
 } from 'lucide-react';
+import { QuickUploadModal } from '@/components/care/QuickUploadModal';
 
 type Upload = {
   id: string;
@@ -71,6 +73,14 @@ export default function SmartArchiveInboxPage() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Upload | null>(null);
   const [acting, setActing] = useState<string | null>(null);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -174,6 +184,13 @@ export default function SmartArchiveInboxPage() {
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => setUploadOpen(true)}
+                className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-900 bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Upload
               </button>
             </div>
           </div>
@@ -502,6 +519,22 @@ export default function SmartArchiveInboxPage() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      <QuickUploadModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => {
+          setToast('Uploaded to Smart Archive');
+          load();
+        }}
+      />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 bg-gray-900 text-white text-sm font-medium rounded-xl px-4 py-2.5 shadow-lg">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          {toast}
         </div>
       )}
     </div>
