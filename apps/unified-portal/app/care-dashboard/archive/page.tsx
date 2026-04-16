@@ -4,8 +4,10 @@ import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import {
   FolderArchive, Play, FileText, BookOpen, HelpCircle,
-  RefreshCw, Search, Loader2, Sun, Zap, Inbox,
+  RefreshCw, Search, Loader2, Sun, Zap, Inbox, Upload,
+  CheckCircle2,
 } from 'lucide-react';
+import { QuickUploadModal } from '@/components/care/QuickUploadModal';
 
 /* ── Types ── */
 interface InstallerContentItem {
@@ -127,6 +129,14 @@ export default function CareArchivePage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
   const [search, setSearch] = useState('');
   const [pendingUploads, setPendingUploads] = useState(0);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(() => setToast(null), 3200);
+    return () => clearTimeout(t);
+  }, [toast]);
 
   useEffect(() => {
     fetch('/api/care-dashboard/third-party?status=pending')
@@ -207,6 +217,13 @@ export default function CareArchivePage() {
                 title="Refresh"
               >
                 <RefreshCw className={`w-5 h-5 ${isLoading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => setUploadOpen(true)}
+                className="inline-flex items-center gap-2 h-10 px-4 text-sm font-medium text-gray-900 bg-gold-500 rounded-lg hover:bg-gold-600 transition-colors"
+              >
+                <Upload className="w-4 h-4" />
+                Upload
               </button>
             </div>
           </div>
@@ -291,6 +308,22 @@ export default function CareArchivePage() {
           </div>
         )}
       </div>
+
+      <QuickUploadModal
+        open={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onUploaded={() => {
+          setToast('Uploaded to Smart Archive');
+          loadContent();
+        }}
+      />
+
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[60] inline-flex items-center gap-2 bg-gray-900 text-white text-sm font-medium rounded-xl px-4 py-2.5 shadow-lg">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
