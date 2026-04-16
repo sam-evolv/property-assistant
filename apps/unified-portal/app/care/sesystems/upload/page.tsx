@@ -230,7 +230,7 @@ export default function SESystemsUploadPage() {
       <header className="bg-white border-b border-gray-200">
         <div className="max-w-3xl mx-auto px-6 py-5 flex items-center justify-between">
           <Image
-            src="/branding/se-systems-logo.svg"
+            src="/branding/se-systems-logo.png"
             alt="SE Systems"
             width={140}
             height={36}

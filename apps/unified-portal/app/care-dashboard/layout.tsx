@@ -16,7 +16,7 @@ function SESystemsLogo({ dark = true }: { dark?: boolean }) {
   if (dark) {
     return (
       <Image
-        src="/branding/se-systems-logo.svg"
+        src="/branding/se-systems-logo.png"
         alt="SE Systems"
         width={160}
         height={42}

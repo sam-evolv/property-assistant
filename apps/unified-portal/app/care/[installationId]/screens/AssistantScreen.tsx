@@ -360,7 +360,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
             }}
           >
             <Image
-              src="/branding/se-systems-logo.svg"
+              src="/branding/se-systems-logo.png"
               alt="SE Systems"
               width={140}
               height={42}
