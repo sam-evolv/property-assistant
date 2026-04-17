@@ -103,22 +103,6 @@ const solarVideos: VideoItem[] = [
     category: 'solar',
     source: 'SolarEdge',
   },
-  {
-    id: 'se-optimize',
-    videoId: 'xS7-twIUy2w',
-    title: 'Optimise Your System Performance',
-    section: 'Solar: Optimising Your System',
-    category: 'solar',
-    source: 'SolarEdge',
-  },
-  {
-    id: 'se-savings',
-    videoId: 's948ox9Bfgk',
-    title: 'Maximise Your Electricity Savings',
-    section: 'Solar: Optimising Your System',
-    category: 'solar',
-    source: 'SolarEdge',
-  },
 ];
 
 const heatPumpVideos: VideoItem[] = [
@@ -150,16 +134,6 @@ const heatPumpVideos: VideoItem[] = [
     category: 'heat_pump',
     source: 'Mitsubishi',
     description: 'A quick explainer covering the heat exchanger, hot water system, and how energy is collected from outside air.',
-    sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
-  },
-  {
-    id: 'mits-vs-oil',
-    videoId: 'OUFwodBC-v0',
-    title: 'Air Source Heating vs Oil',
-    section: 'Heat Pump Guidance',
-    category: 'heat_pump',
-    source: 'Mitsubishi',
-    description: 'The advantages of air source heat pumps over traditional oil heating: running costs, efficiency, and environmental impact.',
     sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
   },
 ];
