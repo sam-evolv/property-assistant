@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react';
-import Image from 'next/image';
 import { useCareApp } from '../care-app-provider';
 import {
   Search,
@@ -64,12 +63,14 @@ type FilterChip = 'all' | 'solar' | 'heat_pump' | 'documents' | 'faq';
 
 interface VideoItem {
   id: string;
-  videoId: string | null; // null => placeholder (unverified)
+  videoId: string | null;
   title: string;
-  section: string; // Group header (e.g. "Solar: Getting Started")
+  section: string;
   category: 'solar' | 'heat_pump';
   source: 'SolarEdge' | 'Mitsubishi' | 'Daikin';
   duration?: string;
+  description?: string;
+  sourceUrl?: string;
 }
 
 interface DocumentItem {
@@ -120,40 +121,46 @@ const solarVideos: VideoItem[] = [
   },
 ];
 
-// TODO: replace with verified YouTube IDs — ran in restricted network so oembed
-// verification was not possible at build time. These render as placeholder cards.
 const heatPumpVideos: VideoItem[] = [
   {
     id: 'mits-overview',
-    videoId: null,
+    videoId: '6PlCbYRdbso',
     title: 'Mitsubishi Ecodan: Homeowner Overview',
     section: 'Heat Pump Guidance',
     category: 'heat_pump',
     source: 'Mitsubishi',
+    description: 'An introduction to home heating with Ecodan air source heat pumps.',
+    sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
   },
   {
     id: 'mits-melcloud',
-    videoId: null,
+    videoId: 'vgFOeH2_WQw',
     title: 'Using the MELCloud App',
     section: 'Heat Pump Guidance',
     category: 'heat_pump',
     source: 'Mitsubishi',
+    description: 'How to connect your Wi-Fi adapter and set up MELCloud for remote control and monitoring.',
+    sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
   },
   {
-    id: 'daikin-altherma',
-    videoId: null,
-    title: 'Daikin Altherma: Homeowner Overview',
+    id: 'mits-how-works',
+    videoId: 'JQ1tRFqUgac',
+    title: 'How a Heat Pump Works',
     section: 'Heat Pump Guidance',
     category: 'heat_pump',
-    source: 'Daikin',
+    source: 'Mitsubishi',
+    description: 'A quick explainer covering the heat exchanger, hot water system, and how energy is collected from outside air.',
+    sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
   },
   {
-    id: 'daikin-onecta',
-    videoId: null,
-    title: 'Using the Daikin ONECTA App',
+    id: 'mits-vs-oil',
+    videoId: 'OUFwodBC-v0',
+    title: 'Air Source Heating vs Oil',
     section: 'Heat Pump Guidance',
     category: 'heat_pump',
-    source: 'Daikin',
+    source: 'Mitsubishi',
+    description: 'The advantages of air source heat pumps over traditional oil heating: running costs, efficiency, and environmental impact.',
+    sourceUrl: 'https://les.mitsubishielectric.co.uk/homeowners/homeowner-welcome-pack/getstarted/homeowner-videos',
   },
 ];
 
@@ -202,8 +209,11 @@ const faqs: FaqItem[] = [
 /* ── Video Card ── */
 function VideoCard({ video, onPlay }: { video: VideoItem; onPlay: (v: VideoItem) => void }) {
   const hasVideo = !!video.videoId;
-  const thumbnail = hasVideo
-    ? `https://img.youtube.com/vi/${video.videoId}/hqdefault.jpg`
+  const thumbSrc = hasVideo
+    ? `https://i.ytimg.com/vi/${video.videoId}/maxresdefault.jpg`
+    : null;
+  const thumbFallback = hasVideo
+    ? `https://i.ytimg.com/vi/${video.videoId}/hqdefault.jpg`
     : null;
 
   return (
@@ -214,22 +224,21 @@ function VideoCard({ video, onPlay }: { video: VideoItem; onPlay: (v: VideoItem)
         disabled={!hasVideo}
         className="group relative w-full overflow-hidden rounded-xl bg-gray-900 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98] disabled:cursor-default"
         style={{ aspectRatio: '16/9', WebkitTapHighlightColor: 'transparent' }}
-        aria-label={hasVideo ? `Play ${video.title}` : `${video.title} (video coming soon)`}
+        aria-label={hasVideo ? `Play ${video.title}` : `${video.title}`}
       >
-        {thumbnail ? (
-          <Image
-            src={thumbnail}
-            alt=""
-            fill
-            sizes="(max-width: 640px) 50vw, 320px"
-            className="object-cover"
+        {thumbSrc ? (
+          <img
+            src={thumbSrc}
+            onError={(e) => { if (thumbFallback) e.currentTarget.src = thumbFallback; }}
+            alt={video.title}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
           />
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-800 to-gray-900 p-3 text-center">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
               {video.source}
             </span>
-            <span className="text-xs font-medium text-white/90">Video coming soon</span>
           </div>
         )}
 
@@ -259,8 +268,8 @@ function VideoCard({ video, onPlay }: { video: VideoItem; onPlay: (v: VideoItem)
         {/* Play overlay */}
         {hasVideo && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-lg transition-transform duration-200 group-hover:scale-110">
-              <Play className="h-6 w-6 ml-0.5" style={{ color: '#D4AF37' }} fill="#D4AF37" />
+            <div className="flex h-12 w-12 items-center justify-center rounded-full transition-transform duration-200 group-hover:scale-110" style={{ background: 'rgba(0,0,0,0.6)' }}>
+              <Play className="h-5 w-5 ml-0.5" style={{ color: '#D4AF37' }} fill="#D4AF37" />
             </div>
           </div>
         )}
@@ -305,20 +314,32 @@ function VideoModal({ video, onClose }: { video: VideoItem; onClose: () => void 
         >
           <X className="h-6 w-6" />
         </button>
-        <div
-          className="w-full bg-black sm:rounded-lg sm:overflow-hidden sm:shadow-2xl"
-          style={{ aspectRatio: '16/9', height: '100%' }}
-        >
-          <iframe
-            src={`https://www.youtube.com/embed/${video.videoId}?autoplay=1&modestbranding=1&rel=0`}
-            title={video.title}
-            width="100%"
-            height="100%"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-            style={{ border: 0 }}
-          />
+        <div className="w-full bg-black sm:rounded-lg sm:overflow-hidden sm:shadow-2xl">
+          <div className="relative aspect-video w-full">
+            <iframe
+              src={`https://www.youtube-nocookie.com/embed/${video.videoId}?autoplay=1&rel=0&modestbranding=1`}
+              title={video.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="absolute inset-0 h-full w-full border-0"
+            />
+          </div>
+          <div className="px-4 py-3 sm:px-5 sm:py-4">
+            <h3 className="text-base font-semibold text-white">{video.title}</h3>
+            {video.description && (
+              <p className="mt-1 text-sm text-white/60">{video.description}</p>
+            )}
+            {video.sourceUrl && (
+              <a
+                href={video.sourceUrl}
+                target="_blank"
+                rel="noopener"
+                className="mt-2 inline-block text-xs text-white/40 underline decoration-white/20 hover:text-white/60"
+              >
+                Source: Official Mitsubishi Electric support
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>
