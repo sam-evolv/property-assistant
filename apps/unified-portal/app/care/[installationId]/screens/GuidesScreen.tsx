@@ -88,14 +88,6 @@ interface FaqItem {
 /* ── Verified SolarEdge video IDs (solaredge.com) ── */
 const solarVideos: VideoItem[] = [
   {
-    id: 'se-achieve',
-    videoId: 'YMa2meKFnOA',
-    title: 'Achieve Your Energy Goals',
-    section: 'Solar: Getting Started',
-    category: 'solar',
-    source: 'SolarEdge',
-  },
-  {
     id: 'se-connect',
     videoId: 'wMaJxhl0vl8',
     title: 'Connect Your Inverter and Check Its Status',
