@@ -346,7 +346,7 @@ export function ApprovalDrawer() {
             setFeedbackMsg('Sent. Logged to communications.');
           } else if (data.side_effects?.agent_viewing_id) {
             setFeedbackMsg('Viewing created.');
-          } else if (draft.type === 'email') {
+          } else if (['tenancy', 'letting_property'].includes(draft.affected_record?.kind ?? '')) {
             setFeedbackMsg('Logged. Email transport not yet wired for lettings drafts.');
           } else {
             setFeedbackMsg('Completed.');
