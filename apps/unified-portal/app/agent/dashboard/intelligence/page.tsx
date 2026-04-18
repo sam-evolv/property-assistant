@@ -1,5 +1,11 @@
 'use client';
 
+// NOTE: The agent Intelligence chat exists in two route variants — a mobile
+// layout at /agent/intelligence and a desktop layout at /agent/dashboard/intelligence.
+// The SSE parsing, envelope handling, and approval-drawer wiring MUST be kept in
+// sync between both files. When modifying one, modify the other identically.
+// TODO: consolidate these into a single shared component.
+
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Send, Plus, Home, ChevronLeft, ChevronRight, X, Zap, Loader2, Trash2, Calendar, Mail, FileText, BarChart3, Users } from 'lucide-react';
@@ -107,13 +113,10 @@ export default function AgentDashboardIntelligencePage() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
-            console.log('[sse]', data.type, data);
             if (data.type === 'token') { fullContent += data.content; setMessages(ms => ms.map(m => m.id === assistantMsg.id ? { ...m, content: fullContent } : m)); }
             else if (data.type === 'followups') followUps = data.questions || [];
             else if (data.type === 'tools_used') toolsUsed = data.tools || [];
             else if (data.type === 'envelope') {
-              console.log('[sse] envelope type matched, checking guard');
-              console.log('[sse] guard result:', isAgenticSkillEnvelope(data.envelope));
               if (isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
             }
           } catch (err) { console.error('[intelligence] SSE parse error:', err); }

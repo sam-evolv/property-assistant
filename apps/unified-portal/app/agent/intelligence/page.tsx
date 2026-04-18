@@ -1,5 +1,11 @@
 'use client';
 
+// NOTE: The agent Intelligence chat exists in two route variants — a mobile
+// layout at /agent/intelligence and a desktop layout at /agent/dashboard/intelligence.
+// The SSE parsing, envelope handling, and approval-drawer wiring MUST be kept in
+// sync between both files. When modifying one, modify the other identically.
+// TODO: consolidate these into a single shared component.
+
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
@@ -164,7 +170,6 @@ function IntelligencePageContent() {
         for (const line of lines) {
           try {
             const data = JSON.parse(line);
-            console.log('[sse]', data.type, data);
             if (data.type === 'token') {
               fullContent += data.content;
 
@@ -188,8 +193,6 @@ function IntelligencePageContent() {
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
             } else if (data.type === 'envelope') {
-              console.log('[sse] envelope type matched, checking guard');
-              console.log('[sse] guard result:', isAgenticSkillEnvelope(data.envelope));
               if (isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
             }
           } catch (err) {

@@ -14,7 +14,6 @@ const ICON_MAP = {
 
 export function ApprovalDrawer() {
   const { isOpen, envelope, close } = useApprovalDrawer();
-  console.log('[drawer] render, isOpen=', isOpen, 'envelope=', envelope?.skill);
   // panelOpen drives the CSS open class — deferred one rAF from isOpen so the
   // browser has a "from" state (translateY/X 100%) before the transition fires.
   const [panelOpen, setPanelOpen] = useState(false);
