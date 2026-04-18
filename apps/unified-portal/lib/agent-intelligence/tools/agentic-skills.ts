@@ -1,5 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
+import { getRenewalWindow, getRentArrears, getUpcomingWeekViewings } from '../context';
+import { isInRPZ, rpzUpliftCap } from '../rpz-zones';
 
 // Standard envelope returned by every agentic skill. The LLM holds this in
 // conversation state; the client passes it back to /api/agent-intelligence/confirm
@@ -268,6 +270,313 @@ export async function draftViewingFollowup(
       skill,
       status: 'awaiting_approval',
       summary: `Drafted ${drafts.length} follow-up email${drafts.length === 1 ? '' : 's'} for viewings completed in the last ${windowHours} hours.`,
+      drafts,
+      meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 3 — weekly_monday_briefing
+// =====================================================================
+
+// Inline aged-contract loader for the briefing. The public getAgedContracts
+// helper in ../context requires a full AgentContext (with assignedSchemes and
+// tenantId) which the skill call-site does not have. Rather than widen
+// SkillAgentContext, we replicate the same query pattern used by
+// chaseAgedContracts above — scheme assignments → pipeline → dev + unit
+// lookups. Kept private to this module.
+async function loadAgedForBriefing(
+  supabase: SupabaseClient,
+  agentId: string,
+  thresholdDays = 42,
+): Promise<Array<{ schemeName: string; unitNumber: string; purchaserName: string; daysAged: number }>> {
+  const { data: asgs } = await supabase
+    .from('agent_scheme_assignments')
+    .select('development_id')
+    .eq('agent_id', agentId)
+    .eq('is_active', true);
+  const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
+  if (!devIds.length) return [];
+
+  const cutoff = new Date(Date.now() - thresholdDays * 86400000).toISOString();
+  const { data: rows } = await supabase
+    .from('unit_sales_pipeline')
+    .select('unit_id, development_id, purchaser_name, contracts_issued_date')
+    .in('development_id', devIds)
+    .not('contracts_issued_date', 'is', null)
+    .is('signed_contracts_date', null)
+    .lt('contracts_issued_date', cutoff);
+  if (!rows?.length) return [];
+
+  const [{ data: devs }, { data: units }] = await Promise.all([
+    supabase.from('developments').select('id, name').in('id', devIds),
+    supabase
+      .from('units')
+      .select('id, unit_number, unit_uid')
+      .in('id', rows.map((r: any) => r.unit_id).filter(Boolean)),
+  ]);
+  const devNameById = new Map<string, string>((devs || []).map((d: any) => [d.id, d.name]));
+  const unitById = new Map<string, { unit_number: string | null; unit_uid: string | null }>(
+    (units || []).map((u: any) => [u.id, { unit_number: u.unit_number, unit_uid: u.unit_uid }]),
+  );
+
+  return rows
+    .map((r: any) => {
+      const unit = unitById.get(r.unit_id);
+      return {
+        schemeName: devNameById.get(r.development_id) || 'Unknown scheme',
+        unitNumber: unit?.unit_number || unit?.unit_uid || 'unknown',
+        purchaserName: r.purchaser_name || 'Unknown purchaser',
+        daysAged: daysBetween(r.contracts_issued_date),
+      };
+    })
+    .sort((a, b) => b.daysAged - a.daysAged);
+}
+
+function parseOverdueDays(note: string): number | null {
+  const m = note.match(/(\d+)\s*days?\s*overdue/i);
+  return m ? Number(m[1]) : null;
+}
+
+function parseTenantName(raw: string | null | undefined): { firstName: string } {
+  if (!raw) return { firstName: 'there' };
+  // Strip honorifics at the start of each segment before splitting on "and".
+  const stripped = raw.replace(/\b(Mr|Ms|Mrs|Miss|Dr)\.?\s+/gi, '').trim();
+  const primary = stripped.split(/\s+and\s+/i)[0] || stripped;
+  const first = primary.trim().split(/\s+/)[0];
+  return { firstName: first || 'there' };
+}
+
+function roundToNearest5(n: number): number {
+  return Math.round(n / 5) * 5;
+}
+
+export async function weeklyMondayBriefing(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  _inputs: Record<string, never>,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'weekly_monday_briefing';
+  const query = 'weekly_monday_briefing: aged contracts + renewal window + rent arrears + upcoming viewings';
+
+  try {
+    const [aged, renewals, arrears, viewings] = await Promise.all([
+      loadAgedForBriefing(supabase, agentContext.agentId).catch(() => []),
+      getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
+      getRentArrears(supabase, agentContext.agentId).catch(() => []),
+      getUpcomingWeekViewings(supabase, agentContext.agentId).catch(() => []),
+    ]);
+
+    // --- Section 1: Sales movement ---
+    const salesLines: string[] = ['SALES MOVEMENT', ''];
+    if (!aged.length) {
+      salesLines.push('No aged contracts.');
+    } else {
+      salesLines.push(`Aged contracts: ${aged.length} over 6 weeks.`);
+      salesLines.push('');
+      salesLines.push('Top by days aged:');
+      for (const a of aged.slice(0, 3)) {
+        salesLines.push(`- ${a.schemeName} Unit ${a.unitNumber} — ${a.purchaserName} — ${a.daysAged}d`);
+      }
+    }
+
+    // --- Section 2: Lettings movement ---
+    const lettingsLines: string[] = ['LETTINGS MOVEMENT', ''];
+    if (!renewals.length) {
+      lettingsLines.push('No renewals due in the window.');
+    } else {
+      lettingsLines.push(`Renewal windows opening: ${renewals.length} tenanc${renewals.length === 1 ? 'y' : 'ies'} in next 90 days.`);
+      lettingsLines.push('');
+      for (const r of renewals) {
+        lettingsLines.push(`- ${r.propertyAddress} — ${r.tenantName} — ${r.daysOut} days to lease end`);
+      }
+    }
+
+    // --- Section 3: Rent arrears ---
+    const arrearsLines: string[] = ['RENT ARREARS', ''];
+    if (!arrears.length) {
+      arrearsLines.push('All rent up to date.');
+    } else {
+      arrearsLines.push(`Active arrears: ${arrears.length}.`);
+      arrearsLines.push('');
+      for (const a of arrears) {
+        const days = parseOverdueDays(a.note);
+        const suffix = days !== null ? `${days} days overdue` : 'overdue';
+        arrearsLines.push(`- ${a.propertyAddress} — ${a.tenantName} — ${suffix}`);
+      }
+    }
+
+    // --- Section 4: This week's viewings ---
+    const viewingsLines: string[] = ["THIS WEEK'S VIEWINGS", ''];
+    if (!viewings.length) {
+      viewingsLines.push('No viewings scheduled this week.');
+    } else {
+      viewingsLines.push(`Total: ${viewings.length}.`);
+      viewingsLines.push('');
+      for (const v of viewings.slice(0, 5)) {
+        const date = formatIrishDate(v.viewingDate);
+        const time = v.viewingTime || 'time TBC';
+        const where = [v.schemeName, v.unitRef ? `Unit ${v.unitRef}` : null].filter(Boolean).join(', ') || 'viewing';
+        viewingsLines.push(`- ${date} ${time} — ${v.buyerName || 'Buyer'} — ${where}`);
+      }
+    }
+
+    // --- Section 5: Needs attention summary ---
+    const attentionTotal = aged.length + arrears.length + renewals.length;
+    const summaryLines: string[] = [
+      'NEEDS ATTENTION',
+      '',
+      `Total items needing attention: ${attentionTotal}`,
+    ];
+
+    const body = [
+      salesLines.join('\n'),
+      lettingsLines.join('\n'),
+      arrearsLines.join('\n'),
+      viewingsLines.join('\n'),
+      summaryLines.join('\n'),
+    ].join('\n\n');
+
+    const draftId = randomUUID();
+    const todayLabel = formatIrishDate(new Date().toISOString());
+
+    const draft = {
+      id: draftId,
+      type: 'report' as const,
+      recipient: { name: agentContext.displayName, email: 'self', role: 'agent' },
+      subject: `Monday briefing — ${todayLabel}`,
+      body,
+      affected_record: { kind: 'briefing', id: draftId, label: 'Weekly briefing' },
+      reasoning: `Ran 4 queries: aged contracts (6-week threshold), renewal window (next 90 days), rent arrears (notes ILIKE overdue), upcoming viewings (next 7 days). Found ${aged.length} aged, ${renewals.length} renewals, ${arrears.length} arrears, ${viewings.length} viewings.`,
+    };
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Generated weekly briefing covering ${aged.length} aged contract${aged.length === 1 ? '' : 's'}, ${renewals.length} renewal${renewals.length === 1 ? '' : 's'}, ${arrears.length} arrear${arrears.length === 1 ? '' : 's'}, ${viewings.length} viewing${viewings.length === 1 ? '' : 's'}.`,
+      drafts: [draft],
+      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 4 — draft_lease_renewal
+// =====================================================================
+export async function draftLeaseRenewal(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: { tenancy_id?: string },
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'draft_lease_renewal';
+  const today = new Date();
+  const todayIso = today.toISOString().split('T')[0];
+  const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
+  const tenancyFilter = inputs.tenancy_id ? ` AND id = '${inputs.tenancy_id}'` : '';
+  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
+
+  try {
+    let tenancyQ = supabase
+      .from('agent_tenancies')
+      .select('id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm')
+      .eq('agent_id', agentContext.agentId)
+      .eq('status', 'active')
+      .gte('lease_end', todayIso)
+      .lte('lease_end', ninetyIso);
+
+    if (inputs.tenancy_id) tenancyQ = tenancyQ.eq('id', inputs.tenancy_id);
+
+    const { data: tenancies, error: tenErr } = await tenancyQ;
+    if (tenErr) throw tenErr;
+
+    const rows = tenancies || [];
+    if (!rows.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: inputs.tenancy_id
+          ? 'No matching active tenancy found in the 90-day renewal window.'
+          : 'No tenancies in the 90-day renewal window — nothing to draft.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const propertyIds = Array.from(new Set(rows.map((t: any) => t.letting_property_id).filter(Boolean)));
+    const propertyById = new Map<string, { address: string; city: string | null }>();
+    if (propertyIds.length) {
+      const { data: props } = await supabase
+        .from('agent_letting_properties')
+        .select('id, address, city')
+        .in('id', propertyIds);
+      for (const p of props || []) propertyById.set(p.id, { address: p.address, city: p.city ?? null });
+    }
+
+    const drafts = rows.map((t: any) => {
+      const prop = propertyById.get(t.letting_property_id) || { address: 'Unknown property', city: null };
+      const inRPZ = isInRPZ(prop.city);
+      const currentRent = Number(t.rent_pcm ?? 0);
+      const proposedRent = inRPZ
+        ? roundToNearest5(currentRent * (1 + rpzUpliftCap()))
+        : currentRent;
+      const rentNote = inRPZ
+        ? `In line with RPZ rules, the maximum increase is ${(rpzUpliftCap() * 100).toFixed(1)}% per annum.`
+        : 'Outside RPZ — rent held at current level for this renewal. Open to discussion.';
+
+      const leaseEnd = new Date(t.lease_end);
+      const daysToLeaseEnd = Math.max(0, Math.round((leaseEnd.getTime() - today.getTime()) / 86400000));
+      const { firstName: tenantFirst } = parseTenantName(t.tenant_name);
+      const leaseEndLabel = formatIrishDate(t.lease_end);
+
+      const body = [
+        `Hi ${tenantFirst},`,
+        ``,
+        `Your current lease at ${prop.address} is due to end on ${leaseEndLabel} (in ${daysToLeaseEnd} days).`,
+        ``,
+        `We'd like to offer a renewal on the following terms:`,
+        ``,
+        `- 12-month fixed term from ${leaseEndLabel}`,
+        `- Monthly rent: €${proposedRent} (current rent: €${currentRent})`,
+        `- All other terms unchanged`,
+        ``,
+        rentNote,
+        ``,
+        `The renewal will be registered with the RTB as required.`,
+        ``,
+        `Let me know if you'd like to discuss or if you'd prefer to move out at the end of your current term. I'd appreciate a reply within the next 14 days so we can plan accordingly.`,
+        ``,
+        `Best,`,
+        signature(agentContext),
+      ].join('\n');
+
+      return {
+        id: randomUUID(),
+        type: 'email' as const,
+        recipient: {
+          name: t.tenant_name || 'Tenant',
+          email: t.tenant_email || 'tenant@tbc.invalid',
+          role: 'tenant',
+        },
+        subject: `Lease renewal — ${prop.address}`,
+        body,
+        affected_record: {
+          kind: 'tenancy',
+          id: t.id,
+          label: `${prop.address} — ${t.tenant_name || 'Tenant'}`,
+        },
+        reasoning: `Lease ends ${leaseEndLabel}. Property is ${inRPZ ? 'in RPZ' : 'outside RPZ'}. Proposed rent: €${proposedRent} (current €${currentRent}, ${inRPZ ? 'within RPZ cap' : 'no statutory cap'}).${t.tenant_email ? '' : ' Tenant email is missing on the tenancy record; recipient set to placeholder pending capture.'}`,
+      };
+    });
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Drafted ${drafts.length} lease renewal offer${drafts.length === 1 ? '' : 's'} for tenancies in the renewal window.`,
       drafts,
       meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
     };
