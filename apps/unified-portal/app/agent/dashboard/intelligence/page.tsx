@@ -107,10 +107,15 @@ export default function AgentDashboardIntelligencePage() {
           if (!line.trim()) continue;
           try {
             const data = JSON.parse(line);
+            console.log('[sse]', data.type, data);
             if (data.type === 'token') { fullContent += data.content; setMessages(ms => ms.map(m => m.id === assistantMsg.id ? { ...m, content: fullContent } : m)); }
             else if (data.type === 'followups') followUps = data.questions || [];
             else if (data.type === 'tools_used') toolsUsed = data.tools || [];
-            else if (data.type === 'envelope' && isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
+            else if (data.type === 'envelope') {
+              console.log('[sse] envelope type matched, checking guard');
+              console.log('[sse] guard result:', isAgenticSkillEnvelope(data.envelope));
+              if (isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
+            }
           } catch (err) { console.error('[intelligence] SSE parse error:', err); }
         }
       }
