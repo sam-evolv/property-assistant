@@ -6,6 +6,9 @@ import { useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { Send, Mail, Copy, Check, ExternalLink } from 'lucide-react';
+import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
+import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
+import { ApprovalDrawer } from '@/components/agent/intelligence/ApprovalDrawer';
 
 const SCHEME_PILLS = [
   "What's outstanding on contracts?",
@@ -72,7 +75,17 @@ function parseEmails(response: string): { emails: DraftedEmail[]; cleanText: str
 }
 
 export default function IntelligencePage() {
+  return (
+    <ApprovalDrawerProvider>
+      <IntelligencePageContent />
+      <ApprovalDrawer />
+    </ApprovalDrawerProvider>
+  );
+}
+
+function IntelligencePageContent() {
   const { agent, alerts, developmentIds } = useAgent();
+  const { open: openApprovalDrawer } = useApprovalDrawer();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
   const isIndependent = agent?.agentType !== 'scheme';
@@ -151,6 +164,7 @@ export default function IntelligencePage() {
         for (const line of lines) {
           try {
             const data = JSON.parse(line);
+            console.log('[sse]', data.type, data);
             if (data.type === 'token') {
               fullContent += data.content;
 
@@ -173,9 +187,13 @@ export default function IntelligencePage() {
               toolsUsed = data.tools || [];
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
+            } else if (data.type === 'envelope') {
+              console.log('[sse] envelope type matched, checking guard');
+              console.log('[sse] guard result:', isAgenticSkillEnvelope(data.envelope));
+              if (isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
             }
-          } catch {
-            // Skip malformed lines
+          } catch (err) {
+            console.error('[intelligence] SSE parse error:', err);
           }
         }
       }
@@ -204,7 +222,7 @@ export default function IntelligencePage() {
     } finally {
       setIsTyping(false);
     }
-  }, [messages, isTyping, sessionId, developmentIds]);
+  }, [messages, isTyping, sessionId, developmentIds, openApprovalDrawer]);
 
   const hasMessages = messages.length > 0;
 
