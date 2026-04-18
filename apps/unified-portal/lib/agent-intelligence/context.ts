@@ -490,7 +490,11 @@ export async function getLettingsSummary(
 
   const { data: properties, error } = await supabase
     .from('agent_letting_properties')
-    .select('id, address, city, status, monthly_rent, current_rent, rent')
+    // select('*') is deliberate: rent column naming in the live schema isn't
+    // documented in-repo (monthly_rent vs current_rent vs rent). Over-fetching
+    // a ~14-row table is cheaper than a query error if one candidate column
+    // is missing. Fallback chain is applied at read time below.
+    .select('*')
     .eq('agent_id', agentId);
 
   if (error || !properties) return empty;
@@ -501,7 +505,9 @@ export async function getLettingsSummary(
 
   const { data: tenancies } = await supabase
     .from('agent_tenancies')
-    .select('id, monthly_rent, rent, status, property_id')
+    // select('*') for the same reason as above — rent column name isn't
+    // documented in-repo; we pick the right one at read time.
+    .select('*')
     .eq('agent_id', agentId)
     .eq('status', 'active');
 
@@ -537,7 +543,7 @@ export async function getRenewalWindow(
 
   const { data, error } = await supabase
     .from('agent_tenancies')
-    .select('id, tenant_name, property_id, lease_end, status, monthly_rent, rent')
+    .select('*')
     .eq('agent_id', agentId)
     .eq('status', 'active')
     .gte('lease_end', todayIso)
@@ -550,7 +556,7 @@ export async function getRenewalWindow(
   if (propertyIds.length) {
     const { data: props } = await supabase
       .from('agent_letting_properties')
-      .select('id, address, city')
+      .select('*')
       .in('id', propertyIds);
     for (const p of props || []) propertyById.set(p.id, { address: p.address, city: p.city ?? null });
   }
@@ -584,7 +590,7 @@ export async function getRentArrears(
 ): Promise<RentArrearsRecord[]> {
   const { data, error } = await supabase
     .from('agent_tenancies')
-    .select('id, tenant_name, property_id, notes, status')
+    .select('*')
     .eq('agent_id', agentId)
     .eq('status', 'active')
     .ilike('notes', '%overdue%');
@@ -596,7 +602,7 @@ export async function getRentArrears(
   if (propertyIds.length) {
     const { data: props } = await supabase
       .from('agent_letting_properties')
-      .select('id, address')
+      .select('*')
       .in('id', propertyIds);
     for (const p of props || []) addressById.set(p.id, p.address);
   }
