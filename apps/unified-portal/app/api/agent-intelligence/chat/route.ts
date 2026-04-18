@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
     // 5. Call LLM with tool definitions (non-streaming for tool-calling rounds)
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
     const tools = getToolDefinitionsForOpenAI();
-    const toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }> = [];
+    const toolsCalled: Array<{ tool_name: string; params: any; result_summary: string; envelope?: Record<string, unknown> }> = [];
 
     // Run tool-calling rounds (non-streaming so we can parse tool calls)
     let needsFinalStream = true;
@@ -266,6 +266,7 @@ export async function POST(request: NextRequest) {
               tool_name: toolCall.function.name,
               params,
               result_summary: result.summary,
+              envelope: result.status === 'awaiting_approval' ? (result as Record<string, unknown>) : undefined,
             });
           } catch (err: unknown) {
             const errMessage = err instanceof Error ? err.message : 'Unknown error';
@@ -298,6 +299,15 @@ export async function POST(request: NextRequest) {
                 tools: toolsCalled.map(t => ({ name: t.tool_name, summary: t.result_summary })),
               }) + '\n')
             );
+          }
+
+          // Emit full envelope for each agentic skill that returned one
+          for (const t of toolsCalled) {
+            if (t.envelope) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'envelope', envelope: t.envelope }) + '\n')
+              );
+            }
           }
 
           // Stream the final LLM response

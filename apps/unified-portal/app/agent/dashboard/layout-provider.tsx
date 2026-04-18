@@ -2,6 +2,8 @@
 
 import { createContext, useContext, ReactNode, useState, useEffect, useCallback } from 'react';
 import { AgentDashboardSidebar } from './layout-sidebar';
+import { ApprovalDrawerProvider } from '@/lib/agent-intelligence/drawer-store';
+import { ApprovalDrawer } from '@/components/agent/intelligence/ApprovalDrawer';
 
 export interface DashboardAgentProfile {
   id: string;
@@ -58,13 +60,16 @@ export function AgentDashboardLayoutProvider({
   }, []);
 
   return (
-    <AgentDashboardContext.Provider value={{ profile, developments, selectedSchemeId, setSelectedSchemeId }}>
-      <div className="flex h-screen bg-white font-sans antialiased">
-        <AgentDashboardSidebar />
-        <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          {children}
-        </main>
-      </div>
-    </AgentDashboardContext.Provider>
+    <ApprovalDrawerProvider>
+      <AgentDashboardContext.Provider value={{ profile, developments, selectedSchemeId, setSelectedSchemeId }}>
+        <div className="flex h-screen bg-white font-sans antialiased">
+          <AgentDashboardSidebar />
+          <main className="flex-1 overflow-y-auto overflow-x-hidden">
+            {children}
+          </main>
+        </div>
+      </AgentDashboardContext.Provider>
+      <ApprovalDrawer />
+    </ApprovalDrawerProvider>
   );
 }

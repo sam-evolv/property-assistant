@@ -4,6 +4,8 @@ import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Send, Plus, Home, ChevronLeft, ChevronRight, X, Zap, Loader2, Trash2, Calendar, Mail, FileText, BarChart3, Users } from 'lucide-react';
 import { useAgentDashboard } from '../layout-provider';
+import { useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
+import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import Image from 'next/image';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +46,7 @@ export default function AgentDashboardIntelligencePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { selectedSchemeId } = useAgentDashboard();
+  const { open: openApprovalDrawer } = useApprovalDrawer();
 
   const [sessions, setSessions] = useState<Session[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -107,6 +110,7 @@ export default function AgentDashboardIntelligencePage() {
             if (data.type === 'token') { fullContent += data.content; setMessages(ms => ms.map(m => m.id === assistantMsg.id ? { ...m, content: fullContent } : m)); }
             else if (data.type === 'followups') followUps = data.questions || [];
             else if (data.type === 'tools_used') toolsUsed = data.tools || [];
+            else if (data.type === 'envelope' && isAgenticSkillEnvelope(data.envelope)) { openApprovalDrawer(data.envelope); }
           } catch {}
         }
       }
@@ -120,7 +124,7 @@ export default function AgentDashboardIntelligencePage() {
       saveSessions(updatedSessions); setSessions(updatedSessions);
     } catch { setMessages(ms => ms.map(m => m.id === assistantMsg.id ? { ...m, content: 'Connection error. Please try again.', isStreaming: false } : m)); }
     setIsStreaming(false);
-  }, [messages, activeSessionId, isStreaming, selectedSchemeId]);
+  }, [messages, activeSessionId, isStreaming, selectedSchemeId, openApprovalDrawer]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(input); } };
   const hasConversation = messages.length > 0;
