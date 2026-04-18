@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server';
+import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import OpenAI from 'openai';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
@@ -266,7 +267,7 @@ export async function POST(request: NextRequest) {
               tool_name: toolCall.function.name,
               params,
               result_summary: result.summary,
-              envelope: result.status === 'awaiting_approval' ? (result as Record<string, unknown>) : undefined,
+              envelope: isAgenticSkillEnvelope(result.data) ? result.data : undefined,
             });
           } catch (err: unknown) {
             const errMessage = err instanceof Error ? err.message : 'Unknown error';
