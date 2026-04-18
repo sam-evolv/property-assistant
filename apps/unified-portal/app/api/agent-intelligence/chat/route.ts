@@ -4,8 +4,22 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { loadAgentContext, getRecentActivitySummary, getUpcomingDeadlines, loadEntityMemory, getViewingsSummary } from '@/lib/agent-intelligence/context';
-import { buildAgentSystemPrompt } from '@/lib/agent-intelligence/system-prompt';
+import {
+  loadAgentContext,
+  getRecentActivitySummary,
+  getUpcomingDeadlines,
+  loadEntityMemory,
+  getViewingsSummary,
+  getAgentProfileExtras,
+  getAgedContracts,
+  getSalesPipelineSummary,
+  getLettingsSummary,
+  getRenewalWindow,
+  getRentArrears,
+  getTodaysViewings,
+  getUpcomingWeekViewings,
+} from '@/lib/agent-intelligence/context';
+import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 
@@ -105,8 +119,24 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2. Build context components in parallel
-    const [recentActivity, upcomingDeadlines, entityMemory, viewingsSummary] = await Promise.all([
+    // 2. Build context components in parallel — legacy loaders + new live-context blocks.
+    // Each new helper is wrapped in .catch() so a failing query (e.g. a column
+    // mismatch on agent_letting_properties / agent_tenancies) degrades to an
+    // empty block rather than taking down the whole request.
+    const [
+      recentActivity,
+      upcomingDeadlines,
+      entityMemory,
+      viewingsSummary,
+      agentExtras,
+      agedContracts,
+      salesPipeline,
+      lettings,
+      renewalWindow,
+      rentArrears,
+      todaysViewings,
+      weekViewings,
+    ] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
       agentContext.agentId
@@ -115,7 +145,43 @@ export async function POST(request: NextRequest) {
       agentContext.agentId
         ? getViewingsSummary(supabase, agentContext).catch(() => '')
         : Promise.resolve(''),
+      agentContext.agentId
+        ? getAgentProfileExtras(supabase, agentContext.agentId).catch(() => null)
+        : Promise.resolve(null),
+      getAgedContracts(supabase, tenantId, agentContext, 42).catch(() => []),
+      getSalesPipelineSummary(supabase, tenantId, agentContext).catch(() => null),
+      agentContext.agentId
+        ? getLettingsSummary(supabase, agentContext.agentId).catch(() => null)
+        : Promise.resolve(null),
+      agentContext.agentId
+        ? getRenewalWindow(supabase, agentContext.agentId).catch(() => [])
+        : Promise.resolve([]),
+      agentContext.agentId
+        ? getRentArrears(supabase, agentContext.agentId).catch(() => [])
+        : Promise.resolve([]),
+      agentContext.agentId
+        ? getTodaysViewings(supabase, agentContext.agentId).catch(() => [])
+        : Promise.resolve([]),
+      agentContext.agentId
+        ? getUpcomingWeekViewings(supabase, agentContext.agentId).catch(() => [])
+        : Promise.resolve([]),
     ]);
+
+    // Assemble the live-context string. buildLiveContext enforces the 2000-token
+    // budget internally, applying the priority order: identity > today's viewings >
+    // aged contracts > renewal window > arrears > sales stats > lettings > upcoming
+    // viewings > scheme names (items a-e always included, f-i pruned if budget hit).
+    const liveContextBlocks: LiveContextBlocks = {
+      agentExtras,
+      todaysViewings,
+      agedContracts,
+      renewalWindow,
+      rentArrears,
+      salesPipeline,
+      lettings,
+      weekViewings,
+    };
+    const liveContext = buildLiveContext(liveContextBlocks);
 
     // 2b. Load independent agent context if applicable
     let independentContext = '';
@@ -133,6 +199,7 @@ export async function POST(request: NextRequest) {
       '', // RAG results injected after tool calls if needed
       independentContext,
       viewingsSummary,
+      liveContext,
     );
 
     // 4. Build message history
