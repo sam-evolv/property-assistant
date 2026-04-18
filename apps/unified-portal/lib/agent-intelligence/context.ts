@@ -490,11 +490,7 @@ export async function getLettingsSummary(
 
   const { data: properties, error } = await supabase
     .from('agent_letting_properties')
-    // select('*') is deliberate: rent column naming in the live schema isn't
-    // documented in-repo (monthly_rent vs current_rent vs rent). Over-fetching
-    // a ~14-row table is cheaper than a query error if one candidate column
-    // is missing. Fallback chain is applied at read time below.
-    .select('*')
+    .select('id, agent_id, address, city, status, rent_pcm')
     .eq('agent_id', agentId);
 
   if (error || !properties) return empty;
@@ -505,15 +501,13 @@ export async function getLettingsSummary(
 
   const { data: tenancies } = await supabase
     .from('agent_tenancies')
-    // select('*') for the same reason as above — rent column name isn't
-    // documented in-repo; we pick the right one at read time.
-    .select('*')
+    .select('id, agent_id, letting_property_id, status, rent_pcm')
     .eq('agent_id', agentId)
     .eq('status', 'active');
 
   const activeTenancies = tenancies?.length ?? 0;
   const monthlyRentRoll = (tenancies || []).reduce((sum: number, t: any) => {
-    const rent = Number(t.monthly_rent ?? t.rent ?? 0);
+    const rent = Number(t.rent_pcm ?? 0);
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
 
@@ -528,7 +522,7 @@ export async function getLettingsSummary(
       address: p.address,
       city: p.city ?? null,
       status: p.status ?? 'unknown',
-      rent: Number(p.monthly_rent ?? p.current_rent ?? p.rent ?? 0) || null,
+      rent: Number(p.rent_pcm ?? 0) || null,
     })),
   };
 }
@@ -543,7 +537,7 @@ export async function getRenewalWindow(
 
   const { data, error } = await supabase
     .from('agent_tenancies')
-    .select('*')
+    .select('id, agent_id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm, notes')
     .eq('agent_id', agentId)
     .eq('status', 'active')
     .gte('lease_end', todayIso)
@@ -551,12 +545,12 @@ export async function getRenewalWindow(
 
   if (error || !data?.length) return [];
 
-  const propertyIds = Array.from(new Set(data.map((t: any) => t.property_id).filter(Boolean)));
+  const propertyIds = Array.from(new Set(data.map((t: any) => t.letting_property_id).filter(Boolean)));
   const propertyById = new Map<string, { address: string; city: string | null }>();
   if (propertyIds.length) {
     const { data: props } = await supabase
       .from('agent_letting_properties')
-      .select('*')
+      .select('id, address, city')
       .in('id', propertyIds);
     for (const p of props || []) propertyById.set(p.id, { address: p.address, city: p.city ?? null });
   }
@@ -565,7 +559,7 @@ export async function getRenewalWindow(
     .map((t: any) => {
       const leaseEnd = new Date(t.lease_end);
       const daysOut = Math.ceil((leaseEnd.getTime() - today.getTime()) / 86400000);
-      const prop = propertyById.get(t.property_id);
+      const prop = propertyById.get(t.letting_property_id);
       return {
         tenancyId: t.id,
         tenantName: t.tenant_name || 'Unknown tenant',
@@ -573,7 +567,7 @@ export async function getRenewalWindow(
         propertyCity: prop?.city ?? null,
         leaseEnd: t.lease_end,
         daysOut,
-        currentRent: Number(t.monthly_rent ?? t.rent ?? 0) || null,
+        currentRent: Number(t.rent_pcm ?? 0) || null,
         isRpz: isInRPZ(prop?.city),
         status: t.status,
       };
@@ -590,19 +584,19 @@ export async function getRentArrears(
 ): Promise<RentArrearsRecord[]> {
   const { data, error } = await supabase
     .from('agent_tenancies')
-    .select('*')
+    .select('id, agent_id, letting_property_id, tenant_name, notes, status')
     .eq('agent_id', agentId)
     .eq('status', 'active')
     .ilike('notes', '%overdue%');
 
   if (error || !data?.length) return [];
 
-  const propertyIds = Array.from(new Set(data.map((t: any) => t.property_id).filter(Boolean)));
+  const propertyIds = Array.from(new Set(data.map((t: any) => t.letting_property_id).filter(Boolean)));
   const addressById = new Map<string, string>();
   if (propertyIds.length) {
     const { data: props } = await supabase
       .from('agent_letting_properties')
-      .select('*')
+      .select('id, address')
       .in('id', propertyIds);
     for (const p of props || []) addressById.set(p.id, p.address);
   }
@@ -610,7 +604,7 @@ export async function getRentArrears(
   return data.map((t: any) => ({
     tenancyId: t.id,
     tenantName: t.tenant_name || 'Unknown tenant',
-    propertyAddress: addressById.get(t.property_id) || 'Unknown property',
+    propertyAddress: addressById.get(t.letting_property_id) || 'Unknown property',
     note: t.notes || '',
   }));
 }
