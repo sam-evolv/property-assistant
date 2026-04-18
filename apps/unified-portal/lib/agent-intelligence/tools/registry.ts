@@ -242,11 +242,11 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_viewing_followup',
-    description: 'Draft follow-up emails to buyers who attended viewings in the last 24 hours. Returns drafts for agent approval.',
+    description: 'Draft follow-up emails to buyers who attended viewings recently. Default look-back is 7 days (168 hours). Call this whenever the agent asks to follow up on viewings from today, yesterday, this week, last week, or any recent period. Returns drafts for agent approval — nothing is sent automatically.',
     parameters: {
       type: 'object',
       properties: {
-        window_hours: { type: 'number', description: 'Look-back window in hours (default 24)' },
+        window_hours: { type: 'number', description: 'Look-back window in hours (default 168 = 7 days)' },
       },
       required: [],
     },

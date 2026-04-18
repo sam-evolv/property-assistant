@@ -203,19 +203,20 @@ export async function draftViewingFollowup(
 ): Promise<AgenticSkillEnvelope> {
   const windowHours = Number.isFinite(Number(inputs.window_hours))
     ? Math.max(1, Number(inputs.window_hours))
-    : 24;
+    : 168; // default 7 days
   const windowDays = Math.max(1, Math.ceil(windowHours / 24));
   const skill = 'draft_viewing_followup';
+  const todayIso = new Date().toISOString().split('T')[0];
   const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString().split('T')[0];
-  const query = `agent_viewings WHERE status = 'completed' AND viewing_date >= current_date - ${windowDays} day${windowDays === 1 ? '' : 's'} AND agent_id = '${agentContext.agentId}'`;
+  const query = `agent_viewings WHERE viewing_date BETWEEN ${cutoffIso} AND ${todayIso} AND agent_id = '${agentContext.agentId}'`;
 
   try {
     const { data, error } = await supabase
       .from('agent_viewings')
       .select('id, buyer_name, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status')
       .eq('agent_id', agentContext.agentId)
-      .eq('status', 'completed')
       .gte('viewing_date', cutoffIso)
+      .lte('viewing_date', todayIso)
       .order('viewing_date', { ascending: false });
     if (error) throw error;
 
@@ -485,7 +486,6 @@ export async function draftLeaseRenewal(
       .from('agent_tenancies')
       .select('id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm')
       .eq('agent_id', agentContext.agentId)
-      .eq('status', 'active')
       .gte('lease_end', todayIso)
       .lte('lease_end', ninetyIso);
 
@@ -512,14 +512,14 @@ export async function draftLeaseRenewal(
     if (propertyIds.length) {
       const { data: props } = await supabase
         .from('agent_letting_properties')
-        .select('id, address, city')
+        .select('id, address')
         .in('id', propertyIds);
-      for (const p of props || []) propertyById.set(p.id, { address: p.address, city: p.city ?? null });
+      for (const p of props || []) propertyById.set(p.id, { address: p.address, city: null });
     }
 
     const drafts = rows.map((t: any) => {
       const prop = propertyById.get(t.letting_property_id) || { address: 'Unknown property', city: null };
-      const inRPZ = isInRPZ(prop.city);
+      const inRPZ = isInRPZ(prop.address);
       const currentRent = Number(t.rent_pcm ?? 0);
       const proposedRent = inRPZ
         ? roundToNearest5(currentRent * (1 + rpzUpliftCap()))
