@@ -14,22 +14,28 @@ const ICON_MAP = {
 
 export function ApprovalDrawer() {
   const { isOpen, envelope, close } = useApprovalDrawer();
+  // panelOpen drives the CSS open class — deferred one rAF from isOpen so the
+  // browser has a "from" state (translateY/X 100%) before the transition fires.
+  const [panelOpen, setPanelOpen] = useState(false);
   const [draftIndex, setDraftIndex] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
   const prevFocusRef = useRef<HTMLElement | null>(null);
 
-  // Reset pager + manage focus on open/close
   useEffect(() => {
-    if (isOpen) {
-      setDraftIndex(0);
-      prevFocusRef.current = document.activeElement as HTMLElement;
-      // Defer so the panel has transitioned into view
-      const id = setTimeout(() => panelRef.current?.focus(), 50);
-      return () => clearTimeout(id);
-    } else {
+    if (!isOpen) {
+      setPanelOpen(false);
       prevFocusRef.current?.focus();
       prevFocusRef.current = null;
+      return;
     }
+    prevFocusRef.current = document.activeElement as HTMLElement;
+    setDraftIndex(0);
+    // One frame: element is in DOM at off-screen position → next frame: add open class
+    const rafId = requestAnimationFrame(() => {
+      setPanelOpen(true);
+      requestAnimationFrame(() => panelRef.current?.focus());
+    });
+    return () => cancelAnimationFrame(rafId);
   }, [isOpen]);
 
   // Keyboard: Escape closes; arrow keys page through drafts; Tab focus-trap
@@ -64,16 +70,16 @@ export function ApprovalDrawer() {
     return () => window.removeEventListener('keydown', handleKey);
   }, [isOpen, close, envelope]);
 
-  // Don't render at all until first envelope arrives
-  if (!envelope) return null;
+  // Nothing to render until an envelope arrives and/or the drawer is in use
+  if (!envelope && !isOpen) return null;
 
-  const skillInfo = SKILL_LABELS[envelope.skill] ?? {
-    label: envelope.skill,
-    humanTitle: envelope.skill,
+  const skillInfo = SKILL_LABELS[envelope?.skill ?? ''] ?? {
+    label: envelope?.skill ?? '',
+    humanTitle: envelope?.skill ?? '',
     icon: 'report' as const,
   };
   const Icon = ICON_MAP[skillInfo.icon];
-  const draftCount = envelope.drafts.length;
+  const draftCount = envelope?.drafts.length ?? 0;
   const countLabel = draftCount === 1 ? '1 draft ready' : `${draftCount} drafts ready for review`;
 
   return (
@@ -107,14 +113,14 @@ export function ApprovalDrawer() {
         }
       `}</style>
 
-      {/* Root: fixed full-viewport, non-interactive when closed */}
+      {/* Root: fixed full-viewport, non-interactive while panel is animating closed */}
       <div
         className="fixed inset-0 z-50"
-        style={{ pointerEvents: isOpen ? 'auto' : 'none' }}
+        style={{ pointerEvents: panelOpen ? 'auto' : 'none' }}
       >
         {/* Overlay */}
         <div
-          className={`absolute inset-0 oh-ad-overlay${isOpen ? ' open' : ''}`}
+          className={`absolute inset-0 oh-ad-overlay${panelOpen ? ' open' : ''}`}
           style={{ background: 'rgba(0,0,0,0.45)' }}
           onClick={close}
           tabIndex={-1}
@@ -128,7 +134,7 @@ export function ApprovalDrawer() {
           aria-modal="true"
           aria-labelledby="oh-ad-title"
           tabIndex={0}
-          className={`absolute oh-ad-panel${isOpen ? ' open' : ''}
+          className={`absolute oh-ad-panel${panelOpen ? ' open' : ''}
             bottom-0 left-0 right-0 h-[86vh] rounded-t-2xl
             md:inset-y-0 md:left-auto md:right-0 md:w-[480px] md:h-auto md:rounded-l-2xl md:rounded-tr-none
             flex flex-col outline-none`}
