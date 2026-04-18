@@ -584,3 +584,437 @@ export async function draftLeaseRenewal(
     return errorEnvelope(skill, query, err);
   }
 }
+
+// =====================================================================
+// Skill 5 — natural_query
+// =====================================================================
+//
+// CRITICAL: we never construct raw SQL from the user's input. The question
+// is matched against a small set of keyword patterns; each pattern maps to a
+// pre-defined, parameterised Supabase query. Unmatched questions fall through
+// to a help message. Agents (or the model) are expected to fall back to the
+// more specific skills above when a question needs something richer than
+// these canned intents.
+
+type QueryIntent =
+  | 'rent_roll'
+  | 'lease_end'
+  | 'aged_contracts'
+  | 'viewings_period'
+  | 'for_sale_count'
+  | 'needs_attention'
+  | 'fallback';
+
+function detectIntent(lowered: string): QueryIntent {
+  if (/rent\s*roll|monthly\s*rent|total\s*rent/.test(lowered)) return 'rent_roll';
+  if (/when\s+does|lease\s+end(s|ing)?.*for|.*lease\s+up/.test(lowered)) return 'lease_end';
+  if (/how\s+many.*aged|aged\s+contracts|overdue\s+contracts|contracts.*over\s*(6|six)\s*weeks/.test(lowered)) return 'aged_contracts';
+  if (/(viewed|viewing).*(yesterday|last\s+week|this\s+week|today)/.test(lowered)) return 'viewings_period';
+  if (/how\s+many.*(for\s*sale|available|on\s*market)/.test(lowered)) return 'for_sale_count';
+  if (/need(s|ing)?\s+(my\s+)?attention|what\s+should\s+i|outstanding|priorities/.test(lowered)) return 'needs_attention';
+  return 'fallback';
+}
+
+function extractTenantName(rawQuestion: string): string | null {
+  const quoted = rawQuestion.match(/"([^"]+)"|'([^']+)'/);
+  if (quoted) return (quoted[1] || quoted[2] || '').trim() || null;
+  const afterKeyword = rawQuestion.match(/(?:does|for)\s+([A-Z][a-zA-Z'’-]+(?:\s+[A-Z][a-zA-Z'’-]+)?)/);
+  if (afterKeyword) return afterKeyword[1].trim();
+  return null;
+}
+
+// Monday-to-Sunday bounds for a given date. Pure ISO date strings (YYYY-MM-DD).
+function weekBounds(base: Date): { start: string; end: string } {
+  const d = new Date(base);
+  d.setHours(0, 0, 0, 0);
+  const day = d.getDay(); // 0=Sun..6=Sat
+  const mondayOffset = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d.getTime() + mondayOffset * 86400000);
+  const sunday = new Date(monday.getTime() + 6 * 86400000);
+  return {
+    start: monday.toISOString().split('T')[0],
+    end: sunday.toISOString().split('T')[0],
+  };
+}
+
+function periodFromQuestion(lowered: string): { label: string; start: string; end: string } {
+  const today = new Date();
+  const todayIso = today.toISOString().split('T')[0];
+  if (/today/.test(lowered)) return { label: 'today', start: todayIso, end: todayIso };
+  if (/yesterday/.test(lowered)) {
+    const y = new Date(today.getTime() - 86400000).toISOString().split('T')[0];
+    return { label: 'yesterday', start: y, end: y };
+  }
+  if (/last\s+week/.test(lowered)) {
+    const lastWeekBase = new Date(today.getTime() - 7 * 86400000);
+    const { start, end } = weekBounds(lastWeekBase);
+    return { label: 'last week', start, end };
+  }
+  const { start, end } = weekBounds(today);
+  return { label: 'this week', start, end };
+}
+
+export async function naturalQuery(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: { question: string },
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'natural_query';
+  const question = (inputs.question || '').trim();
+  const lowered = question.toLowerCase();
+  const intent = detectIntent(lowered);
+  const query = `natural_query intent=${intent}`;
+
+  try {
+    let answer = '';
+    let patternName: string = intent;
+    let recordIds: string[] = [];
+
+    if (intent === 'rent_roll') {
+      const { data } = await supabase
+        .from('agent_tenancies')
+        .select('id, rent_pcm')
+        .eq('agent_id', agentContext.agentId)
+        .eq('status', 'active');
+      const rows = data || [];
+      const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
+      recordIds = rows.map((r: any) => r.id);
+      answer = `Your current monthly rent roll is €${total.toLocaleString('en-IE')} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
+    } else if (intent === 'lease_end') {
+      const name = extractTenantName(question);
+      if (!name) {
+        answer = "I couldn't pick up a tenant name from that question. Try something like: when does Priya Shah's lease end?";
+      } else {
+        const { data } = await supabase
+          .from('agent_tenancies')
+          .select('id, letting_property_id, tenant_name, lease_end, status')
+          .eq('agent_id', agentContext.agentId)
+          .eq('status', 'active')
+          .ilike('tenant_name', `%${name}%`);
+        const rows = data || [];
+        if (!rows.length) {
+          answer = "I couldn't find an active tenancy matching that name.";
+        } else {
+          const propertyIds = Array.from(new Set(rows.map((t: any) => t.letting_property_id).filter(Boolean)));
+          const { data: props } = await supabase
+            .from('agent_letting_properties')
+            .select('id, address')
+            .in('id', propertyIds);
+          const addressById = new Map<string, string>((props || []).map((p: any) => [p.id, p.address]));
+          if (rows.length === 1) {
+            const t = rows[0];
+            const address = addressById.get(t.letting_property_id) || 'Unknown property';
+            const days = Math.max(0, Math.round((new Date(t.lease_end).getTime() - Date.now()) / 86400000));
+            answer = `${t.tenant_name}'s lease at ${address} ends on ${formatIrishDate(t.lease_end)} (${days} days).`;
+          } else {
+            const top = rows.slice(0, 3).map((t: any) => {
+              const address = addressById.get(t.letting_property_id) || 'Unknown property';
+              return `- ${t.tenant_name} at ${address} — ${formatIrishDate(t.lease_end)}`;
+            });
+            answer = [`Found ${rows.length} matching tenancies:`, ...top].join('\n');
+          }
+          recordIds = rows.map((r: any) => r.id);
+        }
+      }
+    } else if (intent === 'aged_contracts') {
+      const aged = await loadAgedForBriefing(supabase, agentContext.agentId, 42);
+      if (!aged.length) {
+        answer = 'There are 0 contracts issued over 6 weeks ago with no signature.';
+      } else {
+        const top = aged.slice(0, 3).map(a => `${a.schemeName} Unit ${a.unitNumber}, ${a.daysAged}d`).join('; ');
+        answer = `There are ${aged.length} contracts issued over 6 weeks ago with no signature. Top: ${top}.`;
+      }
+    } else if (intent === 'viewings_period') {
+      const period = periodFromQuestion(lowered);
+      const { data } = await supabase
+        .from('agent_viewings')
+        .select('id, buyer_name, scheme_name, unit_ref, viewing_date, viewing_time')
+        .eq('agent_id', agentContext.agentId)
+        .gte('viewing_date', period.start)
+        .lte('viewing_date', period.end)
+        .order('viewing_date', { ascending: true });
+      const rows = data || [];
+      recordIds = rows.map((r: any) => r.id);
+      if (!rows.length) {
+        answer = `0 viewings ${period.label}.`;
+      } else {
+        const details = rows.slice(0, 5).map((v: any) => {
+          const where = [v.scheme_name, v.unit_ref ? `Unit ${v.unit_ref}` : null].filter(Boolean).join(', ');
+          const time = v.viewing_time || 'time TBC';
+          return `- ${formatIrishDate(v.viewing_date)} ${time} — ${v.buyer_name || 'Buyer'} — ${where}`;
+        });
+        answer = [`${rows.length} viewings ${period.label}. Details:`, ...details].join('\n');
+      }
+    } else if (intent === 'for_sale_count') {
+      const { data: asgs } = await supabase
+        .from('agent_scheme_assignments')
+        .select('development_id')
+        .eq('agent_id', agentContext.agentId)
+        .eq('is_active', true);
+      const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
+      if (!devIds.length) {
+        answer = 'You have 0 units currently for sale across your schemes.';
+      } else {
+        const { data, count } = await supabase
+          .from('unit_sales_pipeline')
+          .select('unit_id', { count: 'exact' })
+          .in('development_id', devIds)
+          .eq('status', 'for_sale');
+        const n = count ?? (data?.length || 0);
+        answer = `You have ${n} unit${n === 1 ? '' : 's'} currently for sale across your schemes.`;
+      }
+    } else if (intent === 'needs_attention') {
+      const [aged, arrears, renewals] = await Promise.all([
+        loadAgedForBriefing(supabase, agentContext.agentId, 42).catch(() => []),
+        getRentArrears(supabase, agentContext.agentId).catch(() => []),
+        getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
+      ]);
+      answer = `Items needing attention: ${aged.length} aged contracts, ${arrears.length} rent arrears, ${renewals.length} renewals due.`;
+    } else {
+      patternName = 'fallback';
+      answer = 'I can answer questions about your pipeline, lettings, viewings, and tenancies. Try asking about: aged contracts, rent roll, lease end for [tenant], upcoming viewings, or what needs your attention.';
+    }
+
+    const draftId = randomUUID();
+    const firstLine = answer.split('\n')[0] || answer;
+    const subject = `Answer: ${question}`.slice(0, 100);
+    const reasoningParts = [
+      `Matched intent pattern '${patternName}'. Backed by ${recordIds.length} record${recordIds.length === 1 ? '' : 's'}.`,
+    ];
+    if (recordIds.length) reasoningParts.push(`Record IDs: ${recordIds.slice(0, 10).join(', ')}${recordIds.length > 10 ? ` (+${recordIds.length - 10} more)` : ''}`);
+
+    const draft = {
+      id: draftId,
+      type: 'report' as const,
+      recipient: { name: agentContext.displayName, email: 'self', role: 'agent' },
+      subject,
+      body: answer,
+      affected_record: { kind: 'query', id: draftId, label: question.slice(0, 60) },
+      reasoning: reasoningParts.join('\n'),
+    };
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: firstLine.slice(0, 120),
+      drafts: [draft],
+      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 6 — schedule_viewing_draft
+// =====================================================================
+//
+// Unlike the legacy schedule_viewing write tool, this skill NEVER inserts a
+// viewing row. It resolves the property reference, checks for clashes, and
+// returns two drafts: the would-be viewing record (as a JSON review body) and
+// a confirmation email to the buyer. Both drafts are held in the envelope
+// and materialised only by the /confirm endpoint after agent approval.
+
+function formatClockTime(hhmm: string | null): string {
+  if (!hhmm) return 'time TBC';
+  const m = hhmm.match(/^(\d{1,2}):(\d{2})/);
+  if (!m) return hhmm;
+  const h = Number(m[1]);
+  const min = m[2];
+  const suffix = h >= 12 ? 'pm' : 'am';
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return min === '00' ? `${h12}${suffix}` : `${h12}:${min}${suffix}`;
+}
+
+export async function scheduleViewingDraft(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: {
+    unit_or_property_ref: string;
+    buyer_name: string;
+    buyer_email?: string;
+    buyer_phone?: string;
+    preferred_datetime: string;
+  },
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'schedule_viewing_draft';
+  const ref = (inputs.unit_or_property_ref || '').trim();
+  const query = `schedule_viewing_draft ref="${ref}" buyer="${inputs.buyer_name}" at=${inputs.preferred_datetime}`;
+
+  try {
+    // --- Step B (parse datetime up front so we fail fast) ---
+    const dt = new Date(inputs.preferred_datetime);
+    if (Number.isNaN(dt.getTime())) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'Invalid datetime format. Use ISO 8601.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+    const viewingDate = dt.toISOString().split('T')[0];
+    const viewingTime = dt.toISOString().split('T')[1].slice(0, 8); // HH:MM:SS
+
+    // --- Step A: resolve reference ---
+    type Resolved =
+      | { kind: 'sales_unit'; unitId: string; developmentId: string; schemeName: string; unitNumber: string; label: string }
+      | { kind: 'letting_property'; lettingPropertyId: string; address: string; city: string | null; label: string };
+    let resolved: Resolved | null = null;
+
+    const unitMatch = ref.match(/unit\s*(\w+)/i);
+    if (unitMatch && typeof unitMatch.index === 'number') {
+      const unitToken = unitMatch[1];
+      const schemeToken = ref.slice(0, unitMatch.index).trim();
+      if (schemeToken) {
+        const { data: devs } = await supabase
+          .from('developments')
+          .select('id, name')
+          .ilike('name', `%${schemeToken}%`);
+        const devList = devs || [];
+        if (devList.length) {
+          const { data: units } = await supabase
+            .from('units')
+            .select('id, development_id, unit_number, unit_uid')
+            .in('development_id', devList.map((d: any) => d.id))
+            .or(`unit_number.ilike.${unitToken},unit_uid.ilike.%${unitToken}%`);
+          const unit = (units || [])[0];
+          if (unit) {
+            const dev = devList.find((d: any) => d.id === unit.development_id);
+            resolved = {
+              kind: 'sales_unit',
+              unitId: unit.id,
+              developmentId: unit.development_id,
+              schemeName: dev?.name || schemeToken,
+              unitNumber: unit.unit_number || unit.unit_uid || unitToken,
+              label: `${dev?.name || schemeToken} Unit ${unit.unit_number || unit.unit_uid || unitToken}`,
+            };
+          }
+        }
+      }
+    }
+
+    if (!resolved) {
+      const { data: props } = await supabase
+        .from('agent_letting_properties')
+        .select('id, address, city')
+        .eq('agent_id', agentContext.agentId)
+        .ilike('address', `%${ref}%`);
+      const prop = (props || [])[0];
+      if (prop) {
+        resolved = {
+          kind: 'letting_property',
+          lettingPropertyId: prop.id,
+          address: prop.address,
+          city: prop.city ?? null,
+          label: prop.address,
+        };
+      }
+    }
+
+    if (!resolved) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `Could not resolve property reference "${ref}". Please use a clearer identifier.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    // --- Step C: conflict check (±30 minutes on the same date) ---
+    const { data: existing } = await supabase
+      .from('agent_viewings')
+      .select('id, buyer_name, viewing_time, viewing_date')
+      .eq('agent_id', agentContext.agentId)
+      .eq('viewing_date', viewingDate);
+
+    const prefMinutes = dt.getUTCHours() * 60 + dt.getUTCMinutes();
+    const conflicts = (existing || []).filter((v: any) => {
+      if (!v.viewing_time) return false;
+      const m = v.viewing_time.match(/^(\d{1,2}):(\d{2})/);
+      if (!m) return false;
+      const minutes = Number(m[1]) * 60 + Number(m[2]);
+      return Math.abs(minutes - prefMinutes) <= 30;
+    });
+    const conflictNote = conflicts.length
+      ? ` Conflict: existing viewing with ${conflicts[0].buyer_name || 'unknown buyer'} at ${conflicts[0].viewing_time} on ${viewingDate}.`
+      : '';
+
+    // --- Step D: build two drafts ---
+    const schemeName = resolved.kind === 'sales_unit' ? resolved.schemeName : null;
+    const unitRef = resolved.kind === 'sales_unit' ? resolved.unitNumber : resolved.address;
+    const recordRow: Record<string, any> = {
+      agent_id: agentContext.agentId,
+      buyer_name: inputs.buyer_name,
+      buyer_email: inputs.buyer_email || null,
+      buyer_phone: inputs.buyer_phone || null,
+      viewing_date: viewingDate,
+      viewing_time: viewingTime,
+      status: 'confirmed',
+      source: 'intelligence',
+      unit_ref: unitRef,
+    };
+    if (resolved.kind === 'sales_unit') {
+      recordRow.development_id = resolved.developmentId;
+      recordRow.unit_id = resolved.unitId;
+      recordRow.scheme_name = schemeName;
+    } else {
+      recordRow.letting_property_id = resolved.lettingPropertyId;
+    }
+
+    const recordDraftId = randomUUID();
+    const affectedId = resolved.kind === 'sales_unit' ? resolved.unitId : resolved.lettingPropertyId;
+
+    const recordDraft = {
+      id: recordDraftId,
+      type: 'viewing_record' as const,
+      body: JSON.stringify(recordRow, null, 2),
+      affected_record: { kind: resolved.kind, id: affectedId, label: resolved.label },
+      reasoning: `Will create new viewing record on approval.${conflictNote}`,
+    };
+
+    const dateLabel = formatIrishDate(viewingDate);
+    const timeLabel = formatClockTime(viewingTime);
+    const buyerFirst = firstName(inputs.buyer_name);
+
+    const emailBody = [
+      `Hi ${buyerFirst},`,
+      ``,
+      `Thanks for your interest in ${resolved.label}.`,
+      ``,
+      `Just confirming your viewing on ${dateLabel} at ${timeLabel}. I'll be there to meet you and walk you through the property.`,
+      ``,
+      `If any questions come up beforehand, or you need to reschedule, just reply to this email.`,
+      ``,
+      `Looking forward to meeting you.`,
+      ``,
+      `Best,`,
+      signature(agentContext),
+    ].join('\n');
+
+    const emailDraft = {
+      id: randomUUID(),
+      type: 'email' as const,
+      recipient: {
+        name: inputs.buyer_name,
+        email: inputs.buyer_email || 'buyer@tbc.invalid',
+        role: 'buyer',
+      },
+      subject: `Viewing confirmed — ${resolved.label} on ${dateLabel}`,
+      body: emailBody,
+      affected_record: { kind: resolved.kind, id: affectedId, label: resolved.label },
+      reasoning: 'Confirmation email to buyer.',
+    };
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Prepared viewing for ${inputs.buyer_name} at ${resolved.label} on ${dateLabel} at ${timeLabel}.`,
+      drafts: [recordDraft, emailDraft],
+      meta: { record_count: 2, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}

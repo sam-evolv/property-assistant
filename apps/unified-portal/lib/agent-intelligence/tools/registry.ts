@@ -1,4 +1,6 @@
-import { ToolDefinition, ToolFunction } from '../types';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { AgentContext, ToolDefinition, ToolFunction, ToolResult } from '../types';
+import { getAgentProfileExtras } from '../context';
 import {
   getUnitStatus,
   getBuyerDetails,
@@ -11,10 +13,50 @@ import {
 import {
   createTask,
   logCommunication,
-  scheduleViewing,
   draftMessage,
   generateDeveloperReport,
 } from './write-tools';
+// schedule_viewing is intentionally NOT imported here: its immediate-write
+// behaviour has been replaced by schedule_viewing_draft. The underlying
+// scheduleViewing function remains exported from './write-tools' for any
+// internal code path that still needs a direct insert.
+import {
+  chaseAgedContracts,
+  draftViewingFollowup,
+  weeklyMondayBriefing,
+  draftLeaseRenewal,
+  naturalQuery,
+  scheduleViewingDraft,
+  SkillAgentContext,
+  AgenticSkillEnvelope,
+} from './agentic-skills';
+
+// Adapter between the model-facing ToolFunction signature (which operates on
+// AgentContext and returns ToolResult) and the agentic-skill signature (which
+// takes a SkillAgentContext and returns an AgenticSkillEnvelope). The
+// envelope is returned verbatim as `data` so the route handler and /confirm
+// endpoint can pass it straight through; `summary` is mirrored for any code
+// path that only needs the short blurb.
+async function runAgenticSkill<I extends Record<string, any>>(
+  fn: (
+    supabase: SupabaseClient,
+    skillCtx: SkillAgentContext,
+    inputs: I,
+  ) => Promise<AgenticSkillEnvelope>,
+  supabase: SupabaseClient,
+  agentContext: AgentContext,
+  params: I,
+): Promise<ToolResult> {
+  const profile = await getAgentProfileExtras(supabase, agentContext.userId).catch(() => null);
+  const skillCtx: SkillAgentContext = {
+    agentId: agentContext.agentId,
+    userId: agentContext.userId,
+    displayName: agentContext.displayName,
+    agencyName: profile?.agencyName || '',
+  };
+  const envelope = await fn(supabase, skillCtx, params);
+  return { data: envelope, summary: envelope.summary };
+}
 
 export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -100,25 +142,6 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
     execute: getViewings,
   },
   {
-    name: 'schedule_viewing',
-    description: 'Schedule a property viewing for a buyer. Creates a viewing record in the agent diary.',
-    parameters: {
-      type: 'object',
-      properties: {
-        buyer_name: { type: 'string', description: 'Name of the buyer or prospect' },
-        scheme_name: { type: 'string', description: 'Name of the development/scheme' },
-        unit_ref: { type: 'string', description: 'Unit number (optional if viewing the scheme generally)' },
-        viewing_date: { type: 'string', description: 'Date of the viewing (ISO format, e.g. 2026-04-15)' },
-        viewing_time: { type: 'string', description: 'Time of the viewing (e.g. 14:00)' },
-        buyer_phone: { type: 'string', description: 'Buyer phone number' },
-        buyer_email: { type: 'string', description: 'Buyer email address' },
-        notes: { type: 'string', description: 'Any notes about the viewing' },
-      },
-      required: ['buyer_name', 'scheme_name', 'viewing_date'],
-    },
-    execute: scheduleViewing as ToolFunction,
-  },
-  {
     name: 'search_knowledge_base',
     description: 'Search the OpenHouse knowledge base for information about regulations, processes, schemes, or any indexed documentation.',
     parameters: {
@@ -197,6 +220,92 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['developer_name'],
     },
     execute: generateDeveloperReport as ToolFunction,
+  },
+  // -------------------------------------------------------------------
+  // Agentic skills (approval-first). Each execute() returns an
+  // AgenticSkillEnvelope wrapped in ToolResult.data — no side effects
+  // land until the /confirm endpoint approves the drafts.
+  // -------------------------------------------------------------------
+  {
+    name: 'chase_aged_contracts',
+    description: "Find contracts issued over 6 weeks ago that haven't been signed, and draft solicitor chase emails for each. Returns drafts for agent approval before any email is sent.",
+    parameters: {
+      type: 'object',
+      properties: {
+        threshold_days: { type: 'number', description: 'Age threshold in days (default 42)' },
+        scheme_filter: { type: 'string', description: 'Optional scheme name filter (substring match)' },
+      },
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(chaseAgedContracts, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'draft_viewing_followup',
+    description: 'Draft follow-up emails to buyers who attended viewings in the last 24 hours. Returns drafts for agent approval.',
+    parameters: {
+      type: 'object',
+      properties: {
+        window_hours: { type: 'number', description: 'Look-back window in hours (default 24)' },
+      },
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(draftViewingFollowup, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'weekly_monday_briefing',
+    description: "Generate a Monday morning briefing covering sales movement, lettings renewals, rent arrears, week's viewings, and items needing attention.",
+    parameters: {
+      type: 'object',
+      properties: {},
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(weeklyMondayBriefing, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'draft_lease_renewal',
+    description: 'Draft lease renewal offers for tenancies ending in the next 90 days. Calculates RPZ-compliant rent uplift where applicable. Returns drafts for tenant approval.',
+    parameters: {
+      type: 'object',
+      properties: {
+        tenancy_id: { type: 'string', description: 'Optional tenancy id to draft for a single renewal' },
+      },
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(draftLeaseRenewal, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'natural_query',
+    description: "Answer natural-language questions about the agent's pipeline, lettings, viewings, or tenancies. Uses safe pre-built query templates.",
+    parameters: {
+      type: 'object',
+      properties: {
+        question: { type: 'string', description: 'The natural-language question' },
+      },
+      required: ['question'],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(naturalQuery, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'schedule_viewing_draft',
+    description: 'Prepare a new viewing: resolves the property reference, checks for conflicts, and drafts both the viewing record and a confirmation email. Agent must approve before the viewing is created or the email sent.',
+    parameters: {
+      type: 'object',
+      properties: {
+        unit_or_property_ref: { type: 'string', description: 'Sales unit reference (e.g. "Árdan View Unit 50") or letting property address fragment' },
+        buyer_name: { type: 'string', description: 'Buyer name' },
+        buyer_email: { type: 'string', description: 'Buyer email' },
+        buyer_phone: { type: 'string', description: 'Buyer phone' },
+        preferred_datetime: { type: 'string', description: 'Preferred viewing datetime in ISO 8601 format' },
+      },
+      required: ['unit_or_property_ref', 'buyer_name', 'preferred_datetime'],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(scheduleViewingDraft, supabase, agentContext, params as any)) as ToolFunction,
   },
 ];
 
