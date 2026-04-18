@@ -7,8 +7,16 @@
 // once per year, or whenever the RTB updates designations) to keep it in sync
 // with rtb.ie. When adding support for a new letting region, extend this list
 // rather than branching at the call site.
+//
+// Entries must match the `city` column in agent_letting_properties. Current
+// values seen in production data: "Cork" (city-centre addresses — Lapps Quay,
+// Grand Parade, South Terrace, Cornmarket Street), "Ballincollig",
+// "Bishopstown", "Douglas", "Rochestown", "Glanmire", "Ballyvolane",
+// "Mayfield". Non-RPZ values seen: "Midleton". Comparison is case-insensitive
+// via toLowerCase() below, so entries here are stored lower-cased.
 
 const RPZ_AREAS = new Set<string>([
+  'cork',
   'cork city',
   'ballincollig',
   'bishopstown',
@@ -21,6 +29,7 @@ const RPZ_AREAS = new Set<string>([
 
 export function isInRPZ(city: string | null | undefined): boolean {
   if (!city) return false;
+  // Case-insensitive compare: normalise DB string to lower-case before lookup.
   return RPZ_AREAS.has(city.trim().toLowerCase());
 }
 

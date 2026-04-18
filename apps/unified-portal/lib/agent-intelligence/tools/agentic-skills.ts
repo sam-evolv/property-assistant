@@ -681,7 +681,12 @@ export async function naturalQuery(
       recordIds = rows.map((r: any) => r.id);
       answer = `Your current monthly rent roll is €${total.toLocaleString('en-IE')} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
     } else if (intent === 'lease_end') {
-      const name = extractTenantName(question);
+      const rawName = extractTenantName(question);
+      // Strip a trailing possessive 's (straight ' U+0027 or curly ’ U+2019).
+      // "When does Rohan Shah's lease end?" → extractor returns "Rohan Shah's",
+      // which won't ILIKE-match "Dr Rohan Shah and Dr Priya Shah". Dropping
+      // the possessive leaves a clean substring for the %...% wildcard match.
+      const name = rawName ? rawName.replace(/[\u2019']s\b/i, '').trim() : null;
       if (!name) {
         answer = "I couldn't pick up a tenant name from that question. Try something like: when does Priya Shah's lease end?";
       } else {

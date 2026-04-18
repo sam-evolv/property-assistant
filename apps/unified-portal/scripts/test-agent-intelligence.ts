@@ -151,7 +151,10 @@ async function testChaseAgedContracts(sb: SupabaseClient, ctx: SkillAgentContext
   try {
     envelope = await chaseAgedContracts(sb, ctx, {});
     collect(errors, envelope.status === 'awaiting_approval', `status=${envelope.status}, expected awaiting_approval`);
-    collect(errors, envelope.drafts.length >= 7, `drafts.length=${envelope.drafts.length}, expected >= 7`);
+    // Production data currently holds 3 aged contracts at the default 42-day
+    // threshold (Árdan View Units 19, 37, 36). The initial >=7 guess was wrong;
+    // keep the assertion a floor so seeded rows can grow without rewriting it.
+    collect(errors, envelope.drafts.length >= 3, `drafts.length=${envelope.drafts.length}, expected >= 3`);
     const hasArdanUnit19 = envelope.drafts.some(d => /Árdan View.*Unit\s*19\b/i.test(d.affected_record?.label || ''));
     collect(errors, hasArdanUnit19, 'no draft references "Árdan View Unit 19"');
     const hasLauraHayes = envelope.drafts.some(d => (d.body || '').includes('Laura Hayes'));
@@ -277,7 +280,10 @@ async function testLeaseRenewalAll(sb: SupabaseClient, ctx: SkillAgentContext): 
     envelope = await draftLeaseRenewal(sb, ctx, {});
     collect(errors, envelope.drafts.length === 4, `drafts.length=${envelope.drafts.length}, expected 4`);
     const expectedRents: Array<{ tenant: string; forms: string[] }> = [
-      { tenant: 'Aisling Moran', forms: ['€1890', '€1,890'] },
+      // Aisling: Math.round(1850 * 1.02 / 5) * 5 = 1885 (the skill rounds the
+      // RPZ-capped uplift to the nearest €5, not €10). Earlier guess of €1890
+      // was wrong — the rounding maths holds.
+      { tenant: 'Aisling Moran', forms: ['€1885', '€1,885'] },
       { tenant: 'Mark Donnelly', forms: ['€2450', '€2,450'] },
       { tenant: 'Olivia Nwosu', forms: ['€1685', '€1,685'] },
       { tenant: 'Maria Andrade', forms: ['€1785', '€1,785'] },
