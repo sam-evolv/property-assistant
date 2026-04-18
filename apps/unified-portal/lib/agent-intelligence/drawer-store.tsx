@@ -17,6 +17,7 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
 
   const open = useCallback((env: AgenticSkillEnvelope) => {
+    console.log('[drawer] store.open called, isOpen becoming true');
     setEnvelope(env);
     setIsOpen(true);
   }, []);
