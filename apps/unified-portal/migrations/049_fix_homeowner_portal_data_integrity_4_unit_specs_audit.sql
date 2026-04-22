@@ -1,0 +1,37 @@
+-- Migration: fix_homeowner_portal_data_integrity — 4/5 — backfill plan for units.bathrooms / units.floor_area_m2
+--
+-- Context: units.bathrooms and units.floor_area_m2 are NULL for every
+-- production unit across Rathárd Park, Rathárd Lawn, Árdan View and Harbour
+-- View. We intentionally do NOT auto-backfill from
+-- unit_types.specification_json because those values are known-wrong for
+-- Rathárd Park (see migration 048).
+--
+-- Instead, produce an audit report grouped by house_type_code. Sam will then
+-- supply correct bed/bath/area values per house_type_code and we apply them in
+-- a follow-up migration.
+--
+-- Run the SELECT below in the Supabase SQL Editor and export the result to
+-- `/tmp/unit_specs_audit.csv`:
+--
+-- SELECT p.name                  AS development_name,
+--        u.house_type_code,
+--        COUNT(*)                AS units_count,
+--        MIN(u.bedrooms)         AS min_bedrooms,
+--        MAX(u.bedrooms)         AS max_bedrooms,
+--        MIN(u.bathrooms)        AS min_bathrooms,
+--        MAX(u.bathrooms)        AS max_bathrooms,
+--        MIN(u.floor_area_m2)    AS min_floor_area_m2,
+--        MAX(u.floor_area_m2)    AS max_floor_area_m2
+--   FROM units u
+--   JOIN projects p ON p.id = u.project_id
+--  GROUP BY p.name, u.house_type_code
+--  ORDER BY p.name, u.house_type_code;
+--
+-- Once Sam provides the correct values, a follow-up migration will run
+-- per-house-type UPDATE statements like:
+--
+-- UPDATE units
+--    SET bathrooms      = 2,
+--        floor_area_m2  = 95.0
+--  WHERE project_id     = '6d3789de-2e46-430c-bf31-22224bd878da'  -- Rathard Park
+--    AND house_type_code = 'BT03';
