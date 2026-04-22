@@ -10,6 +10,7 @@ import { type Alert, type DevelopmentSummary, type PipelineUnit, getInitials } f
 import AgentShell from '../_components/AgentShell';
 import StatModal from '../_components/StatModal';
 import IndependentHomeView from '../_components/IndependentHomeView';
+import DraftsHomeTile from '../_components/DraftsHomeTile';
 import type { StatModalType, Scheme as UIScheme, Buyer as UIBuyer } from '../_components/types';
 
 // Convert real pipeline data to the Scheme/Buyer types that StatModal expects
@@ -187,6 +188,9 @@ export default function AgentHomePage() {
           <StatRow icon="users" label="Active pipeline" value={stats.active} color="#3B82F6" onClick={() => setModalType('active')} />
           <StatRow icon="clock" label="Need attention" value={stats.urgent} color="#EF4444" urgent onClick={() => setModalType('urgent')} />
         </div>
+
+        {/* Drafts tile — replaces the bottom-nav Drafts tab from Session 1. */}
+        <DraftsHomeTile />
 
         {/* Requires action section */}
         <SectionLabel>Requires action</SectionLabel>
