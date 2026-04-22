@@ -3,13 +3,16 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
+import { useDraftsCount } from '../_hooks/useDraftsCount';
 
-type TabId = 'home' | 'pipeline' | 'viewings' | 'docs';
+type TabId = 'home' | 'pipeline' | 'drafts' | 'viewings' | 'docs';
 
 const TABS: { id: TabId; label: string; href: string }[] = [
   { id: 'home', label: 'Home', href: '/agent/home' },
   { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline' },
-  // Intelligence is the FAB — handled separately
+  // Intelligence is the FAB. Drafts sits immediately after, between Pipeline
+  // and Viewings in visual flow per Session 2 spec.
+  { id: 'drafts', label: 'Drafts', href: '/agent/drafts' },
   { id: 'viewings', label: 'Viewings', href: '/agent/viewings' },
   { id: 'docs', label: 'Docs', href: '/agent/docs' },
 ];
@@ -35,6 +38,15 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
           <rect x="14" y="14" width="7" height="7" rx="1.5" />
         </svg>
       );
+    case 'drafts':
+      // Lucide MailCheck mark as required by design spec.
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9" />
+          <path d="m22 7-10 5L2 7" />
+          <path d="m16 19 2 2 4-4" />
+        </svg>
+      );
     case 'viewings':
       return (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
@@ -58,6 +70,7 @@ export default function BottomNav() {
   const pathname = usePathname();
   const isActive = (href: string) => pathname.startsWith(href);
   const intelActive = pathname.startsWith('/agent/intelligence');
+  const { count: draftsCount } = useDraftsCount();
 
   const leftTabs = TABS.slice(0, 2);
   const rightTabs = TABS.slice(2);
@@ -97,7 +110,12 @@ export default function BottomNav() {
             }}
           >
             {active && <GoldIndicator />}
-            <TabIcon id={tab.id} active={active} />
+            <div style={{ position: 'relative' }}>
+              <TabIcon id={tab.id} active={active} />
+              {tab.id === 'drafts' && draftsCount > 0 && (
+                <DraftsBadge count={draftsCount} />
+              )}
+            </div>
             <span
               style={{
                 fontSize: 9.5,
@@ -208,7 +226,12 @@ export default function BottomNav() {
             }}
           >
             {active && <GoldIndicator />}
-            <TabIcon id={tab.id} active={active} />
+            <div style={{ position: 'relative' }}>
+              <TabIcon id={tab.id} active={active} />
+              {tab.id === 'drafts' && draftsCount > 0 && (
+                <DraftsBadge count={draftsCount} />
+              )}
+            </div>
             <span
               style={{
                 fontSize: 9.5,
@@ -223,6 +246,32 @@ export default function BottomNav() {
         );
       })}
     </nav>
+  );
+}
+
+function DraftsBadge({ count }: { count: number }) {
+  return (
+    <span
+      data-testid="drafts-badge"
+      style={{
+        position: 'absolute',
+        top: -4,
+        right: -8,
+        minWidth: 16,
+        height: 16,
+        padding: '0 4px',
+        borderRadius: 8,
+        background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+        color: '#fff',
+        fontSize: 9,
+        fontWeight: 700,
+        lineHeight: '16px',
+        textAlign: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
   );
 }
 

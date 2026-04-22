@@ -9,6 +9,7 @@ import {
   GitBranch,
   Sparkles,
   Users,
+  MailCheck,
   MessageSquare,
   CalendarCheck,
   FolderArchive,
@@ -27,6 +28,7 @@ import {
 } from 'lucide-react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useAgentDashboard } from './layout-provider';
+import { useDraftsCount } from '../_hooks/useDraftsCount';
 
 interface NavItem {
   label: string;
@@ -46,6 +48,7 @@ const agentNavSections: NavSection[] = [
       { label: 'Overview', href: '/agent/dashboard/overview', icon: LayoutDashboard },
       { label: 'Sales Pipeline', href: '/agent/dashboard/pipeline', icon: GitBranch },
       { label: 'OpenHouse Intelligence', href: '/agent/dashboard/intelligence', icon: Sparkles },
+      { label: 'Drafts', href: '/agent/dashboard/drafts', icon: MailCheck },
     ],
   },
   {
@@ -83,6 +86,7 @@ export function AgentDashboardSidebar() {
   const [signingOut, setSigningOut] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
+  const { count: draftsCount } = useDraftsCount();
 
   const isActive = (href: string) => {
     if (href === '/agent/dashboard/overview') {
@@ -233,6 +237,18 @@ export function AgentDashboardSidebar() {
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       <span>{item.label}</span>
+                      {item.href === '/agent/dashboard/drafts' && draftsCount > 0 && (
+                        <span
+                          data-testid="drafts-badge-sidebar"
+                          className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-bold"
+                          style={{
+                            background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                            color: '#fff',
+                          }}
+                        >
+                          {draftsCount > 99 ? '99+' : draftsCount}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}
