@@ -2,26 +2,13 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import { getRenewalWindow, getRentArrears, getUpcomingWeekViewings } from '../context';
 import { isInRPZ, rpzUpliftCap } from '../rpz-zones';
+import type { AgenticSkillEnvelope } from '../envelope';
 
-// Standard envelope returned by every agentic skill. The LLM holds this in
-// conversation state; the client passes it back to /api/agent-intelligence/confirm
-// when the user approves a draft. Skills do NOT write to intelligence_actions
-// at tool-call time — persistence happens inside the /confirm endpoint (Step 4).
-export type AgenticSkillEnvelope = {
-  skill: string;
-  status: 'awaiting_approval';
-  summary: string;
-  drafts: Array<{
-    id: string;
-    type: 'email' | 'viewing_record' | 'report';
-    recipient?: { name: string; email: string; role?: string };
-    subject?: string;
-    body: string;
-    affected_record: { kind: string; id: string; label: string };
-    reasoning: string;
-  }>;
-  meta: { record_count: number; generated_at: string; query: string };
-};
+// Envelope returned by every agentic skill. Draft ids generated here are
+// temporary — the registry adapter funnels the envelope through
+// persistSkillEnvelope() which rewrites each draft id to a real
+// `pending_drafts.id` before the chat route streams it to the client.
+export type { AgenticSkillEnvelope };
 
 export interface SkillAgentContext {
   agentId: string;

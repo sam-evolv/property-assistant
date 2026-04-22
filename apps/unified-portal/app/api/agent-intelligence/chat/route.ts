@@ -22,6 +22,7 @@ import {
 import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
+import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -227,6 +228,7 @@ export async function POST(request: NextRequest) {
     let needsFinalStream = true;
     let rounds = 0;
     const MAX_TOOL_ROUNDS = 3;
+    const envelopes: AgenticSkillEnvelope[] = [];
 
     while (rounds <= MAX_TOOL_ROUNDS) {
       const completion = await openai.chat.completions.create({
@@ -267,6 +269,11 @@ export async function POST(request: NextRequest) {
               params,
               result_summary: result.summary,
             });
+            // Agentic skills return a ToolResult whose `data` is an
+            // AgenticSkillEnvelope. Collect them so we can stream an
+            // `envelope` SSE frame once the tool-calling rounds finish.
+            const envelope = extractEnvelope(result);
+            if (envelope) envelopes.push(envelope);
           } catch (err: unknown) {
             const errMessage = err instanceof Error ? err.message : 'Unknown error';
             toolResult = JSON.stringify({ error: errMessage, summary: `Tool execution failed: ${errMessage}` });
@@ -297,6 +304,18 @@ export async function POST(request: NextRequest) {
                 type: 'tools_used',
                 tools: toolsCalled.map(t => ({ name: t.tool_name, summary: t.result_summary })),
               }) + '\n')
+            );
+          }
+
+          // Emit every agentic-skill envelope. The client listens for this
+          // frame to open the approval drawer. Drafts referenced here are
+          // already persisted in `pending_drafts` (via persistSkillEnvelope
+          // inside the registry adapter) so the drawer's Approve / Edit /
+          // Discard calls hit real rows.
+          for (const envelope of envelopes) {
+            if (!envelope.drafts.length) continue;
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'envelope', envelope }) + '\n')
             );
           }
 
@@ -400,6 +419,19 @@ RULES:
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
+}
+
+/**
+ * Unwrap an AgenticSkillEnvelope from a tool result. Registry tools return
+ * `{ data, summary }`; the envelope is on `.data` for agentic skills but not
+ * on read-only tools (which return plain objects). Returns null when the
+ * result is not an envelope.
+ */
+function extractEnvelope(result: any): AgenticSkillEnvelope | null {
+  if (!result) return null;
+  if (isAgenticSkillEnvelope(result)) return result;
+  if (isAgenticSkillEnvelope(result?.data)) return result.data;
+  return null;
 }
 
 /**

@@ -13,6 +13,9 @@ import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
 import type { AutoSendUiState } from '../_components/VoiceConfirmationCard';
 import { notifyDraftsChanged } from '../_hooks/useDraftsCount';
+import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
+import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
+import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 
 const SCHEME_PILLS = [
   "What's outstanding on contracts?",
@@ -107,7 +110,17 @@ function parseEmails(response: string): { emails: DraftedEmail[]; cleanText: str
 }
 
 export default function IntelligencePage() {
+  return (
+    <ApprovalDrawerProvider>
+      <IntelligencePageInner />
+      <ApprovalDrawer />
+    </ApprovalDrawerProvider>
+  );
+}
+
+function IntelligencePageInner() {
   const { agent, alerts, developmentIds } = useAgent();
+  const { openApprovalDrawer } = useApprovalDrawer();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
   const isIndependent = agent?.agentType !== 'scheme';
@@ -217,6 +230,11 @@ export default function IntelligencePage() {
               followups = data.questions || [];
             } else if (data.type === 'tools_used') {
               toolsUsed = data.tools || [];
+            } else if (data.type === 'envelope') {
+              if (isAgenticSkillEnvelope(data.envelope)) {
+                openApprovalDrawer(data.envelope);
+                notifyDraftsChanged();
+              }
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
             }
@@ -250,7 +268,7 @@ export default function IntelligencePage() {
     } finally {
       setIsTyping(false);
     }
-  }, [messages, isTyping, sessionId, developmentIds]);
+  }, [messages, isTyping, sessionId, developmentIds, openApprovalDrawer]);
 
   const handleVoiceTranscript = useCallback(async (transcript: string) => {
     if (!transcript.trim()) return;
