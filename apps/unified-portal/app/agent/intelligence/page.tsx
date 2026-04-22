@@ -4,8 +4,13 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
+import VoiceInputBar from '../_components/VoiceInputBar';
+import VoiceConfirmationCard from '../_components/VoiceConfirmationCard';
+import UndoPill from '../_components/UndoPill';
+import { useVoiceCapture } from '../_hooks/useVoiceCapture';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { Send, Mail, Copy, Check, ExternalLink } from 'lucide-react';
+import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
+import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
 
 const SCHEME_PILLS = [
   "What's outstanding on contracts?",
@@ -21,10 +26,22 @@ const INDEPENDENT_PILLS = [
   'Chase a solicitor on contracts',
 ];
 
+const WRITE_PILLS: Array<{ label: string; intent: string }> = [
+  { label: 'Log a viewing', intent: 'log_viewing' },
+  { label: 'Update the tracker', intent: 'update_tracker' },
+];
+
 interface DraftedEmail {
   to: string;
   subject: string;
   body: string;
+}
+
+interface VoiceActionsPayload {
+  status: 'review' | 'executing' | 'done';
+  actions: ExtractedAction[];
+  results?: ExecutedAction[];
+  transcript?: string;
 }
 
 interface Message {
@@ -34,6 +51,12 @@ interface Message {
   emails?: DraftedEmail[];
   followups?: string[];
   toolsUsed?: Array<{ name: string; summary: string }>;
+  voice?: VoiceActionsPayload;
+}
+
+interface UndoBatch {
+  batchId: string;
+  createdAt: number;
 }
 
 // Parse <email> blocks from AI response text
@@ -82,14 +105,25 @@ export default function IntelligencePage() {
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string>(`session_${Date.now()}`);
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefillHandled = useRef(false);
+  const voiceIntentRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 900px)');
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
   // Handle prefilled prompt from URL
   useEffect(() => {
@@ -206,6 +240,194 @@ export default function IntelligencePage() {
     }
   }, [messages, isTyping, sessionId, developmentIds]);
 
+  const handleVoiceTranscript = useCallback(async (transcript: string) => {
+    if (!transcript.trim()) return;
+
+    const userMsgId = `user_${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: userMsgId, role: 'user', content: transcript.trim() },
+    ]);
+
+    // Placeholder assistant message while the extractor runs — we flip it into
+    // a confirmation card once Claude returns the tool calls.
+    const thinkingMsgId = `asst_${Date.now() + 1}`;
+    setMessages((prev) => [
+      ...prev,
+      { id: thinkingMsgId, role: 'assistant', content: '', voice: { status: 'review', actions: [] } },
+    ]);
+    setIsTyping(true);
+
+    try {
+      const res = await fetch('/api/agent/intelligence/extract-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          transcript: transcript.trim(),
+          intentHint: voiceIntentRef.current,
+          activeDevelopmentId: developmentIds?.[0] || null,
+        }),
+      });
+      voiceIntentRef.current = undefined;
+
+      if (!res.ok) throw new Error('extract failed');
+      const data = await res.json();
+      const actions: ExtractedAction[] = data.actions || [];
+
+      if (actions.length === 0) {
+        // Fall through to the existing typed Intelligence flow so the agent
+        // still gets an answer to what they asked.
+        setMessages((prev) => prev.filter((m) => m.id !== thinkingMsgId));
+        setIsTyping(false);
+        await handleSend(transcript.trim());
+        return;
+      }
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === thinkingMsgId
+            ? {
+                ...m,
+                content: '',
+                voice: { status: 'review', actions, transcript: transcript.trim() },
+              }
+            : m,
+        ),
+      );
+    } catch {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === thinkingMsgId
+            ? {
+                ...m,
+                content: "Couldn't read that one. Tap the mic and try again?",
+                voice: undefined,
+              }
+            : m,
+        ),
+      );
+    } finally {
+      setIsTyping(false);
+    }
+  }, [developmentIds, handleSend]);
+
+  const voice = useVoiceCapture({ onTranscriptReady: handleVoiceTranscript });
+
+  const updateVoiceMessage = useCallback(
+    (msgId: string, updater: (v: VoiceActionsPayload) => VoiceActionsPayload) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId && m.voice ? { ...m, voice: updater(m.voice) } : m,
+        ),
+      );
+    },
+    [],
+  );
+
+  const handleVoiceActionsChange = useCallback(
+    (msgId: string, actions: ExtractedAction[]) => {
+      updateVoiceMessage(msgId, (v) => ({ ...v, actions }));
+    },
+    [updateVoiceMessage],
+  );
+
+  const handleDiscard = useCallback(
+    (msgId: string) => {
+      setMessages((prev) => prev.filter((m) => m.id !== msgId));
+    },
+    [],
+  );
+
+  const handleApprove = useCallback(
+    async (msgId: string) => {
+      const msg = messages.find((m) => m.id === msgId);
+      if (!msg?.voice) return;
+      const actions = msg.voice.actions;
+      updateVoiceMessage(msgId, (v) => ({ ...v, status: 'executing' }));
+
+      try {
+        const res = await fetch('/api/agent/intelligence/execute-actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ actions, transcript: msg.voice.transcript }),
+        });
+
+        if (!res.ok) throw new Error('execute failed');
+        const data = await res.json();
+        const results: ExecutedAction[] = data.results || [];
+        const batchId: string = data.batchId;
+
+        updateVoiceMessage(msgId, (v) => ({ ...v, status: 'done', results }));
+
+        // Natural-language confirmation below the card.
+        const summary = buildConfirmationSummary(actions, results);
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `asst_confirm_${Date.now()}`,
+            role: 'assistant',
+            content: summary,
+          },
+        ]);
+
+        if (results.some((r) => r.success)) {
+          setUndoBatch({ batchId, createdAt: Date.now() });
+        }
+      } catch {
+        updateVoiceMessage(msgId, (v) => ({ ...v, status: 'review' }));
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `asst_err_${Date.now()}`,
+            role: 'assistant',
+            content: "Couldn't log those just now. Try again in a second?",
+          },
+        ]);
+      }
+    },
+    [messages, updateVoiceMessage],
+  );
+
+  const handleUndo = useCallback(async () => {
+    if (!undoBatch) return;
+    const batch = undoBatch;
+    setUndoBatch(null);
+    try {
+      await fetch('/api/agent/intelligence/undo-actions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ batchId: batch.batchId }),
+      });
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `asst_undo_${Date.now()}`,
+          role: 'assistant',
+          content: "Rolled back. Nothing was sent.",
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `asst_undo_err_${Date.now()}`,
+          role: 'assistant',
+          content: "Couldn't undo that. You'll need to clean it up manually.",
+        },
+      ]);
+    }
+  }, [undoBatch]);
+
+  const handleWriteChip = useCallback(
+    (intent: string) => {
+      voiceIntentRef.current = intent;
+      voice.start().catch(() => {
+        voiceIntentRef.current = undefined;
+      });
+    },
+    [voice],
+  );
+
   const hasMessages = messages.length > 0;
 
   return (
@@ -216,6 +438,7 @@ export default function IntelligencePage() {
           flexDirection: 'column',
           height: '100%',
           minHeight: 0,
+          position: 'relative',
         }}
       >
         {!hasMessages ? (
@@ -329,6 +552,45 @@ export default function IntelligencePage() {
                 </button>
               ))}
             </div>
+
+            {/* Write-action chips — voice capture entry points */}
+            <div
+              data-testid="voice-write-chips"
+              style={{
+                marginTop: 14,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+                width: '100%',
+                maxWidth: 320,
+              }}
+            >
+              {WRITE_PILLS.map((pill) => (
+                <button
+                  key={pill.intent}
+                  data-testid={`voice-chip-${pill.intent}`}
+                  onClick={() => handleWriteChip(pill.intent)}
+                  className="agent-tappable"
+                  style={{
+                    padding: '12px 14px',
+                    minHeight: 50,
+                    background: 'rgba(196,155,42,0.08)',
+                    border: '0.5px solid rgba(196,155,42,0.35)',
+                    borderRadius: 16,
+                    color: '#8A6E1F',
+                    fontSize: 13,
+                    fontWeight: 600,
+                    lineHeight: 1.3,
+                    whiteSpace: 'normal',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
           </div>
         ) : (
           /* Conversation state */
@@ -346,10 +608,24 @@ export default function IntelligencePage() {
             }}
             className="[&::-webkit-scrollbar]:hidden"
           >
-            {messages.map(msg =>
-              msg.role === 'user' ? (
-                <UserBubble key={msg.id} text={msg.content} />
-              ) : (
+            {messages.map(msg => {
+              if (msg.role === 'user') {
+                return <UserBubble key={msg.id} text={msg.content} />;
+              }
+              if (msg.voice) {
+                return (
+                  <VoiceConfirmationCard
+                    key={msg.id}
+                    actions={msg.voice.actions}
+                    status={msg.voice.status}
+                    results={msg.voice.results}
+                    onChange={(next) => handleVoiceActionsChange(msg.id, next)}
+                    onApprove={() => handleApprove(msg.id)}
+                    onDiscard={() => handleDiscard(msg.id)}
+                  />
+                );
+              }
+              return (
                 <AIResponseCard
                   key={msg.id}
                   text={msg.content}
@@ -357,90 +633,81 @@ export default function IntelligencePage() {
                   followups={msg.followups}
                   onFollowup={handleSend}
                 />
-              )
-            )}
+              );
+            })}
             {isTyping && <TypingIndicator />}
           </div>
         )}
 
-        {/* Input bar */}
-        <div
-          style={{
-            background: 'rgba(250,250,248,0.95)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            borderTop: '0.5px solid rgba(0,0,0,0.08)',
-            padding: '12px 20px 16px',
-            flexShrink: 0,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              background: '#F5F5F3',
-              borderRadius: 28,
-              border: '0.5px solid rgba(0,0,0,0.08)',
-              padding: '6px 6px 6px 18px',
-              boxShadow: '0 1px 2px rgba(0,0,0,0.04) inset',
-            }}
-          >
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSend(input)}
-              placeholder="Ask Intelligence anything..."
-              style={{
-                flex: 1,
-                border: 'none',
-                background: 'transparent',
-                outline: 'none',
-                fontSize: 14,
-                fontWeight: 400,
-                color: '#0D0D12',
-                fontFamily: 'inherit',
-                letterSpacing: '-0.01em',
-              }}
-            />
-            <button
-              onClick={() => handleSend(input)}
-              disabled={!input.trim() || isTyping}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 17,
-                background: input.trim()
-                  ? 'linear-gradient(135deg, #C49B2A, #E8C84A)'
-                  : 'rgba(0,0,0,0.06)',
-                border: 'none',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: input.trim() ? 'pointer' : 'default',
-                transition: 'background 0.15s ease',
-                flexShrink: 0,
-              }}
-            >
-              <Send size={15} color={input.trim() ? '#fff' : '#C0C8D4'} />
-            </button>
-          </div>
-          <p
-            style={{
-              textAlign: 'center',
-              fontSize: 10,
-              color: '#C0C8D4',
-              marginTop: 8,
-              letterSpacing: '0.01em',
-            }}
-          >
-            Powered by AI. Information for reference only.
-          </p>
-        </div>
+        <VoiceInputBar
+          input={input}
+          onInputChange={setInput}
+          onSend={() => handleSend(input)}
+          isTyping={isTyping}
+          voice={voice}
+          onStart={() => voice.start()}
+          onStop={() => voice.stop()}
+          isDesktop={isDesktop}
+        />
+
+        {undoBatch && (
+          <UndoPill
+            batchId={undoBatch.batchId}
+            createdAt={undoBatch.createdAt}
+            onUndo={handleUndo}
+            onExpire={() => setUndoBatch(null)}
+          />
+        )}
       </div>
     </AgentShell>
   );
+}
+
+function buildConfirmationSummary(
+  actions: ExtractedAction[],
+  results: ExecutedAction[],
+): string {
+  const okById: Record<string, boolean> = {};
+  results.forEach((r) => { okById[r.id] = r.success; });
+
+  const clauses: string[] = [];
+  for (const a of actions) {
+    if (!okById[a.id]) continue;
+    if (a.type === 'log_viewing') {
+      clauses.push(`logged the viewing for ${a.fields.property_id || 'the property'}`);
+    } else if (a.type === 'draft_vendor_update') {
+      clauses.push(`drafted the vendor update for you to review`);
+    } else if (a.type === 'create_reminder') {
+      const due = a.fields.due_date ? formatReminder(a.fields.due_date) : '';
+      clauses.push(due ? `set a reminder for ${due}` : 'set a reminder');
+    }
+  }
+
+  const failures = results.filter((r) => !r.success);
+  const core = clauses.length
+    ? `Done. I've ${joinClauses(clauses)}.`
+    : "Done.";
+
+  if (failures.length > 0) {
+    return `${core} One or two items didn't save, have a look above.`;
+  }
+  return core;
+}
+
+function joinClauses(clauses: string[]): string {
+  if (clauses.length === 1) return clauses[0];
+  if (clauses.length === 2) return `${clauses[0]}, and ${clauses[1]}`;
+  return `${clauses.slice(0, -1).join(', ')}, and ${clauses[clauses.length - 1]}`;
+}
+
+function formatReminder(iso: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-IE', { weekday: 'long' });
+  } catch {
+    return '';
+  }
 }
 
 /* ---- Sub-components ---- */
