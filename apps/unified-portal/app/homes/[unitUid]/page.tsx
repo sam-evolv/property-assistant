@@ -570,19 +570,17 @@ export default function HomeResidentPage() {
             paddingBottom: '12px',
           }}
         >
-        {/* Left: Development Logo */}
+        {/* Left: Development Logo — height matches the right-side action buttons (h-8) */}
         <div className="flex items-center gap-3">
-          <div className="flex w-auto items-center justify-center h-[38px]">
+          <div className="flex w-auto items-center h-8">
             {house?.development_logo_url ? (
               <img
                 src={house.development_logo_url}
                 alt={`${house.development_name || 'Development'} logo`}
-                width={225}
-                height={68}
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
-              <span className={`text-lg font-semibold ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
+              <span className={`text-base font-semibold leading-none ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
                 {house?.development_name || 'Home'}
               </span>
             )}
