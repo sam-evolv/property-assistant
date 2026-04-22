@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
 import { resolveRecipient } from '@/lib/agent-intelligence/drafts';
+import { isStatutoryDraftType } from '@/lib/agent-intelligence/autonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,10 +27,19 @@ export const dynamic = 'force-dynamic';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { draftId, wasEdited = false } = body || {};
+    const {
+      draftId,
+      wasEdited = false,
+      // 'reviewed' (default, human pressed Send), 'auto_sent' (autonomy
+      // countdown elapsed without Cancel), 'auto_cancelled_pre_send'
+      // (countdown cancelled). The server is the authority on which it is —
+      // UI should pass an honest value but we defend the statutory rule here.
+      mode = 'reviewed',
+    } = body || {};
     if (!draftId) {
       return NextResponse.json({ error: 'draftId required' }, { status: 400 });
     }
+    const sendMode: 'reviewed' | 'auto_sent' = mode === 'auto_sent' ? 'auto_sent' : 'reviewed';
 
     const supabase = getSupabaseAdmin();
     const cookieStore = cookies();
@@ -47,10 +57,26 @@ export async function POST(request: NextRequest) {
     if (user && draft.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    if (draft.status !== 'pending_review') {
+    if (draft.status !== 'pending_review' && draft.status !== 'auto_sending') {
       return NextResponse.json(
         { error: `Draft is already in status "${draft.status}"` },
         { status: 409 }
+      );
+    }
+
+    // Statutory guard: auto-sends are refused even if the UI somehow asked.
+    if (sendMode === 'auto_sent' && isStatutoryDraftType(draft.draft_type)) {
+      await supabase
+        .from('pending_drafts')
+        .update({ status: 'pending_review', updated_at: new Date().toISOString() })
+        .eq('id', draft.id);
+      return NextResponse.json(
+        {
+          error: 'Statutory drafts cannot be auto-sent',
+          held: true,
+          holdCopy: 'Statutory documents always require your review.',
+        },
+        { status: 403 },
       );
     }
 
@@ -155,6 +181,7 @@ export async function POST(request: NextRequest) {
         send_method: sendMethod,
         provider,
         provider_message_id: providerMessageId,
+        send_mode: sendMode,
       })
       .select('id')
       .single();

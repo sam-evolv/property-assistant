@@ -11,6 +11,8 @@ import { useVoiceCapture } from '../_hooks/useVoiceCapture';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
+import type { AutoSendUiState } from '../_components/VoiceConfirmationCard';
+import { notifyDraftsChanged } from '../_hooks/useDraftsCount';
 
 const SCHEME_PILLS = [
   "What's outstanding on contracts?",
@@ -42,6 +44,8 @@ interface VoiceActionsPayload {
   actions: ExtractedAction[];
   results?: ExecutedAction[];
   transcript?: string;
+  autoSendUi?: AutoSendUiState | null;
+  globalPaused?: boolean;
 }
 
 interface Message {
@@ -356,22 +360,61 @@ export default function IntelligencePage() {
         const data = await res.json();
         const results: ExecutedAction[] = data.results || [];
         const batchId: string = data.batchId;
+        const globalPaused: boolean = !!data.globalPaused;
 
-        updateVoiceMessage(msgId, (v) => ({ ...v, status: 'done', results }));
+        // If any action came back with an auto-send plan, set up the countdown
+        // state. Only one auto-send plan at a time is supported — the spec
+        // narrows Session 3 to draft_vendor_update, and a transcript produces
+        // at most one of those.
+        const autoSendAction = results.find((r) => r.autoSendPlan);
+        let autoSendUi: AutoSendUiState | null = null;
+        if (autoSendAction?.autoSendPlan) {
+          autoSendUi = {
+            actionId: autoSendAction.id,
+            draftId: autoSendAction.autoSendPlan.draftId,
+            draftType: autoSendAction.autoSendPlan.draftType,
+            recipientName: autoSendAction.autoSendPlan.recipientName,
+            countdownSeconds: autoSendAction.autoSendPlan.countdownSeconds,
+            active: true,
+            status: 'counting',
+          };
+        }
 
-        // Natural-language confirmation below the card.
-        const summary = buildConfirmationSummary(actions, results);
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `asst_confirm_${Date.now()}`,
-            role: 'assistant',
-            content: summary,
-          },
-        ]);
+        updateVoiceMessage(msgId, (v) => ({
+          ...v,
+          status: 'done',
+          results,
+          autoSendUi,
+          globalPaused,
+        }));
 
-        if (results.some((r) => r.success)) {
+        // Natural-language confirmation below the card — but only for actions
+        // that actually completed. Auto-send actions haven't finished yet.
+        const summary = buildConfirmationSummary(actions, results, autoSendUi);
+        if (summary) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: `asst_confirm_${Date.now()}`,
+              role: 'assistant',
+              content: summary,
+            },
+          ]);
+        }
+
+        if (autoSendUi) {
+          // Track the approval batch so the Session 1 undo also covers the
+          // draft insertion. The auto-send itself gets a separate undo batch
+          // once the send actually fires.
+          if (results.filter((r) => !r.autoSendPlan).some((r) => r.success)) {
+            setUndoBatch({ batchId, createdAt: Date.now() });
+          }
+        } else if (results.some((r) => r.success)) {
           setUndoBatch({ batchId, createdAt: Date.now() });
+        }
+
+        if (results.some((r) => r.type === 'draft_vendor_update')) {
+          notifyDraftsChanged();
         }
       } catch {
         updateVoiceMessage(msgId, (v) => ({ ...v, status: 'review' }));
@@ -383,6 +426,86 @@ export default function IntelligencePage() {
             content: "Couldn't log those just now. Try again in a second?",
           },
         ]);
+      }
+    },
+    [messages, updateVoiceMessage],
+  );
+
+  const handleAutoSendElapsed = useCallback(
+    async (msgId: string) => {
+      const msg = messages.find((m) => m.id === msgId);
+      const ui = msg?.voice?.autoSendUi;
+      if (!ui || ui.status !== 'counting') return;
+      updateVoiceMessage(msgId, (v) => ({
+        ...v,
+        autoSendUi: v.autoSendUi ? { ...v.autoSendUi, status: 'sending' } : v.autoSendUi,
+      }));
+      try {
+        const res = await fetch('/api/agent/intelligence/send-draft', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            draftId: ui.draftId,
+            wasEdited: false,
+            mode: 'auto_sent',
+          }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          updateVoiceMessage(msgId, (v) => ({
+            ...v,
+            autoSendUi: v.autoSendUi
+              ? {
+                  ...v.autoSendUi,
+                  status: 'failed',
+                  active: false,
+                  failMessage: err.holdCopy || err.error || "Couldn't auto-send — the draft is in review.",
+                }
+              : v.autoSendUi,
+          }));
+          notifyDraftsChanged();
+          return;
+        }
+        const data = await res.json();
+        updateVoiceMessage(msgId, (v) => ({
+          ...v,
+          autoSendUi: v.autoSendUi ? { ...v.autoSendUi, status: 'sent', active: false } : v.autoSendUi,
+        }));
+        if (data.batchId) {
+          setUndoBatch({ batchId: data.batchId, createdAt: Date.now() });
+        }
+        notifyDraftsChanged();
+      } catch {
+        updateVoiceMessage(msgId, (v) => ({
+          ...v,
+          autoSendUi: v.autoSendUi
+            ? { ...v.autoSendUi, status: 'failed', active: false, failMessage: "Couldn't auto-send — the draft is in review." }
+            : v.autoSendUi,
+        }));
+        notifyDraftsChanged();
+      }
+    },
+    [messages, updateVoiceMessage],
+  );
+
+  const handleAutoSendCancel = useCallback(
+    async (msgId: string) => {
+      const msg = messages.find((m) => m.id === msgId);
+      const ui = msg?.voice?.autoSendUi;
+      if (!ui || ui.status !== 'counting') return;
+      updateVoiceMessage(msgId, (v) => ({
+        ...v,
+        autoSendUi: v.autoSendUi ? { ...v.autoSendUi, status: 'cancelled', active: false } : v.autoSendUi,
+      }));
+      try {
+        await fetch('/api/agent/intelligence/cancel-auto-send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ draftId: ui.draftId }),
+        });
+        notifyDraftsChanged();
+      } catch {
+        /* best-effort — the UI already shows cancelled */
       }
     },
     [messages, updateVoiceMessage],
@@ -619,9 +742,13 @@ export default function IntelligencePage() {
                     actions={msg.voice.actions}
                     status={msg.voice.status}
                     results={msg.voice.results}
+                    autoSendUi={msg.voice.autoSendUi}
+                    globalPaused={msg.voice.globalPaused}
                     onChange={(next) => handleVoiceActionsChange(msg.id, next)}
                     onApprove={() => handleApprove(msg.id)}
                     onDiscard={() => handleDiscard(msg.id)}
+                    onAutoSendElapsed={() => handleAutoSendElapsed(msg.id)}
+                    onAutoSendCancel={() => handleAutoSendCancel(msg.id)}
                   />
                 );
               }
@@ -666,13 +793,22 @@ export default function IntelligencePage() {
 function buildConfirmationSummary(
   actions: ExtractedAction[],
   results: ExecutedAction[],
-): string {
+  autoSendUi: AutoSendUiState | null,
+): string | null {
   const okById: Record<string, boolean> = {};
-  results.forEach((r) => { okById[r.id] = r.success; });
+  const resultById: Record<string, ExecutedAction> = {};
+  results.forEach((r) => {
+    okById[r.id] = r.success;
+    resultById[r.id] = r;
+  });
 
   const clauses: string[] = [];
   for (const a of actions) {
     if (!okById[a.id]) continue;
+    // Skip auto-send actions — their confirmation sentence fires from the
+    // countdown banner, not this summary line.
+    if (autoSendUi && autoSendUi.actionId === a.id) continue;
+
     if (a.type === 'log_viewing') {
       clauses.push(`logged the viewing for ${a.fields.property_id || 'the property'}`);
     } else if (a.type === 'draft_vendor_update') {
@@ -684,10 +820,13 @@ function buildConfirmationSummary(
   }
 
   const failures = results.filter((r) => !r.success);
-  const core = clauses.length
-    ? `Done. I've ${joinClauses(clauses)}.`
-    : "Done.";
+  if (clauses.length === 0 && failures.length === 0) {
+    // Auto-send is the only action. Summary is redundant — the countdown
+    // banner speaks for itself.
+    return null;
+  }
 
+  const core = clauses.length ? `Done. I've ${joinClauses(clauses)}.` : 'Done.';
   if (failures.length > 0) {
     return `${core} One or two items didn't save, have a look above.`;
   }

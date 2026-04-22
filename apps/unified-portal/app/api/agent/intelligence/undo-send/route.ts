@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
+import { enforceTrustFloor } from '@/lib/agent-intelligence/autonomy';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -36,6 +37,7 @@ export async function POST(request: NextRequest) {
 
     const reversed: string[] = [];
     let providerNotice: string | null = null;
+    const trustFloorReverts: Array<{ userId: string; draftType: string }> = [];
 
     for (const entry of entries) {
       const payload = entry.reversal_payload as any;
@@ -68,11 +70,15 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', payload.draftId);
 
+      let undoneHistory: { user_id: string; draft_type: string; send_mode: string } | null = null;
       if (payload.historyId) {
-        await supabase
+        const { data } = await supabase
           .from('agent_send_history')
           .update({ undone: true })
-          .eq('id', payload.historyId);
+          .eq('id', payload.historyId)
+          .select('user_id, draft_type, send_mode')
+          .single();
+        undoneHistory = data as any;
       }
 
       await supabase
@@ -81,9 +87,26 @@ export async function POST(request: NextRequest) {
         .eq('id', entry.id);
 
       reversed.push(entry.id);
+
+      // Trust-floor check: if this was an auto-send and the recent window
+      // now exceeds the undo threshold, flip the preference off so the next
+      // voice capture drops back to review mode.
+      if (undoneHistory?.send_mode === 'auto_sent') {
+        const result = await enforceTrustFloor(
+          supabase,
+          undoneHistory.user_id,
+          undoneHistory.draft_type,
+        );
+        if (result.reverted) {
+          trustFloorReverts.push({
+            userId: undoneHistory.user_id,
+            draftType: undoneHistory.draft_type,
+          });
+        }
+      }
     }
 
-    return NextResponse.json({ reversed, notice: providerNotice });
+    return NextResponse.json({ reversed, notice: providerNotice, trustFloorReverts });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

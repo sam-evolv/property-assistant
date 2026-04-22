@@ -16,16 +16,20 @@ import {
   draftTypeLabel,
   type DraftRecord,
 } from '@/lib/agent-intelligence/drafts';
+import AutoSendOfferCard from './AutoSendOfferCard';
 
 interface DraftReviewPanelProps {
   draft: DraftRecord;
   surface: 'mobile' | 'desktop';
   sending: boolean;
   sentState: SentState | null;
+  autoSendOffer?: AutoSendOffer | null;
   onClose: () => void;
   onSave: (patch: { subject: string; body: string; sendMethod?: DraftRecord['sendMethod'] }) => Promise<DraftRecord | null>;
   onSend: (opts: { wasEdited: boolean }) => Promise<void>;
   onDiscard: () => Promise<void>;
+  onEnableAutoSend?: (draftType: string) => Promise<void>;
+  onDismissAutoSendOffer?: (draftType: string) => Promise<void>;
 }
 
 export interface SentState {
@@ -34,6 +38,12 @@ export interface SentState {
   externalHref: string | null;
   externalHint: string | null;
   undoable: boolean;
+}
+
+export interface AutoSendOffer {
+  draftType: string;
+  totalSent: number;
+  sentEdited: number;
 }
 
 const DISCARD_CONFIRM = 'Discard this draft? This cannot be undone.';
@@ -49,10 +59,13 @@ export default function DraftReviewPanel({
   surface,
   sending,
   sentState,
+  autoSendOffer,
   onClose,
   onSave,
   onSend,
   onDiscard,
+  onEnableAutoSend,
+  onDismissAutoSendOffer,
 }: DraftReviewPanelProps) {
   const [subject, setSubject] = useState(draft.subject);
   const [bodyText, setBodyText] = useState(draft.body);
@@ -188,7 +201,18 @@ export default function DraftReviewPanel({
 
         <div style={scrollStyle}>
           {sentState ? (
-            <SentConfirmation state={sentState} />
+            <>
+              <SentConfirmation state={sentState} />
+              {autoSendOffer && onEnableAutoSend && onDismissAutoSendOffer && (
+                <AutoSendOfferCard
+                  draftType={autoSendOffer.draftType}
+                  totalSent={autoSendOffer.totalSent}
+                  sentEdited={autoSendOffer.sentEdited}
+                  onEnable={() => onEnableAutoSend(autoSendOffer.draftType)}
+                  onDismiss={() => onDismissAutoSendOffer(autoSendOffer.draftType)}
+                />
+              )}
+            </>
           ) : (
             <>
               <RecipientRow
