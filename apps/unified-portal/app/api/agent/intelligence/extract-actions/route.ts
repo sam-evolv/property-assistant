@@ -117,6 +117,7 @@ interface VoiceContext {
   activeDevelopmentId: string | null;
   schemeName: string | null;
   recentListings: Array<{ id: string; address: string; vendor: string | null }>;
+  lettingProperties: Array<{ id: string; address: string }>;
 }
 
 async function buildVoiceContext(
@@ -141,6 +142,30 @@ async function buildVoiceContext(
     .order('listed_date', { ascending: false })
     .limit(12);
 
+  // Session 4B: pull the agent's letting properties so the model can match
+  // rental viewing references like "14 Oakfield" to the right row. We scope
+  // by the resolved agent_profile to keep the list relevant.
+  let lettingProperties: Array<{ id: string; address: string }> = [];
+  if (userId) {
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    if (profile?.id) {
+      const { data: props } = await supabase
+        .from('agent_letting_properties')
+        .select('id, address, address_line_1')
+        .eq('agent_id', profile.id)
+        .limit(20);
+      lettingProperties = (props || []).map((p: any) => ({
+        id: p.id,
+        address: p.address || p.address_line_1 || p.id,
+      }));
+    }
+  }
+
   return {
     activeDevelopmentId: activeDevelopmentId ?? null,
     schemeName,
@@ -149,6 +174,7 @@ async function buildVoiceContext(
       address: l.address,
       vendor: l.vendor_name ?? null,
     })),
+    lettingProperties,
   };
 }
 
@@ -158,6 +184,12 @@ function buildExtractionSystemPrompt(ctx: VoiceContext, intentHint?: string): st
         .map((l) => `- ${l.id}: ${l.address}${l.vendor ? ` (vendor: ${l.vendor})` : ''}`)
         .join('\n')
     : 'No recent listings available.';
+
+  const lettingsBlock = ctx.lettingProperties.length
+    ? ctx.lettingProperties
+        .map((p) => `- ${p.id}: ${p.address}`)
+        .join('\n')
+    : 'No rental properties on file.';
 
   const intentLine = intentHint
     ? `\nThe user tapped a chip hinting the intent is "${intentHint}". Treat it as a prior, not a constraint.`
@@ -171,8 +203,11 @@ function buildExtractionSystemPrompt(ctx: VoiceContext, intentHint?: string): st
 
 ${schemeLine}${intentLine}
 
-Recent listings you can match property references against:
+Recent sales listings you can match property references against:
 ${listingsBlock}
+
+Rental properties on the agent's book (for lettings actions):
+${lettingsBlock}
 
 Given the agent's spoken transcript you must:
 1. Identify every distinct action implied. A single sentence may imply several — for example "Murphys came to 14 Oakfield, loved it, probably offering Monday, tell the vendor" implies log_viewing + draft_vendor_update + create_reminder.
@@ -184,9 +219,17 @@ Given the agent's spoken transcript you must:
 7. Do not emit tool calls for speculative or unrelated actions. If the transcript is purely a question (no action), return zero tool calls.
 
 Choosing between draft tools:
- - draft_viewing_followup_buyer: the agent wants a thank-you / next-step email to the attendees after a viewing. Trigger phrases: "follow up with Murphys", "thank them for coming", "send more info". Reference anything specific they cared about.
- - draft_offer_response: the agent describes how to respond to an offer. Trigger phrases: "accept their offer", "counter at X", "reject the 420", "acknowledge and pass to vendor". Choose the right action enum. For counters the new amount must appear in the body.
- - draft_price_reduction_notice: the agent says the price has dropped and wants to tell active buyers. Trigger phrases: "vendor dropped to 450, tell anyone who viewed", "price reduction on 14 Oakfield". Populate recipient_ids with every buyer referenced. The body_template uses the literal token {first_name} for personalisation — the server fills it in per recipient.
- - draft_chain_update_to_buyer: the agent describes chain progress for a single buyer. Trigger phrases: "survey came back", "solicitor instructed", "contracts issued", "contracts exchanged", "there's a delay on completion". Pick the closest update_type enum; use "custom" only when no enum fits.
- - draft_vendor_update: default sales-side update back to the vendor. Use for "tell the vendor" / "let the vendor know" when none of the more specific tools apply.`;
+ - draft_viewing_followup_buyer: the agent wants a thank-you / next-step email to the attendees after a SALES viewing. Trigger phrases: "follow up with Murphys", "thank them for coming". Reference anything specific they cared about. Note: for a RENTAL viewing follow-up, use draft_application_invitation instead.
+ - draft_offer_response: the agent describes how to respond to an offer. Trigger phrases: "accept their offer", "counter at X", "reject the 420". Choose the right action enum. For counters the new amount must appear in the body.
+ - draft_price_reduction_notice: the agent says the price has dropped and wants to tell active buyers. Trigger phrases: "vendor dropped to 450, tell anyone who viewed". Populate recipient_ids with every buyer referenced. The body_template uses the literal token {first_name} for personalisation — the server fills it in per recipient.
+ - draft_chain_update_to_buyer: the agent describes chain progress for a single sales buyer. Trigger phrases: "survey came back", "solicitor instructed", "contracts issued", "there's a delay on completion".
+ - draft_vendor_update: default sales-side update back to the vendor. Use for "tell the vendor" / "let the vendor know".
+
+Lettings workflows:
+ - log_rental_viewing: the agent just viewed a RENTAL property with prospective tenants. Trigger phrases: "three people came to see", "showed the Rathmines one today". Populate every attendee by name (even surnames like "the O'Sheas"). Set was_preferred=true on any attendee the agent says stood out. Use this BEFORE flag_applicant_preferred so the attendees exist.
+ - flag_applicant_preferred: the agent explicitly says one attendee was their preferred applicant AFTER log_rental_viewing fires. Trigger phrases: "the O'Sheas were miles ahead", "the couple with the baby were the best fit". applicant_name must match the name used in the log_rental_viewing attendees list verbatim.
+ - create_applicant: a standalone applicant capture from a phone enquiry, walk-in or referral that did NOT involve a viewing. Do NOT use this for viewing attendees.
+ - draft_application_invitation: the agent wants to invite a preferred applicant to fill in the application form. Trigger phrases: "ask them to apply", "send them the form", "invite the O'Sheas to apply". Body must include the literal token {application_link} where the form URL will go. Emit this AFTER the log_rental_viewing + flag_applicant_preferred actions when the agent chains them in one sentence.
+
+The canonical multi-action sentence looks like: "Three people came to see 14 Oakfield this afternoon, the O'Sheas were miles ahead, ask them to apply." That should produce log_rental_viewing + flag_applicant_preferred + draft_application_invitation, in that order, in a single response.`;
 }

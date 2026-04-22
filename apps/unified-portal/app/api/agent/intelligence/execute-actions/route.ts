@@ -23,11 +23,27 @@ type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>;
 
 /**
  * POST /api/agent/intelligence/execute-actions
- * Body: { actions: ExtractedAction[], transcript?: string }
- * Returns: { batchId, results: ExecutedAction[] }
+ * Body:
+ *   {
+ *     actions: ExtractedAction[],
+ *     transcript?: string,
+ *     // Optional: when retrying a subset of failed actions from a prior
+ *     // batch, the client passes back the shared context so later actions
+ *     // can still reference earlier-created ids.
+ *     sharedContext?: SharedContextShape,
+ *     batchId?: string,
+ *   }
+ * Returns: { batchId, results: ExecutedAction[], sharedContext, globalPaused }
  *
- * Executes every approved action in parallel and records a reversal payload
- * in recent_actions so the 60-second undo pill can roll the batch back.
+ * Session 4B: executes sequentially, not in parallel, so action N can
+ * reference ids produced by action N-1 (e.g. flag_applicant_preferred
+ * matching names against log_rental_viewing's attendees, or
+ * draft_application_invitation resolving an applicant created a moment ago).
+ *
+ * On partial failure we still return every result so the confirmation card
+ * can show ✓/✗ per action. Successful rows keep their reversal payload in
+ * recent_actions so the Session 1 undo pill still works even if a later
+ * action failed.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -68,9 +84,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No agent profile found' }, { status: 401 });
     }
 
-    const batchId = randomUUID();
+    const batchId: string = typeof body?.batchId === 'string' ? body.batchId : randomUUID();
     const userId = user?.id || agentProfile.user_id;
     const timezone = agentProfile.timezone || 'Europe/Dublin';
+
+    // Sequential execution needs a shared context so each action can reference
+    // ids produced by earlier actions in the same batch. Client can also pass
+    // a prior shared context back when retrying a failed subset.
+    const sharedContext: SharedContext = {
+      applicantsByName: toCaseMap(body?.sharedContext?.applicantsByName),
+      rentalViewingIds: { ...(body?.sharedContext?.rentalViewingIds || {}) },
+      lettingPropertiesByRef: toCaseMap(body?.sharedContext?.lettingPropertiesByRef),
+    };
 
     // Load autonomy prefs + the last 10 auto-sends per draft_type so the
     // decideAutoSend helper can apply every gate in one go. This is a single
@@ -92,22 +117,51 @@ export async function POST(request: NextRequest) {
       recentByType.get(r.draft_type)!.push(r);
     }
 
-    const results = await Promise.all(
-      actions.map((action) =>
-        executeAction(supabase, {
-          action,
-          batchId,
-          userId,
-          tenantId: agentProfile.tenant_id,
-          agentId: agentProfile.id,
-          timezone,
-          autonomy,
-          recentByType,
-        }),
-      ),
-    );
+    // Sequential loop — each action can read from and write to sharedContext.
+    const results: ExecutedAction[] = [];
+    for (const action of actions) {
+      const result = await executeAction(supabase, {
+        action,
+        batchId,
+        userId,
+        tenantId: agentProfile.tenant_id,
+        agentId: agentProfile.id,
+        timezone,
+        autonomy,
+        recentByType,
+        sharedContext,
+      });
 
-    return NextResponse.json({ batchId, results, globalPaused: autonomy.globalPaused });
+      // Feed outputs back into sharedContext so later actions can resolve.
+      if (result.success && result.meta) {
+        if (result.meta.rentalViewingId) {
+          sharedContext.rentalViewingIds[action.id] = result.meta.rentalViewingId;
+          sharedContext.rentalViewingIds.__latest = result.meta.rentalViewingId;
+        }
+        if (result.meta.applicantsByName) {
+          for (const [name, id] of Object.entries(result.meta.applicantsByName)) {
+            sharedContext.applicantsByName[name.toLowerCase()] = id;
+          }
+        }
+        if (result.meta.lettingPropertyId) {
+          const raw = action.fields?.letting_property_id
+            || action.fields?.property_id
+            || action.fields?.letting_property_ref;
+          if (typeof raw === 'string' && raw.trim()) {
+            sharedContext.lettingPropertiesByRef[raw.toLowerCase().trim()] = result.meta.lettingPropertyId;
+          }
+        }
+      }
+
+      results.push(result);
+    }
+
+    return NextResponse.json({
+      batchId,
+      results,
+      globalPaused: autonomy.globalPaused,
+      sharedContext,
+    });
   } catch (error: any) {
     console.error('[agent/intelligence/execute-actions] Error:', error.message);
     return NextResponse.json(
@@ -115,6 +169,21 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+interface SharedContext {
+  applicantsByName: Record<string, string>;
+  rentalViewingIds: Record<string, string>;
+  lettingPropertiesByRef: Record<string, string>;
+}
+
+function toCaseMap(source: any): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!source || typeof source !== 'object') return out;
+  for (const [k, v] of Object.entries(source as Record<string, unknown>)) {
+    if (typeof v === 'string' && v.trim()) out[String(k).toLowerCase()] = v;
+  }
+  return out;
 }
 
 interface ExecCtx {
@@ -126,6 +195,7 @@ interface ExecCtx {
   timezone: string;
   autonomy: Awaited<ReturnType<typeof loadAutonomyPreferences>>;
   recentByType: Map<string, SendHistoryRow[]>;
+  sharedContext: SharedContext;
 }
 
 async function executeAction(
@@ -138,6 +208,14 @@ async function executeAction(
     switch (action.type) {
       case 'log_viewing':
         return await execLogViewing(supabase, ctx);
+      case 'log_rental_viewing':
+        return await execLogRentalViewing(supabase, ctx);
+      case 'create_applicant':
+        return await execCreateApplicant(supabase, ctx);
+      case 'flag_applicant_preferred':
+        return await execFlagApplicantPreferred(supabase, ctx);
+      case 'draft_application_invitation':
+        return await execDraftApplicationInvitation(supabase, ctx);
       case 'draft_vendor_update':
         return await execDraftVendorUpdate(supabase, ctx);
       case 'draft_viewing_followup_buyer':
@@ -815,3 +893,546 @@ function nowTimeInDublin(): string {
   const d = new Date();
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
+
+// ────────────────────────────────────────────────────────────────
+// Session 4B — Lettings handlers
+// ────────────────────────────────────────────────────────────────
+
+/**
+ * Find a letting property for the current agent matching a free-form
+ * reference. Tries address_line_1, address, city — returns the highest
+ * confidence match. Results are cached on the shared context so the same
+ * reference in a later action (e.g. draft_application_invitation) does not
+ * re-query.
+ */
+async function resolveLettingProperty(
+  supabase: SupabaseAdmin,
+  agentId: string,
+  reference: string,
+  shared: SharedContext,
+): Promise<{ id: string; address: string | null } | null> {
+  const key = reference.toLowerCase().trim();
+  const cached = shared.lettingPropertiesByRef[key];
+  if (cached) {
+    const { data } = await supabase
+      .from('agent_letting_properties')
+      .select('id, address, address_line_1')
+      .eq('id', cached)
+      .maybeSingle();
+    if (data) return { id: data.id, address: data.address || data.address_line_1 || null };
+  }
+
+  if (/^[0-9a-f-]{36}$/i.test(reference)) {
+    const { data } = await supabase
+      .from('agent_letting_properties')
+      .select('id, address, address_line_1')
+      .eq('id', reference)
+      .eq('agent_id', agentId)
+      .maybeSingle();
+    if (data) {
+      shared.lettingPropertiesByRef[key] = data.id;
+      return { id: data.id, address: data.address || data.address_line_1 || null };
+    }
+  }
+
+  // Fuzzy match on address fields, restricted to the agent's properties.
+  const { data: matches } = await supabase
+    .from('agent_letting_properties')
+    .select('id, address, address_line_1')
+    .eq('agent_id', agentId)
+    .or(`address.ilike.%${reference}%,address_line_1.ilike.%${reference}%`)
+    .limit(2);
+
+  if (matches && matches.length >= 1) {
+    const row = matches[0];
+    shared.lettingPropertiesByRef[key] = row.id;
+    return { id: row.id, address: row.address || row.address_line_1 || null };
+  }
+  return null;
+}
+
+async function execLogRentalViewing(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action, agentId, tenantId, sharedContext } = ctx;
+  const f = action.fields;
+  const rawPropertyRef = f.letting_property_id ? String(f.letting_property_id) : '';
+
+  if (!rawPropertyRef) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Need a rental property reference',
+      error: 'letting_property_id missing',
+    };
+  }
+
+  const property = await resolveLettingProperty(supabase, agentId, rawPropertyRef, sharedContext);
+  if (!property) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: `Could not match a rental property for "${rawPropertyRef}"`,
+      error: 'letting_property_not_found',
+    };
+  }
+
+  const viewingDateIso = typeof f.viewing_date === 'string' && f.viewing_date
+    ? f.viewing_date
+    : new Date().toISOString();
+
+  const { data: viewing, error: viewingErr } = await supabase
+    .from('agent_rental_viewings')
+    .insert({
+      agent_id: agentId,
+      tenant_id: tenantId,
+      letting_property_id: property.id,
+      viewing_date: viewingDateIso,
+      viewing_type: f.viewing_type || 'individual',
+      interest_level: f.interest_level || null,
+      feedback: f.feedback || null,
+      next_action: f.next_action || null,
+      status: 'completed',
+    })
+    .select('id')
+    .single();
+
+  if (viewingErr || !viewing) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Could not log the rental viewing',
+      error: viewingErr?.message || 'unknown',
+    };
+  }
+
+  await recordReversal(supabase, ctx, {
+    targetTable: 'agent_rental_viewings',
+    targetId: viewing.id,
+    reversal: { op: 'delete', table: 'agent_rental_viewings', id: viewing.id },
+  });
+
+  // Create / link applicants for each attendee. Exact-name match against this
+  // agent's existing applicants; otherwise create a bare record.
+  const attendees: any[] = Array.isArray(f.attendees) ? f.attendees : [];
+  const applicantsByName: Record<string, string> = {};
+
+  for (const attendee of attendees) {
+    const name: string = String(attendee?.name || '').trim();
+    if (!name) continue;
+
+    const { data: existing } = await supabase
+      .from('agent_applicants')
+      .select('id')
+      .eq('agent_id', agentId)
+      .ilike('full_name', name)
+      .limit(1)
+      .maybeSingle();
+
+    let applicantId = existing?.id;
+    if (!applicantId) {
+      const { data: created, error: applicantErr } = await supabase
+        .from('agent_applicants')
+        .insert({
+          agent_id: agentId,
+          tenant_id: tenantId,
+          full_name: name,
+          email: extractEmail(attendee?.contact_if_known),
+          phone: extractPhone(attendee?.contact_if_known),
+          employment_status: attendee?.employment_status || 'unknown',
+          employer: attendee?.employer || null,
+          notes: attendee?.notes || null,
+          source: 'walk_in',
+        })
+        .select('id')
+        .single();
+
+      if (applicantErr || !created) continue;
+      applicantId = created.id;
+      await recordReversal(supabase, ctx, {
+        targetTable: 'agent_applicants',
+        targetId: applicantId,
+        reversal: { op: 'delete', table: 'agent_applicants', id: applicantId },
+      });
+    }
+
+    applicantsByName[name.toLowerCase()] = applicantId;
+
+    const { data: attendeeRow } = await supabase
+      .from('agent_rental_viewing_attendees')
+      .insert({
+        rental_viewing_id: viewing.id,
+        applicant_id: applicantId,
+        name_if_unknown: name,
+        contact_if_known: attendee?.contact_if_known || null,
+        was_preferred: !!attendee?.was_preferred,
+        notes: attendee?.notes || null,
+      })
+      .select('id')
+      .single();
+    if (attendeeRow?.id) {
+      await recordReversal(supabase, ctx, {
+        targetTable: 'agent_rental_viewing_attendees',
+        targetId: attendeeRow.id,
+        reversal: { op: 'delete', table: 'agent_rental_viewing_attendees', id: attendeeRow.id },
+      });
+    }
+  }
+
+  return {
+    id: action.id,
+    type: action.type,
+    success: true,
+    targetId: viewing.id,
+    message: `Logged rental viewing at ${property.address || rawPropertyRef} with ${attendees.length} attendee${attendees.length === 1 ? '' : 's'}`,
+    meta: {
+      rentalViewingId: viewing.id,
+      applicantsByName,
+      lettingPropertyId: property.id,
+    },
+  };
+}
+
+async function execCreateApplicant(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action, agentId, tenantId } = ctx;
+  const f = action.fields;
+  const fullName = String(f.full_name || '').trim();
+  if (!fullName) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Applicant needs a name',
+      error: 'full_name missing',
+    };
+  }
+
+  const { data: applicant, error } = await supabase
+    .from('agent_applicants')
+    .insert({
+      agent_id: agentId,
+      tenant_id: tenantId,
+      full_name: fullName,
+      email: f.email || null,
+      phone: f.phone || null,
+      employment_status: f.employment_status || 'unknown',
+      employer: f.employer || null,
+      annual_income: typeof f.annual_income === 'number' ? f.annual_income : null,
+      household_size: typeof f.household_size === 'number' ? f.household_size : null,
+      has_pets: typeof f.has_pets === 'boolean' ? f.has_pets : null,
+      pet_details: f.pet_details || null,
+      smoker: typeof f.smoker === 'boolean' ? f.smoker : null,
+      budget_monthly: typeof f.budget_monthly === 'number' ? f.budget_monthly : null,
+      source: f.source || 'unknown',
+      notes: f.notes || null,
+    })
+    .select('id')
+    .single();
+
+  if (error || !applicant) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Could not create applicant',
+      error: error?.message || 'unknown',
+    };
+  }
+
+  await recordReversal(supabase, ctx, {
+    targetTable: 'agent_applicants',
+    targetId: applicant.id,
+    reversal: { op: 'delete', table: 'agent_applicants', id: applicant.id },
+  });
+
+  return {
+    id: action.id,
+    type: action.type,
+    success: true,
+    targetId: applicant.id,
+    message: `Created applicant ${fullName}`,
+    meta: { applicantsByName: { [fullName.toLowerCase()]: applicant.id } },
+  };
+}
+
+async function resolveApplicantByName(
+  supabase: SupabaseAdmin,
+  agentId: string,
+  shared: SharedContext,
+  name: string,
+): Promise<string | null> {
+  if (!name) return null;
+  const key = name.toLowerCase().trim();
+  if (shared.applicantsByName[key]) return shared.applicantsByName[key];
+
+  // Try partial match on the same-batch map first (e.g. "O'Sheas" vs "O'Shea").
+  for (const [candidate, id] of Object.entries(shared.applicantsByName)) {
+    if (candidate.includes(key) || key.includes(candidate)) return id;
+  }
+
+  // Fall back to the agent's most recent applicant with a fuzzy name match.
+  const { data } = await supabase
+    .from('agent_applicants')
+    .select('id')
+    .eq('agent_id', agentId)
+    .ilike('full_name', `%${name}%`)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.id || null;
+}
+
+async function execFlagApplicantPreferred(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action, agentId, sharedContext } = ctx;
+  const f = action.fields;
+  const applicantName = String(f.applicant_name || '').trim();
+  if (!applicantName) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Need an applicant name to flag',
+      error: 'applicant_name missing',
+    };
+  }
+
+  const applicantId = await resolveApplicantByName(supabase, agentId, sharedContext, applicantName);
+  if (!applicantId) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: `Could not find an applicant matching "${applicantName}"`,
+      error: 'applicant_not_found',
+    };
+  }
+
+  // Target viewing: same-batch preferred, then most recent viewing for this
+  // applicant under the current agent.
+  let rentalViewingId: string | null = sharedContext.rentalViewingIds.__latest || null;
+
+  if (!rentalViewingId && typeof f.rental_viewing_ref === 'string') {
+    // Try via the letting property reference on the ref — match most recent
+    // viewing at that property.
+    const property = await resolveLettingProperty(supabase, agentId, String(f.rental_viewing_ref), sharedContext);
+    if (property) {
+      const { data: recent } = await supabase
+        .from('agent_rental_viewings')
+        .select('id')
+        .eq('letting_property_id', property.id)
+        .eq('agent_id', agentId)
+        .order('viewing_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      rentalViewingId = recent?.id || null;
+    }
+  }
+
+  if (!rentalViewingId) {
+    // Last resort: the most recent viewing this applicant attended.
+    const { data: attendeeRow } = await supabase
+      .from('agent_rental_viewing_attendees')
+      .select('rental_viewing_id, id')
+      .eq('applicant_id', applicantId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    rentalViewingId = attendeeRow?.rental_viewing_id || null;
+  }
+
+  if (!rentalViewingId) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: `Found ${applicantName}, but could not match them to a recent viewing`,
+      error: 'rental_viewing_not_found',
+    };
+  }
+
+  const { data: attendee, error } = await supabase
+    .from('agent_rental_viewing_attendees')
+    .update({ was_preferred: true })
+    .eq('rental_viewing_id', rentalViewingId)
+    .eq('applicant_id', applicantId)
+    .select('id')
+    .maybeSingle();
+
+  if (error || !attendee) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Could not flag preferred',
+      error: error?.message || 'attendee_row_not_found',
+    };
+  }
+
+  await recordReversal(supabase, ctx, {
+    targetTable: 'agent_rental_viewing_attendees',
+    targetId: attendee.id,
+    reversal: { op: 'update', table: 'agent_rental_viewing_attendees', id: attendee.id, set: { was_preferred: false } },
+  });
+
+  return {
+    id: action.id,
+    type: action.type,
+    success: true,
+    targetId: attendee.id,
+    message: `Flagged ${applicantName} as preferred`,
+  };
+}
+
+async function execDraftApplicationInvitation(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action, agentId, tenantId, sharedContext } = ctx;
+  const f = action.fields;
+  const applicantName = String(f.applicant_name || '').trim();
+  const propertyRef = String(f.letting_property_id || '').trim();
+
+  if (!applicantName || !propertyRef) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Need both applicant and property',
+      error: 'applicant_name_or_property_missing',
+    };
+  }
+
+  const applicantId = await resolveApplicantByName(supabase, agentId, sharedContext, applicantName);
+  if (!applicantId) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: `Could not find an applicant matching "${applicantName}"`,
+      error: 'applicant_not_found',
+    };
+  }
+
+  const property = await resolveLettingProperty(supabase, agentId, propertyRef, sharedContext);
+  if (!property) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: `Could not match a rental property for "${propertyRef}"`,
+      error: 'letting_property_not_found',
+    };
+  }
+
+  // Load applicant for recipient display + body personalisation.
+  const { data: applicant } = await supabase
+    .from('agent_applicants')
+    .select('id, full_name, email, phone')
+    .eq('id', applicantId)
+    .maybeSingle();
+
+  // Create the application record first — if the insert hits the unique
+  // partial index (active application already exists) we surface that
+  // honestly and skip the draft.
+  const { data: application, error: appErr } = await supabase
+    .from('agent_rental_applications')
+    .insert({
+      agent_id: agentId,
+      tenant_id: tenantId,
+      applicant_id: applicantId,
+      letting_property_id: property.id,
+      status: 'invited',
+      references_status: 'not_requested',
+      aml_status: 'not_started',
+    })
+    .select('id')
+    .single();
+
+  if (appErr || !application) {
+    const duplicate = appErr?.message?.includes('idx_unique_active_application');
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: duplicate
+        ? `${applicantName} already has an active application on that property`
+        : 'Could not create the application',
+      error: appErr?.message || 'unknown',
+    };
+  }
+
+  await recordReversal(supabase, ctx, {
+    targetTable: 'agent_rental_applications',
+    targetId: application.id,
+    reversal: { op: 'delete', table: 'agent_rental_applications', id: application.id },
+  });
+
+  const firstName = (applicant?.full_name || applicantName).split(/\s+/)[0] || 'there';
+  const bodyTemplate: string = typeof f.body === 'string' && f.body.trim()
+    ? f.body
+    : `Hi ${firstName},\n\nLovely to meet you at the viewing of ${property.address || propertyRef}. When you have a moment, could you pop through the application details at this link? {application_link}\n\nAny questions, give me a shout.\n\nThanks,`;
+
+  const body = bodyTemplate.replace(/\{first_name\}/g, firstName);
+
+  const subject = typeof f.subject === 'string' && f.subject.trim()
+    ? f.subject
+    : `Application for ${property.address || propertyRef}`;
+
+  const provenance = [
+    { id: 'property', label: property.address || propertyRef, detail: null },
+    { id: 'application', label: `Application ${application.id.slice(0, 8)}`, detail: `Status: invited` },
+  ];
+
+  const draftResult = await insertDraftAndMaybeAutoSend(supabase, ctx, {
+    draftType: 'application_invitation',
+    recipientId: applicantId,
+    sendMethod: 'email',
+    contentJson: {
+      applicant_id: applicantId,
+      application_id: application.id,
+      letting_property_id: property.id,
+      subject,
+      body,
+      tone: f.tone || 'warm',
+      provenance,
+    },
+    reviewMessage: `Drafted application invitation for ${applicant?.full_name || applicantName}`,
+    autoSendMessage: (name) => `Auto-sending application invitation to ${name}`,
+  });
+
+  if (!draftResult.success) {
+    return draftResult;
+  }
+
+  return {
+    ...draftResult,
+    meta: {
+      ...(draftResult.meta || {}),
+      applicationId: application.id,
+      draftId: draftResult.targetId,
+    },
+  };
+}
+
+function extractEmail(raw?: string | null): string | null {
+  if (!raw) return null;
+  const m = /[\w.+-]+@[\w.-]+\.\w+/.exec(raw);
+  return m ? m[0] : null;
+}
+
+function extractPhone(raw?: string | null): string | null {
+  if (!raw) return null;
+  const cleaned = raw.replace(/[^\d+]/g, '');
+  return cleaned.length >= 7 ? cleaned : null;
+}
+

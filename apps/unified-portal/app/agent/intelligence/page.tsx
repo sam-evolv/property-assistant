@@ -33,6 +33,8 @@ const WRITE_PILLS: Array<{ label: string; intent: string }> = [
   { label: 'Update the tracker', intent: 'update_tracker' },
   { label: 'Follow up with a buyer', intent: 'draft_viewing_followup_buyer' },
   { label: 'Respond to an offer', intent: 'draft_offer_response' },
+  { label: 'Log a rental viewing', intent: 'log_rental_viewing' },
+  { label: 'Invite an applicant', intent: 'draft_application_invitation' },
 ];
 
 interface DraftedEmail {
@@ -48,6 +50,10 @@ interface VoiceActionsPayload {
   transcript?: string;
   autoSendUi?: AutoSendUiState | null;
   globalPaused?: boolean;
+  // Session 4B: retry state for sequentially-failed actions.
+  batchId?: string;
+  sharedContext?: Record<string, unknown>;
+  retryingActionIds?: string[];
 }
 
 interface Message {
@@ -388,6 +394,8 @@ export default function IntelligencePage() {
           results,
           autoSendUi,
           globalPaused,
+          batchId,
+          sharedContext: data.sharedContext,
         }));
 
         // Natural-language confirmation below the card — but only for actions
@@ -428,6 +436,53 @@ export default function IntelligencePage() {
             content: "Couldn't log those just now. Try again in a second?",
           },
         ]);
+      }
+    },
+    [messages, updateVoiceMessage],
+  );
+
+  const handleRetryAction = useCallback(
+    async (msgId: string, actionId: string) => {
+      const msg = messages.find((m) => m.id === msgId);
+      if (!msg?.voice) return;
+      const action = msg.voice.actions.find((a) => a.id === actionId);
+      if (!action) return;
+
+      updateVoiceMessage(msgId, (v) => ({
+        ...v,
+        retryingActionIds: [...(v.retryingActionIds || []), actionId],
+      }));
+
+      try {
+        const res = await fetch('/api/agent/intelligence/execute-actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            actions: [action],
+            batchId: msg.voice.batchId,
+            sharedContext: msg.voice.sharedContext,
+          }),
+        });
+        if (!res.ok) throw new Error('retry failed');
+        const data = await res.json();
+        const retryResult: ExecutedAction | undefined = (data.results || [])[0];
+        if (!retryResult) throw new Error('no_result');
+
+        updateVoiceMessage(msgId, (v) => ({
+          ...v,
+          results: (v.results || []).map((r) => (r.id === actionId ? retryResult : r)),
+          sharedContext: data.sharedContext || v.sharedContext,
+          retryingActionIds: (v.retryingActionIds || []).filter((id) => id !== actionId),
+        }));
+
+        if (retryResult.success && retryResult.type === 'draft_application_invitation') {
+          notifyDraftsChanged();
+        }
+      } catch {
+        updateVoiceMessage(msgId, (v) => ({
+          ...v,
+          retryingActionIds: (v.retryingActionIds || []).filter((id) => id !== actionId),
+        }));
       }
     },
     [messages, updateVoiceMessage],
@@ -748,11 +803,13 @@ export default function IntelligencePage() {
                     results={msg.voice.results}
                     autoSendUi={msg.voice.autoSendUi}
                     globalPaused={msg.voice.globalPaused}
+                    retryingIds={msg.voice.retryingActionIds}
                     onChange={(next) => handleVoiceActionsChange(msg.id, next)}
                     onApprove={() => handleApprove(msg.id)}
                     onDiscard={() => handleDiscard(msg.id)}
                     onAutoSendElapsed={() => handleAutoSendElapsed(msg.id)}
                     onAutoSendCancel={() => handleAutoSendCancel(msg.id)}
+                    onRetryAction={(actionId) => handleRetryAction(msg.id, actionId)}
                   />
                 );
               }
@@ -847,6 +904,18 @@ function buildConfirmationSummary(
     } else if (a.type === 'draft_chain_update_to_buyer') {
       const name = a.fields.buyer_id || 'the buyer';
       clauses.push(`drafted the chain update for ${name}`);
+    } else if (a.type === 'log_rental_viewing') {
+      const property = a.fields.letting_property_id || 'the property';
+      clauses.push(`logged the rental viewing at ${property}`);
+    } else if (a.type === 'create_applicant') {
+      const name = a.fields.full_name || 'a new applicant';
+      clauses.push(`added ${name} to applicants`);
+    } else if (a.type === 'flag_applicant_preferred') {
+      const name = a.fields.applicant_name || 'the applicant';
+      clauses.push(`flagged ${name} as preferred`);
+    } else if (a.type === 'draft_application_invitation') {
+      const name = a.fields.applicant_name || 'the applicant';
+      clauses.push(`drafted the application invitation for ${name}`);
     } else if (a.type === 'create_reminder') {
       const due = a.fields.due_date ? formatReminder(a.fields.due_date) : '';
       clauses.push(due ? `set a reminder for ${due}` : 'set a reminder');

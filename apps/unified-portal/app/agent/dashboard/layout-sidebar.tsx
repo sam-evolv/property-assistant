@@ -9,6 +9,7 @@ import {
   GitBranch,
   Sparkles,
   Users,
+  UserCheck,
   MailCheck,
   MessageSquare,
   CalendarCheck,
@@ -29,6 +30,7 @@ import {
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import { useAgentDashboard } from './layout-provider';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
+import { useApplicantsCount } from '../_hooks/useApplicantsCount';
 
 interface NavItem {
   label: string;
@@ -49,6 +51,7 @@ const agentNavSections: NavSection[] = [
       { label: 'Sales Pipeline', href: '/agent/dashboard/pipeline', icon: GitBranch },
       { label: 'OpenHouse Intelligence', href: '/agent/dashboard/intelligence', icon: Sparkles },
       { label: 'Drafts', href: '/agent/dashboard/drafts', icon: MailCheck },
+      { label: 'Applicants', href: '/agent/dashboard/applicants', icon: UserCheck },
     ],
   },
   {
@@ -87,6 +90,7 @@ export function AgentDashboardSidebar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
   const { count: draftsCount } = useDraftsCount();
+  const { count: applicantsCount } = useApplicantsCount();
 
   const isActive = (href: string) => {
     if (href === '/agent/dashboard/overview') {
@@ -247,6 +251,18 @@ export function AgentDashboardSidebar() {
                           }}
                         >
                           {draftsCount > 99 ? '99+' : draftsCount}
+                        </span>
+                      )}
+                      {item.href === '/agent/dashboard/applicants' && applicantsCount > 0 && (
+                        <span
+                          data-testid="applicants-badge-sidebar"
+                          className="ml-auto inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-bold"
+                          style={{
+                            background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                            color: '#fff',
+                          }}
+                        >
+                          {applicantsCount > 99 ? '99+' : applicantsCount}
                         </span>
                       )}
                     </Link>

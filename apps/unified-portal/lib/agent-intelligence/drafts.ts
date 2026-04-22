@@ -23,7 +23,7 @@ export interface DraftRecipient {
   name: string | null;
   email: string | null;
   phone: string | null;
-  source: 'listing_vendor' | 'listing_buyer' | 'unknown';
+  source: 'listing_vendor' | 'listing_buyer' | 'applicant' | 'unknown';
   address?: string | null;
 }
 
@@ -59,6 +59,8 @@ export function draftTypeLabel(type: string): string {
       return 'Landlord statement';
     case 'buyer_followup':
       return 'Buyer follow-up';
+    case 'application_invitation':
+      return 'Application invitation';
     default:
       return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
@@ -108,6 +110,20 @@ export async function resolveRecipient(
     }
   }
 
+  // Session 4B: lettings draft types resolve against agent_applicants.
+  if (draftType === 'application_invitation') {
+    const applicant = await findApplicantFromReference(supabase, recipientId);
+    if (applicant) {
+      return {
+        id: applicant.id,
+        name: applicant.full_name,
+        email: applicant.email || null,
+        phone: applicant.phone || null,
+        source: 'applicant',
+      };
+    }
+  }
+
   // Fallback — display the raw reference so the user sees what the voice heard.
   return {
     id: recipientId,
@@ -139,6 +155,27 @@ async function findListingFromReference(
     .ilike('address', `%${reference}%`)
     .limit(1);
   return matches?.[0] || null;
+}
+
+async function findApplicantFromReference(
+  supabase: SupabaseClient,
+  reference: string,
+): Promise<any | null> {
+  if (UUID_REGEX.test(reference)) {
+    const { data } = await supabase
+      .from('agent_applicants')
+      .select('id, full_name, email, phone')
+      .eq('id', reference)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  const { data: byName } = await supabase
+    .from('agent_applicants')
+    .select('id, full_name, email, phone')
+    .ilike('full_name', `%${reference}%`)
+    .limit(1);
+  return byName?.[0] || null;
 }
 
 async function findListingByBuyerReference(
@@ -226,11 +263,15 @@ function extractContextChips(
   const chips: Array<{ id: string; label: string; detail: string | null }> = [];
 
   if (recipient.address) {
+    const roleLabel =
+      recipient.source === 'listing_buyer' ? 'Buyer'
+      : recipient.source === 'applicant' ? 'Applicant'
+      : 'Vendor';
     chips.push({
       id: 'property',
       label: recipient.address,
       detail: recipient.name && recipient.name !== recipient.address
-        ? `${recipient.source === 'listing_buyer' ? 'Buyer' : 'Vendor'}: ${recipient.name}`
+        ? `${roleLabel}: ${recipient.name}`
         : null,
     });
   }
