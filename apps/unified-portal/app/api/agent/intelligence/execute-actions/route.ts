@@ -140,6 +140,14 @@ async function executeAction(
         return await execLogViewing(supabase, ctx);
       case 'draft_vendor_update':
         return await execDraftVendorUpdate(supabase, ctx);
+      case 'draft_viewing_followup_buyer':
+        return await execDraftViewingFollowup(supabase, ctx);
+      case 'draft_offer_response':
+        return await execDraftOfferResponse(supabase, ctx);
+      case 'draft_price_reduction_notice':
+        return await execDraftPriceReductionNotice(supabase, ctx);
+      case 'draft_chain_update_to_buyer':
+        return await execDraftChainUpdate(supabase, ctx);
       case 'create_reminder':
         return await execCreateReminder(supabase, ctx);
       default:
@@ -334,6 +342,391 @@ async function execDraftVendorUpdate(
     message: `Drafted vendor update for ${f.vendor_id || 'vendor'}`,
     autoSendHold: decision.holdCopy || null,
   };
+}
+
+/**
+ * Shared draft-insertion path for Session 4A's new sales types. Encapsulates:
+ *   - decideAutoSend() gating per Session 3
+ *   - initial status (auto_sending vs pending_review)
+ *   - row insert + reversal payload for the Session 1 undo pill
+ *   - autoSendPlan return for the client countdown
+ *
+ * Caller provides draft_type + recipient hint + content_json shape.
+ */
+async function insertDraftAndMaybeAutoSend(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+  opts: {
+    draftType: string;
+    recipientId: string | null;
+    sendMethod: string;
+    contentJson: Record<string, any>;
+    reviewMessage: string;
+    autoSendMessage: (recipientName: string) => string;
+    allowAutoSend?: boolean; // false for multi-recipient fanouts
+  },
+): Promise<ExecutedAction> {
+  const { action, userId, tenantId, timezone, autonomy, recentByType } = ctx;
+
+  const pref = autonomy.byDraftType[opts.draftType] || { autoSendEnabled: false };
+  const decision = opts.allowAutoSend === false
+    ? { autoSend: false, holdCopy: null }
+    : decideAutoSend({
+        draftType: opts.draftType,
+        autoSendEnabled: pref.autoSendEnabled,
+        globalPaused: autonomy.globalPaused,
+        confidence: action.confidence,
+        requiredFields: REQUIRED_FIELDS_BY_DRAFT_TYPE[opts.draftType] || [],
+        timezone,
+        recentAutoSends: recentByType.get(opts.draftType) || [],
+      });
+
+  const initialStatus = decision.autoSend ? 'auto_sending' : 'pending_review';
+
+  const { data: draft, error } = await supabase
+    .from('pending_drafts')
+    .insert({
+      user_id: userId,
+      tenant_id: tenantId,
+      skin: 'agent',
+      draft_type: opts.draftType,
+      recipient_id: opts.recipientId,
+      content_json: opts.contentJson,
+      send_method: opts.sendMethod,
+      status: initialStatus,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Could not save draft',
+      error: error.message,
+    };
+  }
+
+  await recordReversal(supabase, ctx, {
+    targetTable: 'pending_drafts',
+    targetId: draft.id,
+    reversal: { op: 'delete', table: 'pending_drafts', id: draft.id },
+  });
+
+  if (decision.autoSend) {
+    const recipient = await resolveRecipient(supabase, opts.draftType, opts.recipientId);
+    return {
+      id: action.id,
+      type: action.type,
+      success: true,
+      targetId: draft.id,
+      message: opts.autoSendMessage(recipient.name || 'recipient'),
+      autoSendPlan: {
+        draftId: draft.id,
+        draftType: opts.draftType,
+        countdownSeconds: ELIGIBILITY_RULES.autoSendCountdownSeconds,
+        recipientName: recipient.name || 'recipient',
+      },
+    };
+  }
+
+  return {
+    id: action.id,
+    type: action.type,
+    success: true,
+    targetId: draft.id,
+    message: opts.reviewMessage,
+    autoSendHold: ('holdCopy' in decision ? decision.holdCopy : null) || null,
+  };
+}
+
+async function execDraftViewingFollowup(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action } = ctx;
+  const f = action.fields;
+  const recipientId = f.recipient_id ? String(f.recipient_id) : null;
+  const recipient = await resolveRecipient(supabase, 'viewing_followup', recipientId);
+
+  const provenance: Array<{ id: string; label: string; detail: string | null }> = [];
+  if (f.viewing_id) {
+    provenance.push({
+      id: 'viewing',
+      label: `From viewing ${String(f.viewing_id)}`,
+      detail: null,
+    });
+  }
+  if (f.include_similar_properties) {
+    provenance.push({
+      id: 'similar',
+      label: 'Will include similar properties',
+      detail: 'Buyer said the property was not quite right.',
+    });
+  }
+
+  return insertDraftAndMaybeAutoSend(supabase, ctx, {
+    draftType: 'viewing_followup',
+    recipientId,
+    sendMethod: 'email',
+    contentJson: {
+      recipient_id: recipientId,
+      viewing_id: f.viewing_id ?? null,
+      subject: f.subject || `Following up on ${recipient.address || 'your viewing'}`,
+      body: f.body || '',
+      tone: f.tone || 'warm',
+      include_similar_properties: !!f.include_similar_properties,
+      provenance,
+    },
+    reviewMessage: `Drafted viewing follow-up for ${recipient.name || recipientId || 'buyer'}`,
+    autoSendMessage: (name) => `Auto-sending viewing follow-up to ${name}`,
+  });
+}
+
+async function execDraftOfferResponse(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action } = ctx;
+  const f = action.fields;
+  const recipientId = f.recipient_id ? String(f.recipient_id) : null;
+  const recipient = await resolveRecipient(supabase, 'offer_response', recipientId);
+  const actionKind: string = f.action || 'acknowledge';
+
+  const provenance: Array<{ id: string; label: string; detail: string | null }> = [];
+  if (f.offer_id) {
+    provenance.push({
+      id: 'offer',
+      label: `Offer ${String(f.offer_id)}`,
+      detail: null,
+    });
+  }
+  if (actionKind === 'counter' && typeof f.counter_amount === 'number') {
+    provenance.push({
+      id: 'counter',
+      label: `Counter at €${Math.round(f.counter_amount).toLocaleString('en-IE')}`,
+      detail: f.counter_conditions ? String(f.counter_conditions) : null,
+    });
+  } else {
+    provenance.push({
+      id: 'action',
+      label: `Action: ${actionKind}`,
+      detail: null,
+    });
+  }
+
+  return insertDraftAndMaybeAutoSend(supabase, ctx, {
+    draftType: 'offer_response',
+    recipientId,
+    sendMethod: 'email',
+    contentJson: {
+      recipient_id: recipientId,
+      offer_id: f.offer_id ?? null,
+      action: actionKind,
+      counter_amount: typeof f.counter_amount === 'number' ? f.counter_amount : null,
+      counter_conditions: f.counter_conditions || '',
+      subject: f.subject || subjectForOfferResponse(actionKind, recipient.address),
+      body: f.body || '',
+      tone: f.tone || (actionKind === 'reject' ? 'firm' : 'warm'),
+      provenance,
+    },
+    reviewMessage: `Drafted offer ${actionKind === 'acknowledge' ? 'acknowledgement' : actionKind} for ${recipient.name || recipientId || 'buyer'}`,
+    autoSendMessage: (name) => `Auto-sending offer ${actionKind} to ${name}`,
+  });
+}
+
+function subjectForOfferResponse(kind: string, address?: string | null): string {
+  const prop = address ? ` on ${address}` : '';
+  switch (kind) {
+    case 'accept':
+      return `Good news about your offer${prop}`;
+    case 'counter':
+      return `On your offer${prop}`;
+    case 'reject':
+      return `Update on your offer${prop}`;
+    default:
+      return `Thanks for your offer${prop}`;
+  }
+}
+
+async function execDraftPriceReductionNotice(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action, userId, tenantId } = ctx;
+  const f = action.fields;
+  const recipients: string[] = Array.isArray(f.recipient_ids)
+    ? f.recipient_ids.map((r: any) => String(r)).filter(Boolean)
+    : [];
+
+  if (recipients.length === 0) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'No recipients specified',
+      error: 'recipient_ids must contain at least one buyer',
+    };
+  }
+
+  const propertyId = f.property_id ? String(f.property_id) : null;
+  const propertyRef = await resolveRecipient(supabase, 'vendor_update', propertyId);
+  const oldPrice = typeof f.old_price === 'number' ? f.old_price : null;
+  const newPrice = typeof f.new_price === 'number' ? f.new_price : null;
+  const template: string = typeof f.body_template === 'string' ? f.body_template : '';
+  const subject = typeof f.subject === 'string' && f.subject.trim()
+    ? f.subject
+    : `Price update on ${propertyRef.address || propertyId || 'a property'}`;
+
+  // Fan out: one pending_draft per recipient. Multi-recipient never auto-sends
+  // on approval (too high-stakes); each row is auto-sendable individually
+  // from the Drafts inbox via the standard gate.
+  const targetIds: string[] = [];
+  const failures: string[] = [];
+
+  for (const recipientId of recipients) {
+    const recipient = await resolveRecipient(supabase, 'price_reduction_notice', recipientId);
+    const firstName = firstNameOf(recipient.name) || firstNameOf(recipientId) || 'there';
+    const body = template ? template.replace(/\{first_name\}/g, firstName) : '';
+
+    const provenance: Array<{ id: string; label: string; detail: string | null }> = [];
+    if (propertyRef.address) {
+      provenance.push({
+        id: 'property',
+        label: propertyRef.address,
+        detail: propertyId ? `Listing ${propertyId}` : null,
+      });
+    }
+    if (oldPrice != null && newPrice != null) {
+      provenance.push({
+        id: 'price',
+        label: `€${Math.round(oldPrice).toLocaleString('en-IE')} -> €${Math.round(newPrice).toLocaleString('en-IE')}`,
+        detail: `Reduction of €${Math.round(oldPrice - newPrice).toLocaleString('en-IE')}`,
+      });
+    }
+
+    const { data: row, error } = await supabase
+      .from('pending_drafts')
+      .insert({
+        user_id: userId,
+        tenant_id: tenantId,
+        skin: 'agent',
+        draft_type: 'price_reduction_notice',
+        recipient_id: recipientId,
+        content_json: {
+          recipient_id: recipientId,
+          property_id: propertyId,
+          old_price: oldPrice,
+          new_price: newPrice,
+          subject,
+          body,
+          body_template: template,
+          provenance,
+        },
+        send_method: 'email',
+        status: 'pending_review',
+      })
+      .select('id')
+      .single();
+
+    if (error || !row) {
+      failures.push(recipientId);
+      continue;
+    }
+
+    targetIds.push(row.id);
+    await recordReversal(supabase, ctx, {
+      targetTable: 'pending_drafts',
+      targetId: row.id,
+      reversal: { op: 'delete', table: 'pending_drafts', id: row.id },
+    });
+  }
+
+  if (targetIds.length === 0) {
+    return {
+      id: action.id,
+      type: action.type,
+      success: false,
+      message: 'Could not save any price reduction drafts',
+      error: `Failed for: ${failures.join(', ')}`,
+    };
+  }
+
+  return {
+    id: action.id,
+    type: action.type,
+    success: true,
+    targetId: targetIds[0],
+    targetIds,
+    recipientCount: targetIds.length,
+    message:
+      targetIds.length === 1
+        ? `Drafted price reduction notice for 1 buyer`
+        : `Drafted price reduction notice for ${targetIds.length} buyers`,
+    autoSendHold:
+      failures.length > 0
+        ? `${failures.length} recipient${failures.length === 1 ? '' : 's'} could not be drafted — check the list.`
+        : null,
+  };
+}
+
+function firstNameOf(full: string | null | undefined): string | null {
+  if (!full) return null;
+  const trimmed = String(full).trim();
+  if (!trimmed) return null;
+  return trimmed.split(/\s+/)[0];
+}
+
+async function execDraftChainUpdate(
+  supabase: SupabaseAdmin,
+  ctx: ExecCtx,
+): Promise<ExecutedAction> {
+  const { action } = ctx;
+  const f = action.fields;
+  const buyerId = f.buyer_id ? String(f.buyer_id) : null;
+  const propertyId = f.property_id ? String(f.property_id) : null;
+  const updateType: string = f.update_type || 'custom';
+  const recipient = await resolveRecipient(supabase, 'chain_update_to_buyer', buyerId || propertyId);
+
+  const provenance: Array<{ id: string; label: string; detail: string | null }> = [];
+  provenance.push({
+    id: 'update_type',
+    label: chainUpdateLabel(updateType),
+    detail: updateType === 'custom' && f.custom_detail ? String(f.custom_detail) : null,
+  });
+  if (propertyId && recipient.address) {
+    provenance.push({ id: 'property', label: recipient.address, detail: null });
+  }
+
+  return insertDraftAndMaybeAutoSend(supabase, ctx, {
+    draftType: 'chain_update_to_buyer',
+    recipientId: buyerId,
+    sendMethod: 'email',
+    contentJson: {
+      buyer_id: buyerId,
+      property_id: propertyId,
+      update_type: updateType,
+      custom_detail: f.custom_detail || '',
+      subject: f.subject || `Quick chain update${recipient.address ? ` on ${recipient.address}` : ''}`,
+      body: f.body || '',
+      tone: f.tone || 'reassuring',
+      provenance,
+    },
+    reviewMessage: `Drafted chain update for ${recipient.name || buyerId || 'buyer'}`,
+    autoSendMessage: (name) => `Auto-sending chain update to ${name}`,
+  });
+}
+
+function chainUpdateLabel(type: string): string {
+  switch (type) {
+    case 'survey_completed': return 'Survey completed';
+    case 'solicitor_instructed': return 'Solicitor instructed';
+    case 'contracts_issued': return 'Contracts issued';
+    case 'contracts_exchanged': return 'Contracts exchanged';
+    case 'delay_expected': return 'Delay expected';
+    default: return 'Chain update';
+  }
 }
 
 async function execCreateReminder(

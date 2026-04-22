@@ -31,6 +31,8 @@ const INDEPENDENT_PILLS = [
 const WRITE_PILLS: Array<{ label: string; intent: string }> = [
   { label: 'Log a viewing', intent: 'log_viewing' },
   { label: 'Update the tracker', intent: 'update_tracker' },
+  { label: 'Follow up with a buyer', intent: 'draft_viewing_followup_buyer' },
+  { label: 'Respond to an offer', intent: 'draft_offer_response' },
 ];
 
 interface DraftedEmail {
@@ -640,47 +642,12 @@ export default function IntelligencePage() {
             </p>
 
             {/* Prompt pills */}
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 10,
-                width: '100%',
-                maxWidth: 320,
-              }}
-            >
-              {PROMPT_PILLS.map((pill, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSend(pill)}
-                  className="agent-tappable"
-                  style={{
-                    padding: '13px 14px',
-                    minHeight: 54,
-                    background: '#FFFFFF',
-                    border: '0.5px solid rgba(0,0,0,0.10)',
-                    borderRadius: 16,
-                    color: '#374151',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    lineHeight: 1.4,
-                    whiteSpace: 'normal',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  {pill}
-                </button>
-              ))}
-            </div>
-
-            {/* Write-action chips — voice capture entry points */}
+            {/* Write-action chips — voice capture entry points. Kept above
+                the read chips so the voice-first workflow is the first thing
+                an agent sees on the landing state. */}
             <div
               data-testid="voice-write-chips"
               style={{
-                marginTop: 14,
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
                 gap: 10,
@@ -711,6 +678,43 @@ export default function IntelligencePage() {
                   }}
                 >
                   {pill.label}
+                </button>
+              ))}
+            </div>
+
+            <div
+              style={{
+                marginTop: 14,
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 10,
+                width: '100%',
+                maxWidth: 320,
+              }}
+            >
+              {PROMPT_PILLS.map((pill, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSend(pill)}
+                  className="agent-tappable"
+                  style={{
+                    padding: '13px 14px',
+                    minHeight: 54,
+                    background: '#FFFFFF',
+                    border: '0.5px solid rgba(0,0,0,0.10)',
+                    borderRadius: 16,
+                    color: '#374151',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    lineHeight: 1.4,
+                    whiteSpace: 'normal',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  }}
+                >
+                  {pill}
                 </button>
               ))}
             </div>
@@ -809,10 +813,40 @@ function buildConfirmationSummary(
     // countdown banner, not this summary line.
     if (autoSendUi && autoSendUi.actionId === a.id) continue;
 
+    const result = resultById[a.id];
+
     if (a.type === 'log_viewing') {
       clauses.push(`logged the viewing for ${a.fields.property_id || 'the property'}`);
     } else if (a.type === 'draft_vendor_update') {
-      clauses.push(`drafted the vendor update for you to review`);
+      clauses.push('drafted the vendor update for you to review');
+    } else if (a.type === 'draft_viewing_followup_buyer') {
+      const name = a.fields.recipient_id || 'the buyer';
+      clauses.push(`drafted the viewing follow-up for ${name}`);
+    } else if (a.type === 'draft_offer_response') {
+      const kind: string = a.fields.action || 'acknowledge';
+      const name = a.fields.recipient_id || 'the buyer';
+      if (kind === 'counter') {
+        const amount = typeof a.fields.counter_amount === 'number'
+          ? ` at €${Math.round(a.fields.counter_amount).toLocaleString('en-IE')}`
+          : '';
+        clauses.push(`drafted the counter-offer${amount} for ${name}`);
+      } else if (kind === 'accept') {
+        clauses.push(`drafted the offer acceptance for ${name}`);
+      } else if (kind === 'reject') {
+        clauses.push(`drafted the offer decline for ${name}`);
+      } else {
+        clauses.push(`drafted the offer acknowledgement for ${name}`);
+      }
+    } else if (a.type === 'draft_price_reduction_notice') {
+      const count = result?.recipientCount ?? (Array.isArray(a.fields.recipient_ids) ? a.fields.recipient_ids.length : 0);
+      clauses.push(
+        count === 1
+          ? 'drafted the price reduction notice for 1 buyer'
+          : `drafted the price reduction notice for ${count} buyers`,
+      );
+    } else if (a.type === 'draft_chain_update_to_buyer') {
+      const name = a.fields.buyer_id || 'the buyer';
+      clauses.push(`drafted the chain update for ${name}`);
     } else if (a.type === 'create_reminder') {
       const due = a.fields.due_date ? formatReminder(a.fields.due_date) : '';
       clauses.push(due ? `set a reminder for ${due}` : 'set a reminder');
