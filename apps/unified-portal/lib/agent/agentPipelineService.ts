@@ -16,6 +16,7 @@ export interface PipelineUnit {
   purchaserEmail: string | null;
   purchaserPhone: string | null;
   salePrice: number | null;
+  releaseDate: string | null;
   saleAgreedDate: string | null;
   depositDate: string | null;
   contractsIssuedDate: string | null;
@@ -24,10 +25,15 @@ export interface PipelineUnit {
   kitchenDate: string | null;
   kitchenSelected: boolean | null;
   snagDate: string | null;
+  drawdownDate: string | null;
   estimatedCloseDate: string | null;
   handoverDate: string | null;
   mortgageExpiryDate: string | null;
   comments: string | null; // JSON string
+  // Session 6: raw status from unit_sales_pipeline (e.g. in_progress,
+  // handed_over) kept alongside the normalised `status` so analytics that
+  // want the exact DB value still have it.
+  pipelineStatusRaw?: string;
 }
 
 export interface PipelineNote {
@@ -129,11 +135,20 @@ function parseComments(comments: string | null): { solicitor?: any; mortgage?: a
   }
 }
 
-// Normalize status values from DB (some records use 'agreed' instead of 'sale_agreed')
-function normalizeStatus(status: string): PipelineUnit['status'] {
-  if (status === 'agreed') return 'sale_agreed';
-  if (['for_sale', 'sale_agreed', 'contracts_issued', 'signed', 'sold'].includes(status)) {
-    return status as PipelineUnit['status'];
+// Normalise pipeline_status from the DB into the UI enum.
+// Prod values include: for_sale | agreed | sale_agreed | in_progress | signed | handed_over
+// UI enum:             for_sale | sale_agreed | contracts_issued | signed | sold
+function normalizeStatus(status: string, row?: any): PipelineUnit['status'] {
+  if (status === 'handed_over' || status === 'sold') return 'sold';
+  if (status === 'agreed' || status === 'sale_agreed') return 'sale_agreed';
+  if (status === 'signed') return 'signed';
+  if (status === 'contracts_issued') return 'contracts_issued';
+  if (status === 'for_sale') return 'for_sale';
+  if (status === 'in_progress') {
+    if (row?.handover_date) return 'sold';
+    if (row?.signed_contracts_date || row?.counter_signed_date) return 'signed';
+    if (row?.contracts_issued_date) return 'contracts_issued';
+    return 'sale_agreed';
   }
   return 'for_sale';
 }
@@ -254,9 +269,9 @@ export async function getAgentPipeline(agentId: string, developmentId: string, k
     .from('unit_sales_pipeline')
     .select(`
       id, unit_id, status, purchaser_name, purchaser_email, purchaser_phone,
-      sale_price, sale_agreed_date, deposit_date, contracts_issued_date,
+      sale_price, release_date, sale_agreed_date, deposit_date, contracts_issued_date,
       signed_contracts_date, counter_signed_date, kitchen_date, kitchen_selected,
-      snag_date, estimated_close_date, handover_date, mortgage_expiry_date, comments
+      snag_date, drawdown_date, estimated_close_date, handover_date, mortgage_expiry_date, comments
     `)
     .eq('development_id', developmentId);
 
@@ -280,7 +295,7 @@ export async function getAgentPipeline(agentId: string, developmentId: string, k
 
   const unitMap = new Map((units || []).map(u => [u.id, u]));
 
-  const result = pipelineData.map(p => {
+  const result: PipelineUnit[] = pipelineData.map(p => {
     const unit = unitMap.get(p.unit_id);
     return {
       id: p.id,
@@ -291,11 +306,13 @@ export async function getAgentPipeline(agentId: string, developmentId: string, k
       developmentName: devName,
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
-      status: normalizeStatus(p.status || 'for_sale'),
+      status: normalizeStatus(p.status || 'for_sale', p),
+      pipelineStatusRaw: p.status || 'for_sale',
       purchaserName: p.purchaser_name,
       purchaserEmail: p.purchaser_email,
       purchaserPhone: p.purchaser_phone,
       salePrice: p.sale_price ? Number(p.sale_price) : null,
+      releaseDate: p.release_date,
       saleAgreedDate: p.sale_agreed_date,
       depositDate: p.deposit_date,
       contractsIssuedDate: p.contracts_issued_date,
@@ -304,6 +321,7 @@ export async function getAgentPipeline(agentId: string, developmentId: string, k
       kitchenDate: p.kitchen_date,
       kitchenSelected: p.kitchen_selected,
       snagDate: p.snag_date,
+      drawdownDate: p.drawdown_date,
       estimatedCloseDate: p.estimated_close_date,
       handoverDate: p.handover_date,
       mortgageExpiryDate: p.mortgage_expiry_date,
@@ -357,10 +375,12 @@ export async function getAgentPipelineAll(agentId: string, developmentIds: strin
           bedrooms: u.bedrooms || null,
           unitTypeName: null,
           status: 'for_sale',
+          pipelineStatusRaw: 'for_sale',
           purchaserName: null,
           purchaserEmail: null,
           purchaserPhone: null,
           salePrice: null,
+          releaseDate: null,
           saleAgreedDate: null,
           depositDate: null,
           contractsIssuedDate: null,
@@ -369,6 +389,7 @@ export async function getAgentPipelineAll(agentId: string, developmentIds: strin
           kitchenDate: null,
           kitchenSelected: null,
           snagDate: null,
+          drawdownDate: null,
           estimatedCloseDate: null,
           handoverDate: null,
           mortgageExpiryDate: null,
