@@ -986,40 +986,79 @@ export default function PurchaserChatTab({
   const [isIOSNative, setIsIOSNative] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const [iosTabBarHeight, setIosTabBarHeight] = useState(96); // Dynamic height, fallback 96px
+  // Android TWA detection — the Play Store app is a Trusted Web Activity that wraps this
+  // site in Android Chrome. In TWA the launch happens in standalone display-mode and the
+  // UA contains "Android" + "wv" (WebView) OR the normal Chrome UA plus the standalone
+  // display mode. We use this flag to skip the iOS-style VisualViewport transform on
+  // Android — once layout.tsx sets `interactiveWidget: resizes-content`, Android Chrome
+  // shrinks the layout viewport when the keyboard opens, which means the input bar's
+  // `position: fixed; bottom: …` anchor is already correct; applying the iOS
+  // `translateY(-vv-offset)` on top of that was double-compensating and floating the
+  // bar mid-screen as VisualViewport's offsetTop jittered during scroll (Bug 1).
+  const [isAndroidTWA, setIsAndroidTWA] = useState(false);
 
   // Detect iOS Capacitor native platform - runs once on mount
   // Uses window.Capacitor which is injected by Capacitor runtime in native apps
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     // Check for Capacitor on window object (injected by native runtime)
     const cap = (window as any).Capacitor;
     if (cap && typeof cap.isNativePlatform === 'function' && typeof cap.getPlatform === 'function') {
       if (cap.isNativePlatform() && cap.getPlatform() === 'ios') {
         setIsIOSNative(true);
+        return;
       }
+    }
+
+    // Detect Android TWA (Trusted Web Activity from Play Store): the Digital Asset Links
+    // handshake launches our URL in a Chrome custom tab running in standalone display
+    // mode. We look for (a) Android UA AND (b) standalone display-mode (or "android-app"
+    // referrer, which the TWA shim injects). Regular Android Chrome tabs don't match
+    // because they're in "browser" display-mode.
+    const ua = navigator.userAgent || '';
+    const isAndroid = /Android/i.test(ua);
+    if (!isAndroid) return;
+    const isStandalone =
+      (typeof window.matchMedia === 'function' &&
+        window.matchMedia('(display-mode: standalone)').matches) ||
+      (typeof document !== 'undefined' &&
+        document.referrer.startsWith('android-app://'));
+    if (isStandalone) {
+      setIsAndroidTWA(true);
     }
   }, []);
 
-  // Track keyboard state for iOS native ONLY
+  // Track keyboard state for iOS native AND Android TWA.
+  // We use the same VisualViewport-height-delta heuristic in both cases: when the soft
+  // keyboard opens, VisualViewport.height is significantly smaller than window.innerHeight.
+  // (On Android with `interactiveWidget: resizes-content` the delta is small because the
+  // layout viewport itself shrinks too — we compare against the *outer* height instead.)
   useEffect(() => {
-    if (!isIOSNative || typeof window === 'undefined') return;
-    
+    if (!isIOSNative && !isAndroidTWA) return;
+    if (typeof window === 'undefined') return;
+
     const vv = window.visualViewport;
     if (!vv) return;
-    
+
     const checkKeyboard = () => {
-      // Keyboard is open if visual viewport is significantly smaller than window
       const keyboardThreshold = 150;
-      const keyboardOpen = (window.innerHeight - vv.height) > keyboardThreshold;
+      // On Android TWA with resizes-content, innerHeight also shrinks, so use the
+      // screen.height as a reference if available; fall back to the documentElement
+      // client height captured at mount. In practice `vv.height < window.innerHeight`
+      // still holds transiently during keyboard animation, which is enough signal.
+      const reference = isAndroidTWA
+        ? Math.max(window.innerHeight, (window.screen && window.screen.height) || 0)
+        : window.innerHeight;
+      const keyboardOpen = (reference - vv.height) > keyboardThreshold;
       setIsKeyboardOpen(keyboardOpen);
     };
-    
+
     vv.addEventListener('resize', checkKeyboard);
     checkKeyboard();
-    
+
     return () => vv.removeEventListener('resize', checkKeyboard);
-  }, [isIOSNative]);
+  }, [isIOSNative, isAndroidTWA]);
 
   // Measure actual tab bar height from DOM for iOS native
   useEffect(() => {
@@ -1095,18 +1134,27 @@ export default function PurchaserChatTab({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const vv = window.visualViewport;
-    
+
     if (vv) {
       const onResize = () => {
-        const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+        // On Android TWA, `interactiveWidget: resizes-content` (set in app/layout.tsx)
+        // already shrinks the layout viewport to exclude the keyboard, so the
+        // `position: fixed; bottom: …` anchor on the input bar is correct on its own.
+        // Writing a nonzero `--vv-offset` here would translateY the bar upward a
+        // second time — which is exactly the "input bar floating mid-screen" symptom
+        // reported in the TWA when the user swipes (VisualViewport's `offsetTop`
+        // jitters during scroll on Android). Pin the offset to 0 on Android TWA.
+        const offset = isAndroidTWA
+          ? 0
+          : Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
         document.documentElement.style.setProperty('--vv-offset', `${offset}px`);
       };
-      
+
       vv.addEventListener('resize', onResize);
       vv.addEventListener('scroll', onResize);
       onResize();
-      
+
       return () => {
         vv.removeEventListener('resize', onResize);
         vv.removeEventListener('scroll', onResize);
@@ -1120,7 +1168,7 @@ export default function PurchaserChatTab({
       fallback();
       return () => window.removeEventListener('resize', fallback);
     }
-  }, []);
+  }, [isAndroidTWA]);
 
   useEffect(() => {
     // Initialize Web Speech API
@@ -2033,10 +2081,21 @@ export default function PurchaserChatTab({
             ? 'bg-[#0F0F0F]/97 backdrop-blur-xl border-t border-[#2A2A2A]/50'
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
-        style={{ 
-          bottom: isIOSNative 
-            ? (isKeyboardOpen ? 0 : iosTabBarHeight) 
-            : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
+        style={{
+          bottom: isIOSNative
+            ? (isKeyboardOpen ? 0 : iosTabBarHeight)
+            : isAndroidTWA
+              // Android TWA: `interactiveWidget: resizes-content` has already shrunk
+              // the layout viewport to exclude the keyboard. When the keyboard is open
+              // we pin the input bar to the bottom of the (now-shrunk) viewport so it
+              // sits flush against the keyboard — matching iOS behavior. When the
+              // keyboard is closed, sit above the tab bar plus safe-area inset.
+              ? (isKeyboardOpen
+                  ? 'env(safe-area-inset-bottom, 0px)'
+                  : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))')
+              : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
+          // On Android TWA the VV-offset is pinned to 0 (see the VisualViewport effect
+          // above), so this transform is a no-op there — keeps web/iOS behavior intact.
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >

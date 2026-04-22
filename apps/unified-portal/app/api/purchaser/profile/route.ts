@@ -84,12 +84,28 @@ export async function GET(request: NextRequest) {
 
     const supabase = getSupabaseClient();
 
-    // Source of truth: the units row. We intentionally do NOT read unit_types.specification_json
-    // — that is a type-level default, and for Rathárd Park it contains known-wrong values
-    // (4/3 bed/bath instead of 2/2, floor area in sqft under an sqm key).
+    // Source of truth: the units row. Historically we avoided reading
+    // `unit_types.specification_json` entirely because for Rathárd Park it contains
+    // known-wrong values (4/3 bed/bath instead of 2/2, floor area in sqft stored under
+    // an sqm key). But for Longview Park (Árdan View / BS01) the units row has NULL
+    // bathrooms AND NULL floor_area_m2 across every row, and the type-level
+    // specification_json is the only source of per-home dimensions. Bug 3 was caused
+    // by only reading the units row, which rendered "—" for both values.
+    //
+    // Fix: always read the units row first; if bathrooms or floor area are missing,
+    // fall back to `unit_types.specification_json` (via `units.unit_type_id`) with
+    // these safety rails:
+    //   - bathrooms: use the spec value as-is (it's a count)
+    //   - floor_area_sqm: treat values > 300 as sqft and divide by 10.7639. Any
+    //     realistic residential unit is ≤ 300 m²; Longview's spec value of 1188.33
+    //     under a "sqm" key is definitely the sqft (110.4 m²) mislabeled.
+    //   - bedrooms: only use the spec value when the units row bedrooms is NULL
+    //     (units.bedrooms is trusted when present)
+    // We do NOT use unit_types spec for property_type — that's what caused the
+    // Rathárd Park bug and is still unreliable.
     const { data: supabaseUnit, error } = await supabase
       .from('units')
-      .select('id, address, purchaser_name, project_id, development_id, house_type_code, bedrooms, bathrooms, floor_area_m2, property_type')
+      .select('id, address, purchaser_name, project_id, development_id, house_type_code, bedrooms, bathrooms, floor_area_m2, property_type, unit_type_id')
       .eq('id', unitUid)
       .single();
 
@@ -154,9 +170,62 @@ export async function GET(request: NextRequest) {
 
     const houseTypeCode = ((supabaseUnit as any).house_type_code as string | null) || '';
     const houseTypeName = ((supabaseUnit as any).property_type as string | null) || houseTypeCode;
-    const bedrooms = toNumberOrNull((supabaseUnit as any).bedrooms);
-    const bathrooms = toNumberOrNull((supabaseUnit as any).bathrooms);
-    const floorAreaM2 = toNumberOrNull((supabaseUnit as any).floor_area_m2);
+    let bedrooms = toNumberOrNull((supabaseUnit as any).bedrooms);
+    let bathrooms = toNumberOrNull((supabaseUnit as any).bathrooms);
+    let floorAreaM2 = toNumberOrNull((supabaseUnit as any).floor_area_m2);
+
+    // Fallback to unit_types.specification_json when the units row is missing
+    // bathrooms or floor area. See the note on the units SELECT above for why this
+    // is necessary (Longview Park units have NULL for both columns) and the safety
+    // rails we apply to spec_json values.
+    const unitTypeId = (supabaseUnit as any).unit_type_id as string | null | undefined;
+    const needBathrooms = bathrooms === null;
+    const needFloorArea = floorAreaM2 === null;
+    const needBedrooms = bedrooms === null;
+    if (unitTypeId && (needBathrooms || needFloorArea || needBedrooms)) {
+      try {
+        const { data: unitTypeRow } = await supabase
+          .from('unit_types')
+          .select('specification_json')
+          .eq('id', unitTypeId)
+          .single();
+        const spec = ((unitTypeRow as any)?.specification_json || {}) as Record<string, unknown>;
+
+        if (needBathrooms) {
+          const specBathrooms = toNumberOrNull(spec.bathrooms);
+          if (specBathrooms !== null) bathrooms = specBathrooms;
+        }
+
+        if (needBedrooms) {
+          const specBedrooms = toNumberOrNull(spec.bedrooms);
+          if (specBedrooms !== null) bedrooms = specBedrooms;
+        }
+
+        if (needFloorArea) {
+          // `specification_json.floor_area_sqm` is the documented key, but for
+          // Árdan View (BS01) the value is actually the sqft figure mislabeled as
+          // sqm (e.g. 1188.33 — which is 110.4 m², the real number). Any value
+          // >300 is treated as sqft and converted; anything ≤300 is used as-is.
+          const rawArea = toNumberOrNull(spec.floor_area_sqm);
+          if (rawArea !== null && rawArea > 0) {
+            const SQM_THRESHOLD = 300; // realistic residential ceiling
+            const SQFT_TO_SQM = 10.7639;
+            const resolved = rawArea > SQM_THRESHOLD ? (rawArea / SQFT_TO_SQM) : rawArea;
+            // Round to 1 decimal place — the UI will further round/display as it wishes.
+            floorAreaM2 = Math.round(resolved * 10) / 10;
+          }
+        }
+
+        console.log('[profile] unit-type fallback applied', JSON.stringify({
+          unit_id: supabaseUnit.id,
+          unit_type_id: unitTypeId,
+          needed: { bathrooms: needBathrooms, floorArea: needFloorArea, bedrooms: needBedrooms },
+          resolved: { bathrooms, floorAreaM2, bedrooms },
+        }));
+      } catch (_utErr) {
+        // Leave values null — UI will render "—"
+      }
+    }
     
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
     
@@ -223,8 +292,22 @@ export async function GET(request: NextRequest) {
           const fileUrl = (meta.file_url as string | undefined) || null;
           const mimeType = (meta.mime_type as string | undefined) || 'application/pdf';
           const drawingClassification = (meta.drawing_classification || {}) as Record<string, unknown>;
-          const drawingType = (drawingClassification.drawingType as string | undefined) || null;
-          const description = (drawingClassification.drawingDescription as string | undefined) || null;
+          // `drawingType` lives in two metadata shapes depending on when the document
+          // was ingested:
+          //   - metadata.drawing_classification.drawingType  (nested — newer shape)
+          //   - metadata.drawing_type                        (flat — older shape, used
+          //                                                   by the Árdan View BS01
+          //                                                   ingestion for Bug 4)
+          // Read the nested path first (it carries richer sibling data) and fall back
+          // to the flat key. Same pattern for drawingDescription / description.
+          const drawingType =
+            (drawingClassification.drawingType as string | undefined)
+            || (meta.drawing_type as string | undefined)
+            || null;
+          const description =
+            (drawingClassification.drawingDescription as string | undefined)
+            || (meta.description as string | undefined)
+            || null;
 
           uniqueDocs.set(fileName, {
             id: section.id,

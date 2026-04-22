@@ -438,86 +438,121 @@ export default function PurchaserProfilePanel({
             )}
           </div>
 
-          {/* Section Tabs */}
-          <div className="px-6 flex gap-2 overflow-x-auto scrollbar-hide" style={{ WebkitOverflowScrolling: 'touch' }}>
-            <button
-              onClick={() => setActiveSection('home')}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
-                ${activeSection === 'home'
-                  ? (isDarkMode 
-                      ? 'bg-gray-900 text-gold-400 shadow-lg' 
-                      : 'bg-white text-gold-600 shadow-lg')
-                  : (isDarkMode 
-                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300' 
-                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
-                }`}
+          {/*
+            Section Tabs
+
+            Bug 2: On small Android widths (≤~400px) the four tabs with full labels
+            ("Property Details", "My Documents", "Saved", "Account") + icons + the
+            `px-6` outer padding + `px-4` inner padding + count badges overflow the
+            container, and the `overflow-x-auto scrollbar-hide` masks any hint that
+            the row is scrollable — users perceive the tabs as "missing".
+
+            Fix: shorter mobile-first labels ("Property"/"Documents"/"Saved"/"Account"),
+            tighter inner padding on mobile (px-3 instead of px-4), `pr-4` end padding
+            inside the scroller so the last tab isn't flush with the fade, and a
+            right-edge gradient that reveals there is more content to scroll. The full
+            labels still appear on sm: and up (where there is room).
+          */}
+          <div className="relative">
+            <div
+              className="px-6 pr-4 flex gap-2 overflow-x-auto scrollbar-hide"
+              style={{ WebkitOverflowScrolling: 'touch' }}
             >
-              <Home className="w-4 h-4" />
-              <span>Property Details</span>
-            </button>
-            <button
-              onClick={() => setActiveSection('documents')}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
-                ${activeSection === 'documents'
-                  ? (isDarkMode 
-                      ? 'bg-gray-900 text-gold-400 shadow-lg' 
-                      : 'bg-white text-gold-600 shadow-lg')
-                  : (isDarkMode 
-                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300' 
-                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
-                }`}
-            >
-              <FileText className="w-4 h-4" />
-              <span>My Documents</span>
-              {profile && profile.documents.length > 0 && (
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold
+              <button
+                onClick={() => setActiveSection('home')}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+                  ${activeSection === 'home'
+                    ? (isDarkMode
+                        ? 'bg-gray-900 text-gold-400 shadow-lg'
+                        : 'bg-white text-gold-600 shadow-lg')
+                    : (isDarkMode
+                        ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                        : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                  }`}
+              >
+                <Home className="w-4 h-4" />
+                {/* Shorter label on mobile so all 4 tabs fit on narrow Android widths */}
+                <span className="sm:hidden">Property</span>
+                <span className="hidden sm:inline">Property Details</span>
+              </button>
+              <button
+                onClick={() => setActiveSection('documents')}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                   ${activeSection === 'documents'
-                    ? (isDarkMode ? 'bg-gold-500/20 text-gold-400' : 'bg-gold-100 text-gold-700')
-                    : (isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
-                  }`}>
-                  {profile.documents.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveSection('saved')}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
-                ${activeSection === 'saved'
-                  ? (isDarkMode 
-                      ? 'bg-gray-900 text-gold-400 shadow-lg' 
-                      : 'bg-white text-gold-600 shadow-lg')
-                  : (isDarkMode 
-                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300' 
-                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
-                }`}
-            >
-              <Bookmark className="w-4 h-4" />
-              <span>Saved</span>
-              {savedNotes.length > 0 && (
-                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold
+                    ? (isDarkMode
+                        ? 'bg-gray-900 text-gold-400 shadow-lg'
+                        : 'bg-white text-gold-600 shadow-lg')
+                    : (isDarkMode
+                        ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                        : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                  }`}
+              >
+                <FileText className="w-4 h-4" />
+                <span className="sm:hidden">Documents</span>
+                <span className="hidden sm:inline">My Documents</span>
+                {profile && profile.documents.length > 0 && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold
+                    ${activeSection === 'documents'
+                      ? (isDarkMode ? 'bg-gold-500/20 text-gold-400' : 'bg-gold-100 text-gold-700')
+                      : (isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
+                    }`}>
+                    {profile.documents.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveSection('saved')}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
                   ${activeSection === 'saved'
-                    ? (isDarkMode ? 'bg-gold-500/20 text-gold-400' : 'bg-gold-100 text-gold-700')
-                    : (isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
-                  }`}>
-                  {savedNotes.length}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setActiveSection('account')}
-              className={`flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
-                ${activeSection === 'account'
-                  ? (isDarkMode
-                      ? 'bg-gray-900 text-gold-400 shadow-lg'
-                      : 'bg-white text-gold-600 shadow-lg')
-                  : (isDarkMode
-                      ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
-                      : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
-                }`}
-            >
-              <ArrowRightLeft className="w-4 h-4" />
-              <span>Account</span>
-            </button>
+                    ? (isDarkMode
+                        ? 'bg-gray-900 text-gold-400 shadow-lg'
+                        : 'bg-white text-gold-600 shadow-lg')
+                    : (isDarkMode
+                        ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                        : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                  }`}
+              >
+                <Bookmark className="w-4 h-4" />
+                <span>Saved</span>
+                {savedNotes.length > 0 && (
+                  <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs font-bold
+                    ${activeSection === 'saved'
+                      ? (isDarkMode ? 'bg-gold-500/20 text-gold-400' : 'bg-gold-100 text-gold-700')
+                      : (isDarkMode ? 'bg-gray-700 text-gray-400' : 'bg-gray-200 text-gray-600')
+                    }`}>
+                    {savedNotes.length}
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setActiveSection('account')}
+                className={`flex-shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-t-xl text-sm font-medium transition-all
+                  ${activeSection === 'account'
+                    ? (isDarkMode
+                        ? 'bg-gray-900 text-gold-400 shadow-lg'
+                        : 'bg-white text-gold-600 shadow-lg')
+                    : (isDarkMode
+                        ? 'bg-gray-800/50 text-gray-400 hover:text-gray-300'
+                        : 'bg-gray-100/50 text-gray-500 hover:text-gray-700')
+                  }`}
+              >
+                <ArrowRightLeft className="w-4 h-4" />
+                <span>Account</span>
+              </button>
+            </div>
+            {/*
+              Right-edge fade hint — purely decorative, so `pointer-events-none` keeps it
+              from intercepting taps on the underlying scroller. Width matches the outer
+              pr-4 spacing so the last tab is still fully legible behind the fade.
+            */}
+            <div
+              aria-hidden="true"
+              className={`pointer-events-none absolute top-0 right-0 h-full w-6 sm:hidden ${
+                isDarkMode
+                  ? 'bg-gradient-to-l from-gray-900 to-transparent'
+                  : 'bg-gradient-to-l from-white to-transparent'
+              }`}
+            />
           </div>
         </div>
 
