@@ -28,15 +28,16 @@ import {
   naturalQuery,
   scheduleViewingDraft,
   SkillAgentContext,
-  AgenticSkillEnvelope,
 } from './agentic-skills';
+import type { AgenticSkillEnvelope } from '../envelope';
+import { persistSkillEnvelope } from '../draft-store';
 
 // Adapter between the model-facing ToolFunction signature (which operates on
 // AgentContext and returns ToolResult) and the agentic-skill signature (which
-// takes a SkillAgentContext and returns an AgenticSkillEnvelope). The
-// envelope is returned verbatim as `data` so the route handler and /confirm
-// endpoint can pass it straight through; `summary` is mirrored for any code
-// path that only needs the short blurb.
+// takes a SkillAgentContext and returns an AgenticSkillEnvelope). After the
+// skill produces the envelope we funnel it through persistSkillEnvelope so
+// every draft in `drafts[]` becomes a real `pending_drafts.id` before the
+// chat route streams the envelope to the client.
 async function runAgenticSkill<I extends Record<string, any>>(
   fn: (
     supabase: SupabaseClient,
@@ -54,7 +55,8 @@ async function runAgenticSkill<I extends Record<string, any>>(
     displayName: agentContext.displayName,
     agencyName: profile?.agencyName || '',
   };
-  const envelope = await fn(supabase, skillCtx, params);
+  const raw = await fn(supabase, skillCtx, params);
+  const envelope = await persistSkillEnvelope(supabase, raw, agentContext);
   return { data: envelope, summary: envelope.summary };
 }
 
