@@ -394,4 +394,9 @@ export const REQUIRED_FIELDS_BY_DRAFT_TYPE: Record<string, readonly string[]> = 
   draft_price_reduction_notice: ['property_id', 'new_price', 'recipient_ids', 'body_template'],
   chain_update_to_buyer: ['buyer_id', 'property_id', 'update_type', 'body'],
   draft_chain_update_to_buyer: ['buyer_id', 'property_id', 'update_type', 'body'],
+  // Lettings — Session 4B. applicant_name resolution runs against the same-
+  // batch attendees first; auto-send only fires when the agent explicitly
+  // named the applicant and property in the voice capture.
+  application_invitation: ['applicant_name', 'letting_property_id', 'body', 'tone'],
+  draft_application_invitation: ['applicant_name', 'letting_property_id', 'body', 'tone'],
 };

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Image from 'next/image';
-import { Check, HelpCircle, PauseCircle, Pencil, X } from 'lucide-react';
+import { Check, HelpCircle, PauseCircle, Pencil, RefreshCw, X } from 'lucide-react';
 import AutoSendCountdown from './AutoSendCountdown';
 import {
   LOW_CONFIDENCE_THRESHOLD,
@@ -28,11 +28,13 @@ interface VoiceConfirmationCardProps {
   results?: ExecutedAction[];
   autoSendUi?: AutoSendUiState | null;
   globalPaused?: boolean;
+  retryingIds?: string[];
   onChange: (actions: ExtractedAction[]) => void;
   onApprove: () => void;
   onDiscard: () => void;
   onAutoSendElapsed?: () => void;
   onAutoSendCancel?: () => void;
+  onRetryAction?: (actionId: string) => void;
 }
 
 /**
@@ -46,12 +48,15 @@ export default function VoiceConfirmationCard({
   results,
   autoSendUi,
   globalPaused,
+  retryingIds,
   onChange,
   onApprove,
   onDiscard,
   onAutoSendElapsed,
   onAutoSendCancel,
+  onRetryAction,
 }: VoiceConfirmationCardProps) {
+  const retryingSet = useMemo(() => new Set(retryingIds || []), [retryingIds]);
   const resultById = useMemo(() => {
     const map: Record<string, ExecutedAction> = {};
     for (const r of results || []) map[r.id] = r;
@@ -236,8 +241,10 @@ export default function VoiceConfirmationCard({
               action={action}
               status={status}
               result={resultById[action.id]}
+              isRetrying={retryingSet.has(action.id)}
               onRemove={() => removeAction(action.id)}
               onFieldChange={(field, value) => updateField(action.id, field, value)}
+              onRetry={onRetryAction ? () => onRetryAction(action.id) : undefined}
             />
           ))}
         </div>
@@ -313,15 +320,21 @@ function ActionSection({
   action,
   status,
   result,
+  isRetrying,
   onRemove,
   onFieldChange,
+  onRetry,
 }: {
   action: ExtractedAction;
   status: VoiceConfirmationCardProps['status'];
   result?: ExecutedAction;
+  isRetrying?: boolean;
   onRemove: () => void;
   onFieldChange: (field: string, value: any) => void;
+  onRetry?: () => void;
 }) {
+  const failed = status === 'done' && result && !result.success;
+  const canRetry = !!onRetry && failed && !isRetrying;
   return (
     <div
       style={{
@@ -374,19 +387,50 @@ function ActionSection({
           </button>
         )}
         {status === 'done' && result && (
-          <span
-            style={{
-              fontSize: 11,
-              fontWeight: 600,
-              color: result.success ? '#059669' : '#DC2626',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-            }}
-          >
-            {result.success ? <Check size={13} /> : <X size={13} />}
-            {result.success ? 'Done' : 'Failed'}
-          </span>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <span
+              data-testid={`action-status-${action.id}`}
+              data-success={result.success ? 'true' : 'false'}
+              style={{
+                fontSize: 11,
+                fontWeight: 600,
+                color: result.success ? '#059669' : '#DC2626',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
+            >
+              {result.success ? <Check size={13} /> : <X size={13} />}
+              {result.success ? 'Done' : 'Failed'}
+            </span>
+            {canRetry && (
+              <button
+                data-testid={`action-retry-${action.id}`}
+                onClick={onRetry}
+                className="agent-tappable"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#8A6E1F',
+                  background: 'rgba(196,155,42,0.1)',
+                  border: '0.5px solid rgba(196,155,42,0.3)',
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                <RefreshCw size={11} />
+                Retry
+              </button>
+            )}
+            {isRetrying && (
+              <span style={{ fontSize: 11, color: '#9CA3AF' }}>Retrying...</span>
+            )}
+          </div>
         )}
       </div>
 

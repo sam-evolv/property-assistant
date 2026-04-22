@@ -4,13 +4,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
+import { useApplicantsCount } from '../_hooks/useApplicantsCount';
 
-type TabId = 'home' | 'pipeline' | 'viewings' | 'docs';
+type TabId = 'home' | 'pipeline' | 'applicants' | 'viewings' | 'docs';
 
 const TABS: { id: TabId; label: string; href: string }[] = [
   { id: 'home', label: 'Home', href: '/agent/home' },
   { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline' },
   // Intelligence FAB sits between the two clusters.
+  // Right cluster leans lettings-heavy: Applicants + Viewings + Docs.
+  // Drafts was removed from the bottom nav in Session 5B; access is via
+  // the FAB badge, the Home tile, or the Intelligence greeting.
+  { id: 'applicants', label: 'Applicants', href: '/agent/applicants' },
   { id: 'viewings', label: 'Viewings', href: '/agent/viewings' },
   { id: 'docs', label: 'Docs', href: '/agent/docs' },
 ];
@@ -34,6 +39,16 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
           <rect x="14" y="3" width="7" height="7" rx="1.5" />
           <rect x="3" y="14" width="7" height="7" rx="1.5" />
           <rect x="14" y="14" width="7" height="7" rx="1.5" />
+        </svg>
+      );
+    case 'applicants':
+      // Lucide Users glyph.
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+          <circle cx="9" cy="7" r="4" />
+          <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+          <path d="M16 3.13a4 4 0 0 1 0 7.75" />
         </svg>
       );
     case 'viewings':
@@ -60,6 +75,7 @@ export default function BottomNav() {
   const isActive = (href: string) => pathname.startsWith(href);
   const intelActive = pathname.startsWith('/agent/intelligence');
   const { count: draftsCount } = useDraftsCount();
+  const { count: applicantsCount } = useApplicantsCount();
 
   const leftTabs = TABS.slice(0, 2);
   const rightTabs = TABS.slice(2);
@@ -196,7 +212,7 @@ export default function BottomNav() {
         </span>
       </div>
 
-      {/* Right tabs: Viewings, Docs */}
+      {/* Right tabs: Applicants, Viewings, Docs */}
       {rightTabs.map((tab) => {
         const active = isActive(tab.href);
         return (
@@ -217,6 +233,9 @@ export default function BottomNav() {
             {active && <GoldIndicator />}
             <div style={{ position: 'relative' }}>
               <TabIcon id={tab.id} active={active} />
+              {tab.id === 'applicants' && applicantsCount > 0 && (
+                <TabBadge count={applicantsCount} testId="applicants-badge" />
+              )}
             </div>
             <span
               style={{
@@ -254,6 +273,32 @@ function FabDraftsBadge({ count }: { count: number }) {
         lineHeight: '18px',
         textAlign: 'center',
         boxShadow: '0 1px 4px rgba(0,0,0,0.35), 0 0 0 1.5px #0D0D12',
+      }}
+    >
+      {count > 9 ? '9+' : count}
+    </span>
+  );
+}
+
+function TabBadge({ count, testId = 'tab-badge' }: { count: number; testId?: string }) {
+  return (
+    <span
+      data-testid={testId}
+      style={{
+        position: 'absolute',
+        top: -4,
+        right: -8,
+        minWidth: 16,
+        height: 16,
+        padding: '0 4px',
+        borderRadius: 8,
+        background: '#D4AF37',
+        color: '#0b0c0f',
+        fontSize: 9.5,
+        fontWeight: 700,
+        lineHeight: '16px',
+        textAlign: 'center',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
       }}
     >
       {count > 9 ? '9+' : count}
