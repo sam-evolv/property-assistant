@@ -32,6 +32,24 @@ export interface ExecutedAction {
   targetId?: string;
   message: string;
   error?: string;
+  /**
+   * Session 3: when the user has turned on auto-send for the draft_type and
+   * every gate passes (confidence, active hours, trust floor, global kill
+   * switch), the server returns a plan here. The client renders a countdown
+   * and either fires send-draft when it elapses or cancels and flips the
+   * draft back to pending_review.
+   */
+  autoSendPlan?: {
+    draftId: string;
+    draftType: string;
+    countdownSeconds: number;
+    recipientName: string;
+  } | null;
+  /**
+   * When auto-send was considered but blocked by a gate, the human-friendly
+   * reason shows as a one-liner under the action in the confirmation card.
+   */
+  autoSendHold?: string | null;
 }
 
 const CONFIDENCE_SCHEMA = {

@@ -3,6 +3,14 @@ import { randomUUID } from 'crypto';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import {
+  decideAutoSend,
+  ELIGIBILITY_RULES,
+  loadAutonomyPreferences,
+  REQUIRED_FIELDS_BY_DRAFT_TYPE,
+  type SendHistoryRow,
+} from '@/lib/agent-intelligence/autonomy';
+import { resolveRecipient } from '@/lib/agent-intelligence/drafts';
 import type {
   ExtractedAction,
   ExecutedAction,
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
     if (user) {
       const { data } = await supabase
         .from('agent_profiles')
-        .select('id, user_id, tenant_id')
+        .select('id, user_id, tenant_id, timezone')
         .eq('user_id', user.id)
         .limit(1)
         .maybeSingle();
@@ -49,7 +57,7 @@ export async function POST(request: NextRequest) {
     if (!agentProfile) {
       const { data } = await supabase
         .from('agent_profiles')
-        .select('id, user_id, tenant_id')
+        .select('id, user_id, tenant_id, timezone')
         .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle();
@@ -62,6 +70,27 @@ export async function POST(request: NextRequest) {
 
     const batchId = randomUUID();
     const userId = user?.id || agentProfile.user_id;
+    const timezone = agentProfile.timezone || 'Europe/Dublin';
+
+    // Load autonomy prefs + the last 10 auto-sends per draft_type so the
+    // decideAutoSend helper can apply every gate in one go. This is a single
+    // batch of queries per approval, not per-action.
+    const [autonomy, { data: recentAutoSendRows }] = await Promise.all([
+      loadAutonomyPreferences(supabase, userId),
+      supabase
+        .from('agent_send_history')
+        .select('id, user_id, draft_type, was_edited_before_send, undone, sent_at, send_mode')
+        .eq('user_id', userId)
+        .eq('send_mode', 'auto_sent')
+        .order('sent_at', { ascending: false })
+        .limit(ELIGIBILITY_RULES.trustFloorWindow * 4),
+    ]);
+
+    const recentByType = new Map<string, SendHistoryRow[]>();
+    for (const r of (recentAutoSendRows || []) as SendHistoryRow[]) {
+      if (!recentByType.has(r.draft_type)) recentByType.set(r.draft_type, []);
+      recentByType.get(r.draft_type)!.push(r);
+    }
 
     const results = await Promise.all(
       actions.map((action) =>
@@ -71,11 +100,14 @@ export async function POST(request: NextRequest) {
           userId,
           tenantId: agentProfile.tenant_id,
           agentId: agentProfile.id,
+          timezone,
+          autonomy,
+          recentByType,
         }),
       ),
     );
 
-    return NextResponse.json({ batchId, results });
+    return NextResponse.json({ batchId, results, globalPaused: autonomy.globalPaused });
   } catch (error: any) {
     console.error('[agent/intelligence/execute-actions] Error:', error.message);
     return NextResponse.json(
@@ -91,6 +123,9 @@ interface ExecCtx {
   userId: string;
   tenantId: string;
   agentId: string;
+  timezone: string;
+  autonomy: Awaited<ReturnType<typeof loadAutonomyPreferences>>;
+  recentByType: Map<string, SendHistoryRow[]>;
 }
 
 async function executeAction(
@@ -220,8 +255,24 @@ async function execDraftVendorUpdate(
   supabase: SupabaseAdmin,
   ctx: ExecCtx,
 ): Promise<ExecutedAction> {
-  const { action, userId, tenantId } = ctx;
+  const { action, userId, tenantId, timezone, autonomy, recentByType } = ctx;
   const f = action.fields;
+  const draftType = 'vendor_update';
+
+  // Decide auto-send vs review BEFORE inserting, so we can set the right
+  // initial status on the draft row.
+  const pref = autonomy.byDraftType[draftType] || { autoSendEnabled: false };
+  const decision = decideAutoSend({
+    draftType,
+    autoSendEnabled: pref.autoSendEnabled,
+    globalPaused: autonomy.globalPaused,
+    confidence: action.confidence,
+    requiredFields: REQUIRED_FIELDS_BY_DRAFT_TYPE[draftType] || [],
+    timezone,
+    recentAutoSends: recentByType.get(draftType) || [],
+  });
+
+  const initialStatus = decision.autoSend ? 'auto_sending' : 'pending_review';
 
   const { data: draft, error } = await supabase
     .from('pending_drafts')
@@ -229,7 +280,7 @@ async function execDraftVendorUpdate(
       user_id: userId,
       tenant_id: tenantId,
       skin: 'agent',
-      draft_type: 'vendor_update',
+      draft_type: draftType,
       recipient_id: f.vendor_id ? String(f.vendor_id) : null,
       content_json: {
         vendor_id: f.vendor_id,
@@ -237,7 +288,7 @@ async function execDraftVendorUpdate(
         tone: f.tone || 'casual',
       },
       send_method: f.send_method || 'email',
-      status: 'pending_review',
+      status: initialStatus,
     })
     .select('id')
     .single();
@@ -258,12 +309,30 @@ async function execDraftVendorUpdate(
     reversal: { op: 'delete', table: 'pending_drafts', id: draft.id },
   });
 
+  if (decision.autoSend) {
+    const recipient = await resolveRecipient(supabase, draftType, f.vendor_id ? String(f.vendor_id) : null);
+    return {
+      id: action.id,
+      type: action.type,
+      success: true,
+      targetId: draft.id,
+      message: `Auto-sending vendor update to ${recipient.name || 'vendor'}`,
+      autoSendPlan: {
+        draftId: draft.id,
+        draftType,
+        countdownSeconds: ELIGIBILITY_RULES.autoSendCountdownSeconds,
+        recipientName: recipient.name || 'vendor',
+      },
+    };
+  }
+
   return {
     id: action.id,
     type: action.type,
     success: true,
     targetId: draft.id,
     message: `Drafted vendor update for ${f.vendor_id || 'vendor'}`,
+    autoSendHold: decision.holdCopy || null,
   };
 }
 
