@@ -31,40 +31,65 @@ const tokens = {
   danger: '#ef4444',
 };
 
+// Flat shape returned by /api/agent/pipeline-data. Matches the developer-
+// side pipeline keys so both surfaces share formatting + progress helpers.
 interface PipelineItem {
   id: string;
   unitId: string;
   unitNumber: string;
-  unitAddress: string;
+  unitAddress?: string;
   developmentId: string;
   developmentName: string;
-  bedrooms: number;
+  bedrooms: number | null;
   status: string;
-  purchaserName: string;
-  prices: { sale?: number };
-  dates: {
-    saleAgreed?: string; deposit?: string; contractsIssued?: string;
-    contractsSigned?: string; counterSigned?: string; drawdown?: string;
-    handover?: string; estimatedClose?: string;
-  };
+  pipelineStatusRaw?: string;
+  purchaserName: string | null;
+  purchaserEmail?: string | null;
+  purchaserPhone?: string | null;
+  salePrice: number | null;
+  releaseDate: string | null;
+  saleAgreedDate: string | null;
+  depositDate: string | null;
+  contractsIssuedDate: string | null;
+  signedContractsDate: string | null;
+  counterSignedDate: string | null;
+  kitchenDate: string | null;
+  snagDate: string | null;
+  drawdownDate: string | null;
+  estimatedCloseDate: string | null;
+  handoverDate: string | null;
+  mortgageExpiryDate?: string | null;
 }
 
 type StatusFilter = 'all' | 'for_sale' | 'agreed' | 'contracts' | 'signed' | 'complete';
 
-const fmtDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' }) : null;
-const fmtCurrency = (v?: number) => v ? new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v) : '\u2014';
-const fmtCompact = (v: number) => {
+const fmtDate = (d?: string | null) => d ? new Date(d).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' }) : null;
+const fmtCurrency = (v?: number | null) => (v && v > 0) ? new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v) : '\u2014';
+const fmtCompact = (v: number | null | undefined) => {
+  if (!v || v <= 0) return '\u2014';
   if (v >= 1000000) return `\u20AC${(v / 1000000).toFixed(1)}M`;
-  if (v >= 1000) return `\u20AC${Math.round(v / 1000)}K`;
+  if (v >= 1000) return `\u20AC${Math.round(v / 1000).toLocaleString('en-IE')}K`;
   return fmtCurrency(v);
 };
 
 function isOverdue(p: PipelineItem) {
-  return p.dates?.contractsIssued && !p.dates?.contractsSigned && new Date(p.dates.contractsIssued) < new Date(Date.now() - 21 * 86400000);
+  return !!(p.contractsIssuedDate && !p.signedContractsDate && new Date(p.contractsIssuedDate) < new Date(Date.now() - 21 * 86400000));
 }
-function daysSince(d?: string) { return d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 0; }
+function daysSince(d?: string | null) { return d ? Math.floor((Date.now() - new Date(d).getTime()) / 86400000) : 0; }
+// Milestone weighting mirrors the developer-side order: release, sale_agreed,
+// deposit, contracts_issued, signed, counter_signed, kitchen, drawdown, handover.
 function getProgress(p: PipelineItem) {
-  const steps = [p.dates?.saleAgreed, p.dates?.deposit, p.dates?.contractsIssued, p.dates?.contractsSigned, p.dates?.counterSigned, p.dates?.drawdown, p.dates?.handover];
+  const steps = [
+    p.releaseDate,
+    p.saleAgreedDate,
+    p.depositDate,
+    p.contractsIssuedDate,
+    p.signedContractsDate,
+    p.counterSignedDate,
+    p.kitchenDate,
+    p.drawdownDate,
+    p.handoverDate,
+  ];
   return Math.round((steps.filter(Boolean).length / steps.length) * 100);
 }
 function getInitials(name: string) { const p = name.split(' ').filter(Boolean); return p.length >= 2 ? (p[0][0] + p[p.length - 1][0]).toUpperCase() : (p[0]?.[0] || '?').toUpperCase(); }
@@ -133,8 +158,9 @@ export default function AgentDashboardPipelinePage() {
     return derivedDevelopments.map(d => {
       const items = pipeline.filter(p => p.developmentId === d.id);
       const available = items.filter(p => p.status === 'for_sale').length;
-      const inProgress = items.filter(p => ['agreed', 'sale_agreed', 'in_progress', 'signed', 'contracts_issued', 'contracts_signed'].includes(p.status)).length;
-      const complete = items.filter(p => ['sold', 'complete'].includes(p.status)).length;
+      const complete = items.filter(p => p.status === 'sold').length;
+      // Everything between for_sale and handed_over. sale_agreed / contracts_issued / signed all count.
+      const inProgress = items.filter(p => p.status !== 'for_sale' && p.status !== 'sold').length;
       const overdue = items.filter(p => isOverdue(p)).length;
       return { ...d, total: items.length, available, inProgress, complete, overdue };
     });
@@ -150,23 +176,32 @@ export default function AgentDashboardPipelinePage() {
     if (!activeSchemeId) return [];
     let items = pipeline.filter(p => p.developmentId === activeSchemeId);
     if (statusFilter === 'for_sale') items = items.filter(p => p.status === 'for_sale');
-    else if (statusFilter === 'agreed') items = items.filter(p => ['agreed', 'sale_agreed'].includes(p.status));
-    else if (statusFilter === 'contracts') items = items.filter(p => ['in_progress', 'contracts_issued'].includes(p.status) || isOverdue(p));
-    else if (statusFilter === 'signed') items = items.filter(p => ['signed', 'contracts_signed'].includes(p.status));
-    else if (statusFilter === 'complete') items = items.filter(p => ['sold', 'complete'].includes(p.status));
+    else if (statusFilter === 'agreed') items = items.filter(p => p.status === 'sale_agreed');
+    else if (statusFilter === 'contracts') items = items.filter(p => p.status === 'contracts_issued' || isOverdue(p));
+    else if (statusFilter === 'signed') items = items.filter(p => p.status === 'signed');
+    else if (statusFilter === 'complete') items = items.filter(p => p.status === 'sold');
     return items;
   }, [pipeline, activeSchemeId, statusFilter]);
 
   const schemeName = derivedDevelopments.find(d => d.id === activeSchemeId)?.name || '';
   const schemeTotal = activeSchemeId ? pipeline.filter(p => p.developmentId === activeSchemeId) : [];
-  const schemeAgg = {
-    total: schemeTotal.length,
-    available: schemeTotal.filter(p => p.status === 'for_sale').length,
-    inProgress: schemeTotal.filter(p => ['agreed', 'sale_agreed', 'in_progress', 'signed', 'contracts_issued', 'contracts_signed'].includes(p.status)).length,
-    complete: schemeTotal.filter(p => ['sold', 'complete'].includes(p.status)).length,
-    revenue: schemeTotal.filter(p => p.prices?.sale).reduce((s, p) => s + (p.prices.sale || 0), 0),
-    avgPrice: (() => { const priced = schemeTotal.filter(p => p.prices?.sale); return priced.length > 0 ? priced.reduce((s, p) => s + (p.prices.sale || 0), 0) / priced.length : 0; })(),
-  };
+  const schemeAgg = (() => {
+    const total = schemeTotal.length;
+    const available = schemeTotal.filter(p => p.status === 'for_sale').length;
+    const complete = schemeTotal.filter(p => p.status === 'sold').length;
+    const inProgress = schemeTotal.filter(p => p.status !== 'for_sale' && p.status !== 'sold').length;
+    // Revenue = committed sales: sale_agreed / signed / sold.
+    const committedStatuses = new Set(['sale_agreed', 'contracts_issued', 'signed', 'sold']);
+    const revenue = schemeTotal
+      .filter(p => committedStatuses.has(p.status) && p.salePrice)
+      .reduce((s, p) => s + (p.salePrice || 0), 0);
+    // Avg price = mean of all units with a sale_price recorded.
+    const priced = schemeTotal.filter(p => p.salePrice && p.salePrice > 0);
+    const avgPrice = priced.length > 0
+      ? priced.reduce((s, p) => s + (p.salePrice || 0), 0) / priced.length
+      : 0;
+    return { total, available, inProgress, complete, revenue, avgPrice };
+  })();
 
   if (loading) {
     return (
@@ -208,8 +243,8 @@ export default function AgentDashboardPipelinePage() {
                 { label: 'Available', value: schemeAgg.available, iconBg: '#fef3c7', iconColor: '#d97706', icon: <Clock className="w-5 h-5" /> },
                 { label: 'In Progress', value: schemeAgg.inProgress, iconBg: '#dbeafe', iconColor: '#2563eb', icon: <TrendingUp className="w-5 h-5" /> },
                 { label: 'Complete', value: schemeAgg.complete, iconBg: '#dcfce7', iconColor: '#16a34a', icon: <CheckCircle className="w-5 h-5" /> },
-                { label: 'Total Revenue', value: fmtCompact(schemeAgg.revenue), iconBg: '#fef3c7', iconColor: tokens.gold, icon: <TrendingUp className="w-5 h-5" /> },
-                { label: 'Avg Price', value: fmtCompact(schemeAgg.avgPrice), iconBg: '#f3e8ff', iconColor: '#7c3aed', icon: <Building2 className="w-5 h-5" /> },
+                { label: 'Total Revenue', value: fmtCurrency(schemeAgg.revenue), iconBg: '#fef3c7', iconColor: tokens.gold, icon: <TrendingUp className="w-5 h-5" /> },
+                { label: 'Avg Price', value: fmtCurrency(schemeAgg.avgPrice), iconBg: '#f3e8ff', iconColor: '#7c3aed', icon: <Building2 className="w-5 h-5" /> },
               ].map(s => <StatCard key={s.label} {...s} />)}
             </div>
 
@@ -246,7 +281,7 @@ export default function AgentDashboardPipelinePage() {
                     {schemeItems.map(p => {
                       const overdue = isOverdue(p);
                       const pct = getProgress(p);
-                      const estPast = p.dates?.estimatedClose && new Date(p.dates.estimatedClose) < new Date();
+                      const estPast = p.estimatedCloseDate && new Date(p.estimatedCloseDate) < new Date();
                       return (
                         <tr key={p.id} onClick={() => setSelectedUnit(p)}
                           className={`group cursor-pointer transition-colors hover:bg-gray-50/50 ${overdue ? 'border-l-[3px] border-l-red-400' : ''}`}>
@@ -254,9 +289,9 @@ export default function AgentDashboardPipelinePage() {
                             <p className="text-sm font-semibold" style={{ color: tokens.dark }}>{p.unitNumber}</p>
                             <p className="text-xs text-gray-500 truncate max-w-[160px]">{p.purchaserName || '\u2014'}</p>
                           </td>
-                          <td className="px-4 py-3 text-sm font-medium" style={{ color: p.prices?.sale ? tokens.goldDark : undefined }}>{fmtCurrency(p.prices?.sale)}</td>
-                          {[p.dates?.saleAgreed, p.dates?.deposit, p.dates?.contractsIssued, p.dates?.contractsSigned, p.dates?.counterSigned, p.dates?.drawdown, p.dates?.handover].map((d, idx) => {
-                            const isPending = idx === 3 && !d && p.dates?.contractsIssued;
+                          <td className="px-4 py-3 text-sm font-medium" style={{ color: p.salePrice ? tokens.goldDark : undefined }}>{fmtCurrency(p.salePrice)}</td>
+                          {[p.saleAgreedDate, p.depositDate, p.contractsIssuedDate, p.signedContractsDate, p.counterSignedDate, p.drawdownDate, p.handoverDate].map((d, idx) => {
+                            const isPending = idx === 3 && !d && p.contractsIssuedDate;
                             return (
                               <td key={idx} className="px-3 py-3 whitespace-nowrap">
                                 {d ? (
@@ -281,9 +316,9 @@ export default function AgentDashboardPipelinePage() {
                             </div>
                           </td>
                           <td className="px-3 py-3">
-                            {p.dates?.estimatedClose ? (
+                            {p.estimatedCloseDate ? (
                               <span className={`text-[11px] font-semibold px-2 py-1 rounded-md ${estPast ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
-                                {fmtDate(p.dates.estimatedClose)}
+                                {fmtDate(p.estimatedCloseDate)}
                               </span>
                             ) : <span className="text-gray-300">—</span>}
                           </td>
@@ -315,7 +350,7 @@ export default function AgentDashboardPipelinePage() {
                 </div>
                 <h3 className="text-base font-semibold text-gray-900">{selectedUnit.purchaserName || 'No buyer assigned'}</h3>
                 <p className="text-sm text-gray-500">{selectedUnit.developmentName} \u00B7 {selectedUnit.unitNumber}</p>
-                {selectedUnit.bedrooms > 0 && (
+                {(selectedUnit.bedrooms ?? 0) > 0 && (
                   <span className="inline-block mt-2 text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 border border-blue-200">{selectedUnit.bedrooms} Bed</span>
                 )}
               </div>
@@ -329,9 +364,9 @@ export default function AgentDashboardPipelinePage() {
 
               <div className="grid grid-cols-3 px-5 py-3 border-b border-gray-100 gap-2">
                 {[
-                  { label: 'Est. Close', value: fmtDate(selectedUnit.dates?.estimatedClose) || '\u2014', color: selectedUnit.dates?.estimatedClose && new Date(selectedUnit.dates.estimatedClose) < new Date() ? '#dc2626' : undefined },
-                  { label: 'Days in Stage', value: selectedUnit.dates?.contractsIssued && !selectedUnit.dates?.contractsSigned ? `${daysSince(selectedUnit.dates.contractsIssued)}d` : '\u2014' },
-                  { label: 'Price', value: fmtCurrency(selectedUnit.prices?.sale) },
+                  { label: 'Est. Close', value: fmtDate(selectedUnit.estimatedCloseDate) || '\u2014', color: selectedUnit.estimatedCloseDate && new Date(selectedUnit.estimatedCloseDate) < new Date() ? '#dc2626' : undefined },
+                  { label: 'Days in Stage', value: selectedUnit.contractsIssuedDate && !selectedUnit.signedContractsDate ? `${daysSince(selectedUnit.contractsIssuedDate)}d` : '\u2014' },
+                  { label: 'Price', value: fmtCurrency(selectedUnit.salePrice) },
                 ].map(m => (
                   <div key={m.label}>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-0.5">{m.label}</p>
@@ -344,13 +379,13 @@ export default function AgentDashboardPipelinePage() {
               <div className="flex-1 overflow-y-auto px-5 py-3">
                 <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Timeline</p>
                 {[
-                  { label: 'Sale Agreed', date: selectedUnit.dates?.saleAgreed },
-                  { label: 'Deposit Received', date: selectedUnit.dates?.deposit },
-                  { label: 'Contracts Issued', date: selectedUnit.dates?.contractsIssued },
-                  { label: 'Contracts Signed', date: selectedUnit.dates?.contractsSigned, overdueFlag: isOverdue(selectedUnit) },
-                  { label: 'Counter Signed', date: selectedUnit.dates?.counterSigned },
-                  { label: 'Drawdown', date: selectedUnit.dates?.drawdown },
-                  { label: 'Handover Complete', date: selectedUnit.dates?.handover },
+                  { label: 'Sale Agreed', date: selectedUnit.saleAgreedDate },
+                  { label: 'Deposit Received', date: selectedUnit.depositDate },
+                  { label: 'Contracts Issued', date: selectedUnit.contractsIssuedDate },
+                  { label: 'Contracts Signed', date: selectedUnit.signedContractsDate, overdueFlag: isOverdue(selectedUnit) },
+                  { label: 'Counter Signed', date: selectedUnit.counterSignedDate },
+                  { label: 'Drawdown', date: selectedUnit.drawdownDate },
+                  { label: 'Handover Complete', date: selectedUnit.handoverDate },
                 ].map(step => (
                   <div key={step.label} className="flex items-start gap-3 py-2">
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${step.date ? 'bg-green-500' : step.overdueFlag ? 'bg-red-50 border-2 border-red-500' : 'bg-gray-200'}`}>
@@ -359,7 +394,7 @@ export default function AgentDashboardPipelinePage() {
                     <div>
                       <p className={`text-sm font-medium ${step.date ? 'text-gray-900' : 'text-gray-400'}`}>{step.label}</p>
                       <p className={`text-xs ${step.overdueFlag && !step.date ? 'text-red-600' : 'text-gray-400'}`}>
-                        {step.date ? fmtDate(step.date) : step.overdueFlag ? `Overdue \u2014 ${daysSince(selectedUnit.dates?.contractsIssued)}d` : '\u2014'}
+                        {step.date ? fmtDate(step.date) : step.overdueFlag ? `Overdue \u2014 ${daysSince(selectedUnit.contractsIssuedDate)}d` : '\u2014'}
                       </p>
                     </div>
                   </div>
@@ -368,8 +403,8 @@ export default function AgentDashboardPipelinePage() {
 
               {isOverdue(selectedUnit) && (
                 <div className="px-5 py-4 bg-amber-50 border-t border-amber-200">
-                  <p className="text-xs text-amber-800 mb-2">Contracts issued {daysSince(selectedUnit.dates?.contractsIssued)} days ago. No signed copy received.</p>
-                  <button onClick={() => router.push(`/agent/dashboard/intelligence?prompt=${encodeURIComponent(`Chase solicitor for ${selectedUnit.purchaserName} on ${selectedUnit.unitNumber} in ${selectedUnit.developmentName}. Contracts issued ${daysSince(selectedUnit.dates?.contractsIssued)} days ago.`)}`)}
+                  <p className="text-xs text-amber-800 mb-2">Contracts issued {daysSince(selectedUnit.contractsIssuedDate)} days ago. No signed copy received.</p>
+                  <button onClick={() => router.push(`/agent/dashboard/intelligence?prompt=${encodeURIComponent(`Chase solicitor for ${selectedUnit.purchaserName} on ${selectedUnit.unitNumber} in ${selectedUnit.developmentName}. Contracts issued ${daysSince(selectedUnit.contractsIssuedDate)} days ago.`)}`)}
                     className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all hover:shadow-md"
                     style={{ background: `linear-gradient(135deg, ${tokens.gold}, ${tokens.goldDark})` }}>
                     <Zap className="w-4 h-4" /> Chase with Intelligence

@@ -105,9 +105,9 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
     .from('unit_sales_pipeline')
     .select(`
       id, unit_id, development_id, status, purchaser_name, purchaser_email, purchaser_phone,
-      sale_price, sale_agreed_date, deposit_date, contracts_issued_date,
+      sale_price, release_date, sale_agreed_date, deposit_date, contracts_issued_date,
       signed_contracts_date, counter_signed_date, kitchen_date, kitchen_selected,
-      snag_date, estimated_close_date, handover_date, mortgage_expiry_date, comments,
+      snag_date, drawdown_date, estimated_close_date, handover_date, mortgage_expiry_date, comments,
       units!unit_id (
         id, unit_number, address, bedrooms, development_id
       ),
@@ -146,11 +146,13 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
       developmentName,
       bedrooms: unit?.bedrooms || null,
       unitTypeName: null,
-      status: normalizeStatus(p.status || 'for_sale'),
+      status: normalizeStatus(p.status || 'for_sale', p),
+      pipelineStatusRaw: p.status || 'for_sale',
       purchaserName: p.purchaser_name,
       purchaserEmail: p.purchaser_email,
       purchaserPhone: p.purchaser_phone,
       salePrice: p.sale_price ? Number(p.sale_price) : null,
+      releaseDate: p.release_date,
       saleAgreedDate: p.sale_agreed_date,
       depositDate: p.deposit_date,
       contractsIssuedDate: p.contracts_issued_date,
@@ -159,6 +161,7 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
       kitchenDate: p.kitchen_date,
       kitchenSelected: p.kitchen_selected,
       snagDate: p.snag_date,
+      drawdownDate: p.drawdown_date,
       estimatedCloseDate: p.estimated_close_date,
       handoverDate: p.handover_date,
       mortgageExpiryDate: p.mortgage_expiry_date,
@@ -180,10 +183,12 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
         bedrooms: u.bedrooms || null,
         unitTypeName: null,
         status: 'for_sale',
+        pipelineStatusRaw: 'for_sale',
         purchaserName: null,
         purchaserEmail: null,
         purchaserPhone: null,
         salePrice: null,
+        releaseDate: null,
         saleAgreedDate: null,
         depositDate: null,
         contractsIssuedDate: null,
@@ -192,6 +197,7 @@ async function buildPipelineResponse(supabase: any, agentProfile: any) {
         kitchenDate: null,
         kitchenSelected: null,
         snagDate: null,
+        drawdownDate: null,
         estimatedCloseDate: null,
         handoverDate: null,
         mortgageExpiryDate: null,
@@ -285,10 +291,28 @@ function formatAgent(profile: any) {
   };
 }
 
-function normalizeStatus(status: string): string {
+/**
+ * Normalise the raw pipeline_status value into the 5-bucket enum the UI
+ * understands. Production data contains `for_sale | agreed | sale_agreed |
+ * in_progress | signed | handed_over`; the UI thinks in `for_sale |
+ * sale_agreed | contracts_issued | signed | sold`. Some raw statuses map
+ * cleanly; `in_progress` needs the row context to decide whether contracts
+ * are out or fully signed.
+ */
+function normalizeStatus(status: string, row?: any): string {
+  if (status === 'handed_over' || status === 'sold') return 'sold';
   if (status === 'agreed') return 'sale_agreed';
-  if (['for_sale', 'sale_agreed', 'contracts_issued', 'signed', 'sold'].includes(status)) {
-    return status;
+  if (status === 'signed') return 'signed';
+  if (status === 'sale_agreed') return 'sale_agreed';
+  if (status === 'for_sale') return 'for_sale';
+  if (status === 'contracts_issued') return 'contracts_issued';
+  if (status === 'in_progress') {
+    // Row decides which milestone bucket to display.
+    if (row?.handover_date) return 'sold';
+    if (row?.signed_contracts_date || row?.counter_signed_date) return 'signed';
+    if (row?.contracts_issued_date) return 'contracts_issued';
+    if (row?.sale_agreed_date) return 'sale_agreed';
+    return 'sale_agreed';
   }
   return 'for_sale';
 }
