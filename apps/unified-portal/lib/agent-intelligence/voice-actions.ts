@@ -13,6 +13,10 @@
 
 export type VoiceActionType =
   | 'log_viewing'
+  | 'log_rental_viewing'
+  | 'create_applicant'
+  | 'flag_applicant_preferred'
+  | 'draft_application_invitation'
   | 'draft_vendor_update'
   | 'draft_viewing_followup_buyer'
   | 'draft_offer_response'
@@ -65,6 +69,20 @@ export interface ExecutedAction {
    * reason shows as a one-liner under the action in the confirmation card.
    */
   autoSendHold?: string | null;
+  /**
+   * Session 4B: sequential execution returns ids that later actions in the
+   * same batch might reference. log_rental_viewing emits created applicant
+   * ids keyed by lowercased name, plus the rental_viewing_id; subsequent
+   * flag_applicant_preferred / draft_application_invitation actions resolve
+   * their applicant_name / letting_property_id against this map.
+   */
+  meta?: {
+    rentalViewingId?: string;
+    applicantsByName?: Record<string, string>;
+    lettingPropertyId?: string;
+    applicationId?: string;
+    draftId?: string;
+  };
 }
 
 const CONFIDENCE_SCHEMA = {
@@ -359,6 +377,159 @@ export const ACTION_TOOLS = [
     },
   },
   {
+    name: 'log_rental_viewing',
+    description:
+      'Log a rental viewing that has just happened (or was recounted) for a letting agent. Trigger phrases: "X people came to see", "showed 14 Oakfield today", "viewing for [rental property]". Always populate attendees with every person or couple mentioned, even if only by surname like "the O\'Sheas".',
+    input_schema: {
+      type: 'object',
+      properties: {
+        letting_property_id: {
+          type: 'string',
+          description:
+            'A letting property id or a short reference like "14 Oakfield" or "the Rathmines one". The server fuzzy-matches against agent_letting_properties, so a human reference is fine — but keep the _confidence for this field below 0.7 if you are not sure which property was meant.',
+        },
+        viewing_date: {
+          type: 'string',
+          description:
+            'ISO 8601 datetime of the viewing. Default to now in Europe/Dublin if the agent is describing a viewing that just happened.',
+        },
+        viewing_type: {
+          type: 'string',
+          enum: ['individual', 'group', 'open_house'],
+        },
+        attendees: {
+          type: 'array',
+          description: 'Every person or couple who attended the viewing.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string' },
+              contact_if_known: { type: 'string' },
+              was_preferred: {
+                type: 'boolean',
+                description:
+                  'Set true when the agent clearly says this attendee was their standout (e.g. "the O\'Sheas were miles ahead"). Otherwise false or omit.',
+              },
+              notes: {
+                type: 'string',
+                description:
+                  'Anything specific the agent mentioned about this attendee (jobs, pets, move-in date, etc.). This seeds the bare applicant record.',
+              },
+              employment_status: {
+                type: 'string',
+                enum: ['employed', 'self_employed', 'student', 'unemployed', 'retired', 'unknown'],
+              },
+              employer: { type: 'string' },
+            },
+            required: ['name'],
+          },
+        },
+        interest_level: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+        },
+        feedback: { type: 'string' },
+        next_action: { type: 'string' },
+        _confidence: CONFIDENCE_SCHEMA,
+      },
+      required: [
+        'letting_property_id',
+        'viewing_date',
+        'viewing_type',
+        'attendees',
+        'interest_level',
+        'feedback',
+        'next_action',
+        '_confidence',
+      ],
+    },
+  },
+  {
+    name: 'create_applicant',
+    description:
+      'Create an applicant record outside a viewing — phone enquiries, walk-ins, referrals. Do NOT use this for attendees at a viewing (log_rental_viewing creates those automatically).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        full_name: { type: 'string' },
+        email: { type: 'string' },
+        phone: { type: 'string' },
+        employment_status: {
+          type: 'string',
+          enum: ['employed', 'self_employed', 'student', 'unemployed', 'retired', 'unknown'],
+        },
+        employer: { type: 'string' },
+        annual_income: { type: 'number' },
+        household_size: { type: 'number' },
+        has_pets: { type: 'boolean' },
+        pet_details: { type: 'string' },
+        smoker: { type: 'boolean' },
+        budget_monthly: { type: 'number' },
+        source: {
+          type: 'string',
+          enum: ['daft', 'myhome', 'rent_ie', 'facebook', 'walk_in', 'word_of_mouth', 'other', 'unknown'],
+        },
+        notes: { type: 'string' },
+        _confidence: CONFIDENCE_SCHEMA,
+      },
+      required: ['full_name', '_confidence'],
+    },
+  },
+  {
+    name: 'flag_applicant_preferred',
+    description:
+      'Mark one attendee of a just-logged rental viewing as the agent\'s preferred applicant. Use this when the agent says things like "the O\'Sheas were miles ahead", "prefer the young couple". Always refer to the applicant by the same name used in the attendees list of the matching log_rental_viewing action.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        applicant_name: {
+          type: 'string',
+          description:
+            'Name or surname exactly as used in the log_rental_viewing attendees list. The server matches against that list, then falls back to recent applicants for the agent.',
+        },
+        rental_viewing_ref: {
+          type: 'string',
+          description:
+            'Optional hint tying this preference to a specific viewing — a property reference like "14 Oakfield" is fine. If omitted, the server uses the most recent log_rental_viewing in the same batch.',
+        },
+        _confidence: CONFIDENCE_SCHEMA,
+      },
+      required: ['applicant_name', '_confidence'],
+    },
+  },
+  {
+    name: 'draft_application_invitation',
+    description:
+      'Draft the "please complete the application form" email to a preferred applicant for a specific rental property. Use when the agent says "ask them to apply", "send them the form", "invite them to apply". Creates an application record in status=invited alongside the draft.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        applicant_name: {
+          type: 'string',
+          description:
+            'Name or surname of the applicant to invite. The server matches against same-batch created applicants first, then the agent\'s recent applicants list.',
+        },
+        letting_property_id: {
+          type: 'string',
+          description:
+            'Letting property the application is for. Short reference (e.g. "14 Oakfield") is fine — the server resolves it.',
+        },
+        subject: { type: 'string' },
+        body: {
+          type: 'string',
+          description:
+            'Full email body, Irish peer-to-peer tone, no em dashes, no emoji. Reference the property by address, greet the applicant by first name, and include the placeholder link token {application_link} exactly once where the application URL belongs.',
+        },
+        tone: {
+          type: 'string',
+          enum: ['warm', 'straightforward'],
+        },
+        _confidence: CONFIDENCE_SCHEMA,
+      },
+      required: ['applicant_name', 'letting_property_id', 'body', 'tone', '_confidence'],
+    },
+  },
+  {
     name: 'create_reminder',
     description:
       'Create a reminder / task the agent wants to be nudged on later.',
@@ -394,6 +565,22 @@ export function actionLabel(action: ExtractedAction): string {
   switch (action.type) {
     case 'log_viewing':
       return 'Log viewing';
+    case 'log_rental_viewing': {
+      const property = action.fields?.letting_property_id;
+      return property ? `Log rental viewing at ${property}` : 'Log rental viewing';
+    }
+    case 'create_applicant': {
+      const name = action.fields?.full_name;
+      return name ? `Create applicant: ${name}` : 'Create applicant';
+    }
+    case 'flag_applicant_preferred': {
+      const name = action.fields?.applicant_name;
+      return name ? `Flag ${name} as preferred` : 'Flag preferred applicant';
+    }
+    case 'draft_application_invitation': {
+      const name = action.fields?.applicant_name;
+      return name ? `Invite ${name} to apply` : 'Draft application invitation';
+    }
     case 'draft_vendor_update': {
       const vendor = action.fields?.vendor_id;
       return vendor ? `Draft vendor update for ${vendor}` : 'Draft vendor update';

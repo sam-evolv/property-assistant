@@ -52,6 +52,18 @@ export async function POST(request: NextRequest) {
           failed.push({ id: entry.id, error: delErr.message });
           continue;
         }
+      } else if (payload?.op === 'update' && payload?.table && payload?.id && payload?.set) {
+        // Session 4B: flag_applicant_preferred records an update reversal so
+        // undoing flips was_preferred back to false without deleting the
+        // attendee row (which log_rental_viewing may also want to keep).
+        const { error: updErr } = await supabase
+          .from(payload.table)
+          .update(payload.set)
+          .eq('id', payload.id);
+        if (updErr) {
+          failed.push({ id: entry.id, error: updErr.message });
+          continue;
+        }
       }
 
       const { error: updErr } = await supabase
