@@ -23,6 +23,16 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
+  // `interactiveWidget: 'resizes-content'` tells Android Chrome (and the TWA wrapper
+  // that ships this site as a Play Store app) to shrink the layout viewport when the
+  // soft keyboard appears instead of overlaying the page. Without it, the default
+  // `overlays-content` behavior is what caused the chat input bar to float mid-screen
+  // in the Android TWA when the user swiped — the bar's `bottom: calc(env(safe-area-inset-bottom)
+  // + tab-bar-height)` was resolved against a viewport that didn't shorten for the keyboard.
+  // iOS Safari / iOS Capacitor ignore this meta (they use VisualViewport + safe-area
+  // insets), so the existing isIOSNative code path in PurchaserChatTab is unaffected.
+  // Supported by Next Viewport type since 14.1; we're on ^14.2.18.
+  interactiveWidget: 'resizes-content',
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#1A1A1A' },
