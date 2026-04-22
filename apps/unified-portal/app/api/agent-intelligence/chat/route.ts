@@ -1,11 +1,9 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import {
-  loadAgentContext,
   getRecentActivitySummary,
   getUpcomingDeadlines,
   loadEntityMemory,
@@ -19,6 +17,7 @@ import {
   getTodaysViewings,
   getUpcomingWeekViewings,
 } from '@/lib/agent-intelligence/context';
+import { resolveAgentContext } from '@/lib/agent-intelligence/agent-context';
 import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
@@ -48,77 +47,36 @@ export async function POST(request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    let agentProfileRow: any = null;
+    // Single source of truth: resolves `auth.uid()` → `agent_profiles.id` →
+    // `agent_scheme_assignments.development_id[]` in one place, with the
+    // correct identifier chain. Every tool downstream receives the result
+    // via the threaded `AgentContext` and MUST NOT re-run auth.
+    const resolved = await resolveAgentContext(supabase, user?.id ?? null, {
+      activeDevelopmentId: activeDevelopmentId ?? null,
+    });
 
-    if (user) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id, user_id, tenant_id, display_name, agent_type')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      agentProfileRow = data;
-    }
-
-    // Fallback: use first agent profile (dev/preview mode)
-    if (!agentProfileRow) {
-      const { data: fallback } = await supabase
-        .from('agent_profiles')
-        .select('id, user_id, tenant_id, display_name, agent_type')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .single();
-      agentProfileRow = fallback;
-    }
-
-    if (!agentProfileRow) {
+    if (!resolved) {
       return new Response(JSON.stringify({ error: 'No agent profile found' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       });
     }
 
-    const tenantId: string = agentProfileRow.tenant_id;
-    const authUserId: string = agentProfileRow.user_id || agentProfileRow.id;
+    const tenantId: string = resolved.tenantId ?? '';
+    const authUserId: string = resolved.authUserId;
 
-    // 2. Load agent context (profile + assigned schemes)
-    let agentContext = await loadAgentContext(supabase, authUserId, tenantId);
-
-    // If no agent profile exists yet, create a minimal context
-    if (!agentContext) {
-      agentContext = {
-        agentId: agentProfileRow.id,
-        userId: authUserId,
-        tenantId,
-        displayName: agentProfileRow.display_name || 'Agent',
-        assignedSchemes: [],
-      };
-
-      // If an active development is provided, include it
-      if (activeDevelopmentId) {
-        const { data: dev } = await supabase
-          .from('developments')
-          .select('id, name')
-          .eq('id', activeDevelopmentId)
-          .eq('tenant_id', tenantId)
-          .maybeSingle();
-
-        if (dev) {
-          const { count } = await supabase
-            .from('units')
-            .select('id', { count: 'exact', head: true })
-            .eq('development_id', dev.id)
-            .eq('tenant_id', tenantId);
-
-          agentContext.assignedSchemes = [{
-            developmentId: dev.id,
-            schemeName: dev.name,
-            unitCount: count || 0,
-          }];
-        }
-      }
-    }
+    const agentContext: AgentContext = {
+      agentId: resolved.agentProfileId,
+      userId: authUserId,
+      tenantId,
+      displayName: resolved.displayName,
+      agencyName: resolved.agencyName,
+      agentType: resolved.agentType,
+      assignedSchemes: resolved.assignedSchemes,
+      assignedDevelopmentIds: resolved.assignedDevelopmentIds,
+      assignedDevelopmentNames: resolved.assignedDevelopmentNames,
+      activeDevelopmentId: activeDevelopmentId ?? null,
+    };
 
     // 2. Build context components in parallel — legacy loaders + new live-context blocks.
     // Each new helper is wrapped in .catch() so a failing query (e.g. a column
@@ -186,7 +144,7 @@ export async function POST(request: NextRequest) {
 
     // 2b. Load independent agent context if applicable
     let independentContext = '';
-    const agentType = await getAgentType(supabase, agentContext.agentId);
+    const agentType = agentContext.agentType ?? 'scheme';
     if (agentType !== 'scheme') {
       independentContext = await buildIndependentAgentContext(supabase, agentContext.agentId);
     }
@@ -523,21 +481,6 @@ async function logInteraction(
       context: { tools_called: toolsCalled.map(t => t.tool_name) },
     });
   }
-}
-
-/**
- * Get agent_type from agent_profiles table.
- */
-async function getAgentType(
-  supabase: ReturnType<typeof getSupabaseAdmin>,
-  agentId: string
-): Promise<string> {
-  const { data } = await supabase
-    .from('agent_profiles')
-    .select('agent_type')
-    .eq('id', agentId)
-    .maybeSingle();
-  return data?.agent_type || 'scheme';
 }
 
 /**

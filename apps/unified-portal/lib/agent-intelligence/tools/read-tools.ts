@@ -1,5 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ToolResult, AgentContext } from '../types';
+import { matchAssignedScheme } from '../agent-context';
 
 export async function getUnitStatus(
   supabase: SupabaseClient,
@@ -213,18 +214,48 @@ export async function getSchemeOverview(
   supabase: SupabaseClient,
   tenantId: string,
   agentContext: AgentContext,
-  params: { scheme_name: string }
+  params: { scheme_name?: string }
 ): Promise<ToolResult> {
-  const { data: dev } = await supabase
-    .from('developments')
-    .select('id, name')
-    .eq('tenant_id', tenantId)
-    .ilike('name', `%${params.scheme_name}%`)
-    .limit(1)
-    .maybeSingle();
+  // If no scheme name is provided (the "give me a scheme summary" case) and
+  // the agent has exactly one assigned development, default to it. If they
+  // have several assigned, ask the model to name one.
+  let dev: { id: string; name: string } | null = null;
+
+  if (params.scheme_name) {
+    const scoped = matchAssignedScheme(agentContext, params.scheme_name);
+    if (scoped) {
+      dev = { id: scoped.developmentId, name: scoped.schemeName };
+    } else {
+      // Allow fall-through to name search for admins / unassigned queries.
+      const { data } = await supabase
+        .from('developments')
+        .select('id, name')
+        .eq('tenant_id', tenantId)
+        .ilike('name', `%${params.scheme_name}%`)
+        .limit(1)
+        .maybeSingle();
+      if (data) dev = { id: data.id, name: data.name };
+    }
+  } else if (agentContext.assignedDevelopmentIds.length === 1) {
+    dev = {
+      id: agentContext.assignedDevelopmentIds[0],
+      name: agentContext.assignedDevelopmentNames[0],
+    };
+  } else if (agentContext.assignedDevelopmentIds.length > 1) {
+    const names = agentContext.assignedDevelopmentNames.join(', ');
+    return {
+      data: null,
+      summary: `You have multiple assigned schemes (${names}). Which one should I summarise?`,
+    };
+  }
 
   if (!dev) {
-    return { data: null, summary: `No scheme found matching "${params.scheme_name}"` };
+    return {
+      data: null,
+      summary: params.scheme_name
+        ? `No scheme found matching "${params.scheme_name}"`
+        : 'No schemes assigned to this agent yet.',
+    };
   }
 
   // Get all units
@@ -528,21 +559,15 @@ export async function getViewings(
   agentContext: AgentContext,
   params: { scheme_name?: string; buyer_name?: string; from_date?: string; to_date?: string; status?: string }
 ): Promise<ToolResult> {
-  // Resolve agent profile to get agent_id
-  const { data: agentProfile } = await supabase
-    .from('agent_profiles')
-    .select('id')
-    .eq('user_id', agentContext.userId)
-    .maybeSingle();
-
-  if (!agentProfile) {
+  // Agent identity is threaded from the chat route — no re-resolve.
+  if (!agentContext.agentId) {
     return { data: { viewings: [] }, summary: 'No agent profile found' };
   }
 
   let query = supabase
     .from('agent_viewings')
     .select('id, buyer_name, buyer_phone, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status, notes, source')
-    .eq('agent_id', agentProfile.id)
+    .eq('agent_id', agentContext.agentId)
     .order('viewing_date', { ascending: true })
     .order('viewing_time', { ascending: true });
 
@@ -625,4 +650,204 @@ export async function searchKnowledgeBase(
     data: { results },
     summary: `${results.length} results from ${results[0].source}`,
   };
+}
+
+/**
+ * Scheme summary — the "give me a scheme summary" prompt's landing spot.
+ *
+ * Scope is derived from `agentContext.assignedDevelopmentIds` via the
+ * `resolveAgentContext` threading, never from `auth.uid()`. When the user
+ * names a specific scheme, the name is matched against the agent's assigned
+ * list first to confirm it is in scope.
+ */
+export async function getSchemeSummary(
+  supabase: SupabaseClient,
+  tenantId: string,
+  agentContext: AgentContext,
+  params: { scheme_name?: string }
+): Promise<ToolResult> {
+  const developmentIds = resolveSchemeScope(agentContext, params.scheme_name);
+  if (!developmentIds) {
+    return {
+      data: null,
+      summary: params.scheme_name
+        ? `"${params.scheme_name}" is not in your assigned schemes.`
+        : 'No schemes assigned to this agent yet.',
+    };
+  }
+
+  const schemeNames = developmentIds.map(
+    (id) => agentContext.assignedDevelopmentNames[agentContext.assignedDevelopmentIds.indexOf(id)] || 'Unknown scheme',
+  );
+
+  const [unitsResult, pipelineResult] = await Promise.all([
+    supabase
+      .from('units')
+      .select('id, development_id')
+      .in('development_id', developmentIds),
+    supabase
+      .from('unit_sales_pipeline')
+      .select('unit_id, development_id, status, purchaser_name, sale_price, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date')
+      .in('development_id', developmentIds),
+  ]);
+
+  const units = unitsResult.data ?? [];
+  const pipeline = pipelineResult.data ?? [];
+
+  const totalUnits = units.length;
+  const breakdown = {
+    for_sale: 0,
+    reserved: 0,
+    sale_agreed: 0,
+    in_progress: 0, // contracts issued, not yet signed
+    signed: 0,
+    handed_over: 0,
+  };
+
+  let totalRevenueCommitted = 0;
+  let pricedCount = 0;
+  let priceSum = 0;
+  const now = Date.now();
+  const twentyEightDaysAgo = now - 28 * 86400000;
+  let overdueContracts = 0;
+
+  const pipelineUnitIds = new Set<string>();
+
+  for (const p of pipeline) {
+    if (p.unit_id) pipelineUnitIds.add(p.unit_id);
+
+    const dbStatus = (p.status || '').toLowerCase();
+    const handoverPast = p.handover_date && new Date(p.handover_date).getTime() <= now;
+    const isSigned = dbStatus === 'signed' || !!p.counter_signed_date || !!p.signed_contracts_date;
+    const isContractsIssued = !isSigned && !!p.contracts_issued_date;
+    const isSaleAgreed = !isSigned && !isContractsIssued && (dbStatus === 'sale_agreed' || dbStatus === 'agreed' || !!p.sale_agreed_date);
+    const isReserved = !isSigned && !isContractsIssued && !isSaleAgreed && (dbStatus === 'reserved' || !!p.deposit_date);
+
+    if (dbStatus === 'sold' || dbStatus === 'complete' || handoverPast) {
+      breakdown.handed_over++;
+    } else if (isSigned) {
+      breakdown.signed++;
+    } else if (isContractsIssued) {
+      breakdown.in_progress++;
+    } else if (isSaleAgreed) {
+      breakdown.sale_agreed++;
+    } else if (isReserved) {
+      breakdown.reserved++;
+    } else {
+      breakdown.for_sale++;
+    }
+
+    const price = Number(p.sale_price) || 0;
+    if (price > 0 && (isSaleAgreed || isSigned || isContractsIssued || dbStatus === 'sold' || handoverPast)) {
+      totalRevenueCommitted += price;
+    }
+    if (price > 0) {
+      priceSum += price;
+      pricedCount++;
+    }
+
+    if (
+      p.contracts_issued_date &&
+      !p.signed_contracts_date &&
+      new Date(p.contracts_issued_date).getTime() < twentyEightDaysAgo
+    ) {
+      overdueContracts++;
+    }
+  }
+
+  const unitsWithoutPipeline = units.filter((u: any) => !pipelineUnitIds.has(u.id)).length;
+  breakdown.for_sale += unitsWithoutPipeline;
+
+  const averagePrice = pricedCount > 0 ? Math.round(priceSum / pricedCount) : null;
+
+  const nextActions = buildNextActions({
+    overdueContracts,
+    saleAgreed: breakdown.sale_agreed,
+    contractsIssued: breakdown.in_progress,
+    forSale: breakdown.for_sale,
+    signed: breakdown.signed,
+  });
+
+  const summary = schemeNames.length === 1
+    ? `${schemeNames[0]} — ${totalUnits} units: ${breakdown.handed_over} handed over, ${breakdown.signed} signed, ${breakdown.in_progress} in progress, ${breakdown.sale_agreed} sale agreed, ${breakdown.for_sale} for sale. ${overdueContracts} overdue contracts.`
+    : `${schemeNames.join(', ')} — ${totalUnits} units total. ${overdueContracts} overdue contracts.`;
+
+  return {
+    data: {
+      schemes: schemeNames,
+      total_units: totalUnits,
+      status_breakdown: breakdown,
+      total_revenue_committed: totalRevenueCommitted,
+      average_price: averagePrice,
+      overdue_contracts: overdueContracts,
+      next_actions: nextActions,
+    },
+    summary,
+  };
+}
+
+/**
+ * Resolve the development-ids to query for a summary. Always honours
+ * `agentContext.assignedDevelopmentIds` as the outer scope — a named scheme
+ * has to match one of those to be returned.
+ *
+ * Returns `null` when the agent has nothing assigned and nothing was named.
+ */
+function resolveSchemeScope(
+  agentContext: AgentContext,
+  schemeName: string | undefined,
+): string[] | null {
+  if (schemeName) {
+    const matched = matchAssignedScheme(agentContext, schemeName);
+    return matched ? [matched.developmentId] : null;
+  }
+  if (agentContext.assignedDevelopmentIds.length > 0) {
+    return agentContext.assignedDevelopmentIds;
+  }
+  return null;
+}
+
+function buildNextActions(counts: {
+  overdueContracts: number;
+  saleAgreed: number;
+  contractsIssued: number;
+  forSale: number;
+  signed: number;
+}): string[] {
+  const actions: Array<{ weight: number; text: string }> = [];
+  if (counts.overdueContracts > 0) {
+    actions.push({
+      weight: 100 + counts.overdueContracts,
+      text: `Chase ${counts.overdueContracts} overdue contract${counts.overdueContracts === 1 ? '' : 's'} (issued >28 days, unsigned).`,
+    });
+  }
+  if (counts.contractsIssued > 0) {
+    actions.push({
+      weight: 60 + counts.contractsIssued,
+      text: `Follow up on ${counts.contractsIssued} contract${counts.contractsIssued === 1 ? '' : 's'} in progress with buyer solicitors.`,
+    });
+  }
+  if (counts.saleAgreed > 0) {
+    actions.push({
+      weight: 40 + counts.saleAgreed,
+      text: `Confirm next step for ${counts.saleAgreed} sale-agreed unit${counts.saleAgreed === 1 ? '' : 's'} (deposit, selections, contracts).`,
+    });
+  }
+  if (counts.forSale > 0) {
+    actions.push({
+      weight: 10 + Math.min(counts.forSale, 5),
+      text: `Review viewings and enquiry pipeline for ${counts.forSale} available unit${counts.forSale === 1 ? '' : 's'}.`,
+    });
+  }
+  if (counts.signed > 0) {
+    actions.push({
+      weight: 5,
+      text: `Check handover readiness for ${counts.signed} signed unit${counts.signed === 1 ? '' : 's'}.`,
+    });
+  }
+
+  return actions
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 3)
+    .map((a) => a.text);
 }

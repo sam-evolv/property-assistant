@@ -5,6 +5,7 @@ import {
   getUnitStatus,
   getBuyerDetails,
   getSchemeOverview,
+  getSchemeSummary,
   getOutstandingItems,
   getCommunicationHistory,
   getViewings,
@@ -48,12 +49,19 @@ async function runAgenticSkill<I extends Record<string, any>>(
   agentContext: AgentContext,
   params: I,
 ): Promise<ToolResult> {
-  const profile = await getAgentProfileExtras(supabase, agentContext.userId).catch(() => null);
+  // `agentContext.agencyName` is populated up-front by `resolveAgentContext`,
+  // so a second lookup is avoided on every skill call. Fall back to the
+  // extras loader only when the context did not carry it.
+  let agencyName = agentContext.agencyName ?? '';
+  if (!agencyName) {
+    const profile = await getAgentProfileExtras(supabase, agentContext.agentId).catch(() => null);
+    agencyName = profile?.agencyName || '';
+  }
   const skillCtx: SkillAgentContext = {
     agentId: agentContext.agentId,
     userId: agentContext.userId,
     displayName: agentContext.displayName,
-    agencyName: profile?.agencyName || '',
+    agencyName,
   };
   const raw = await fn(supabase, skillCtx, params);
   const envelope = await persistSkillEnvelope(supabase, raw, agentContext);
@@ -88,15 +96,27 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'get_scheme_overview',
-    description: 'Get a high-level summary of a scheme sales status, including unit breakdown by status, outstanding items, and key metrics.',
+    description: 'Get a high-level summary of a scheme sales status, including unit breakdown by status, outstanding items, and key metrics. If scheme_name is omitted and the agent has exactly one assigned scheme, defaults to that scheme.',
     parameters: {
       type: 'object',
       properties: {
-        scheme_name: { type: 'string', description: 'Name of the development/scheme' },
+        scheme_name: { type: 'string', description: 'Name of the development/scheme (optional if the agent has a single assigned scheme)' },
       },
-      required: ['scheme_name'],
+      required: [],
     },
     execute: getSchemeOverview as ToolFunction,
+  },
+  {
+    name: 'get_scheme_summary',
+    description: "Answer 'give me a scheme summary' with real numbers: total units, status breakdown (for_sale, reserved, sale_agreed, in_progress, signed, handed_over), total revenue committed, average price, overdue contract count, and the top 3 suggested next actions. Scoped to the agent's assigned developments unless a specific scheme_name is given — in which case the scheme must be in the agent's assigned list.",
+    parameters: {
+      type: 'object',
+      properties: {
+        scheme_name: { type: 'string', description: 'Optional scheme name. When omitted, summarises across every assigned scheme.' },
+      },
+      required: [],
+    },
+    execute: getSchemeSummary as ToolFunction,
   },
   {
     name: 'get_outstanding_items',

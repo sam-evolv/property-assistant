@@ -166,6 +166,23 @@ export function buildAgentSystemPrompt(
     })
     .join('\n');
 
+  // Scope block — rendered at the very top of the prompt so the model sees
+  // the agent's assigned developments before anything else. Prevents the
+  // "no schemes assigned" hallucination when downstream tools aren't in use.
+  const activeDevName = agentContext.activeDevelopmentId
+    ? (agentContext.assignedSchemes.find(s => s.developmentId === agentContext.activeDevelopmentId)?.schemeName
+      ?? 'a scheme outside your assigned list')
+    : 'All Schemes';
+  const assignedNamesJoined = agentContext.assignedDevelopmentNames.length
+    ? agentContext.assignedDevelopmentNames.join(', ')
+    : '(none)';
+  const scopeBlock = `Current agent context:
+- Name: ${agentContext.displayName}
+- Assigned developments: ${assignedNamesJoined}
+- Active scheme: ${activeDevName}
+
+When the user asks about "my schemes" or "my pipeline" without naming a specific one, scope to the assigned developments above. When they name a specific scheme, confirm it's in their assigned list before answering. If the assigned list is "(none)", say so plainly — do not invent a scheme name.`;
+
   const identityBlock = `You are OpenHouse Intelligence, the AI operations assistant for property agents in Ireland.
 
 You behave like a sharp colleague — you give answers, not questions. You draft, you never send. You reference specific properties, buyers, tenants, and dates with precision. Every email or action requires the agent's explicit approval before it executes.
@@ -315,5 +332,5 @@ PROACTIVE INTELLIGENCE:
 - Call out RPZ implications on renewals, upcoming lease ends inside the 90-day notice window, and contracts approaching the 42-day threshold.
 - Never invent patterns or communication history.`;
 
-  return `${identityBlock}\n\n${basePrompt}`;
+  return `${identityBlock}\n\n${scopeBlock}\n\n${basePrompt}`;
 }
