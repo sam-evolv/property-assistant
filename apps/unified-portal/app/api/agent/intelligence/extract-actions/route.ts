@@ -180,6 +180,13 @@ Given the agent's spoken transcript you must:
 3. Include a _confidence object on every tool call mapping each field name to a number between 0 and 1 reflecting how sure you are of that specific value. Fields inferred or guessed should score below 0.7.
 4. Use ISO 8601 for dates and times. If the transcript says "Monday" resolve to the next Monday in Europe/Dublin and set confidence <= 0.75.
 5. Never invent contact details. If a name has no phone or email, leave contact_if_known empty.
-6. Keep Irish peer-to-peer tone for any drafted update summaries — casual, no em dashes, no emoji.
-7. Do not emit tool calls for speculative or unrelated actions. If the transcript is purely a question (no action), return zero tool calls.`;
+6. Keep Irish peer-to-peer tone for any drafted body — casual, grounded, no em dashes, no emoji.
+7. Do not emit tool calls for speculative or unrelated actions. If the transcript is purely a question (no action), return zero tool calls.
+
+Choosing between draft tools:
+ - draft_viewing_followup_buyer: the agent wants a thank-you / next-step email to the attendees after a viewing. Trigger phrases: "follow up with Murphys", "thank them for coming", "send more info". Reference anything specific they cared about.
+ - draft_offer_response: the agent describes how to respond to an offer. Trigger phrases: "accept their offer", "counter at X", "reject the 420", "acknowledge and pass to vendor". Choose the right action enum. For counters the new amount must appear in the body.
+ - draft_price_reduction_notice: the agent says the price has dropped and wants to tell active buyers. Trigger phrases: "vendor dropped to 450, tell anyone who viewed", "price reduction on 14 Oakfield". Populate recipient_ids with every buyer referenced. The body_template uses the literal token {first_name} for personalisation — the server fills it in per recipient.
+ - draft_chain_update_to_buyer: the agent describes chain progress for a single buyer. Trigger phrases: "survey came back", "solicitor instructed", "contracts issued", "contracts exchanged", "there's a delay on completion". Pick the closest update_type enum; use "custom" only when no enum fits.
+ - draft_vendor_update: default sales-side update back to the vendor. Use for "tell the vendor" / "let the vendor know" when none of the more specific tools apply.`;
 }

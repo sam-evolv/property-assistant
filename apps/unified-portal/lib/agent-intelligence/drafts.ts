@@ -23,7 +23,7 @@ export interface DraftRecipient {
   name: string | null;
   email: string | null;
   phone: string | null;
-  source: 'listing_vendor' | 'unknown';
+  source: 'listing_vendor' | 'listing_buyer' | 'unknown';
   address?: string | null;
 }
 
@@ -47,6 +47,14 @@ export function draftTypeLabel(type: string): string {
   switch (type) {
     case 'vendor_update':
       return 'Vendor update';
+    case 'viewing_followup':
+      return 'Viewing follow-up';
+    case 'offer_response':
+      return 'Offer response';
+    case 'price_reduction_notice':
+      return 'Price reduction notice';
+    case 'chain_update_to_buyer':
+      return 'Chain update';
     case 'landlord_statement':
       return 'Landlord statement';
     case 'buyer_followup':
@@ -55,6 +63,13 @@ export function draftTypeLabel(type: string): string {
       return type.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
   }
 }
+
+const BUYER_DRAFT_TYPES: readonly string[] = [
+  'viewing_followup',
+  'offer_response',
+  'price_reduction_notice',
+  'chain_update_to_buyer',
+];
 
 export async function resolveRecipient(
   supabase: SupabaseClient,
@@ -75,6 +90,20 @@ export async function resolveRecipient(
         phone: listing.vendor_phone || null,
         address: listing.address || null,
         source: 'listing_vendor',
+      };
+    }
+  }
+
+  if (BUYER_DRAFT_TYPES.includes(draftType)) {
+    const listing = await findListingByBuyerReference(supabase, recipientId);
+    if (listing) {
+      return {
+        id: listing.id,
+        name: listing.buyer_name || recipientId,
+        email: listing.buyer_solicitor_email || null,
+        phone: listing.buyer_phone || null,
+        address: listing.address || null,
+        source: 'listing_buyer',
       };
     }
   }
@@ -110,6 +139,36 @@ async function findListingFromReference(
     .ilike('address', `%${reference}%`)
     .limit(1);
   return matches?.[0] || null;
+}
+
+async function findListingByBuyerReference(
+  supabase: SupabaseClient,
+  reference: string,
+): Promise<any | null> {
+  if (UUID_REGEX.test(reference)) {
+    const { data } = await supabase
+      .from('listings')
+      .select('id, address, buyer_name, buyer_phone, buyer_solicitor_email, vendor_name')
+      .eq('id', reference)
+      .maybeSingle();
+    if (data) return data;
+  }
+
+  // Match on buyer name or address — voice capture often references the
+  // property the buyer is interested in rather than the buyer's identifier.
+  const { data: byName } = await supabase
+    .from('listings')
+    .select('id, address, buyer_name, buyer_phone, buyer_solicitor_email, vendor_name')
+    .ilike('buyer_name', `%${reference}%`)
+    .limit(1);
+  if (byName && byName[0]) return byName[0];
+
+  const { data: byAddress } = await supabase
+    .from('listings')
+    .select('id, address, buyer_name, buyer_phone, buyer_solicitor_email, vendor_name')
+    .ilike('address', `%${reference}%`)
+    .limit(1);
+  return byAddress?.[0] || null;
 }
 
 /**
@@ -171,9 +230,24 @@ function extractContextChips(
       id: 'property',
       label: recipient.address,
       detail: recipient.name && recipient.name !== recipient.address
-        ? `Vendor: ${recipient.name}`
+        ? `${recipient.source === 'listing_buyer' ? 'Buyer' : 'Vendor'}: ${recipient.name}`
         : null,
     });
+  }
+
+  // Session 4A: execute-actions writes a structured `provenance` array per
+  // draft — list of {id, label, detail} objects — so each draft type can
+  // surface its own context (viewing references, offer amount, update_type,
+  // old/new price, etc.) without every consumer re-deriving it.
+  if (Array.isArray(content.provenance)) {
+    for (const item of content.provenance) {
+      if (!item || typeof item !== 'object') continue;
+      chips.push({
+        id: typeof item.id === 'string' ? item.id : `prov_${chips.length}`,
+        label: String(item.label || ''),
+        detail: item.detail ? String(item.detail) : null,
+      });
+    }
   }
 
   if (typeof content.source_viewing_id === 'string') {
@@ -190,7 +264,7 @@ function extractContextChips(
     }
   }
 
-  return chips;
+  return chips.filter((c) => c.label.trim().length > 0);
 }
 
 /**

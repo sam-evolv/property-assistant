@@ -383,4 +383,15 @@ export async function enforceTrustFloor(
 export const REQUIRED_FIELDS_BY_DRAFT_TYPE: Record<string, readonly string[]> = {
   vendor_update: ['vendor_id', 'update_summary', 'tone', 'send_method'],
   draft_vendor_update: ['vendor_id', 'update_summary', 'tone', 'send_method'],
+  viewing_followup: ['recipient_id', 'body', 'tone'],
+  draft_viewing_followup_buyer: ['recipient_id', 'body', 'tone'],
+  offer_response: ['offer_id', 'recipient_id', 'action', 'body'],
+  draft_offer_response: ['offer_id', 'recipient_id', 'action', 'body'],
+  // Price reduction writes to every recipient — auto-send is high-stakes here.
+  // Required fields include recipient_ids so a low-confidence match list
+  // forces review.
+  price_reduction_notice: ['property_id', 'new_price', 'recipient_ids', 'body_template'],
+  draft_price_reduction_notice: ['property_id', 'new_price', 'recipient_ids', 'body_template'],
+  chain_update_to_buyer: ['buyer_id', 'property_id', 'update_type', 'body'],
+  draft_chain_update_to_buyer: ['buyer_id', 'property_id', 'update_type', 'body'],
 };
