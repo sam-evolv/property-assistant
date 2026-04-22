@@ -149,14 +149,8 @@ export async function scheduleViewing(
     notes?: string;
   }
 ): Promise<ToolResult> {
-  // Resolve agent profile
-  const { data: agentProfile } = await supabase
-    .from('agent_profiles')
-    .select('id')
-    .eq('user_id', agentContext.userId)
-    .maybeSingle();
-
-  if (!agentProfile) {
+  // Agent id is threaded through the agentContext — no re-resolve.
+  if (!agentContext.agentId) {
     return { data: { created: false }, summary: 'No agent profile found. Cannot schedule viewing.' };
   }
 
@@ -190,7 +184,7 @@ export async function scheduleViewing(
   const { data: viewing, error } = await supabase
     .from('agent_viewings')
     .insert({
-      agent_id: agentProfile.id,
+      agent_id: agentContext.agentId,
       tenant_id: tenantId,
       development_id: developmentId,
       unit_id: unitId,

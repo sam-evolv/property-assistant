@@ -1,6 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AgentContext } from './types';
 import { isInRPZ } from './rpz-zones';
+import { resolveAgentContext } from './agent-context';
 
 export interface AgentProfileExtras {
   agencyName: string | null;
@@ -77,79 +78,32 @@ export interface ViewingRow {
 
 /**
  * Load the agent profile and assigned schemes for the authenticated user.
+ *
+ * Thin wrapper around `resolveAgentContext` that reshapes the result into the
+ * legacy `AgentContext` returned to existing callers. Kept so historical code
+ * paths (e.g. the chat route) keep working; new call sites should use
+ * `resolveAgentContext` directly.
  */
 export async function loadAgentContext(
   supabase: SupabaseClient,
   userId: string,
-  tenantId: string
+  tenantId: string,
+  opts: { activeDevelopmentId?: string | null } = {},
 ): Promise<AgentContext | null> {
-  // Get agent profile
-  const { data: profile } = await supabase
-    .from('agent_profiles')
-    .select('id, display_name')
-    .eq('user_id', userId)
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
-
-  if (!profile) {
-    return null;
-  }
-
-  // Get assigned schemes with unit counts
-  const { data: assignments } = await supabase
-    .from('agent_scheme_assignments')
-    .select('development_id')
-    .eq('agent_id', profile.id)
-    .eq('tenant_id', tenantId)
-    .eq('is_active', true);
-
-  const developmentIds = (assignments || []).map((a: any) => a.development_id);
-
-  let assignedSchemes: AgentContext['assignedSchemes'] = [];
-
-  if (developmentIds.length > 0) {
-    const { data: devs } = await supabase
-      .from('developments')
-      .select('id, name, county')
-      .in('id', developmentIds);
-
-    // Get developer (tenant) name
-    let developerName: string | null = null;
-    const { data: tenant } = await supabase
-      .from('tenants')
-      .select('name')
-      .eq('id', tenantId)
-      .maybeSingle();
-    if (tenant) developerName = tenant.name;
-
-    // Get unit counts per development
-    const schemesWithCounts = await Promise.all(
-      (devs || []).map(async (dev: any) => {
-        const { count } = await supabase
-          .from('units')
-          .select('id', { count: 'exact', head: true })
-          .eq('development_id', dev.id)
-          .eq('tenant_id', tenantId);
-
-        return {
-          developmentId: dev.id,
-          schemeName: dev.name,
-          unitCount: count || 0,
-          location: dev.county || null,
-          developerName: developerName || null,
-        };
-      })
-    );
-
-    assignedSchemes = schemesWithCounts;
-  }
+  const resolved = await resolveAgentContext(supabase, userId, opts);
+  if (!resolved) return null;
 
   return {
-    agentId: profile.id,
-    userId,
-    tenantId,
-    displayName: profile.display_name,
-    assignedSchemes,
+    agentId: resolved.agentProfileId,
+    userId: resolved.authUserId,
+    tenantId: resolved.tenantId ?? tenantId,
+    displayName: resolved.displayName,
+    agencyName: resolved.agencyName,
+    agentType: resolved.agentType,
+    assignedSchemes: resolved.assignedSchemes,
+    assignedDevelopmentIds: resolved.assignedDevelopmentIds,
+    assignedDevelopmentNames: resolved.assignedDevelopmentNames,
+    activeDevelopmentId: opts.activeDevelopmentId ?? null,
   };
 }
 

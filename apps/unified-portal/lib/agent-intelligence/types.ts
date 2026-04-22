@@ -5,6 +5,8 @@ export interface AgentContext {
   userId: string;
   tenantId: string;
   displayName: string;
+  agencyName?: string | null;
+  agentType?: string | null;
   assignedSchemes: Array<{
     developmentId: string;
     schemeName: string;
@@ -12,6 +14,19 @@ export interface AgentContext {
     location?: string | null;
     developerName?: string | null;
   }>;
+  /**
+   * Flat lists of the agent's in-scope development ids and names. Populated
+   * once at request time by `resolveAgentContext`. Tools MUST use these
+   * instead of re-querying `agent_scheme_assignments`.
+   */
+  assignedDevelopmentIds: string[];
+  assignedDevelopmentNames: string[];
+  /**
+   * The currently-selected scheme from the UI dropdown (or null/undefined for
+   * "All Schemes"). Threaded from the chat route's `activeDevelopmentId` body
+   * param.
+   */
+  activeDevelopmentId?: string | null;
 }
 
 export interface ToolResult {
