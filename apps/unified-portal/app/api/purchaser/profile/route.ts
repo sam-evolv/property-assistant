@@ -166,37 +166,90 @@ export async function GET(request: NextRequest) {
       ? `Unit ${unitNumber}, ${developmentAddress}`
       : (supabaseUnit.address || developmentAddress || 'Address not available');
     
-    const documents: { id: string; title: string; file_url: string | null; mime_type: string; category: string }[] = [];
+    const documents: {
+      id: string;
+      title: string;
+      file_url: string | null;
+      file_name: string;
+      mime_type: string;
+      category: string;
+      drawing_type: string | null;
+      drawing_type_label: string | null;
+      description: string | null;
+    }[] = [];
 
     try {
-      // Fetch only this homeowner's architectural drawings matching their house type
-      const { data: drawingSections } = await supabase
-        .from('document_sections')
-        .select('id, metadata')
-        .eq('project_id', supabaseUnit.project_id)
-        .eq('metadata->>discipline', 'architectural')
-        .eq('metadata->>house_type_code', houseTypeCode);
+      // Source of truth for per-unit drawings is `document_sections`, keyed by
+      //   project_id + metadata->drawing_classification->>houseTypeCode.
+      // The `documents` table is empty for recently-ingested schemes (e.g.
+      // Rathárd Park has 0 rows in documents but 868 rows in document_sections,
+      // 5 of which are the BT03 drawings we want to surface).
+      if (supabaseUnit.project_id && houseTypeCode) {
+        // The house_type_code may be stored in either of two metadata shapes
+        // depending on when the document was ingested:
+        //   - metadata.drawing_classification.houseTypeCode  (canonical)
+        //   - metadata.house_type_code                        (legacy flat key)
+        // Query both in parallel so the tab works for every scheme.
+        const [nested, flat] = await Promise.all([
+          supabase
+            .from('document_sections')
+            .select('id, metadata')
+            .eq('project_id', supabaseUnit.project_id)
+            .filter('metadata->drawing_classification->>houseTypeCode', 'eq', houseTypeCode),
+          supabase
+            .from('document_sections')
+            .select('id, metadata')
+            .eq('project_id', supabaseUnit.project_id)
+            .filter('metadata->>house_type_code', 'eq', houseTypeCode),
+        ]);
 
-      const uniqueDocs = new Map<string, { id: string; title: string; file_url: string | null; mime_type: string; category: string }>();
+        const drawingSections = [
+          ...(nested.data || []),
+          ...(flat.data || []),
+        ];
 
-      for (const section of (drawingSections || [])) {
-        const meta = section.metadata as Record<string, unknown>;
-        if (!meta) continue;
-        const source = (meta.source as string | undefined) || 'Unknown';
-        const fileUrl = (meta.file_url as string | undefined) || null;
-        if (!uniqueDocs.has(source)) {
-          uniqueDocs.set(source, {
+        const uniqueDocs = new Map<string, (typeof documents)[number]>();
+
+        for (const section of drawingSections) {
+          const meta = (section.metadata || {}) as Record<string, unknown>;
+          // Prefer metadata.file_name per the drawing_classification schema;
+          // fall back to metadata.source used by older ingestion rows.
+          const fileName = (meta.file_name as string | undefined)
+            || (meta.source as string | undefined)
+            || null;
+          if (!fileName) continue;
+          if (uniqueDocs.has(fileName)) continue;
+
+          const fileUrl = (meta.file_url as string | undefined) || null;
+          const mimeType = (meta.mime_type as string | undefined) || 'application/pdf';
+          const drawingClassification = (meta.drawing_classification || {}) as Record<string, unknown>;
+          const drawingType = (drawingClassification.drawingType as string | undefined) || null;
+          const description = (drawingClassification.drawingDescription as string | undefined) || null;
+
+          uniqueDocs.set(fileName, {
             id: section.id,
-            title: source.replace('.pdf', '').replace(/-/g, ' ').replace(/_/g, ' '),
+            title: humaniseFileName(fileName, description),
             file_url: fileUrl,
-            mime_type: 'application/pdf',
-            category: getDocCategory(source),
+            file_name: fileName,
+            mime_type: mimeType,
+            category: getDocCategory(drawingType, fileName),
+            drawing_type: drawingType,
+            drawing_type_label: formatDrawingTypeLabel(drawingType),
+            description: description,
           });
         }
+
+        documents.push(...Array.from(uniqueDocs.values()));
+
+        console.log('[profile] documents resolved', JSON.stringify({
+          unit_id: supabaseUnit.id,
+          project_id: supabaseUnit.project_id,
+          house_type_code: houseTypeCode,
+          nested_matches: (nested.data || []).length,
+          flat_matches: (flat.data || []).length,
+          unique_files: documents.length,
+        }));
       }
-
-      documents.push(...Array.from(uniqueDocs.values()));
-
     } catch (_docErr) {
       // silent
     }
@@ -233,11 +286,55 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function getDocCategory(fileName: string): string {
-  const lower = fileName.toLowerCase();
-  if (lower.includes('floor') || lower.includes('plan') || lower.includes('layout')) return 'Floor Plans';
+function getDocCategory(drawingType: string | null | undefined, fileName: string): string {
+  // Prefer the structured classification when present — filename heuristics are
+  // a weak fallback because ingestion filenames are coded (e.g. "281-MHL-BT03-
+  // ZZ-DR-A-0140-...").
+  const label = formatDrawingTypeLabel(drawingType);
+  if (label) return pluralise(label);
+  const lower = (fileName || '').toLowerCase();
   if (lower.includes('elevation')) return 'Elevations';
+  if (lower.includes('section')) return 'Sections';
+  if (lower.includes('floor') || lower.includes('plan') || lower.includes('layout')) return 'Floor Plans';
   if (lower.includes('spec')) return 'Specifications';
   if (lower.includes('user') || lower.includes('guide')) return 'User Guides';
   return 'Documents';
+}
+
+function formatDrawingTypeLabel(drawingType: string | null | undefined): string | null {
+  if (!drawingType) return null;
+  switch (drawingType) {
+    case 'floor_plan':   return 'Floor Plan';
+    case 'elevation':    return 'Elevation';
+    case 'section':      return 'Section';
+    case 'site_plan':    return 'Site Plan';
+    case 'house_pad':    return 'House Pad';
+    case 'room_sizes':   return 'Room Sizes';
+    default:
+      return drawingType
+        .split('_')
+        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+  }
+}
+
+function pluralise(label: string): string {
+  if (/s$/i.test(label)) return label;
+  return `${label}s`;
+}
+
+function humaniseFileName(fileName: string, description: string | null | undefined): string {
+  if (description && description.trim()) {
+    return description.trim();
+  }
+  // Strip extension, then strip the coded prefix like "281-MHL-BT03-ZZ-DR-A-0140-"
+  // (up to six hyphen-delimited tokens before the human-readable tail).
+  let base = fileName.replace(/\.[a-z0-9]+$/i, '');
+  base = base.replace(/^(?:[A-Z0-9]{2,6}-){3,7}/, '');
+  base = base.replace(/---+/g, ' - ');
+  base = base.replace(/[-_]+/g, ' ');
+  base = base.replace(/\s+/g, ' ').trim();
+  // Trim trailing revision markers (Rev.C03, Rev C03, rev.B, etc.)
+  base = base.replace(/\s+Rev\.?\s*[A-Z]\d*$/i, '').trim();
+  return base || fileName;
 }

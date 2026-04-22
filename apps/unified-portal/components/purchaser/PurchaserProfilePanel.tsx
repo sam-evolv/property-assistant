@@ -10,6 +10,7 @@ import {
   Maximize2,
   FileText,
   Download,
+  Eye,
   Bed,
   Bath,
   Leaf,
@@ -66,9 +67,13 @@ interface ProfileData {
   documents: {
     id: string;
     title: string;
-    file_url: string;
+    file_url: string | null;
+    file_name?: string;
     mime_type: string;
     category: string;
+    drawing_type?: string | null;
+    drawing_type_label?: string | null;
+    description?: string | null;
   }[];
 }
 
@@ -244,12 +249,6 @@ export default function PurchaserProfilePanel({
     }
     loadAuth();
   }, [isOpen]);
-
-  const handleDownload = async (doc: ProfileData['documents'][0]) => {
-    if (doc.file_url) {
-      window.open(doc.file_url, '_blank');
-    }
-  };
 
   const handleSignOut = async () => {
     try {
@@ -879,51 +878,11 @@ export default function PurchaserProfilePanel({
               />
             ) : (
               /* Documents Section */
-              <div className="p-6">
-                {profile.documents.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className={`p-4 rounded-full mx-auto w-16 h-16 flex items-center justify-center mb-4
-                      ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                      <FileText className={`w-8 h-8 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
-                    </div>
-                    <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                      No Documents Yet
-                    </h3>
-                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      Floor plans and elevations for your specific unit will appear here.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {profile.documents.map(doc => (
-                      <button
-                        key={doc.id}
-                        onClick={() => handleDownload(doc)}
-                        className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all
-                          ${isDarkMode 
-                            ? 'bg-gray-800/50 border-gray-700 hover:bg-gray-800 hover:border-gold-500/50' 
-                            : 'bg-gray-50 border-gray-200 hover:bg-white hover:border-gold-300 hover:shadow-md'
-                          }`}
-                      >
-                        <div className={`p-3 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-white'}`}>
-                          <FileText className={`w-5 h-5 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <p className={`font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
-                            {doc.title}
-                          </p>
-                          <p className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
-                            {doc.category}
-                          </p>
-                        </div>
-                        <div className={`p-2 rounded-lg ${isDarkMode ? 'bg-gold-500/10' : 'bg-gold-50'}`}>
-                          <Download className={`w-4 h-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <DocumentsSection
+                documents={profile.documents}
+                houseTypeCode={profile.unit.house_type_code}
+                isDarkMode={isDarkMode}
+              />
             )
           ) : (
             <div className="p-6 text-center">
@@ -1129,6 +1088,151 @@ function SavedAnswersSection({
             </p>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Documents Section ─────────────────────────────────────────────────────
+// Mirrors the Preview / Download tile design used by assistant reply attachments
+// so the two surfaces feel like one set of drawings.
+
+type UnitDoc = ProfileData['documents'][number];
+
+function DocumentsSection({
+  documents,
+  houseTypeCode,
+  isDarkMode,
+}: {
+  documents: UnitDoc[];
+  houseTypeCode: string;
+  isDarkMode: boolean;
+}) {
+  if (!documents || documents.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="text-center py-12">
+          <div className={`p-4 rounded-full mx-auto w-16 h-16 flex items-center justify-center mb-4
+            ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
+            <FileText className={`w-8 h-8 ${isDarkMode ? 'text-gray-600' : 'text-gray-400'}`} />
+          </div>
+          <h3 className={`font-semibold mb-2 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            Documents coming soon
+          </h3>
+          <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+            Documents for your home haven&apos;t been published yet.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  // Group by category so Floor Plans / Elevations / Sections each get their own
+  // section once there are enough files to justify it. For a small handful we
+  // collapse into a single "Documents" group.
+  const groups = new Map<string, UnitDoc[]>();
+  for (const doc of documents) {
+    const key = doc.category || 'Documents';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(doc);
+  }
+  const shouldGroup = documents.length > 3 && groups.size > 1;
+  const orderedCategories = Array.from(groups.keys()).sort((a, b) => a.localeCompare(b));
+
+  return (
+    <div className="p-6 space-y-5">
+      {shouldGroup
+        ? orderedCategories.map(category => (
+            <div key={category} className="space-y-2">
+              <h4 className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-500' : 'text-gray-400'}`}>
+                {category}
+              </h4>
+              <div className="space-y-3">
+                {groups.get(category)!.map(doc => (
+                  <DocumentTile key={doc.id} doc={doc} houseTypeCode={houseTypeCode} isDarkMode={isDarkMode} />
+                ))}
+              </div>
+            </div>
+          ))
+        : (
+          <div className="space-y-3">
+            {documents.map(doc => (
+              <DocumentTile key={doc.id} doc={doc} houseTypeCode={houseTypeCode} isDarkMode={isDarkMode} />
+            ))}
+          </div>
+        )}
+    </div>
+  );
+}
+
+function DocumentTile({
+  doc,
+  houseTypeCode,
+  isDarkMode,
+}: {
+  doc: UnitDoc;
+  houseTypeCode: string;
+  isDarkMode: boolean;
+}) {
+  const typeLabel = doc.drawing_type_label || doc.category || 'Document';
+  const description = doc.description || doc.title;
+
+  return (
+    <div className={`rounded-xl border overflow-hidden ${
+      isDarkMode
+        ? 'border-[#2A2A2A] bg-[#1A1A1A]'
+        : 'border-gray-200 bg-gray-50'
+    }`}>
+      <div className={`px-3 py-2 border-b ${isDarkMode ? 'border-[#2A2A2A]' : 'border-gray-200'}`}>
+        <div className="flex items-center gap-2">
+          <FileText className={`h-4 w-4 ${isDarkMode ? 'text-gold-400' : 'text-gold-600'}`} />
+          <span className={`text-sm font-medium ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>
+            {typeLabel}
+          </span>
+          {houseTypeCode && (
+            <span className={`text-xs ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+              ({houseTypeCode})
+            </span>
+          )}
+        </div>
+        {description && description !== typeLabel && (
+          <p className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="flex">
+        <a
+          href={doc.file_url || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-disabled={!doc.file_url}
+          onClick={e => { if (!doc.file_url) e.preventDefault(); }}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition border-r ${
+            isDarkMode
+              ? 'border-[#2A2A2A] text-[#D4AF37] hover:bg-[#252525]'
+              : 'border-gray-200 text-gold-700 hover:bg-gray-100'
+          } ${!doc.file_url ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          <Eye className="h-4 w-4" />
+          Preview
+        </a>
+        <a
+          href={doc.file_url || '#'}
+          target="_blank"
+          rel="noopener noreferrer"
+          download={doc.file_name || undefined}
+          aria-disabled={!doc.file_url}
+          onClick={e => { if (!doc.file_url) e.preventDefault(); }}
+          className={`flex-1 flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium transition ${
+            isDarkMode
+              ? 'text-[#D4AF37] hover:bg-[#252525]'
+              : 'text-gold-700 hover:bg-gray-100'
+          } ${!doc.file_url ? 'opacity-50 pointer-events-none' : ''}`}
+        >
+          <Download className="h-4 w-4" />
+          Download
+        </a>
       </div>
     </div>
   );
