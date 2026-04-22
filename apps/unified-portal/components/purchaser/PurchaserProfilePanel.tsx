@@ -349,7 +349,11 @@ export default function PurchaserProfilePanel({
           animate-in slide-in-from-bottom md:slide-in-from-bottom-0 md:zoom-in-95`}
       >
         {/* Premium Header with Gold Accent */}
-        <div className={`relative bg-gradient-to-br ${headerGradient} overflow-hidden`}>
+        {/* flex-shrink-0 guarantees the header keeps its natural height — without it,
+            the flex-col panel can let the header + tabs + content negotiate space and
+            on narrow Android widths the tabs row loses the negotiation and gets
+            clipped by the panel's max-h-[92vh] + overflow-hidden (Bug 2 round 1). */}
+        <div className={`relative flex-shrink-0 bg-gradient-to-br ${headerGradient} overflow-hidden`}>
           {/* Decorative gold accent line */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-gold-400 via-gold-500 to-gold-400" />
 
@@ -453,7 +457,12 @@ export default function PurchaserProfilePanel({
             right-edge gradient that reveals there is more content to scroll. The full
             labels still appear on sm: and up (where there is room).
           */}
-          <div className="relative">
+          {/* flex-shrink-0 on the tabs row is essential: when the panel height is
+              constrained (max-h-[92vh] on mobile) and the content cards below want
+              more room than is available, the tabs row is what gets squeezed and
+              clipped by the panel's overflow-hidden. Pinning it keeps the tabs
+              always visible between the header and the scrollable content. */}
+          <div className={`relative flex-shrink-0 ${isDarkMode ? 'bg-gray-900' : 'bg-white'}`}>
             <div
               className="px-6 pr-4 flex gap-2 overflow-x-auto scrollbar-hide"
               style={{ WebkitOverflowScrolling: 'touch' }}
