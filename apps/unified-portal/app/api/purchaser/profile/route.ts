@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
+import { db } from '@openhouse/db/client';
+import { sql } from 'drizzle-orm';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,13 +42,10 @@ function getSupabaseClient() {
   );
 }
 
-function parseNumericValue(value: unknown): number | null {
-  if (typeof value === 'number') return value;
-  if (typeof value === 'string') {
-    const match = value.match(/(\d+)/);
-    if (match) return parseInt(match[1], 10);
-  }
-  return null;
+function toNumberOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const n = typeof value === 'number' ? value : parseFloat(String(value));
+  return Number.isFinite(n) ? n : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -84,63 +83,80 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
-    // Select house_type_code directly — it is a first-class column on units.
+
+    // Source of truth: the units row. We intentionally do NOT read unit_types.specification_json
+    // — that is a type-level default, and for Rathárd Park it contains known-wrong values
+    // (4/3 bed/bath instead of 2/2, floor area in sqft under an sqm key).
     const { data: supabaseUnit, error } = await supabase
       .from('units')
-      .select('id, address, purchaser_name, project_id, unit_type_id, house_type_code')
+      .select('id, address, purchaser_name, project_id, development_id, house_type_code, bedrooms, bathrooms, floor_area_m2, property_type')
       .eq('id', unitUid)
       .single();
-    
+
     if (error || !supabaseUnit) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    const { data: project } = await supabase
-      .from('projects')
-      .select('name, address')
-      .eq('id', supabaseUnit.project_id)
-      .single();
-    
-    const developmentName = project?.name || 'Unknown Development';
-    const developmentAddress = formatSchemeAddress(developmentName, project?.address || null);
-    
+    // DEVELOPMENT NAME: resolve via developments table using unit.development_id.
+    // Never use projects.name — a UUID collision between projects and developments
+    // causes "Árdan View" to leak into Rathárd Park homes.
+    let developmentName: string | null = null;
+    let developmentUuid: string | null = (supabaseUnit as any).development_id || null;
+    let projectsNameDiag: string | null = null;
+
+    if (developmentUuid) {
+      try {
+        const { rows } = await db.execute(sql`
+          SELECT id, name, address FROM developments WHERE id = ${developmentUuid}::uuid LIMIT 1
+        `);
+        if (rows.length > 0) {
+          const dev = rows[0] as any;
+          developmentName = dev.name || null;
+        }
+      } catch (_devErr) {
+        // Leave null — UI will render "—"
+      }
+    }
+
+    // Fetch projects.name purely for diagnostic logging, never for display.
+    if (supabaseUnit.project_id) {
+      try {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('name, address')
+          .eq('id', supabaseUnit.project_id)
+          .single();
+        projectsNameDiag = project?.name || null;
+      } catch (_projErr) {
+        // ignore
+      }
+    }
+
+    // Server-side diagnostic log (task brief Part B.3)
+    console.log('[profile] unit loaded', JSON.stringify({
+      unit_id: supabaseUnit.id,
+      project_id: supabaseUnit.project_id,
+      development_id: developmentUuid,
+      developments_name: developmentName,
+      projects_name: projectsNameDiag,
+    }));
+
+    const devAddress: string | null = null; // projects.address is not used for display
+    const developmentAddress = developmentName
+      ? formatSchemeAddress(developmentName, devAddress)
+      : '';
+
     const development = {
-      id: supabaseUnit.project_id,
-      name: developmentName,
+      id: developmentUuid || supabaseUnit.project_id,
+      name: developmentName || '',
       address: developmentAddress,
     };
 
-    // Prefer the direct house_type_code column; fall back to unit_types.name for display name only
-    let houseTypeCode = (supabaseUnit.house_type_code as string | null) || '';
-    console.log(`[profile] houseTypeCode="${houseTypeCode}" unitId="${unitUid}"`);
-    let houseTypeName = houseTypeCode;
-    let bedrooms: number | null = null;
-    let bathrooms: number | null = null;
-    let floorAreaSqm: number | null = null;
-
-    if (supabaseUnit.unit_type_id) {
-      const { data: unitType } = await supabase
-        .from('unit_types')
-        .select('name, specification_json')
-        .eq('id', supabaseUnit.unit_type_id)
-        .single();
-
-      if (unitType) {
-        // Use direct column as authoritative code; unit_types.name gives us a display name
-        if (!houseTypeCode) houseTypeCode = unitType.name || '';
-        houseTypeName = unitType.name || houseTypeCode;
-
-        const specs = unitType.specification_json as Record<string, unknown>;
-        if (specs) {
-          bedrooms = parseNumericValue(specs.bedrooms);
-          bathrooms = parseNumericValue(specs.bathrooms);
-          floorAreaSqm = parseNumericValue(specs.floor_area_sqm) || parseNumericValue(specs.floor_area);
-          if (specs.property_type) {
-            houseTypeName = specs.property_type as string;
-          }
-        }
-      }
-    }
+    const houseTypeCode = ((supabaseUnit as any).house_type_code as string | null) || '';
+    const houseTypeName = ((supabaseUnit as any).property_type as string | null) || houseTypeCode;
+    const bedrooms = toNumberOrNull((supabaseUnit as any).bedrooms);
+    const bathrooms = toNumberOrNull((supabaseUnit as any).bathrooms);
+    const floorAreaM2 = toNumberOrNull((supabaseUnit as any).floor_area_m2);
     
     const purchaserName = supabaseUnit.purchaser_name || 'Homeowner';
     
@@ -195,7 +211,7 @@ export async function GET(request: NextRequest) {
         house_type_name: houseTypeName,
         bedrooms: bedrooms,
         bathrooms: bathrooms,
-        floor_area_sqm: floorAreaSqm,
+        floor_area_m2: floorAreaM2,
       },
       development: {
         id: development.id,
