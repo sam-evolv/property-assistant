@@ -23,16 +23,16 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   viewportFit: 'cover',
-  // `interactiveWidget: 'resizes-content'` tells Android Chrome (and the TWA wrapper
-  // that ships this site as a Play Store app) to shrink the layout viewport when the
-  // soft keyboard appears instead of overlaying the page. Without it, the default
-  // `overlays-content` behavior is what caused the chat input bar to float mid-screen
-  // in the Android TWA when the user swiped — the bar's `bottom: calc(env(safe-area-inset-bottom)
-  // + tab-bar-height)` was resolved against a viewport that didn't shorten for the keyboard.
-  // iOS Safari / iOS Capacitor ignore this meta (they use VisualViewport + safe-area
-  // insets), so the existing isIOSNative code path in PurchaserChatTab is unaffected.
-  // Supported by Next Viewport type since 14.1; we're on ^14.2.18.
-  interactiveWidget: 'resizes-content',
+  // NOTE on `interactiveWidget`: PR #29 set this to 'resizes-content' to fix the
+  // Android TWA "chat input bar floats mid-screen on swipe" bug. In practice the
+  // layout-viewport resize fires during the input focus handler on Android Chrome,
+  // which re-lays-out the page and causes the newly-opened soft keyboard to
+  // dismiss itself — the user sees the keyboard appear for a split second and
+  // disappear (observed by user, April 2026). Reverting to browser default
+  // ('overlays-content') restores keyboard functionality; the original swipe-drift
+  // bug (input bar rendered above keyboard, not under it) is preferable to the
+  // keyboard being unusable, and will be fixed in a follow-up PR via a JS-based
+  // approach that doesn't interact with focus.
   themeColor: [
     { media: '(prefers-color-scheme: light)', color: '#ffffff' },
     { media: '(prefers-color-scheme: dark)', color: '#1A1A1A' },
