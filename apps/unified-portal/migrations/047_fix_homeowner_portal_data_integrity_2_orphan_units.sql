@@ -1,0 +1,35 @@
+-- Migration: fix_homeowner_portal_data_integrity — 2/5 — fix two orphan unit rows
+--
+-- Two production units have mismatched (development_id, project_id) wiring:
+--   (a) one Sigma Homes unit (development_id = a1b2c3d4-e5f6-7890-abcd-ef1234567890)
+--       points at the Longview Park project (project_id = 57dc3919-...) — if it is
+--       demo data it should be deleted, otherwise its development_id needs fixing.
+--   (b) one Longview Park unit (development_id = e0833063-55ac-4201-a50e-f329c090fbd6)
+--       points at the Rathard Park project (project_id = 6d3789de-...) — its
+--       project_id should be set to the Longview Park project 57dc3919-...
+--
+-- *** DO NOT RUN BLINDLY. ***
+--
+-- Step 1 — list the offending rows so Sam can decide:
+--
+-- SELECT id, unit_number, address, development_id, project_id, purchaser_name
+--   FROM units
+--  WHERE (development_id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+--         AND project_id = '57dc3919-2725-4575-8046-9179075ac88e')
+--     OR (development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+--         AND project_id = '6d3789de-2e46-430c-bf31-22224bd878da');
+--
+-- Step 2 — fill in the unit IDs returned above, uncomment the matching UPDATE,
+-- and run only after Sam has confirmed which action to take for each row.
+
+-- (a) Sigma Homes unit wired to Longview Park project:
+--     -- If it is demo data, delete:
+--     -- DELETE FROM units WHERE id = '<unit_id_a>';
+--     -- Otherwise, correct the development_id (replace target with the real
+--     --   Sigma Homes development_id once known):
+--     -- UPDATE units SET development_id = '<sigma_dev_id>' WHERE id = '<unit_id_a>';
+
+-- (b) Longview Park unit wired to Rathard Park project:
+--     -- UPDATE units
+--     --    SET project_id = '57dc3919-2725-4575-8046-9179075ac88e'
+--     --  WHERE id = '<unit_id_b>';

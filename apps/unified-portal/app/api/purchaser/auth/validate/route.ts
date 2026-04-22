@@ -1,6 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { signQRToken } from '@openhouse/api/qr-tokens';
 import { createClient } from '@supabase/supabase-js';
+import { db } from '@openhouse/db/client';
+import { sql } from 'drizzle-orm';
+
+// Resolve development name + logo from the developments table by unit.development_id.
+// Never uses projects.name — avoids the Rathárd Park ↔ Árdan View UUID collision.
+async function resolveDevelopmentFromDevelopmentId(developmentUuid: string | null | undefined): Promise<{ name: string | null; logoUrl: string | null }> {
+  if (!developmentUuid) return { name: null, logoUrl: null };
+  try {
+    const { rows } = await db.execute(sql`
+      SELECT name, logo_url FROM developments WHERE id = ${developmentUuid}::uuid LIMIT 1
+    `);
+    if (rows.length === 0) return { name: null, logoUrl: null };
+    const dev = rows[0] as any;
+    return { name: dev.name || null, logoUrl: dev.logo_url || null };
+  } catch (_err) {
+    return { name: null, logoUrl: null };
+  }
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -118,28 +136,23 @@ export async function POST(req: NextRequest) {
     
     if (directUnit && !directError) {
       console.log('[Purchaser Auth] Found unit by unit_uid:', directUnit.unit_uid);
-      
-      // Fetch project name separately if needed
-      let devName = 'Unknown';
-      const devId = directUnit.development_id || directUnit.project_id;
-      if (directUnit.project_id) {
-        const { data: project } = await supabase
-          .from('projects')
-          .select('name')
-          .eq('id', directUnit.project_id)
-          .single();
-        if (project) devName = project.name;
-      }
-      
+
+      // Resolve development name via developments table using unit.development_id.
+      // Do NOT use projects.name — see header comment.
+      const devId = directUnit.development_id || null;
+      const { name: devName, logoUrl: devLogoUrl } = await resolveDevelopmentFromDevelopmentId(devId);
+
       handoverDate = directUnit.handover_date;
-      
+
       unit = {
         id: directUnit.id,
         development_id: devId,
+        project_id: directUnit.project_id,
         address: directUnit.address,
         purchaser_name: directUnit.purchaser_name,
         tenant_id: directUnit.tenant_id,
-        development_name: devName,
+        development_name: devName || '',
+        development_logo_url: devLogoUrl,
         house_type_code: directUnit.house_type_code,
         bedrooms: directUnit.bedrooms,
         bathrooms: directUnit.bathrooms,
@@ -172,7 +185,7 @@ export async function POST(req: NextRequest) {
           if (projectData && !projectError) {
             const { data: projectUnits } = await supabase
               .from('units')
-              .select('id, project_id, address, purchaser_name, house_type_code, bedrooms, bathrooms, unit_uid, handover_date')
+              .select('id, project_id, development_id, address, purchaser_name, house_type_code, bedrooms, bathrooms, unit_uid, handover_date')
               .eq('project_id', projectData.id);
             
             const matchedUnit = projectUnits?.find((u: any) => {
@@ -195,14 +208,21 @@ export async function POST(req: NextRequest) {
             if (matchedUnit) {
               console.log('[Purchaser Auth] Found unit by legacy code match');
               handoverDate = matchedUnit.handover_date;
-              
+
+              // Development identity comes from developments table via unit.development_id.
+              // Fall back to projects.name ONLY for the display string, never for the UUID.
+              const devUuid = matchedUnit.development_id || null;
+              const { name: devName, logoUrl: devLogoUrl } = await resolveDevelopmentFromDevelopmentId(devUuid);
+
               unit = {
                 id: matchedUnit.id,
-                development_id: matchedUnit.project_id,
+                development_id: devUuid,
+                project_id: matchedUnit.project_id,
                 address: matchedUnit.address,
                 purchaser_name: matchedUnit.purchaser_name,
                 tenant_id: projectData.id,
-                development_name: projectData.name,
+                development_name: devName || projectData.name,
+                development_logo_url: devLogoUrl,
                 house_type_code: matchedUnit.house_type_code,
                 bedrooms: matchedUnit.bedrooms,
                 bathrooms: matchedUnit.bathrooms,
@@ -223,7 +243,12 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    console.log('[Purchaser Auth] Valid code for unit:', unit.id, 'Development:', unit.development_name);
+    console.log('[Purchaser Auth] Valid code for unit:', JSON.stringify({
+      unit_id: unit.id,
+      project_id: unit.project_id,
+      development_id: unit.development_id,
+      development_name: unit.development_name,
+    }));
 
     const tokenResult = signQRToken({
       supabaseUnitId: unit.id,
@@ -245,7 +270,7 @@ export async function POST(req: NextRequest) {
       accessCode: unit.unit_uid || trimmedCode,
       developmentId: unit.development_id,
       developmentName: unit.development_name,
-      developmentLogoUrl: null,
+      developmentLogoUrl: unit.development_logo_url || null,
       purchaserName: unit.purchaser_name || 'Homeowner',
       address: unit.address || '',
       houseType: unit.house_type_code || '',
