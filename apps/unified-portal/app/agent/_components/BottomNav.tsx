@@ -5,14 +5,12 @@ import { usePathname } from 'next/navigation';
 import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
 
-type TabId = 'home' | 'pipeline' | 'drafts' | 'viewings' | 'docs';
+type TabId = 'home' | 'pipeline' | 'viewings' | 'docs';
 
 const TABS: { id: TabId; label: string; href: string }[] = [
   { id: 'home', label: 'Home', href: '/agent/home' },
   { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline' },
-  // Intelligence is the FAB. Drafts sits immediately after, between Pipeline
-  // and Viewings in visual flow per Session 2 spec.
-  { id: 'drafts', label: 'Drafts', href: '/agent/drafts' },
+  // Intelligence FAB sits between the two clusters.
   { id: 'viewings', label: 'Viewings', href: '/agent/viewings' },
   { id: 'docs', label: 'Docs', href: '/agent/docs' },
 ];
@@ -36,15 +34,6 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
           <rect x="14" y="3" width="7" height="7" rx="1.5" />
           <rect x="3" y="14" width="7" height="7" rx="1.5" />
           <rect x="14" y="14" width="7" height="7" rx="1.5" />
-        </svg>
-      );
-    case 'drafts':
-      // Lucide MailCheck mark as required by design spec.
-      return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M22 13V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h9" />
-          <path d="m22 7-10 5L2 7" />
-          <path d="m16 19 2 2 4-4" />
         </svg>
       );
     case 'viewings':
@@ -112,9 +101,6 @@ export default function BottomNav() {
             {active && <GoldIndicator />}
             <div style={{ position: 'relative' }}>
               <TabIcon id={tab.id} active={active} />
-              {tab.id === 'drafts' && draftsCount > 0 && (
-                <DraftsBadge count={draftsCount} />
-              )}
             </div>
             <span
               style={{
@@ -166,7 +152,7 @@ export default function BottomNav() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            overflow: 'hidden',
+            overflow: 'visible',
             boxShadow: intelActive
               ? `0 0 0 1px rgba(255,255,255,0.10) inset,
                  0 0 0 2.5px #C49B2A,
@@ -182,14 +168,17 @@ export default function BottomNav() {
             textDecoration: 'none',
           }}
         >
-          <Image
-            src="/oh-logo-icon.png"
-            alt="OpenHouse Intelligence"
-            width={80}
-            height={80}
-            style={{ objectFit: 'contain' }}
-            priority
-          />
+          <div style={{ width: 80, height: 80, borderRadius: 40, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Image
+              src="/oh-logo-icon.png"
+              alt="OpenHouse Intelligence"
+              width={80}
+              height={80}
+              style={{ objectFit: 'contain' }}
+              priority
+            />
+          </div>
+          {draftsCount > 0 && <FabDraftsBadge count={draftsCount} />}
         </Link>
 
         {/* Intelligence nav label */}
@@ -228,9 +217,6 @@ export default function BottomNav() {
             {active && <GoldIndicator />}
             <div style={{ position: 'relative' }}>
               <TabIcon id={tab.id} active={active} />
-              {tab.id === 'drafts' && draftsCount > 0 && (
-                <DraftsBadge count={draftsCount} />
-              )}
             </div>
             <span
               style={{
@@ -249,28 +235,28 @@ export default function BottomNav() {
   );
 }
 
-function DraftsBadge({ count }: { count: number }) {
+function FabDraftsBadge({ count }: { count: number }) {
   return (
     <span
-      data-testid="drafts-badge"
+      data-testid="fab-drafts-badge"
       style={{
         position: 'absolute',
-        top: -4,
-        right: -8,
-        minWidth: 16,
-        height: 16,
-        padding: '0 4px',
-        borderRadius: 8,
-        background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
-        color: '#fff',
-        fontSize: 9,
+        top: 2,
+        right: 2,
+        minWidth: 18,
+        height: 18,
+        padding: '0 5px',
+        borderRadius: 9,
+        background: '#D4AF37',
+        color: '#0b0c0f',
+        fontSize: 10,
         fontWeight: 700,
-        lineHeight: '16px',
+        lineHeight: '18px',
         textAlign: 'center',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.35), 0 0 0 1.5px #0D0D12',
       }}
     >
-      {count > 99 ? '99+' : count}
+      {count > 9 ? '9+' : count}
     </span>
   );
 }

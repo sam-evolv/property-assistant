@@ -10,6 +10,7 @@ import {
   getRecentEnquiries,
   getListings,
 } from '@/lib/agent/independentAgentService';
+import DraftsHomeTile from './DraftsHomeTile';
 
 interface IndependentHomeViewProps {
   agent: AgentProfile;
@@ -78,6 +79,9 @@ export default function IndependentHomeView({ agent }: IndependentHomeViewProps)
           <StatRow icon="clock" label="Follow-ups due" value={stats?.followUpsDue ?? 0} color="#EF4444" urgent={(stats?.followUpsDue ?? 0) > 0} />
         </Link>
       </div>
+
+      {/* Drafts tile — replaces the bottom-nav Drafts tab. */}
+      <DraftsHomeTile />
 
       {/* Price review alerts */}
       {priceReviews.length > 0 && (

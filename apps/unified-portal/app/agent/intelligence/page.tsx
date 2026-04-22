@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
 import VoiceInputBar from '../_components/VoiceInputBar';
@@ -12,7 +13,7 @@ import { useAgent } from '@/lib/agent/AgentContext';
 import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
 import type { AutoSendUiState } from '../_components/VoiceConfirmationCard';
-import { notifyDraftsChanged } from '../_hooks/useDraftsCount';
+import { notifyDraftsChanged, useDraftsCount } from '../_hooks/useDraftsCount';
 import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
 import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
@@ -115,6 +116,7 @@ export default function IntelligencePage() {
 function IntelligencePageInner() {
   const { agent, alerts, developmentIds } = useAgent();
   const { openApprovalDrawer } = useApprovalDrawer();
+  const { count: pendingDraftsCount } = useDraftsCount();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
   const isIndependent = agent?.agentType !== 'scheme';
@@ -658,6 +660,46 @@ function IntelligencePageInner() {
               Chase contracts, draft reports, follow up buyers. You approve
               every action before it sends.
             </p>
+
+            {pendingDraftsCount > 0 && (
+              <div
+                data-testid="intelligence-drafts-greeting"
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '12px 16px',
+                  background: 'rgba(196,155,42,0.08)',
+                  border: '0.5px solid rgba(196,155,42,0.30)',
+                  borderRadius: 14,
+                  marginBottom: 22,
+                  maxWidth: 320,
+                  width: '100%',
+                }}
+              >
+                <p style={{ margin: 0, color: '#8A6E1F', fontSize: 13, lineHeight: 1.45, textAlign: 'center' }}>
+                  You&rsquo;ve got {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} from earlier.
+                  Tap &lsquo;Review drafts&rsquo; below, or ask me anything.
+                </p>
+                <Link
+                  href="/agent/drafts"
+                  data-testid="intelligence-review-drafts-chip"
+                  style={{
+                    background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                    color: '#FFFFFF',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    padding: '7px 14px',
+                    borderRadius: 999,
+                    textDecoration: 'none',
+                    boxShadow: '0 2px 6px rgba(196,155,42,0.30)',
+                  }}
+                >
+                  Review drafts
+                </Link>
+              </div>
+            )}
 
             {/* Prompt pills */}
             {/* Write-action chips — voice capture entry points. Kept above
