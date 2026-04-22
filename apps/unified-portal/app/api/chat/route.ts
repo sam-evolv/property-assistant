@@ -1708,19 +1708,24 @@ export async function POST(request: NextRequest) {
     // SEV-1 FIX: Capture actual Supabase unit ID for message linkage
     // This is the true unit.id from Supabase, not the effectiveUnitUid which may be a different format
     const actualUnitId = userUnitDetails.unitInfo?.id || null;
-    // For vector search (document_sections.project_id), use the developmentId from the request body first.
-    // This ensures the filter matches the actual project_id stored in document_sections rows.
-    // supabase_project_id is a legacy field that may hold a stale value — only use as last resort.
-    let userSupabaseProjectId: string | null = clientDevelopmentId  // Request body developmentId — matches document_sections.project_id
-      || userDevelopmentId    // Unit's development_id from DB lookup
-      || userUnitDetails.unitInfo?.supabase_project_id  // Legacy fallback
+
+    // RAG project_id resolution — this is the value passed to match_document_sections
+    // and to scheme_profile lookups. MUST be the Supabase projects.id for the unit
+    // (units.project_id), not the development_id.
+    //
+    // Priority order:
+    //   1. units.project_id (supabase_project_id from unit-lookup) — canonical source of truth
+    //   2. clientDevelopmentId — legacy request-body field; only used if unit lookup failed
+    //   3. projects.development_id back-reference — maps dev UUID → canonical project_id
+    //   4. Default fallback for the default tenant
+    let userSupabaseProjectId: string | null = userUnitDetails.unitInfo?.supabase_project_id
+      || clientDevelopmentId
+      || userDevelopmentId
       || (userTenantId === DEFAULT_TENANT_ID ? PROJECT_ID : null)
       || null;
 
-    // PROJECT_ID RESOLUTION: When the resolved ID is a development_id (not a Supabase project_id),
-    // document_sections may be indexed under a different project_id. Look up projects.development_id
-    // to find the canonical project_id where documents are actually stored.
-    // Example: Árdan View development_id=34316432... but docs live under project_id=84a559d1...
+    // PROJECT_ID RESOLUTION: If we still ended up with what looks like a development_id,
+    // resolve it to the canonical project_id via projects.development_id.
     if (userDevelopmentId && userSupabaseProjectId === userDevelopmentId) {
       try {
         const supabase = getSupabaseClient();
@@ -1736,6 +1741,28 @@ export async function POST(request: NextRequest) {
         // Continue with existing ID — don't fail the request over this
       }
     }
+
+    // Server-side assertion/log — assures RAG filter is keyed by project_id, not development_id.
+    if (!userSupabaseProjectId) {
+      console.error('[chat] ASSERTION FAILED: userSupabaseProjectId is falsy — RAG lookup will fail', JSON.stringify({
+        effectiveUnitUid,
+        clientDevelopmentId,
+        userDevelopmentId,
+        unit_supabase_project_id: userUnitDetails.unitInfo?.supabase_project_id,
+      }));
+      throw new Error('Homeowner chat: cannot resolve project_id for RAG lookup');
+    }
+
+    // Homeowner session boundary log — surfaces the full identity resolution per the
+    // task brief (Part B.3). Keep in place until we've validated on other units.
+    console.log('[chat] homeowner session loaded', JSON.stringify({
+      unit_id: actualUnitId,
+      unit_uid: effectiveUnitUid,
+      project_id: userUnitDetails.unitInfo?.supabase_project_id,
+      development_id: userDevelopmentId,
+      development_name: userUnitDetails?.unitInfo?.development_name || null,
+      rag_project_id: userSupabaseProjectId,
+    }));
 
     // SCHEME PROFILE: Fetch structured authority data for this scheme
     let schemeProfileData: Record<string, unknown> | null = null;

@@ -213,7 +213,9 @@ export default function HomeResidentPage() {
             unit_id: unitId,
             development_id: data.development_id || data.project_id || '',
             development_code: data.development_code || '',
-            development_name: data.development_name || 'Longview Park',
+            // No hardcoded fallback — if the server didn't resolve a name,
+            // don't invent one. The header already renders '—' / 'Home' in that case.
+            development_name: data.development_name || '',
             development_logo_url: data.development_logo_url,
             development_system_instructions: data.development_system_instructions || '',
             purchaser_name: data.purchaserName || data.purchaser_name || 'Homeowner',
