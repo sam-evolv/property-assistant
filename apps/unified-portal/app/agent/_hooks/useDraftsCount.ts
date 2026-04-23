@@ -12,8 +12,15 @@ const POLL_INTERVAL_MS = 30_000;
  * action, send flow) can dispatch `oh.agent.drafts.refresh` to force an
  * immediate refresh instead of waiting for the next poll tick.
  */
-export function useDraftsCount(): { count: number; refresh: () => Promise<void> } {
+export function useDraftsCount(): {
+  count: number;
+  /** True once the initial fetch has settled. Lets callers reserve
+      layout space until they know whether to render a banner. */
+  ready: boolean;
+  refresh: () => Promise<void>;
+} {
   const [count, setCount] = useState(0);
+  const [ready, setReady] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -23,6 +30,8 @@ export function useDraftsCount(): { count: number; refresh: () => Promise<void> 
       if (typeof data.count === 'number') setCount(data.count);
     } catch {
       /* silent — the badge just stays at its last known value */
+    } finally {
+      setReady(true);
     }
   }, []);
 
@@ -37,7 +46,7 @@ export function useDraftsCount(): { count: number; refresh: () => Promise<void> 
     };
   }, [refresh]);
 
-  return { count, refresh };
+  return { count, ready, refresh };
 }
 
 export function notifyDraftsChanged(): void {

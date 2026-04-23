@@ -8,6 +8,7 @@ import AgentShell from '../_components/AgentShell';
 import VoiceInputBar from '../_components/VoiceInputBar';
 import VoiceConfirmationCard from '../_components/VoiceConfirmationCard';
 import UndoPill from '../_components/UndoPill';
+import CapabilityChipsCarousel from '../_components/CapabilityChipsCarousel';
 import { useVoiceCapture } from '../_hooks/useVoiceCapture';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
@@ -18,28 +19,14 @@ import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intellige
 import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 
-const SCHEME_PILLS = [
-  "What's outstanding on contracts?",
-  'Give me a scheme summary',
-  'Draft a buyer follow-up email',
-  'Generate developer weekly report',
-];
-
-const INDEPENDENT_PILLS = [
-  "Draft replies to today's enquiries",
-  'Prepare a vendor update',
-  "Who haven't I followed up with?",
-  'Chase a solicitor on contracts',
-];
-
-const WRITE_PILLS: Array<{ label: string; intent: string }> = [
-  { label: 'Log a viewing', intent: 'log_viewing' },
-  { label: 'Update the tracker', intent: 'update_tracker' },
-  { label: 'Follow up with a buyer', intent: 'draft_viewing_followup_buyer' },
-  { label: 'Respond to an offer', intent: 'draft_offer_response' },
-  { label: 'Log a rental viewing', intent: 'log_rental_viewing' },
-  { label: 'Invite an applicant', intent: 'draft_application_invitation' },
-];
+// Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
+// INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
+// CapabilityChipsCarousel above the input. The voice-intent flow that
+// WRITE_PILLS used to seed still exists — the mic button on the input bar
+// opens a voice capture, and the transcript is interpreted the same way.
+// The carousel's chip library already includes natural-language equivalents
+// ("Log a rental viewing for tomorrow", "Draft a buyer follow-up email",
+// etc.) so the workflows remain discoverable.
 
 interface DraftedEmail {
   to: string;
@@ -122,20 +109,20 @@ export default function IntelligencePage() {
 function IntelligencePageInner() {
   const { agent, alerts, developmentIds } = useAgent();
   const { openApprovalDrawer } = useApprovalDrawer();
-  const { count: pendingDraftsCount } = useDraftsCount();
+  const { count: pendingDraftsCount, ready: draftsReady } = useDraftsCount();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
-  const isIndependent = agent?.agentType !== 'scheme';
-  const PROMPT_PILLS = isIndependent ? INDEPENDENT_PILLS : SCHEME_PILLS;
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [sessionId, setSessionId] = useState<string>(`session_${Date.now()}`);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [inputFocused, setInputFocused] = useState(false);
   const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefillHandled = useRef(false);
+  const inputElRef = useRef<HTMLInputElement | null>(null);
   const voiceIntentRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
@@ -635,17 +622,24 @@ function IntelligencePageInner() {
     }
   }, [undoBatch]);
 
-  const handleWriteChip = useCallback(
-    (intent: string) => {
-      voiceIntentRef.current = intent;
-      voice.start().catch(() => {
-        voiceIntentRef.current = undefined;
-      });
-    },
-    [voice],
-  );
+  // Session 7 — chip taps prefill the input + focus it. They never
+  // auto-submit; the agent reviews and edits before sending.
+  const handleChipTap = useCallback((text: string) => {
+    setInput(text);
+    // Next tick: give the controlled input time to update before we
+    // focus + move cursor to the end.
+    requestAnimationFrame(() => {
+      const el = inputElRef.current;
+      if (!el) return;
+      el.focus();
+      try {
+        el.setSelectionRange(text.length, text.length);
+      } catch { /* some browsers don't support setSelectionRange on type=text */ }
+    });
+  }, []);
 
   const hasMessages = messages.length > 0;
+  const firstName = agent?.displayName?.split(' ')[0] || 'Agent';
 
   return (
     <AgentShell agentName={agent?.displayName?.split(' ')[0] || 'Agent'} urgentCount={alerts?.length || 0}>
@@ -659,197 +653,123 @@ function IntelligencePageInner() {
         }}
       >
         {!hasMessages ? (
-          /* Landing state */
+          /* Landing state — Session 7 rebuild.
+             Layout is a 3-row flex column:
+               1. Hero block (top) — fixed position from first paint
+               2. Flexible spacer — pushes chips + input toward the input bar
+               3. Chip carousel (above the input)
+             The drafts banner has a reserved min-height container so when
+             count resolves from 0 → N (or stays 0), nothing else shifts. */
           <div
+            data-testid="intelligence-landing"
             style={{
               flex: 1,
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 32px',
+              padding: '0 24px',
               textAlign: 'center',
               background:
-                'radial-gradient(ellipse 90% 60% at 50% 35%, rgba(196,155,42,0.07) 0%, transparent 70%)',
+                'radial-gradient(ellipse 90% 55% at 50% 22%, rgba(196,155,42,0.05) 0%, transparent 70%)',
               minHeight: 0,
             }}
           >
-            <Image
-              src="/oh-logo.png"
-              alt="OpenHouse"
-              width={168}
-              height={168}
+            {/* Breathing room from the status bar. */}
+            <div style={{ height: 40, flexShrink: 0 }} />
+
+            <h1
+              data-testid="intelligence-hero"
               style={{
-                objectFit: 'contain',
-                display: 'block',
-                mixBlendMode: 'multiply',
-                marginBottom: 22,
+                color: '#0b0c0f',
+                fontSize: 30,
+                fontWeight: 600,
+                letterSpacing: '-0.025em',
+                lineHeight: 1.2,
+                margin: 0,
+                maxWidth: 320,
               }}
-              priority
-            />
+            >
+              What can I help with, {firstName}?
+            </h1>
+
+            <div style={{ height: 24, flexShrink: 0 }} />
 
             <p
               style={{
-                background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                fontSize: 11,
-                fontWeight: 700,
-                letterSpacing: '0.14em',
-                textTransform: 'uppercase',
-                margin: '0 0 18px',
-              }}
-            >
-              OpenHouse Intelligence
-            </p>
-
-            <h2
-              style={{
-                color: '#0D0D12',
-                fontSize: 22,
-                fontWeight: 700,
-                letterSpacing: '-0.04em',
-                lineHeight: 1.22,
-                margin: '0 0 12px',
-              }}
-            >
-              Ask anything about your
-              <br />
-              pipeline or tasks
-            </h2>
-
-            <p
-              style={{
-                color: '#9CA3AF',
-                fontSize: 13.5,
-                lineHeight: 1.65,
-                margin: '0 0 28px',
-                maxWidth: 280,
+                color: '#6B7280',
+                fontSize: 14,
+                lineHeight: 1.5,
+                margin: 0,
+                maxWidth: 300,
                 letterSpacing: '0.005em',
               }}
             >
-              Chase contracts, draft reports, follow up buyers. You approve
-              every action before it sends.
+              Voice or text. I&rsquo;ll show you what I drafted before sending.
             </p>
 
-            {pendingDraftsCount > 0 && (
-              <div
-                data-testid="intelligence-drafts-greeting"
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: 10,
-                  padding: '12px 16px',
-                  background: 'rgba(196,155,42,0.08)',
-                  border: '0.5px solid rgba(196,155,42,0.30)',
-                  borderRadius: 14,
-                  marginBottom: 22,
-                  maxWidth: 320,
-                  width: '100%',
-                }}
-              >
-                <p style={{ margin: 0, color: '#8A6E1F', fontSize: 13, lineHeight: 1.45, textAlign: 'center' }}>
-                  You&rsquo;ve got {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} from earlier.
-                  Tap &lsquo;Review drafts&rsquo; below, or ask me anything.
-                </p>
-                <Link
-                  href="/agent/drafts"
-                  data-testid="intelligence-review-drafts-chip"
-                  style={{
-                    background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
-                    color: '#FFFFFF',
-                    fontSize: 12,
-                    fontWeight: 600,
-                    padding: '7px 14px',
-                    borderRadius: 999,
-                    textDecoration: 'none',
-                    boxShadow: '0 2px 6px rgba(196,155,42,0.30)',
-                  }}
-                >
-                  Review drafts
-                </Link>
-              </div>
-            )}
-
-            {/* Prompt pills */}
-            {/* Write-action chips — voice capture entry points. Kept above
-                the read chips so the voice-first workflow is the first thing
-                an agent sees on the landing state. */}
+            {/* Drafts banner — reserved height prevents layout shift between
+                "still loading" and "resolved". Hidden entirely when there
+                are no drafts so the screen stays quiet for clean queues. */}
             <div
-              data-testid="voice-write-chips"
               style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 10,
                 width: '100%',
-                maxWidth: 320,
+                maxWidth: 360,
+                // min-height holds space for the banner while draftsReady
+                // is false, then collapses smoothly once count is known
+                // to be zero.
+                minHeight: !draftsReady || pendingDraftsCount > 0 ? 76 : 0,
+                marginTop: !draftsReady || pendingDraftsCount > 0 ? 32 : 0,
+                transition: 'min-height 0.25s ease, margin-top 0.25s ease',
               }}
             >
-              {WRITE_PILLS.map((pill) => (
-                <button
-                  key={pill.intent}
-                  data-testid={`voice-chip-${pill.intent}`}
-                  onClick={() => handleWriteChip(pill.intent)}
-                  className="agent-tappable"
+              {draftsReady && pendingDraftsCount > 0 ? (
+                <div
+                  data-testid="intelligence-drafts-greeting"
                   style={{
-                    padding: '12px 14px',
-                    minHeight: 50,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '12px 16px',
                     background: 'rgba(196,155,42,0.08)',
-                    border: '0.5px solid rgba(196,155,42,0.35)',
-                    borderRadius: 16,
-                    color: '#8A6E1F',
-                    fontSize: 13,
-                    fontWeight: 600,
-                    lineHeight: 1.3,
-                    whiteSpace: 'normal',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
+                    border: '0.5px solid rgba(196,155,42,0.30)',
+                    borderRadius: 14,
                   }}
                 >
-                  {pill.label}
-                </button>
-              ))}
+                  <p style={{ margin: 0, color: '#8A6E1F', fontSize: 13, lineHeight: 1.45 }}>
+                    You&rsquo;ve got {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} from earlier.
+                  </p>
+                  <Link
+                    href="/agent/drafts"
+                    data-testid="intelligence-review-drafts-chip"
+                    style={{
+                      background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                      color: '#FFFFFF',
+                      fontSize: 12,
+                      fontWeight: 600,
+                      padding: '7px 14px',
+                      borderRadius: 999,
+                      textDecoration: 'none',
+                      boxShadow: '0 2px 6px rgba(196,155,42,0.30)',
+                    }}
+                  >
+                    Review drafts
+                  </Link>
+                </div>
+              ) : null}
             </div>
 
-            <div
-              style={{
-                marginTop: 14,
-                display: 'grid',
-                gridTemplateColumns: '1fr 1fr',
-                gap: 10,
-                width: '100%',
-                maxWidth: 320,
-              }}
-            >
-              {PROMPT_PILLS.map((pill, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleSend(pill)}
-                  className="agent-tappable"
-                  style={{
-                    padding: '13px 14px',
-                    minHeight: 54,
-                    background: '#FFFFFF',
-                    border: '0.5px solid rgba(0,0,0,0.10)',
-                    borderRadius: 16,
-                    color: '#374151',
-                    fontSize: 13,
-                    fontWeight: 500,
-                    lineHeight: 1.4,
-                    whiteSpace: 'normal',
-                    textAlign: 'center',
-                    cursor: 'pointer',
-                    fontFamily: 'inherit',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-                  }}
-                >
-                  {pill}
-                </button>
-              ))}
-            </div>
+            {/* Flex spacer — pushes chips down toward the input bar. Uses
+                flex-grow rather than a hard gap so the empty state feels
+                intentional, not collapsed. */}
+            <div style={{ flex: 1, minHeight: 24 }} />
+
+            <CapabilityChipsCarousel
+              onChipTap={handleChipTap}
+              paused={inputFocused}
+            />
+
+            <div style={{ height: 16, flexShrink: 0 }} />
           </div>
         ) : (
           /* Conversation state */
@@ -905,6 +825,7 @@ function IntelligencePageInner() {
         )}
 
         <VoiceInputBar
+          ref={inputElRef}
           input={input}
           onInputChange={setInput}
           onSend={() => handleSend(input)}
@@ -914,6 +835,8 @@ function IntelligencePageInner() {
           onStop={() => voice.stop()}
           isDesktop={isDesktop}
           onOpenSettings={voice.openSettings}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => setInputFocused(false)}
         />
 
         {undoBatch && (
