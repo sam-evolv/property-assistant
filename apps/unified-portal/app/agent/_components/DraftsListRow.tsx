@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { MailCheck, Trash2, Send as SendIcon } from 'lucide-react';
 import {
   draftTypeLabel,
@@ -42,6 +42,21 @@ export default function DraftsListRow({
       ? 'SMS'
       : 'Email';
 
+  // Reset swipe state whenever this row's draft identity changes. Without
+  // this, React row reuse across list re-renders can leave the button
+  // half-translated, leaving the Send/Discard backdrop orphaned on-screen
+  // (the bug Orla reported: gold "Send" visible on an unswiped row).
+  useEffect(() => {
+    setDragX(0);
+    startX.current = null;
+    setBusy(null);
+  }, [draft.id]);
+
+  const resetSwipe = () => {
+    startX.current = null;
+    setDragX(0);
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     startX.current = e.touches[0].clientX;
   };
@@ -66,6 +81,13 @@ export default function DraftsListRow({
     }
     setDragX(0);
   };
+  // iOS fires touchcancel when a gesture is interrupted (vertical scroll
+  // takeover, modal opening mid-swipe, the system taking touch focus).
+  // Without handling it, `dragX` stays at its last touchmove value and the
+  // backdrop stays exposed.
+  const handleTouchCancel = () => {
+    resetSwipe();
+  };
 
   return (
     <div
@@ -77,9 +99,15 @@ export default function DraftsListRow({
         overflow: 'hidden',
         border: '0.5px solid rgba(0,0,0,0.06)',
         boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+        // Let vertical scroll pass through without fighting the horizontal
+        // swipe gesture — iOS honours this and cancels the swipe cleanly.
+        touchAction: 'pan-y',
       }}
     >
-      {/* Swipe action backdrops */}
+      {/* Swipe action backdrops. While the button is at translateX(0) these
+          must be visually below AND unreachable — otherwise a tap on the
+          edge of a row lands on the hidden Send button instead of opening
+          the draft. */}
       <div
         aria-hidden
         style={{
@@ -88,6 +116,7 @@ export default function DraftsListRow({
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'stretch',
+          pointerEvents: dragX === 0 ? 'none' : 'auto',
         }}
       >
         <div
@@ -124,10 +153,19 @@ export default function DraftsListRow({
 
       <button
         type="button"
-        onClick={() => onOpen(draft)}
+        onClick={() => {
+          // If the row is partway through a swipe, a tap should snap the
+          // button back rather than open the draft — matches Mail.app.
+          if (dragX !== 0) {
+            resetSwipe();
+            return;
+          }
+          onOpen(draft);
+        }}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
         className="agent-tappable"
         style={{
           position: 'relative',

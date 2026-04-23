@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ArrowLeft,
   Check,
@@ -156,7 +157,19 @@ export default function DraftReviewPanel({
 
   const isDesktop = surface === 'desktop';
 
-  return (
+  // Render through a portal to <body> so the panel is always positioned
+  // relative to the viewport — never a scroll-ancestor. The Agent page uses
+  // `-webkit-overflow-scrolling: touch` on its <main>, which on iOS WKWebView
+  // promotes that <main> to the containing block for fixed descendants,
+  // causing the panel's `inset: 0` to start BELOW the StatusBar and leaving
+  // the shell header visible above it (the double-header bug). Portaling out
+  // eliminates that stacking ambiguity on every platform.
+  const [portalTarget, setPortalTarget] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (typeof document !== 'undefined') setPortalTarget(document.body);
+  }, []);
+
+  const panelNode = (
     <div
       data-testid="draft-review-panel"
       style={isDesktop ? desktopWrapperStyle : mobileWrapperStyle}
@@ -311,6 +324,12 @@ export default function DraftReviewPanel({
       `}</style>
     </div>
   );
+
+  // During SSR / first client render we return null so hydration stays
+  // stable — the portal mount lands on the second render once document.body
+  // is available.
+  if (!portalTarget) return null;
+  return createPortal(panelNode, portalTarget);
 }
 
 function SentConfirmation({ state }: { state: SentState }) {

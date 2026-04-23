@@ -1,16 +1,27 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  requestMicrophonePermission,
+  openNativeSettings,
+} from '@/lib/capacitor-native';
 
 const OFFLINE_QUEUE_KEY = 'oh.agent.voice.offlineQueue.v1';
 const SILENCE_THRESHOLD = 0.012;
 const SILENCE_TIMEOUT_MS = 2000;
+
+const MIC_DENIED_MESSAGE =
+  'Microphone access is needed for voice capture. Open Settings → OpenHouse → Microphone to enable.';
+const MIC_UNAVAILABLE_MESSAGE =
+  'Microphone is not available in this browser. Use the typing input instead.';
 
 export interface VoiceCaptureState {
   status: 'idle' | 'recording' | 'transcribing' | 'offline-queued' | 'error';
   partialTranscript: string;
   waveform: number[];
   errorMessage: string | null;
+  /** True when the error is a permission denial — UI can offer a Settings deep-link. */
+  permissionDenied: boolean;
   queuedCount: number;
 }
 
@@ -19,6 +30,8 @@ export interface VoiceCaptureAPI extends VoiceCaptureState {
   stop: () => Promise<string | null>;
   cancel: () => void;
   flushQueue: () => Promise<void>;
+  /** Opens the native Settings app (iOS). No-op on web/desktop. */
+  openSettings: () => Promise<boolean>;
 }
 
 interface QueuedBlob {
@@ -45,6 +58,7 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
   const [partialTranscript, setPartialTranscript] = useState('');
   const [waveform, setWaveform] = useState<number[]>(new Array(28).fill(0.08));
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [permissionDenied, setPermissionDenied] = useState(false);
   const [queuedCount, setQueuedCount] = useState(0);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -101,9 +115,37 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
   const start = useCallback(async () => {
     if (status === 'recording' || status === 'transcribing') return;
     setErrorMessage(null);
+    setPermissionDenied(false);
     setPartialTranscript('');
 
     try {
+      // Capacitor iOS: request mic permission via the plugin FIRST.
+      // Without this, WKWebView rejects getUserMedia on cold start (and on
+      // older iOS builds `navigator.mediaDevices` is undefined until the
+      // plugin warms the path up). `unavailable` = not native; fall through
+      // to the web path.
+      const native = await requestMicrophonePermission();
+      if (native.status === 'denied') {
+        setPermissionDenied(true);
+        setErrorMessage(MIC_DENIED_MESSAGE);
+        setStatus('error');
+        return;
+      }
+
+      // Guard against `navigator.mediaDevices` being undefined — seen on
+      // older iOS WKWebView and on insecure-context browsers. Before this
+      // guard the app crashed with "undefined is not an object
+      // (evaluating 'navigator.mediaDevices.getUserMedia')".
+      if (
+        typeof navigator === 'undefined' ||
+        !navigator.mediaDevices ||
+        typeof navigator.mediaDevices.getUserMedia !== 'function'
+      ) {
+        setErrorMessage(MIC_UNAVAILABLE_MESSAGE);
+        setStatus('error');
+        return;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
@@ -192,7 +234,16 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
 
       setStatus('recording');
     } catch (err: any) {
-      setErrorMessage(err?.message || 'Microphone unavailable');
+      // iOS `NotAllowedError` (permission revoked mid-session) and
+      // `NotFoundError` (no mic hardware) surface here. Mark as
+      // permission-denied when the browser clearly says so.
+      const name: string = err?.name || '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        setPermissionDenied(true);
+        setErrorMessage(MIC_DENIED_MESSAGE);
+      } else {
+        setErrorMessage(err?.message || 'Microphone unavailable');
+      }
       setStatus('error');
       cleanup();
     }
@@ -252,6 +303,7 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
     setStatus('idle');
     setPartialTranscript('');
     setErrorMessage(null);
+    setPermissionDenied(false);
     if (stopResolveRef.current) {
       stopResolveRef.current(null);
       stopResolveRef.current = null;
@@ -263,16 +315,20 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
     refreshQueueCount();
   }, [onTranscriptReady, refreshQueueCount]);
 
+  const openSettings = useCallback(() => openNativeSettings(), []);
+
   return {
     status,
     partialTranscript,
     waveform,
     errorMessage,
+    permissionDenied,
     queuedCount,
     start,
     stop,
     cancel,
     flushQueue,
+    openSettings,
   };
 }
 

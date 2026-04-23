@@ -37,6 +37,8 @@ export default function AgentDraftsPage() {
 
   const pullStartY = useRef<number | null>(null);
   const [pullOffset, setPullOffset] = useState(0);
+  const [pulling, setPulling] = useState(false);
+  const pullWatchdog = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -285,26 +287,72 @@ export default function AgentDraftsPage() {
   }, [undoBatch, loadDrafts]);
 
   // Pull-to-refresh: gentle gesture on mobile only.
+  //
+  // Bug history: without a `pulling` flag, when the gesture was cancelled
+  // by iOS (rubber-band overscroll, vertical scroll takeover, or the user
+  // swiping off the edge), `pullOffset` kept its last value and the banner
+  // stuck on "Release to refresh" indefinitely. The explicit `pulling` flag
+  // plus a touchcancel handler and a watchdog timer ensures the banner
+  // always clears.
+  const resetPullState = useCallback(() => {
+    pullStartY.current = null;
+    setPulling(false);
+    setPullOffset(0);
+    if (pullWatchdog.current) {
+      clearTimeout(pullWatchdog.current);
+      pullWatchdog.current = null;
+    }
+  }, []);
+
   const handlePullStart = (e: React.TouchEvent) => {
     const target = e.currentTarget as HTMLDivElement;
     if (target.scrollTop > 0) return;
     pullStartY.current = e.touches[0].clientY;
+    setPulling(true);
   };
   const handlePullMove = (e: React.TouchEvent) => {
     if (pullStartY.current == null) return;
     const delta = e.touches[0].clientY - pullStartY.current;
     if (delta > 0) {
       setPullOffset(Math.min(80, delta));
+    } else {
+      // Finger moved UP past origin — treat as cancel so we don't show
+      // "Release to refresh" when the user has already reversed intent.
+      resetPullState();
     }
   };
   const handlePullEnd = async () => {
-    if (pullOffset > 60) {
-      setRefreshing(true);
-      await loadDrafts();
-    }
+    const shouldRefresh = pulling && pullOffset > 60;
+    // Clear gesture state IMMEDIATELY so the banner transitions straight
+    // from "Release to refresh" to "Refreshing..." rather than parking on
+    // "Release" while loadDrafts awaits.
     pullStartY.current = null;
+    setPulling(false);
     setPullOffset(0);
+
+    if (!shouldRefresh) return;
+
+    setRefreshing(true);
+    // Watchdog: loadDrafts is meant to resolve, but if the network stalls
+    // we still want the banner to dismiss so the list is usable.
+    if (pullWatchdog.current) clearTimeout(pullWatchdog.current);
+    pullWatchdog.current = setTimeout(() => setRefreshing(false), 10_000);
+    try {
+      await loadDrafts();
+    } finally {
+      if (pullWatchdog.current) {
+        clearTimeout(pullWatchdog.current);
+        pullWatchdog.current = null;
+      }
+    }
   };
+  const handlePullCancel = () => {
+    resetPullState();
+  };
+
+  useEffect(() => () => {
+    if (pullWatchdog.current) clearTimeout(pullWatchdog.current);
+  }, []);
 
   const content = useMemo(() => {
     if (loading) {
@@ -411,22 +459,27 @@ export default function AgentDraftsPage() {
           onTouchStart={handlePullStart}
           onTouchMove={handlePullMove}
           onTouchEnd={handlePullEnd}
+          onTouchCancel={handlePullCancel}
           style={{
             flex: 1,
             overflowY: 'auto',
             WebkitOverflowScrolling: 'touch',
           }}
         >
-          {pullOffset > 0 && (
+          {(refreshing || (pulling && pullOffset > 0)) && (
             <div
               style={{
                 textAlign: 'center',
                 fontSize: 11,
                 color: '#9CA3AF',
-                padding: `${pullOffset / 2}px 0`,
+                padding: refreshing ? '12px 0' : `${pullOffset / 2}px 0`,
               }}
             >
-              {refreshing ? 'Refreshing...' : pullOffset > 60 ? 'Release to refresh' : 'Pull to refresh'}
+              {refreshing
+                ? 'Refreshing...'
+                : pullOffset > 60
+                  ? 'Release to refresh'
+                  : 'Pull to refresh'}
             </div>
           )}
           {content}
