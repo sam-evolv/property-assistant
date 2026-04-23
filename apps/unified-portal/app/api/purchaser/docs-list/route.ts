@@ -203,7 +203,8 @@ export async function GET(request: NextRequest) {
     const { data: sections, error: sectionsError } = await supabase
       .from('document_sections')
       .select('id, content, metadata')
-      .eq('project_id', projectId);
+      .eq('project_id', projectId)
+      .limit(10000);
 
     if (sectionsError) {
       return NextResponse.json(
