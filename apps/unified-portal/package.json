@@ -14,6 +14,7 @@
     "load-test": "node scripts/load-test.js http://localhost:5000 10 10",
     "test:stability": "npm run typecheck && npm run build && npm run smoke",
     "hardening:test": "npx tsx scripts/hardening/test-tenant-isolation.ts",
+    "hardening:tool-use": "npx tsx scripts/hardening/test-tool-use-mandate.ts",
     "hardening:recover-messages": "npx tsx scripts/hardening/recover-orphaned-messages.ts",
     "hardening:recover-messages-apply": "npx tsx scripts/hardening/recover-orphaned-messages.ts --apply",
     "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts",
