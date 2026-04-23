@@ -896,6 +896,7 @@ function IntelligencePageInner() {
           onStart={() => voice.start()}
           onStop={() => voice.stop()}
           isDesktop={isDesktop}
+          onOpenSettings={voice.openSettings}
         />
 
         {undoBatch && (

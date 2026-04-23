@@ -12,6 +12,12 @@ interface VoiceInputBarProps {
   onStart: () => void;
   onStop: () => void;
   isDesktop?: boolean;
+  /**
+   * Deep-link into the OS Settings app so the agent can enable the mic
+   * without hunting for the toggle. Only shown on native when
+   * `voice.permissionDenied` is true.
+   */
+  onOpenSettings?: () => Promise<boolean> | void;
 }
 
 /**
@@ -27,6 +33,7 @@ export default function VoiceInputBar({
   onStart,
   onStop,
   isDesktop,
+  onOpenSettings,
 }: VoiceInputBarProps) {
   const recording = voice.status === 'recording' || voice.status === 'transcribing';
   const micSize = isDesktop ? 40 : 34;
@@ -200,16 +207,47 @@ export default function VoiceInputBar({
       )}
 
       {voice.status === 'error' && voice.errorMessage && (
-        <p
+        <div
           style={{
             marginTop: 8,
-            fontSize: 11.5,
-            color: '#DC2626',
-            textAlign: 'center',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 6,
           }}
         >
-          {voice.errorMessage}
-        </p>
+          <p
+            style={{
+              fontSize: 11.5,
+              color: '#DC2626',
+              textAlign: 'center',
+              margin: 0,
+              lineHeight: 1.4,
+            }}
+          >
+            {voice.errorMessage}
+          </p>
+          {voice.permissionDenied && onOpenSettings && (
+            <button
+              type="button"
+              onClick={() => onOpenSettings()}
+              className="agent-tappable"
+              data-testid="voice-open-settings"
+              style={{
+                fontSize: 11.5,
+                fontWeight: 600,
+                color: '#C49B2A',
+                background: 'rgba(196,155,42,0.10)',
+                border: '0.5px solid rgba(196,155,42,0.3)',
+                padding: '4px 12px',
+                borderRadius: 999,
+                cursor: 'pointer',
+              }}
+            >
+              Open Settings
+            </button>
+          )}
+        </div>
       )}
 
       {!recording && voice.status !== 'offline-queued' && voice.status !== 'error' && (
