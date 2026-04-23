@@ -6,18 +6,19 @@ import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
 import { useApplicantsCount } from '../_hooks/useApplicantsCount';
 
-type TabId = 'home' | 'pipeline' | 'applicants' | 'viewings' | 'docs';
+type TabId = 'home' | 'pipeline' | 'applicants' | 'viewings';
 
 const TABS: { id: TabId; label: string; href: string }[] = [
   { id: 'home', label: 'Home', href: '/agent/home' },
   { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline' },
   // Intelligence FAB sits between the two clusters.
-  // Right cluster leans lettings-heavy: Applicants + Viewings + Docs.
-  // Drafts was removed from the bottom nav in Session 5B; access is via
-  // the FAB badge, the Home tile, or the Intelligence greeting.
+  // Right cluster: Applicants + Viewings.
+  // Drafts was removed from the bottom nav in Session 5B (access via the
+  // FAB badge / Home tile). Docs was removed in Session 6C (access via
+  // the DocsHomeTile, property detail, and scheme summary links). Four
+  // tabs + centred FAB restores the symmetric two-and-two layout.
   { id: 'applicants', label: 'Applicants', href: '/agent/applicants' },
   { id: 'viewings', label: 'Viewings', href: '/agent/viewings' },
-  { id: 'docs', label: 'Docs', href: '/agent/docs' },
 ];
 
 function TabIcon({ id, active }: { id: TabId; active: boolean }) {
@@ -58,13 +59,6 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
           <line x1="16" y1="2" x2="16" y2="6" />
           <line x1="8" y1="2" x2="8" y2="6" />
           <line x1="3" y1="10" x2="21" y2="10" />
-        </svg>
-      );
-    case 'docs':
-      return (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-          <polyline points="14,2 14,8 20,8" />
         </svg>
       );
   }
@@ -212,7 +206,7 @@ export default function BottomNav() {
         </span>
       </div>
 
-      {/* Right tabs: Applicants, Viewings, Docs */}
+      {/* Right tabs: Applicants, Viewings */}
       {rightTabs.map((tab) => {
         const active = isActive(tab.href);
         return (

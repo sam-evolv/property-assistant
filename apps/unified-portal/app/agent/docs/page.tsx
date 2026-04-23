@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../_components/AgentShell';
 import { ChevronDown, Plus, X, Upload, Check } from 'lucide-react';
@@ -36,10 +37,25 @@ const DOC_TYPE_LABELS: Record<string, string> = {
 
 export default function DocsPage() {
   const { agent, alerts, developments } = useAgent();
-  const [activeScheme, setActiveScheme] = useState<string>('all');
+  const searchParams = useSearchParams();
+  // Session 6C: landings from the scheme summary page or unit detail pass
+  // ?scheme=<developmentId> so the Docs shelf opens pre-filtered. Falls
+  // back to 'all' when the param is absent (home tile, sidebar).
+  const [activeScheme, setActiveScheme] = useState<string>(
+    searchParams?.get('scheme') || 'all',
+  );
   const [docs, setDocs] = useState<Doc[]>(INITIAL_DOCS);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadSuccess, setUploadSuccess] = useState(false);
+
+  // Keep the filter in sync if the query param changes while the component
+  // stays mounted (back/forward navigation between different scheme links).
+  useEffect(() => {
+    const paramScheme = searchParams?.get('scheme');
+    if (paramScheme && paramScheme !== activeScheme) {
+      setActiveScheme(paramScheme);
+    }
+  }, [searchParams, activeScheme]);
 
   // Upload form state
   const [uploadName, setUploadName] = useState('');

@@ -8,7 +8,7 @@ import AgentShell from '../../../_components/AgentShell';
 import {
   getTimelineNudges, getInitials, type PipelineUnit,
 } from '@/lib/agent/agentPipelineService';
-import { ArrowLeft, ChevronRight, Search } from 'lucide-react';
+import { ArrowLeft, ChevronRight, FileText, Search } from 'lucide-react';
 
 type FilterKey = 'all' | 'for_sale' | 'sale_agreed' | 'contracts_issued' | 'signed' | 'sold';
 
@@ -97,10 +97,34 @@ export default function SchemeDetailPage() {
           Pipeline
         </Link>
 
-        {/* Scheme header */}
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.04em', marginBottom: 4 }}>
-          {schemeName}
-        </h1>
+        {/* Scheme header + Docs link (Session 6C: alternative Docs entry
+            point now that Docs is off the bottom nav). */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.04em', margin: 0 }}>
+            {schemeName}
+          </h1>
+          <Link
+            href={`/agent/docs?scheme=${encodeURIComponent(schemeId)}`}
+            data-testid="scheme-docs-link"
+            className="agent-tappable"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              borderRadius: 999,
+              background: 'rgba(13,13,18,0.05)',
+              border: '0.5px solid rgba(13,13,18,0.08)',
+              color: '#6B7280',
+              fontSize: 12,
+              fontWeight: 600,
+              textDecoration: 'none',
+              flexShrink: 0,
+            }}
+          >
+            <FileText size={13} /> Docs
+          </Link>
+        </div>
 
         {/* Stats row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
