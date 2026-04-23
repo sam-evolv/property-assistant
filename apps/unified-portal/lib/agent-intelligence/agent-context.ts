@@ -197,6 +197,17 @@ async function fetchAssignments(supabase: SupabaseClient, agentProfileId: AgentP
   // Session 14.3 — parameter branded as `AgentProfileId`. Callers that
   // used to pass a raw string (or, worse, an auth UID) no longer
   // compile. See `ids.ts`.
+  //
+  // Session 14.4 — RLS-vs-service-role probe. If the SELECT returns zero
+  // rows, run a `head: true, count: 'exact'` probe against the same
+  // filter and compare. Equal counts → genuine empty data. Probe
+  // returns more rows → we're being filtered by RLS, which means the
+  // calling client is running as `anon` or `authenticated` even though
+  // we believe it's service-role. That's the smoking gun for a
+  // misconfigured SUPABASE_SERVICE_ROLE_KEY env var (or a stale value
+  // that doesn't decode to role=service_role). Either way, we throw a
+  // diagnostic error rather than letting the chat reply with the
+  // verifiable lie "you have no schemes assigned".
   const { data, error } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id, is_active, role')
@@ -211,7 +222,56 @@ async function fetchAssignments(supabase: SupabaseClient, agentProfileId: AgentP
     });
     throw new Error(`fetchAssignments failed for agent ${agentProfileId}: ${error.message}`);
   }
-  return (data ?? []) as Array<{ development_id: string; is_active: boolean; role: string | null }>;
+
+  const rows = (data ?? []) as Array<{ development_id: string; is_active: boolean; role: string | null }>;
+
+  if (rows.length === 0) {
+    // Defensive probe: re-run the same filter using head+count. If the
+    // probe also returns zero, the agent genuinely has no active
+    // assignments (legitimate empty state — log once, return empty).
+    // If the probe returns >0, RLS is hiding rows from the SELECT path,
+    // which only happens when the supabase client isn't operating as
+    // service_role. Throw with a precise message naming the env var.
+    try {
+      const probe = await supabase
+        .from('agent_scheme_assignments')
+        .select('development_id', { count: 'exact', head: true })
+        .eq('agent_id', agentProfileId)
+        .eq('is_active', true);
+      const probeCount = probe.count ?? null;
+      if (probeCount !== null && probeCount > 0) {
+        // Bug confirmed: rows exist server-side but the SELECT returned
+        // none. That's an RLS / service-role mismatch.
+        const msg = `[agent-context] fetchAssignments returned 0 rows but a head+count probe found ${probeCount}. ` +
+          `This is the "Assigned: (none)" failure mode. Root cause is almost always SUPABASE_SERVICE_ROLE_KEY ` +
+          `missing or stale on this Vercel environment scope (Preview vs Production). Verify the env var, ` +
+          `redeploy, and re-run.`;
+        console.error(msg, {
+          agentProfileId,
+          selectCount: 0,
+          probeCount,
+          urlHost: (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/^https?:\/\//, '').split('.')[0],
+          serviceKeyPresent: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
+        });
+        throw new Error(msg);
+      }
+      // probeCount === 0 (or null) — genuine empty state, fall through.
+      console.error('[agent-context] fetchAssignments: 0 active assignments for this profile', {
+        agentProfileId,
+        probeCount,
+      });
+    } catch (err: any) {
+      // Re-throw our own diagnostic; for any other probe error log and
+      // continue — we don't want a probe failure to be worse than the
+      // empty-result we'd have returned anyway.
+      if (typeof err?.message === 'string' && err.message.includes('"Assigned: (none)" failure mode')) {
+        throw err;
+      }
+      console.error('[agent-context] fetchAssignments probe failed (continuing with empty result):', err?.message || err);
+    }
+  }
+
+  return rows;
 }
 
 async function fetchTenantName(supabase: SupabaseClient, tenantId: string): Promise<string | null> {
