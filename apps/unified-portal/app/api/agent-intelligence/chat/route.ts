@@ -162,6 +162,29 @@ export async function POST(request: NextRequest) {
       liveContext,
     );
 
+    // Session 14 — yes/no disambiguation follow-through.
+    //
+    // Turn N-1 emitted "Did you mean **Árdan View**? (yes/no)" and stashed
+    // a hidden `<!--PENDING_CLARIFICATION:{…}-->` marker on the assistant
+    // message. If the current user reply matches the yes regex and the
+    // marker is still on the IMMEDIATELY-PRECEDING assistant turn, we:
+    //   1. Rewrite the user's effective message by substituting the
+    //      topCandidateName in place of the originally-typed scheme name.
+    //   2. Capture the original typed string as an inferred alias for the
+    //      development_id (self-healing — next time "Erdon View" resolves
+    //      straight to Árdan View without prompting).
+    // Any other reply clears the marker by doing nothing (the marker only
+    // lives as long as it's on the last assistant turn).
+    const pending = extractPendingClarification(history);
+    const yesPattern = /^(yes|y|yeah|yep|yup|correct|that'?s it|that'?s right|aye|ok|okay)\b/i;
+    let effectiveMessage = message;
+    if (pending && yesPattern.test(message.trim())) {
+      effectiveMessage = rewriteWithCandidate(pending.originalMessage, pending.typedScheme, pending.topCandidateName);
+      if (pending.topCandidateDevId && pending.typedScheme) {
+        captureInferredAlias(supabase, pending.topCandidateDevId, pending.typedScheme).catch(() => {});
+      }
+    }
+
     // 4. Build message history
     const messages: OpenAI.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
@@ -169,14 +192,18 @@ export async function POST(request: NextRequest) {
 
     if (history?.length) {
       for (const msg of history.slice(-10)) {
+        // Strip the PENDING_CLARIFICATION marker from assistant turns
+        // before showing them to the model — it's metadata for this
+        // server's next-turn logic, not conversational content.
+        const content = msg.role === 'assistant' ? stripClarificationMarker(msg.content) : msg.content;
         messages.push({
           role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.content,
+          content,
         });
       }
     }
 
-    messages.push({ role: 'user', content: message });
+    messages.push({ role: 'user', content: effectiveMessage });
 
     // 5. Call LLM with tool definitions (non-streaming for tool-calling rounds)
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -332,6 +359,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Session 14 — yes/no disambiguation hook. Pick a single top_candidate
+    // surfaced on any envelope's meta this turn. If two envelopes name
+    // DIFFERENT candidates the prompt would be ambiguous — skip entirely.
+    // Only fires when zero drafts landed, so a successful partial draft
+    // doesn't interrupt the normal flow with a clarification.
+    const topCandidateForPrompt = totalDraftsPersisted === 0
+      ? pickSingleTopCandidate(envelopes)
+      : null;
+
     // Session 13 self-healing alias capture.
     //
     // When the model's previous turn surfaced a "I couldn't find a scheme
@@ -388,32 +424,54 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Stream the final LLM response
+          // Session 14 — yes/no disambiguation short-circuit. When a skill
+          // surfaced a single-candidate scheme typo this turn, bypass the
+          // LLM and emit a fixed prompt with a hidden marker. The model
+          // cannot be trusted to phrase this consistently on gpt-4o-mini,
+          // and the marker must be exact for the next turn's parser.
           let fullContent = '';
-          const stream = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages,
-            tools: undefined, // No tools on final streaming call
-            temperature: 0.3,
-            max_tokens: 4000,
-            stream: true,
-          });
-
-          for await (const chunk of stream) {
-            const delta = chunk.choices[0]?.delta?.content;
-            if (delta) {
-              fullContent += delta;
-              controller.enqueue(
-                encoder.encode(JSON.stringify({ type: 'token', content: delta }) + '\n')
-              );
-            }
-          }
-
-          if (!fullContent) {
-            fullContent = 'I wasn\'t able to generate a response. Please try again.';
+          if (topCandidateForPrompt) {
+            const promptText = `Did you mean **${topCandidateForPrompt.name}**? (yes/no)`;
+            const marker = buildClarificationMarker({
+              originalMessage: message,
+              typedScheme: topCandidateForPrompt.typed,
+              topCandidateName: topCandidateForPrompt.name,
+              topCandidateDevId: topCandidateForPrompt.developmentId,
+            });
+            fullContent = `${promptText}\n${marker}`;
+            // Stream it as one token so the UI renders the complete
+            // message at once. The marker stays on the stored text so
+            // the NEXT turn's history carries it back.
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'token', content: fullContent }) + '\n')
             );
+          } else {
+            // Stream the final LLM response
+            const stream = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages,
+              tools: undefined, // No tools on final streaming call
+              temperature: 0.3,
+              max_tokens: 4000,
+              stream: true,
+            });
+
+            for await (const chunk of stream) {
+              const delta = chunk.choices[0]?.delta?.content;
+              if (delta) {
+                fullContent += delta;
+                controller.enqueue(
+                  encoder.encode(JSON.stringify({ type: 'token', content: delta }) + '\n')
+                );
+              }
+            }
+
+            if (!fullContent) {
+              fullContent = 'I wasn\'t able to generate a response. Please try again.';
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'token', content: fullContent }) + '\n')
+              );
+            }
           }
 
           // Anti-hallucination post-stream guard.
@@ -453,6 +511,16 @@ export async function POST(request: NextRequest) {
           }).catch(() => {});
 
           // Generate follow-up suggestions (non-blocking, appended after main response)
+          // Skip when we fired the Session 14 yes/no short-circuit — the
+          // user's next move is literally "yes" or "no", not an action chip.
+          if (topCandidateForPrompt) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
+            );
+            controller.close();
+            return;
+          }
+
           try {
             const toolNames = toolsCalled.map(t => t.tool_name).join(', ');
             const followUpCompletion = await openai.chat.completions.create({
@@ -596,6 +664,112 @@ function resolvedSchemeFromEnvelopes(envelopes: AgenticSkillEnvelope[]): string 
     // Multiple resolved — ambiguous to alias-capture; skip.
   }
   return null;
+}
+
+// --- Session 14 — yes/no disambiguation helpers ----------------------------
+
+/**
+ * The hidden marker embedded in the assistant message when a scheme typo
+ * triggered a "Did you mean X?" prompt. The payload is base64-encoded JSON
+ * so a stray quote in the user's original message can't break the comment
+ * terminator.
+ */
+const CLARIFICATION_MARKER_RE = /<!--PENDING_CLARIFICATION:([A-Za-z0-9+/=]+)-->/;
+
+interface ClarificationPayload {
+  originalMessage: string;
+  typedScheme: string;
+  topCandidateName: string;
+  topCandidateDevId: string;
+}
+
+function buildClarificationMarker(payload: ClarificationPayload): string {
+  const b64 = Buffer.from(JSON.stringify(payload), 'utf8').toString('base64');
+  return `<!--PENDING_CLARIFICATION:${b64}-->`;
+}
+
+function stripClarificationMarker(content: string): string {
+  return content.replace(CLARIFICATION_MARKER_RE, '').trimEnd();
+}
+
+/**
+ * Pull the clarification payload out of the LAST assistant message in
+ * history. Returns null when there isn't one — e.g. the user didn't just
+ * come off a clarification prompt, or too much time has passed and other
+ * turns are in between.
+ *
+ * Expiry is structural: if the marker isn't on the IMMEDIATELY-preceding
+ * assistant turn, it's gone. No TTL bookkeeping needed.
+ */
+function extractPendingClarification(
+  history: Array<{ role: string; content: string }> | undefined,
+): ClarificationPayload | null {
+  if (!history || !history.length) return null;
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role !== 'assistant') continue;
+    const match = msg.content.match(CLARIFICATION_MARKER_RE);
+    if (!match) return null; // last assistant turn had no marker → no pending
+    try {
+      const json = Buffer.from(match[1], 'base64').toString('utf8');
+      const parsed = JSON.parse(json);
+      if (
+        typeof parsed?.originalMessage === 'string' &&
+        typeof parsed?.typedScheme === 'string' &&
+        typeof parsed?.topCandidateName === 'string' &&
+        typeof parsed?.topCandidateDevId === 'string'
+      ) {
+        return parsed as ClarificationPayload;
+      }
+    } catch {
+      /* malformed marker — ignore */
+    }
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Replace the first case-insensitive occurrence of `typedScheme` in the
+ * original message with `topCandidateName`. Preserves everything else so
+ * the downstream intent (unit number, kitchen question, etc.) carries
+ * through unchanged. Falls back to appending the canonical name when the
+ * typed string can't be found verbatim — pathological but safe.
+ */
+function rewriteWithCandidate(originalMessage: string, typedScheme: string, topCandidateName: string): string {
+  if (!typedScheme) return originalMessage;
+  const escaped = typedScheme.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const re = new RegExp(escaped, 'i');
+  if (re.test(originalMessage)) {
+    return originalMessage.replace(re, topCandidateName);
+  }
+  return `${originalMessage} (${topCandidateName})`;
+}
+
+/**
+ * Pick at most one top_candidate across all envelopes produced this turn.
+ * If two envelopes carry DIFFERENT candidates the prompt would be
+ * ambiguous — we return null and fall back to the standard "not found"
+ * refusal. Same rule as the skill-level collection: one obvious candidate
+ * or nothing.
+ */
+function pickSingleTopCandidate(envelopes: AgenticSkillEnvelope[]): {
+  name: string;
+  developmentId: string;
+  typed: string;
+} | null {
+  const seen: Array<{ name: string; developmentId: string; typed: string }> = [];
+  for (const env of envelopes) {
+    const meta: any = env.meta || {};
+    const c = meta.top_candidate;
+    if (c && typeof c.name === 'string' && typeof c.developmentId === 'string' && typeof c.typed === 'string') {
+      seen.push({ name: c.name, developmentId: c.developmentId, typed: c.typed });
+    }
+  }
+  if (!seen.length) return null;
+  const distinct = new Set(seen.map((c) => c.developmentId));
+  if (distinct.size !== 1) return null;
+  return seen[0];
 }
 
 /**

@@ -1,5 +1,7 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ToolResult, AgentContext } from '../types';
+import { resolveSchemeName } from '../scheme-resolver';
+import { resolveUnitIdentifier } from '../unit-resolver';
 
 export async function createTask(
   supabase: SupabaseClient,
@@ -57,28 +59,53 @@ export async function logCommunication(
     follow_up_date?: string;
   }
 ): Promise<ToolResult> {
-  // Resolve scheme
-  const { data: dev } = await supabase
-    .from('developments')
-    .select('id, name')
-    .eq('tenant_id', tenantId)
-    .ilike('name', `%${params.scheme_name}%`)
-    .limit(1)
-    .maybeSingle();
-
-  if (!dev) {
-    return { data: { logged: false }, summary: `No scheme found matching "${params.scheme_name}".` };
+  // Session 14 — strict scheme + unit resolution. Pre-14 used substring
+  // ilike on both; a user logging "called Unit 3, Árdan View" could land
+  // the event against Unit 10 if the unit OR clause collapsed.
+  const resolution = await resolveSchemeName(supabase, params.scheme_name, agentContext);
+  if (!resolution.ok) {
+    const list = agentContext.assignedDevelopmentNames.join(', ') || '(none)';
+    const reason =
+      resolution.reason === 'not_found'
+        ? `I couldn't find a scheme matching "${params.scheme_name}". Your assigned schemes are: ${list}.`
+        : resolution.reason === 'ambiguous'
+          ? `"${params.scheme_name}" matches multiple schemes (${resolution.candidates.join(', ')}). Please be specific.`
+          : `"${params.scheme_name}" is not in your assigned schemes. Assigned: ${list}.`;
+    return { data: { logged: false }, summary: reason };
   }
+  const dev = { id: resolution.developmentId, name: resolution.canonicalName };
 
-  // Resolve unit
-  const { data: units } = await supabase
+  const unitRes = await resolveUnitIdentifier(supabase, params.unit_identifier, {
+    developmentIds: [dev.id],
+    preferredDevelopmentId: dev.id,
+  });
+  if (unitRes.status === 'not_found') {
+    return {
+      data: { logged: false },
+      summary: `Unit ${params.unit_identifier} doesn't exist in ${dev.name}. Communication not logged.`,
+    };
+  }
+  if (unitRes.status === 'ambiguous') {
+    const list = unitRes.candidates
+      .map((c) => `Unit ${c.unit_number ?? '?'}${c.scheme_name ? ` (${c.scheme_name})` : ''}`)
+      .join(', ');
+    return {
+      data: { logged: false },
+      summary: `"${params.unit_identifier}" matches multiple units: ${list}. Please be specific.`,
+    };
+  }
+  // Fetch the fuller row for the log entry (purchaser_name is displayed).
+  const { data: fullUnit } = await supabase
     .from('units')
     .select('id, unit_number, unit_uid, purchaser_name')
-    .eq('development_id', dev.id)
-    .or(`unit_number.ilike.%${params.unit_identifier}%,unit_uid.ilike.%${params.unit_identifier}%,purchaser_name.ilike.%${params.unit_identifier}%`)
-    .limit(1);
-
-  const unit = units?.[0];
+    .eq('id', unitRes.unit.id)
+    .maybeSingle();
+  const unit = fullUnit ?? {
+    id: unitRes.unit.id,
+    unit_number: unitRes.unit.unit_number,
+    unit_uid: unitRes.unit.unit_uid,
+    purchaser_name: unitRes.unit.purchaser_name,
+  };
 
   // Log the communication event
   const { data: event, error } = await supabase

@@ -24,7 +24,22 @@ export type SchemeResolution =
       candidates: string[];
       /** Normalised input, so downstream can store it as a later alias. */
       normalised: string;
+      /**
+       * Session 14 — populated on not_found only, when EXACTLY one assigned
+       * scheme is within Levenshtein distance ≤ 3 of the normalised input
+       * AND no other assigned scheme is within that distance. The chat
+       * route uses it to turn a plain refusal into an interactive "Did you
+       * mean X? (yes/no)" prompt and to seed an alias on confirmation.
+       */
+      top_candidate?: {
+        name: string;
+        developmentId: string;
+        distance: number;
+      };
     };
+
+/** Session 14 — Levenshtein threshold for the yes/no disambiguation hook. */
+const TOP_CANDIDATE_MAX_DISTANCE = 3;
 
 /**
  * Strip fadas (á→a), drop non-alphanumerics (keep spaces), collapse
@@ -56,6 +71,8 @@ export async function resolveSchemeName(
   if (!normalised) {
     return { ok: false, reason: 'not_found', candidates, normalised };
   }
+
+  const topCandidate = findUniqueTopCandidate(normalised, agentContext);
 
   // Session 13.1 — wrap the Supabase call in try/catch. The pre-13.1
   // version destructured { data, error } and only fell back on the
@@ -90,7 +107,13 @@ export async function resolveSchemeName(
     // alias backfill hasn't run yet.
     const fallback = fallbackSubstringMatch(rawSchemeName, agentContext);
     if (fallback.ok) return fallback;
-    return { ok: false, reason: 'not_found', candidates, normalised };
+    return {
+      ok: false,
+      reason: 'not_found',
+      candidates,
+      normalised,
+      ...(topCandidate ? { top_candidate: topCandidate } : {}),
+    };
   }
 
   if (matchedDevIds.length > 1) {
@@ -164,7 +187,50 @@ function fallbackSubstringMatch(
       };
     }
   }
-  return { ok: false, reason: 'not_found', candidates, normalised: needle };
+  const topCandidate = findUniqueTopCandidate(needle, agentContext);
+  return {
+    ok: false,
+    reason: 'not_found',
+    candidates,
+    normalised: needle,
+    ...(topCandidate ? { top_candidate: topCandidate } : {}),
+  };
+}
+
+/**
+ * Session 14 — pick a single phonetic-neighbour candidate for the yes/no
+ * disambiguation prompt. Returns the assigned scheme whose normalised name
+ * is within Levenshtein distance ≤ TOP_CANDIDATE_MAX_DISTANCE of the input
+ * — but only when EXACTLY ONE scheme sits inside that radius. If two or
+ * more schemes are close (or none are), we suppress the candidate: the
+ * user's input is either ambiguous or unrelated, and asking "Did you mean
+ * X?" would be a guess. The chat route falls back to the standard "not
+ * found, here are your assigned schemes" refusal in that case.
+ *
+ * Input is the already-normalised needle. Levenshtein runs on the
+ * normalised canonical names so "Erdon View" vs "Árdan View" is a pure
+ * letter-distance comparison on "erdon view" vs "ardan view" = 2.
+ */
+function findUniqueTopCandidate(
+  normalisedNeedle: string,
+  agentContext: Pick<
+    ResolvedAgentContext,
+    'assignedDevelopmentIds' | 'assignedDevelopmentNames'
+  >,
+): { name: string; developmentId: string; distance: number } | null {
+  if (!normalisedNeedle) return null;
+  const inRadius: Array<{ name: string; developmentId: string; distance: number }> = [];
+  for (let i = 0; i < agentContext.assignedDevelopmentNames.length; i++) {
+    const name = agentContext.assignedDevelopmentNames[i];
+    const id = agentContext.assignedDevelopmentIds[i];
+    if (!name || !id) continue;
+    const distance = levenshtein(normalisedNeedle, normaliseSchemeName(name));
+    if (distance <= TOP_CANDIDATE_MAX_DISTANCE) {
+      inRadius.push({ name, developmentId: id, distance });
+    }
+  }
+  if (inRadius.length !== 1) return null;
+  return inRadius[0];
 }
 
 /**

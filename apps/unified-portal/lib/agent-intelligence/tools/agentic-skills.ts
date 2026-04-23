@@ -860,27 +860,40 @@ export async function scheduleViewingDraft(
       const unitToken = unitMatch[1];
       const schemeToken = ref.slice(0, unitMatch.index).trim();
       if (schemeToken) {
-        const { data: devs } = await supabase
-          .from('developments')
-          .select('id, name')
-          .ilike('name', `%${schemeToken}%`);
-        const devList = devs || [];
-        if (devList.length) {
-          const { data: units } = await supabase
-            .from('units')
-            .select('id, development_id, unit_number, unit_uid')
-            .in('development_id', devList.map((d: any) => d.id))
-            .or(`unit_number.ilike.${unitToken},unit_uid.ilike.%${unitToken}%`);
-          const unit = (units || [])[0];
-          if (unit) {
-            const dev = devList.find((d: any) => d.id === unit.development_id);
+        // Session 14 — resolve the scheme through the alias table and the
+        // unit through the strict exact-match resolver. Pre-14 this was
+        // `.ilike('name', '%<schemeToken>%')` + `unit_number.ilike.<t>` →
+        // silent first-row pick.
+        const { data: asgs } = await supabase
+          .from('agent_scheme_assignments')
+          .select('development_id')
+          .eq('agent_id', agentContext.agentId)
+          .eq('is_active', true);
+        const devIds = Array.from(
+          new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+        );
+        const { data: devs } = devIds.length
+          ? await supabase.from('developments').select('id, name').in('id', devIds)
+          : { data: [] };
+        const devList = (devs || []) as Array<{ id: string; name: string }>;
+        const schemeContext = {
+          assignedDevelopmentIds: devList.map((d) => d.id),
+          assignedDevelopmentNames: devList.map((d) => d.name),
+        };
+        const schemeResolution = await resolveSchemeName(supabase, schemeToken, schemeContext);
+        if (schemeResolution.ok) {
+          const unitRes = await resolveUnitIdentifier(supabase, unitToken, {
+            developmentIds: [schemeResolution.developmentId],
+            preferredDevelopmentId: schemeResolution.developmentId,
+          });
+          if (unitRes.status === 'ok') {
             resolved = {
               kind: 'sales_unit',
-              unitId: unit.id,
-              developmentId: unit.development_id,
-              schemeName: dev?.name || schemeToken,
-              unitNumber: unit.unit_number || unit.unit_uid || unitToken,
-              label: `${dev?.name || schemeToken} Unit ${unit.unit_number || unit.unit_uid || unitToken}`,
+              unitId: unitRes.unit.id,
+              developmentId: unitRes.unit.development_id,
+              schemeName: schemeResolution.canonicalName,
+              unitNumber: unitRes.unit.unit_number || unitRes.unit.unit_uid || unitToken,
+              label: `${schemeResolution.canonicalName} Unit ${unitRes.unit.unit_number || unitRes.unit.unit_uid || unitToken}`,
             };
           }
         }
@@ -1115,6 +1128,17 @@ export async function draftMessageSkill(
               : schemeResolution.reason === 'ambiguous'
                 ? `"${inputs.related_scheme}" matches multiple schemes (${schemeResolution.candidates.join(', ')}). Please be specific.`
                 : `Scheme "${inputs.related_scheme}" is not in your assigned list.`;
+          // Session 14 — thread top_candidate through so the chat route
+          // can turn this refusal into a "Did you mean X? (yes/no)" prompt
+          // when exactly one assigned scheme is a phonetic neighbour.
+          const topCandidate =
+            schemeResolution.reason === 'not_found' && schemeResolution.top_candidate
+              ? {
+                  name: schemeResolution.top_candidate.name,
+                  developmentId: schemeResolution.top_candidate.developmentId,
+                  typed: inputs.related_scheme,
+                }
+              : null;
           return {
             skill,
             status: 'awaiting_approval',
@@ -1126,6 +1150,7 @@ export async function draftMessageSkill(
               query,
               // @ts-ignore — read by the chat route's scheme-not-found injector
               skipped: [{ unit_identifier: inputs.related_unit || '', reason: reasonText }],
+              ...(topCandidate ? { top_candidate: topCandidate } : {}),
             } as any,
           };
         }
@@ -1462,6 +1487,13 @@ export async function draftBuyerFollowups(
     // something to key off of. Only dev_ids where at least one draft
     // landed go into this set.
     const resolvedDevIds = new Set<string>();
+    // Session 14 — when a target's scheme resolution returns not_found
+    // with a single phonetic-neighbour candidate, stash it keyed by the
+    // typed input. We only surface top_candidate on the final envelope
+    // if ALL distinct typed inputs collapsed to the same single
+    // candidate and zero drafts landed — otherwise the yes/no prompt
+    // would be ambiguous.
+    const topCandidatesByTyped = new Map<string, { name: string; developmentId: string; typed: string }>();
 
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
@@ -1496,6 +1528,13 @@ export async function draftBuyerFollowups(
         if (schemeResolution.ok) {
           preferredDevId = schemeResolution.developmentId;
         } else if (schemeResolution.reason === 'not_found') {
+          if (schemeResolution.top_candidate) {
+            topCandidatesByTyped.set(target.scheme_name, {
+              name: schemeResolution.top_candidate.name,
+              developmentId: schemeResolution.top_candidate.developmentId,
+              typed: target.scheme_name,
+            });
+          }
           skipped.push({
             ref: unitRef,
             reason: `I couldn't find a scheme matching "${target.scheme_name}". Your assigned schemes are: ${schemeResolution.candidates.join(', ')}.`,
@@ -1600,6 +1639,20 @@ export async function draftBuyerFollowups(
       );
     }
 
+    // Session 14 — surface top_candidate only when zero drafts landed AND
+    // every failed scheme_name pointed at the same single phonetic
+    // neighbour. Mixed inputs or any successful drafts → no candidate,
+    // the user needs to re-state rather than yes/no.
+    let topCandidate: { name: string; developmentId: string; typed: string } | null = null;
+    if (drafts.length === 0 && topCandidatesByTyped.size > 0) {
+      const uniqueCandidates = new Set(
+        Array.from(topCandidatesByTyped.values()).map((c) => c.developmentId),
+      );
+      if (uniqueCandidates.size === 1) {
+        topCandidate = Array.from(topCandidatesByTyped.values())[0];
+      }
+    }
+
     return {
       skill,
       status: 'awaiting_approval',
@@ -1613,6 +1666,8 @@ export async function draftBuyerFollowups(
         skipped,
         // @ts-ignore — Session 13: chat route uses this to key alias capture
         resolved_development_ids: Array.from(resolvedDevIds),
+        // @ts-ignore — Session 14: chat route uses this for yes/no disambiguation
+        ...(topCandidate ? { top_candidate: topCandidate } : {}),
       } as any,
     };
   } catch (err) {
