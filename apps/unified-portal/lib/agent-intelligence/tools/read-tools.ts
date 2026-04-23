@@ -661,14 +661,14 @@ export async function getViewings(
   params: { scheme_name?: string; buyer_name?: string; from_date?: string; to_date?: string; status?: string }
 ): Promise<ToolResult> {
   // Agent identity is threaded from the chat route — no re-resolve.
-  if (!agentContext.agentId) {
+  if (!agentContext.agentProfileId) {
     return { data: { viewings: [] }, summary: 'No agent profile found' };
   }
 
   let query = supabase
     .from('agent_viewings')
     .select('id, buyer_name, buyer_phone, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status, notes, source')
-    .eq('agent_id', agentContext.agentId)
+    .eq('agent_id', agentContext.agentProfileId)
     .order('viewing_date', { ascending: true })
     .order('viewing_time', { ascending: true });
 

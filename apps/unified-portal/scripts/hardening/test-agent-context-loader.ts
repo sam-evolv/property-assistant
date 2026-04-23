@@ -98,6 +98,25 @@ async function main() {
     `expected ${AGENT_PROFILE_ID}, got ${resolved.agentProfileId}`,
   );
 
+  // Session 14.3 — authUserId must be a DIFFERENT id than agentProfileId.
+  // That's the whole point of the brand. If they're equal, the resolver
+  // is returning the profile id in the auth slot (regression vector).
+  check(
+    'authUserId field populated',
+    typeof resolved.authUserId === 'string' && resolved.authUserId.length > 0,
+    `authUserId="${resolved.authUserId}"`,
+  );
+  check(
+    'authUserId distinct from agentProfileId',
+    resolved.authUserId !== resolved.agentProfileId,
+    `authUserId=${resolved.authUserId}, agentProfileId=${resolved.agentProfileId}`,
+  );
+  check(
+    'authUserId matches profile.user_id',
+    resolved.authUserId === profile.user_id,
+    `expected ${profile.user_id}, got ${resolved.authUserId}`,
+  );
+
   check(
     `assignedDevelopmentIds.length === ${EXPECTED_COUNT}`,
     resolved.assignedDevelopmentIds.length === EXPECTED_COUNT,

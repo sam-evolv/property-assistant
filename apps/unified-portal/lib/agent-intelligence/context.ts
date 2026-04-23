@@ -125,7 +125,7 @@ export async function getRecentActivitySummary(
   const { count: overdueTasks } = await supabase
     .from('agent_tasks')
     .select('id', { count: 'exact', head: true })
-    .eq('agent_id', agentContext.agentId)
+    .eq('agent_id', agentContext.agentProfileId)
     .eq('tenant_id', tenantId)
     .in('status', ['pending', 'in_progress'])
     .lt('due_date', new Date().toISOString());
@@ -159,7 +159,7 @@ export async function getUpcomingDeadlines(
   const { data: tasks } = await supabase
     .from('agent_tasks')
     .select('title, due_date, priority')
-    .eq('agent_id', agentContext.agentId)
+    .eq('agent_id', agentContext.agentProfileId)
     .eq('tenant_id', tenantId)
     .in('status', ['pending', 'in_progress'])
     .lte('due_date', fourteenDaysFromNow)
@@ -203,7 +203,7 @@ export async function getViewingsSummary(
   const { data: viewings } = await supabase
     .from('agent_viewings')
     .select('buyer_name, scheme_name, unit_ref, viewing_date, viewing_time, status, notes')
-    .eq('agent_id', agentContext.agentId)
+    .eq('agent_id', agentContext.agentProfileId)
     .in('viewing_date', [today, tomorrow])
     .in('status', ['confirmed', 'pending'])
     .order('viewing_date', { ascending: true })

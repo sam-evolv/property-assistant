@@ -64,11 +64,11 @@ export async function POST(request: NextRequest) {
     }
 
     const tenantId: string = resolved.tenantId ?? '';
-    const authUserId: string = resolved.authUserId;
+    const authUserId = resolved.authUserId;
 
     const agentContext: AgentContext = {
-      agentId: resolved.agentProfileId,
-      userId: authUserId,
+      agentProfileId: resolved.agentProfileId,
+      authUserId,
       tenantId,
       displayName: resolved.displayName,
       agencyName: resolved.agencyName,
@@ -114,31 +114,31 @@ export async function POST(request: NextRequest) {
     ] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
-      agentContext.agentId
-        ? loadEntityMemory(supabase, agentContext.agentId, message).catch(() => '')
+      agentContext.agentProfileId
+        ? loadEntityMemory(supabase, agentContext.agentProfileId, message).catch(() => '')
         : Promise.resolve(''),
-      agentContext.agentId
+      agentContext.agentProfileId
         ? getViewingsSummary(supabase, agentContext).catch(() => '')
         : Promise.resolve(''),
-      agentContext.agentId
-        ? getAgentProfileExtras(supabase, agentContext.agentId).catch(() => null)
+      agentContext.agentProfileId
+        ? getAgentProfileExtras(supabase, agentContext.agentProfileId).catch(() => null)
         : Promise.resolve(null),
       getAgedContracts(supabase, tenantId, agentContext, 42).catch(() => []),
       getSalesPipelineSummary(supabase, tenantId, agentContext).catch(() => null),
-      agentContext.agentId
-        ? getLettingsSummary(supabase, agentContext.agentId).catch(() => null)
+      agentContext.agentProfileId
+        ? getLettingsSummary(supabase, agentContext.agentProfileId).catch(() => null)
         : Promise.resolve(null),
-      agentContext.agentId
-        ? getRenewalWindow(supabase, agentContext.agentId).catch(() => [])
+      agentContext.agentProfileId
+        ? getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => [])
         : Promise.resolve([]),
-      agentContext.agentId
-        ? getRentArrears(supabase, agentContext.agentId).catch(() => [])
+      agentContext.agentProfileId
+        ? getRentArrears(supabase, agentContext.agentProfileId).catch(() => [])
         : Promise.resolve([]),
-      agentContext.agentId
-        ? getTodaysViewings(supabase, agentContext.agentId).catch(() => [])
+      agentContext.agentProfileId
+        ? getTodaysViewings(supabase, agentContext.agentProfileId).catch(() => [])
         : Promise.resolve([]),
-      agentContext.agentId
-        ? getUpcomingWeekViewings(supabase, agentContext.agentId).catch(() => [])
+      agentContext.agentProfileId
+        ? getUpcomingWeekViewings(supabase, agentContext.agentProfileId).catch(() => [])
         : Promise.resolve([]),
     ]);
 
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
     let independentContext = '';
     const agentType = agentContext.agentType ?? 'scheme';
     if (agentType !== 'scheme') {
-      independentContext = await buildIndependentAgentContext(supabase, agentContext.agentId);
+      independentContext = await buildIndependentAgentContext(supabase, agentContext.agentProfileId);
     }
 
     // 3. Build system prompt
@@ -181,16 +181,23 @@ export async function POST(request: NextRequest) {
     //
     // Turn N-1 emitted "Did you mean **Árdan View**? (yes/no)" and stashed
     // a hidden `<!--PENDING_CLARIFICATION:{…}-->` marker on the assistant
-    // message. If the current user reply matches the yes regex and the
-    // marker is still on the IMMEDIATELY-PRECEDING assistant turn, we:
+    // message. If the current user reply matches the yes regex we:
     //   1. Rewrite the user's effective message by substituting the
     //      topCandidateName in place of the originally-typed scheme name.
     //   2. Capture the original typed string as an inferred alias for the
     //      development_id (self-healing — next time "Erdon View" resolves
     //      straight to Árdan View without prompting).
-    // Any other reply clears the marker by doing nothing (the marker only
-    // lives as long as it's on the last assistant turn).
-    const pending = extractPendingClarification(history);
+    //
+    // Session 14.3 — lookup order is now DB-first, then client history
+    // fallback. Pre-14.3 the marker was embedded as an HTML comment in
+    // the streamed token (visible to the user as a base64 blob). Post-
+    // 14.3 the token stream carries only the visible prompt; the marker
+    // lives ONLY in the server-stored assistant row. Reading from DB by
+    // sessionId closes the loop without relying on the client to echo
+    // the stored content back.
+    const pending =
+      (sessionId ? await extractPendingClarificationFromDb(supabase, sessionId) : null)
+      || extractPendingClarification(history);
     const yesPattern = /^(yes|y|yeah|yep|yup|correct|that'?s it|that'?s right|aye|ok|okay)\b/i;
     let effectiveMessage = message;
     if (pending && yesPattern.test(message.trim())) {
@@ -446,20 +453,39 @@ export async function POST(request: NextRequest) {
           // and the marker must be exact for the next turn's parser.
           let fullContent = '';
           if (topCandidateForPrompt) {
+            // Session 14.3 — split the clarification into two SSE frames.
+            // `token` carries only the user-visible prompt. A separate
+            // `pending_clarification` frame carries the structured payload
+            // the client stashes so it can round-trip back on the next
+            // turn. Pre-14.3 the payload was embedded as an HTML-comment
+            // marker inside the same token; the markdown renderer
+            // escaped `<` to `&lt;`, so the whole base64 blob ended up
+            // visible on screen. Split-frame design eliminates that
+            // class of bug — the marker never enters user-visible text.
             const promptText = `Did you mean **${topCandidateForPrompt.name}**? (yes/no)`;
-            const marker = buildClarificationMarker({
+            const clarificationPayload: ClarificationPayload = {
               originalMessage: message,
               typedScheme: topCandidateForPrompt.typed,
               topCandidateName: topCandidateForPrompt.name,
               topCandidateDevId: topCandidateForPrompt.developmentId,
-            });
-            fullContent = `${promptText}\n${marker}`;
-            // Stream it as one token so the UI renders the complete
-            // message at once. The marker stays on the stored text so
-            // the NEXT turn's history carries it back.
+            };
+            const marker = buildClarificationMarker(clarificationPayload);
+            // Visible text: prompt only, no marker.
+            fullContent = promptText;
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'token', content: fullContent }) + '\n')
+              encoder.encode(JSON.stringify({ type: 'token', content: promptText }) + '\n')
             );
+            // Control frame: structured payload for the client to stash.
+            controller.enqueue(
+              encoder.encode(
+                JSON.stringify({ type: 'pending_clarification', payload: clarificationPayload }) + '\n',
+              ),
+            );
+            // Stored content: prompt + marker so next-turn detection via
+            // history still works when the client echoes the stored
+            // assistant text verbatim. The marker is an HTML comment in
+            // the stored DB row only — never emitted to the token stream.
+            fullContent = `${promptText}\n${marker}`;
           } else {
             // Stream the final LLM response
             const stream = await openai.chat.completions.create({
@@ -510,7 +536,7 @@ export async function POST(request: NextRequest) {
             console.error('[hallucinated_drafts] overrode assistant response', {
               kind: 'hallucinated_drafts',
               user: agentContext.displayName,
-              userId: agentContext.userId,
+              userId: agentContext.authUserId,
               originalMessage: message,
               assistantClaimed: fullContent,
               toolsCalled: toolsCalled.map((t) => t.tool_name),
@@ -708,13 +734,70 @@ function stripClarificationMarker(content: string): string {
 }
 
 /**
- * Pull the clarification payload out of the LAST assistant message in
- * history. Returns null when there isn't one — e.g. the user didn't just
- * come off a clarification prompt, or too much time has passed and other
- * turns are in between.
+ * Parse a clarification marker out of an assistant message content
+ * string. Returns null when no marker is present or the payload is
+ * malformed. Kept as a small helper because both the history-based
+ * and DB-based lookup paths need the same parse logic.
+ */
+function parseClarificationFromContent(content: string): ClarificationPayload | null {
+  const match = content.match(CLARIFICATION_MARKER_RE);
+  if (!match) return null;
+  try {
+    const json = Buffer.from(match[1], 'base64').toString('utf8');
+    const parsed = JSON.parse(json);
+    if (
+      typeof parsed?.originalMessage === 'string' &&
+      typeof parsed?.typedScheme === 'string' &&
+      typeof parsed?.topCandidateName === 'string' &&
+      typeof parsed?.topCandidateDevId === 'string'
+    ) {
+      return parsed as ClarificationPayload;
+    }
+  } catch {
+    /* malformed — ignore */
+  }
+  return null;
+}
+
+/**
+ * Session 14.3 — DB-backed clarification lookup.
  *
- * Expiry is structural: if the marker isn't on the IMMEDIATELY-preceding
- * assistant turn, it's gone. No TTL bookkeeping needed.
+ * Primary detection path. Reads the most recent assistant row from
+ * `intelligence_conversations` for this session. The server-stored
+ * content carries the PENDING_CLARIFICATION marker regardless of
+ * whether the client echoed it back in `history` — which it won't,
+ * because 14.3 strips the marker from the user-visible token stream.
+ *
+ * Returns null if the row is older than the previous assistant turn
+ * (the session has moved on) or carries no marker.
+ */
+async function extractPendingClarificationFromDb(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  sessionId: string,
+): Promise<ClarificationPayload | null> {
+  const { data, error } = await supabase
+    .from('intelligence_conversations')
+    .select('content, role, created_at')
+    .eq('session_id', sessionId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error('[chat/route] extractPendingClarificationFromDb error', {
+      sessionId,
+      message: error.message,
+    });
+    return null;
+  }
+  const row = (data || [])[0];
+  if (!row || row.role !== 'assistant' || typeof row.content !== 'string') return null;
+  return parseClarificationFromContent(row.content);
+}
+
+/**
+ * Pull the clarification payload out of the LAST assistant message in
+ * history. Kept as a fallback for the 14.3 DB path — if a client
+ * version still round-trips the full stored content verbatim, this
+ * path catches it. Safe to run alongside the DB path; same parser.
  */
 function extractPendingClarification(
   history: Array<{ role: string; content: string }> | undefined,
@@ -723,23 +806,9 @@ function extractPendingClarification(
   for (let i = history.length - 1; i >= 0; i--) {
     const msg = history[i];
     if (msg.role !== 'assistant') continue;
-    const match = msg.content.match(CLARIFICATION_MARKER_RE);
-    if (!match) return null; // last assistant turn had no marker → no pending
-    try {
-      const json = Buffer.from(match[1], 'base64').toString('utf8');
-      const parsed = JSON.parse(json);
-      if (
-        typeof parsed?.originalMessage === 'string' &&
-        typeof parsed?.typedScheme === 'string' &&
-        typeof parsed?.topCandidateName === 'string' &&
-        typeof parsed?.topCandidateDevId === 'string'
-      ) {
-        return parsed as ClarificationPayload;
-      }
-    } catch {
-      /* malformed marker — ignore */
-    }
-    return null;
+    // Only look at the immediately-preceding assistant turn; older
+    // misses belong to different conversation branches.
+    return parseClarificationFromContent(msg.content);
   }
   return null;
 }
@@ -813,7 +882,7 @@ async function storeConversationMemory(
 
   await supabase.from('intelligence_conversations').insert([
     {
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       tenant_id: agentContext.tenantId,
       session_id: sessionId,
       role: 'user',
@@ -821,7 +890,7 @@ async function storeConversationMemory(
       entities_mentioned: entities,
     },
     {
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       tenant_id: agentContext.tenantId,
       session_id: sessionId,
       role: 'assistant',

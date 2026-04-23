@@ -20,7 +20,7 @@ export async function createTask(
   const { data: task, error } = await supabase
     .from('agent_tasks')
     .insert({
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       tenant_id: tenantId,
       title: params.title,
       description: params.description || null,
@@ -114,7 +114,7 @@ export async function logCommunication(
       tenant_id: tenantId,
       development_id: dev.id,
       unit_id: unit?.id || null,
-      actor_id: agentContext.userId,
+      actor_id: agentContext.authUserId,
       actor_role: 'agent',
       actor_name: agentContext.displayName,
       type: params.type,
@@ -148,7 +148,7 @@ export async function logCommunication(
         outcome: params.outcome,
       },
       event_summary: `${agentContext.displayName} — ${params.direction} ${params.type}: ${params.summary}`,
-      actor_id: agentContext.userId,
+      actor_id: agentContext.authUserId,
       actor_role: 'agent',
       actor_name: agentContext.displayName,
       visibility: 'shared',
@@ -177,7 +177,7 @@ export async function scheduleViewing(
   }
 ): Promise<ToolResult> {
   // Agent id is threaded through the agentContext — no re-resolve.
-  if (!agentContext.agentId) {
+  if (!agentContext.agentProfileId) {
     return { data: { created: false }, summary: 'No agent profile found. Cannot schedule viewing.' };
   }
 
@@ -211,7 +211,7 @@ export async function scheduleViewing(
   const { data: viewing, error } = await supabase
     .from('agent_viewings')
     .insert({
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       tenant_id: tenantId,
       development_id: developmentId,
       unit_id: unitId,

@@ -17,8 +17,8 @@ import { resolveSchemeName } from '../scheme-resolver';
 export type { AgenticSkillEnvelope };
 
 export interface SkillAgentContext {
-  agentId: string;
-  userId: string;
+  agentProfileId: import('../ids').AgentProfileId;
+  authUserId: import('../ids').AuthUserId;
   displayName: string;
   agencyName: string;
   phone?: string;
@@ -83,7 +83,7 @@ export async function chaseAgedContracts(
     const { data: assignments, error: asgErr } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     if (asgErr) throw asgErr;
 
@@ -200,13 +200,13 @@ export async function draftViewingFollowup(
   const windowDays = Math.max(1, Math.ceil(windowHours / 24));
   const skill = 'draft_viewing_followup';
   const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString().split('T')[0];
-  const query = `agent_viewings WHERE status = 'completed' AND viewing_date >= current_date - ${windowDays} day${windowDays === 1 ? '' : 's'} AND agent_id = '${agentContext.agentId}'`;
+  const query = `agent_viewings WHERE status = 'completed' AND viewing_date >= current_date - ${windowDays} day${windowDays === 1 ? '' : 's'} AND agent_id = '${agentContext.agentProfileId}'`;
 
   try {
     const { data, error } = await supabase
       .from('agent_viewings')
       .select('id, buyer_name, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('status', 'completed')
       .gte('viewing_date', cutoffIso)
       .order('viewing_date', { ascending: false });
@@ -357,10 +357,10 @@ export async function weeklyMondayBriefing(
 
   try {
     const [aged, renewals, arrears, viewings] = await Promise.all([
-      loadAgedForBriefing(supabase, agentContext.agentId).catch(() => []),
-      getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
-      getRentArrears(supabase, agentContext.agentId).catch(() => []),
-      getUpcomingWeekViewings(supabase, agentContext.agentId).catch(() => []),
+      loadAgedForBriefing(supabase, agentContext.agentProfileId).catch(() => []),
+      getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
+      getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
+      getUpcomingWeekViewings(supabase, agentContext.agentProfileId).catch(() => []),
     ]);
 
     // --- Section 1: Sales movement ---
@@ -471,13 +471,13 @@ export async function draftLeaseRenewal(
   const todayIso = today.toISOString().split('T')[0];
   const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
   const tenancyFilter = inputs.tenancy_id ? ` AND id = '${inputs.tenancy_id}'` : '';
-  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
+  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
 
   try {
     let tenancyQ = supabase
       .from('agent_tenancies')
       .select('id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('status', 'active')
       .gte('lease_end', todayIso)
       .lte('lease_end', ninetyIso);
@@ -667,7 +667,7 @@ export async function naturalQuery(
       const { data } = await supabase
         .from('agent_tenancies')
         .select('id, rent_pcm')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .eq('status', 'active');
       const rows = data || [];
       const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
@@ -681,7 +681,7 @@ export async function naturalQuery(
         const { data } = await supabase
           .from('agent_tenancies')
           .select('id, letting_property_id, tenant_name, lease_end, status')
-          .eq('agent_id', agentContext.agentId)
+          .eq('agent_id', agentContext.agentProfileId)
           .eq('status', 'active')
           .ilike('tenant_name', `%${name}%`);
         const rows = data || [];
@@ -710,7 +710,7 @@ export async function naturalQuery(
         }
       }
     } else if (intent === 'aged_contracts') {
-      const aged = await loadAgedForBriefing(supabase, agentContext.agentId, 42);
+      const aged = await loadAgedForBriefing(supabase, agentContext.agentProfileId, 42);
       if (!aged.length) {
         answer = 'There are 0 contracts issued over 6 weeks ago with no signature.';
       } else {
@@ -722,7 +722,7 @@ export async function naturalQuery(
       const { data } = await supabase
         .from('agent_viewings')
         .select('id, buyer_name, scheme_name, unit_ref, viewing_date, viewing_time')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .gte('viewing_date', period.start)
         .lte('viewing_date', period.end)
         .order('viewing_date', { ascending: true });
@@ -742,7 +742,7 @@ export async function naturalQuery(
       const { data: asgs } = await supabase
         .from('agent_scheme_assignments')
         .select('development_id')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .eq('is_active', true);
       const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
       if (!devIds.length) {
@@ -758,9 +758,9 @@ export async function naturalQuery(
       }
     } else if (intent === 'needs_attention') {
       const [aged, arrears, renewals] = await Promise.all([
-        loadAgedForBriefing(supabase, agentContext.agentId, 42).catch(() => []),
-        getRentArrears(supabase, agentContext.agentId).catch(() => []),
-        getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
+        loadAgedForBriefing(supabase, agentContext.agentProfileId, 42).catch(() => []),
+        getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
+        getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
       ]);
       answer = `Items needing attention: ${aged.length} aged contracts, ${arrears.length} rent arrears, ${renewals.length} renewals due.`;
     } else {
@@ -867,7 +867,7 @@ export async function scheduleViewingDraft(
         const { data: asgs } = await supabase
           .from('agent_scheme_assignments')
           .select('development_id')
-          .eq('agent_id', agentContext.agentId)
+          .eq('agent_id', agentContext.agentProfileId)
           .eq('is_active', true);
         const devIds = Array.from(
           new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
@@ -904,7 +904,7 @@ export async function scheduleViewingDraft(
       const { data: props } = await supabase
         .from('agent_letting_properties')
         .select('id, address, city')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .ilike('address', `%${ref}%`);
       const prop = (props || [])[0];
       if (prop) {
@@ -932,7 +932,7 @@ export async function scheduleViewingDraft(
     const { data: existing } = await supabase
       .from('agent_viewings')
       .select('id, buyer_name, viewing_time, viewing_date')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('viewing_date', viewingDate);
 
     const prefMinutes = dt.getUTCHours() * 60 + dt.getUTCMinutes();
@@ -951,7 +951,7 @@ export async function scheduleViewingDraft(
     const schemeName = resolved.kind === 'sales_unit' ? resolved.schemeName : null;
     const unitRef = resolved.kind === 'sales_unit' ? resolved.unitNumber : resolved.address;
     const recordRow: Record<string, any> = {
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       buyer_name: inputs.buyer_name,
       buyer_email: inputs.buyer_email || null,
       buyer_phone: inputs.buyer_phone || null,
@@ -1103,7 +1103,7 @@ export async function draftMessageSkill(
         const { data: asgs } = await supabase
           .from('agent_scheme_assignments')
           .select('development_id')
-          .eq('agent_id', agentContext.agentId)
+          .eq('agent_id', agentContext.agentProfileId)
           .eq('is_active', true);
         const devIds = Array.from(
           new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
@@ -1169,7 +1169,7 @@ export async function draftMessageSkill(
           const { data: asgs } = await supabase
             .from('agent_scheme_assignments')
             .select('development_id')
-            .eq('agent_id', agentContext.agentId)
+            .eq('agent_id', agentContext.agentProfileId)
             .eq('is_active', true);
           unitScope = Array.from(
             new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
@@ -1498,7 +1498,7 @@ export async function draftBuyerFollowups(
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
     const { data: devs } = devIds.length
@@ -1704,7 +1704,7 @@ export async function getCandidateUnitsSkill(
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
     if (!devIds.length) {

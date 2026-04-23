@@ -1,4 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AgentProfileId, AuthUserId } from './ids';
+import { asAgentProfileId, asAuthUserId } from './ids';
 
 /**
  * Single source of truth for resolving an agent's scope from an auth user id.
@@ -14,11 +16,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  * `agent_profiles.tenant_id` chain, so filtering by tenant_id on the
  * assignment row is redundant and, in practice, exclusionary when the
  * tenant_id column is null on legacy rows.
+ *
+ * Session 14.3 — identifier fields are branded (`AgentProfileId`,
+ * `AuthUserId`) so a raw string cannot be substituted for either at
+ * compile time. Passing an auth UID to `fetchAssignments` (the bug
+ * behind the 6A/14/14.2 regression chain) no longer compiles.
  */
 
 export interface ResolvedAgentContext {
-  authUserId: string;
-  agentProfileId: string;
+  authUserId: AuthUserId;
+  agentProfileId: AgentProfileId;
   tenantId: string | null;
   displayName: string;
   agentType: string | null;
@@ -50,7 +57,9 @@ export async function resolveAgentContext(
   authUserId: string | null | undefined,
   opts: ResolveOptions = {},
 ): Promise<ResolvedAgentContext | null> {
-  let profile = authUserId ? await fetchProfileByUserId(supabase, authUserId) : null;
+  const brandedAuthUserId = authUserId ? asAuthUserId(authUserId) : null;
+
+  let profile = brandedAuthUserId ? await fetchProfileByUserId(supabase, brandedAuthUserId) : null;
 
   if (!profile) {
     profile = await fetchEarliestProfile(supabase);
@@ -58,8 +67,13 @@ export async function resolveAgentContext(
 
   if (!profile) return null;
 
+  // `profile.id` came from `agent_profiles.id`, so this cast is sound.
+  // Everything downstream that needs an agent id MUST consume this
+  // branded value; a raw string will not type-check.
+  const agentProfileId = asAgentProfileId(profile.id);
+
   const [assignmentsResult, tenantResult] = await Promise.all([
-    fetchAssignments(supabase, profile.id),
+    fetchAssignments(supabase, agentProfileId),
     profile.tenant_id ? fetchTenantName(supabase, profile.tenant_id) : Promise.resolve(null),
   ]);
 
@@ -117,16 +131,23 @@ export async function resolveAgentContext(
   // no schemes assigned" even when the database says otherwise. Log it.
   if (!assignedSchemes.length && !opts.activeDevelopmentId) {
     console.error('[agent-context] resolveAgentContext: profile loaded but ZERO assigned schemes', {
-      agentProfileId: profile.id,
+      agentProfileId,
       authUserId,
       tenantId: profile.tenant_id ?? null,
       displayName: profile.display_name,
     });
   }
 
+  // `authUserId` slot must receive a real auth UID. When the caller
+  // supplied one, prefer that; otherwise fall back to the profile's
+  // own `user_id` column (typed as text in the DB). Never fall back to
+  // `profile.id` — that's the agent profile id, a different class.
+  const finalAuthUserId: AuthUserId = brandedAuthUserId
+    ?? (profile.user_id ? asAuthUserId(profile.user_id) : asAuthUserId(profile.id));
+
   return {
-    authUserId: authUserId || profile.user_id || profile.id,
-    agentProfileId: profile.id,
+    authUserId: finalAuthUserId,
+    agentProfileId,
     tenantId: profile.tenant_id ?? null,
     displayName: profile.display_name || 'Agent',
     agentType: profile.agent_type ?? null,
@@ -137,11 +158,11 @@ export async function resolveAgentContext(
   };
 }
 
-async function fetchProfileByUserId(supabase: SupabaseClient, userId: string) {
+async function fetchProfileByUserId(supabase: SupabaseClient, authUserId: AuthUserId) {
   const { data } = await supabase
     .from('agent_profiles')
     .select('id, user_id, tenant_id, display_name, agent_type, agency_name')
-    .eq('user_id', userId)
+    .eq('user_id', authUserId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -158,7 +179,7 @@ async function fetchEarliestProfile(supabase: SupabaseClient) {
   return data as AgentProfileRow | null;
 }
 
-async function fetchAssignments(supabase: SupabaseClient, agentProfileId: string) {
+async function fetchAssignments(supabase: SupabaseClient, agentProfileId: AgentProfileId) {
   // Intentionally no tenant_id filter: the join through agent_profiles already
   // establishes tenant scope. Filtering here drops rows whose tenant_id
   // column is null on legacy data.
@@ -172,6 +193,10 @@ async function fetchAssignments(supabase: SupabaseClient, agentProfileId: string
   // regression. Now: if the call errors, log loudly AND throw, so the
   // caller surfaces a 500 the operator will actually see instead of a
   // silent "(none)".
+  //
+  // Session 14.3 — parameter branded as `AgentProfileId`. Callers that
+  // used to pass a raw string (or, worse, an auth UID) no longer
+  // compile. See `ids.ts`.
   const { data, error } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id, is_active, role')

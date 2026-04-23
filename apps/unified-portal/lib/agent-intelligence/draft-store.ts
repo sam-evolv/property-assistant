@@ -192,7 +192,7 @@ export async function persistSkillEnvelope(
   agentContext: AgentContext,
 ): Promise<AgenticSkillEnvelope> {
   return persistDraftsForEnvelope(supabase, envelope, {
-    userId: agentContext.userId,
+    userId: agentContext.authUserId,
     tenantId: agentContext.tenantId,
     skill: envelope.skill,
   });

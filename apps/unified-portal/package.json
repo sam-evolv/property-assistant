@@ -16,6 +16,7 @@
     "hardening:test": "npx tsx scripts/hardening/test-tenant-isolation.ts",
     "hardening:tool-use": "npx tsx scripts/hardening/test-tool-use-mandate.ts",
     "hardening:agent-context": "npx tsx scripts/hardening/test-agent-context-loader.ts",
+    "hardening:read-tool": "npx tsx scripts/hardening/test-read-tool-contract.ts",
     "hardening:recover-messages": "npx tsx scripts/hardening/recover-orphaned-messages.ts",
     "hardening:recover-messages-apply": "npx tsx scripts/hardening/recover-orphaned-messages.ts --apply",
     "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts",
