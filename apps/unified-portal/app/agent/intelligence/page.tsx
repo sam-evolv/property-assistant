@@ -3,13 +3,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import AgentShell from '../_components/AgentShell';
 import VoiceInputBar from '../_components/VoiceInputBar';
 import VoiceConfirmationCard from '../_components/VoiceConfirmationCard';
 import UndoPill from '../_components/UndoPill';
 import CapabilityChipsCarousel from '../_components/CapabilityChipsCarousel';
 import { useVoiceCapture } from '../_hooks/useVoiceCapture';
+import { fetchCapabilityChips } from '@/lib/agent-intelligence/capability-chips';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
@@ -112,6 +113,7 @@ function IntelligencePageInner() {
   const { count: pendingDraftsCount, ready: draftsReady } = useDraftsCount();
   const searchParams = useSearchParams();
   const prefillPrompt = searchParams.get('prompt');
+  const router = useRouter();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -120,6 +122,10 @@ function IntelligencePageInner() {
   const [isDesktop, setIsDesktop] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
+  // Session 11 — live chip list. Starts as undefined so the carousel
+  // uses its fallback set on first paint; the live fetch populates it
+  // and the carousel re-shuffles from the real list on the next cycle.
+  const [liveChips, setLiveChips] = useState<string[] | undefined>(undefined);
   const scrollRef = useRef<HTMLDivElement>(null);
   const prefillHandled = useRef(false);
   const inputElRef = useRef<HTMLInputElement | null>(null);
@@ -137,6 +143,18 @@ function IntelligencePageInner() {
     update();
     mq.addEventListener('change', update);
     return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Session 11 — fetch real-data chips on mount. While the fetch is in
+  // flight, the carousel shows its fallback set, so first paint is
+  // never blank. Triggered once per page mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const chips = await fetchCapabilityChips();
+      if (!cancelled) setLiveChips(chips);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Handle prefilled prompt from URL
@@ -675,7 +693,23 @@ function IntelligencePageInner() {
             }}
           >
             {/* Breathing room from the status bar. */}
-            <div style={{ height: 40, flexShrink: 0 }} />
+            <div style={{ height: 24, flexShrink: 0 }} />
+
+            {/* Session 11 Fix 3 — OPENHOUSE logo centred above the hero.
+                Small, always rendered regardless of drafts state. */}
+            <Image
+              src="/oh-logo.png"
+              alt="OpenHouse"
+              width={48}
+              height={48}
+              priority
+              style={{
+                objectFit: 'contain',
+                display: 'block',
+                mixBlendMode: 'multiply',
+                marginBottom: 24,
+              }}
+            />
 
             <h1
               data-testid="intelligence-hero"
@@ -692,7 +726,7 @@ function IntelligencePageInner() {
               What can I help with, {firstName}?
             </h1>
 
-            <div style={{ height: 24, flexShrink: 0 }} />
+            <div style={{ height: 18, flexShrink: 0 }} />
 
             <p
               style={{
@@ -707,55 +741,43 @@ function IntelligencePageInner() {
               Voice or text. I&rsquo;ll show you what I drafted before sending.
             </p>
 
-            {/* Drafts banner — reserved height prevents layout shift between
-                "still loading" and "resolved". Hidden entirely when there
-                are no drafts so the screen stays quiet for clean queues. */}
+            {/* Session 11 Fix 4 — quiet drafts link.
+                The old gold card is gone. This single muted line sits
+                directly under the helper sentence. Only rendered once
+                the count resolves to > 0; min-height reserves 20px so
+                the chip carousel below doesn't shift when the link
+                appears or disappears. The FAB badge already shows the
+                count visually — this is just a direct tap-path. */}
             <div
               style={{
+                marginTop: 12,
+                minHeight: 20,
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
                 width: '100%',
                 maxWidth: 360,
-                // min-height holds space for the banner while draftsReady
-                // is false, then collapses smoothly once count is known
-                // to be zero.
-                minHeight: !draftsReady || pendingDraftsCount > 0 ? 76 : 0,
-                marginTop: !draftsReady || pendingDraftsCount > 0 ? 32 : 0,
-                transition: 'min-height 0.25s ease, margin-top 0.25s ease',
               }}
             >
               {draftsReady && pendingDraftsCount > 0 ? (
-                <div
-                  data-testid="intelligence-drafts-greeting"
+                <button
+                  type="button"
+                  data-testid="intelligence-drafts-link"
+                  onClick={() => router.push('/agent/drafts')}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '12px 16px',
-                    background: 'rgba(196,155,42,0.08)',
-                    border: '0.5px solid rgba(196,155,42,0.30)',
-                    borderRadius: 14,
+                    background: 'transparent',
+                    border: 'none',
+                    padding: 0,
+                    color: '#6B7280',
+                    fontSize: 13,
+                    fontFamily: 'inherit',
+                    textDecoration: 'underline',
+                    textUnderlineOffset: 3,
+                    cursor: 'pointer',
                   }}
                 >
-                  <p style={{ margin: 0, color: '#8A6E1F', fontSize: 13, lineHeight: 1.45 }}>
-                    You&rsquo;ve got {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} from earlier.
-                  </p>
-                  <Link
-                    href="/agent/drafts"
-                    data-testid="intelligence-review-drafts-chip"
-                    style={{
-                      background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
-                      color: '#FFFFFF',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      padding: '7px 14px',
-                      borderRadius: 999,
-                      textDecoration: 'none',
-                      boxShadow: '0 2px 6px rgba(196,155,42,0.30)',
-                    }}
-                  >
-                    Review drafts
-                  </Link>
-                </div>
+                  {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} waiting in your inbox
+                </button>
               ) : null}
             </div>
 
@@ -767,6 +789,7 @@ function IntelligencePageInner() {
             <CapabilityChipsCarousel
               onChipTap={handleChipTap}
               paused={inputFocused}
+              chips={liveChips}
             />
 
             <div style={{ height: 16, flexShrink: 0 }} />

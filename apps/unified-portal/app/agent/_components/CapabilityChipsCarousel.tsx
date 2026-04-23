@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CAPABILITY_CHIPS,
+  FALLBACK_CAPABILITY_CHIPS,
   shuffleChips,
 } from '@/lib/agent-intelligence/capability-chips';
 
@@ -22,10 +22,12 @@ interface CapabilityChipsCarouselProps {
    */
   paused?: boolean;
   /**
-   * Allows callers to override the pool (tests). Defaults to the full
-   * CAPABILITY_CHIPS list.
+   * Session 11: chips are sourced from live agent data by the parent.
+   * The parent passes them in here. While the live fetch is in flight
+   * the carousel falls back to a short context-free set so first paint
+   * is never empty.
    */
-  pool?: readonly string[];
+  chips?: readonly string[];
 }
 
 /**
@@ -50,11 +52,11 @@ interface CapabilityChipsCarouselProps {
 export default function CapabilityChipsCarousel({
   onChipTap,
   paused = false,
-  pool = CAPABILITY_CHIPS,
+  chips,
 }: CapabilityChipsCarouselProps) {
-  // Shuffle once per mount so different sessions surface different
-  // chips first. useMemo with an empty dep list; the shuffle output is
-  // stable for the component lifetime.
+  // Shuffle on every chips-identity change so when the live fetch
+  // resolves with a different set, the new chips cycle in naturally.
+  const pool = chips && chips.length ? chips : FALLBACK_CAPABILITY_CHIPS;
   const deck = useMemo(() => shuffleChips(pool), [pool]);
   const safeDeck = deck.length >= VISIBLE ? deck : [...deck, ...deck];
 
