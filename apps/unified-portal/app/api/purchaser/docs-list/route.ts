@@ -200,11 +200,20 @@ export async function GET(request: NextRequest) {
     }).catch(() => {});
 
     // STEP 2: Fetch document_sections filtered by project_id
-    const { data: sections, error: sectionsError } = await supabase
-      .from('document_sections')
-      .select('id, content, metadata')
-      .eq('project_id', projectId)
-      .limit(10000);
+    let sections: any[] = [];
+    let sectionsError: any = null;
+    const PAGE_SIZE = 1000;
+    for (let offset = 0; offset < 20000; offset += PAGE_SIZE) {
+      const { data: page, error } = await supabase
+        .from('document_sections')
+        .select('id, content, metadata')
+        .eq('project_id', projectId)
+        .range(offset, offset + PAGE_SIZE - 1);
+      if (error) { sectionsError = error; break; }
+      if (!page || page.length === 0) break;
+      sections.push(...page);
+      if (page.length < PAGE_SIZE) break;
+    }
 
     if (sectionsError) {
       return NextResponse.json(
