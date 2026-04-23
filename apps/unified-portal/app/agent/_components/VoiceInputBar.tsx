@@ -1,5 +1,6 @@
 'use client';
 
+import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Mic, Send, Square } from 'lucide-react';
 import type { VoiceCaptureState } from '../_hooks/useVoiceCapture';
 
@@ -18,13 +19,20 @@ interface VoiceInputBarProps {
    * `voice.permissionDenied` is true.
    */
   onOpenSettings?: () => Promise<boolean> | void;
+  /** Session 7 — the carousel above pauses rotation while the input
+      has focus so chips don't rotate under the user's typing cursor. */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
 /**
  * Unified input bar. In idle mode it behaves like the existing typed Intelligence
  * input. Tapping the mic transforms it into a live waveform + partial transcript.
+ *
+ * Exposes its underlying `<input>` via `ref` so callers can imperatively
+ * focus it after a chip tap (Session 7 — CapabilityChipsCarousel).
  */
-export default function VoiceInputBar({
+const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function VoiceInputBar({
   input,
   onInputChange,
   onSend,
@@ -34,7 +42,11 @@ export default function VoiceInputBar({
   onStop,
   isDesktop,
   onOpenSettings,
-}: VoiceInputBarProps) {
+  onFocus,
+  onBlur,
+}, ref) {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useImperativeHandle(ref, () => inputRef.current as HTMLInputElement, []);
   const recording = voice.status === 'recording' || voice.status === 'transcribing';
   const micSize = isDesktop ? 40 : 34;
   const sendSize = 34;
@@ -104,10 +116,13 @@ export default function VoiceInputBar({
           <WaveformDisplay samples={voice.waveform} />
         ) : (
           <input
+            ref={inputRef}
             type="text"
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && onSend()}
+            onFocus={onFocus}
+            onBlur={onBlur}
             placeholder="Ask Intelligence anything..."
             style={{
               flex: 1,
@@ -272,7 +287,9 @@ export default function VoiceInputBar({
       `}</style>
     </div>
   );
-}
+});
+
+export default VoiceInputBar;
 
 function WaveformDisplay({ samples }: { samples: number[] }) {
   return (
