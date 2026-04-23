@@ -215,80 +215,11 @@ export async function scheduleViewing(
   };
 }
 
-export async function draftMessage(
-  supabase: SupabaseClient,
-  tenantId: string,
-  agentContext: AgentContext,
-  params: {
-    recipient_type: string;
-    recipient_name: string;
-    context: string;
-    tone?: string;
-    related_unit?: string;
-    related_scheme?: string;
-  }
-): Promise<ToolResult> {
-  // Gather context data for the draft
-  let recipientEmail: string | null = null;
-  let unitContext = '';
-  let schemeName = '';
-  let unitNumber = '';
-
-  if (params.related_scheme && params.related_unit) {
-    const { data: dev } = await supabase
-      .from('developments')
-      .select('id, name')
-      .eq('tenant_id', tenantId)
-      .ilike('name', `%${params.related_scheme}%`)
-      .limit(1)
-      .maybeSingle();
-
-    if (dev) {
-      schemeName = dev.name;
-      const { data: units } = await supabase
-        .from('units')
-        .select('id, unit_number, unit_uid, purchaser_email')
-        .eq('development_id', dev.id)
-        .or(`unit_number.ilike.%${params.related_unit}%,unit_uid.ilike.%${params.related_unit}%`)
-        .limit(1);
-
-      if (units?.[0]) {
-        recipientEmail = units[0].purchaser_email;
-        unitNumber = units[0].unit_number || units[0].unit_uid || params.related_unit;
-        unitContext = `Unit ${unitNumber} in ${dev.name}`;
-      }
-    }
-  }
-
-  // Determine tone
-  const tone = params.tone || (
-    params.recipient_type === 'buyer' ? 'warm' :
-    params.recipient_type === 'solicitor' ? 'formal' :
-    'professional'
-  );
-
-  // Extract first name from recipient
-  const firstName = params.recipient_name.split(' ')[0];
-
-  // Return rich context so the LLM generates the COMPLETE email in its response
-  return {
-    data: {
-      draft_ready: true,
-      recipient_type: params.recipient_type,
-      recipient_name: params.recipient_name,
-      recipient_first_name: firstName,
-      recipient_email: recipientEmail,
-      context: params.context,
-      tone,
-      unit_context: unitContext,
-      unit_number: unitNumber,
-      scheme_name: schemeName,
-      agent_name: agentContext.displayName,
-      instruction: `Generate the COMPLETE email now. Include: Subject line, greeting using "${firstName}", full body text, sign-off, and signature placeholder ([Agent Name] / [Agent Phone] / [Agency Name]). The email must sound like a real person wrote it in natural Irish conversational English. Do NOT describe what the email would say — write the actual email text ready to copy and send.`,
-    },
-    summary: `Drafting email to ${firstName} ${params.recipient_name !== firstName ? `(${params.recipient_name})` : ''} — ${unitContext || params.context.slice(0, 60)}.`,
-  };
-}
+// Session 6D: the pre-6D `draftMessage()` template helper was removed.
+// It claimed success without writing to `pending_drafts`, which caused the
+// model to confidently announce drafts that didn't exist. The envelope-
+// producing replacement lives in `./agentic-skills.ts` as
+// `draftMessageSkill()` and is wired into the registry there.
 
 export async function generateDeveloperReport(
   supabase: SupabaseClient,

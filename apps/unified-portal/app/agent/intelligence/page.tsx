@@ -237,6 +237,23 @@ function IntelligencePageInner() {
                 openApprovalDrawer(data.envelope);
                 notifyDraftsChanged();
               }
+            } else if (data.type === 'override') {
+              // Server detected the model hallucinated drafts. Replace
+              // whatever tokens have streamed so far with the honest
+              // failure message.
+              fullContent = typeof data.content === 'string' ? data.content : fullContent;
+              if (streamingStarted) {
+                setMessages(prev => prev.map(m =>
+                  m.id === streamingMsgId ? { ...m, content: fullContent } : m
+                ));
+              } else {
+                streamingStarted = true;
+                setMessages(prev => [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: fullContent,
+                }]);
+              }
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
             }

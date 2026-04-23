@@ -24,6 +24,8 @@ const AGENTIC_DRAFT_TYPE_BY_SKILL: Record<string, string> = {
   weekly_monday_briefing: 'weekly_briefing',
   natural_query: 'intelligence_answer',
   schedule_viewing_draft: 'schedule_viewing',
+  draft_message: 'buyer_followup',
+  draft_buyer_followups: 'buyer_followup',
 };
 
 function resolveDraftType(skill: string, draft: AgenticSkillDraft): string {

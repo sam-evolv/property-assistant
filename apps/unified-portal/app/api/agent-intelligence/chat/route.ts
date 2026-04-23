@@ -182,6 +182,19 @@ export async function POST(request: NextRequest) {
     const tools = getToolDefinitionsForOpenAI();
     const toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }> = [];
 
+    // Tool names that MUST land a real draft. If any of these fire but no
+    // envelope with drafts comes back, the anti-hallucination guard kicks
+    // in and overrides the model's response.
+    const DRAFT_PRODUCING_TOOLS = new Set<string>([
+      'draft_message',
+      'draft_buyer_followups',
+      'chase_aged_contracts',
+      'draft_viewing_followup',
+      'draft_lease_renewal',
+      'weekly_monday_briefing',
+      'schedule_viewing_draft',
+    ]);
+
     // Run tool-calling rounds (non-streaming so we can parse tool calls)
     let needsFinalStream = true;
     let rounds = 0;
@@ -248,6 +261,36 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 5b. Anti-hallucination pre-stream guard.
+    //
+    // Collect signals before streaming the final response:
+    //   - Was any draft-producing tool called?
+    //   - Did any envelope come back with drafts?
+    // If a draft tool fired and nothing persisted, inject a system note so
+    // the streaming model is told explicitly NOT to claim drafts exist.
+    // Post-stream we still check the final text and emit a hard override
+    // if the model lies anyway.
+    const draftToolCalled = toolsCalled.some((t) => DRAFT_PRODUCING_TOOLS.has(t.tool_name));
+    const envelopesWithDrafts = envelopes.filter((e) => e.drafts.length > 0);
+    const totalDraftsPersisted = envelopesWithDrafts.reduce((n, e) => n + e.drafts.length, 0);
+
+    if (draftToolCalled && totalDraftsPersisted === 0) {
+      messages.push({
+        role: 'system',
+        content:
+          'IMPORTANT: The draft tool(s) you just called returned zero drafts. Do NOT tell the user their drafts are ready, or that anything is in the drafts inbox, or that you prepared anything to review. Tell them the action did not go through, and ask them to rephrase or try a more specific request.',
+      });
+    }
+
+    // Merge all envelopes produced in this turn into one combined envelope.
+    // The drawer store replaces state on every `openApprovalDrawer()` call,
+    // so multiple sequential envelopes from parallel tool calls would show
+    // only the last. One envelope with N drafts matches the user's mental
+    // model ("I asked for 3 drafts; I see 3 drafts").
+    const combinedEnvelope: AgenticSkillEnvelope | null = envelopesWithDrafts.length
+      ? mergeEnvelopes(envelopesWithDrafts)
+      : null;
+
     // 6. Stream the final response token-by-token
     const currentSessionId = sessionId || `session_${Date.now()}`;
     const encoder = new TextEncoder();
@@ -265,15 +308,13 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Emit every agentic-skill envelope. The client listens for this
-          // frame to open the approval drawer. Drafts referenced here are
-          // already persisted in `pending_drafts` (via persistSkillEnvelope
-          // inside the registry adapter) so the drawer's Approve / Edit /
-          // Discard calls hit real rows.
-          for (const envelope of envelopes) {
-            if (!envelope.drafts.length) continue;
+          // One combined envelope per turn. The client's drawer store opens
+          // with the full set — approve / edit / discard targets real
+          // `pending_drafts.id`s that were rewritten by
+          // persistSkillEnvelope inside the registry adapter.
+          if (combinedEnvelope) {
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'envelope', envelope }) + '\n')
+              encoder.encode(JSON.stringify({ type: 'envelope', envelope: combinedEnvelope }) + '\n')
             );
           }
 
@@ -305,9 +346,41 @@ export async function POST(request: NextRequest) {
             );
           }
 
+          // Anti-hallucination post-stream guard.
+          //
+          // If the streamed response claims drafts were created but no
+          // envelope landed in this turn, emit an `override` frame. The
+          // client listens for it and replaces the assistant's message
+          // text with an honest failure string. Better to apologise than
+          // to lie politely.
+          const HALLUCINATION_REGEX =
+            /drafted|drafts?\s+(?:are|is)\s+ready|ready\s+for\s+your\s+review|in\s+the\s+drafts?\s+inbox|prepared\s+\d+\s+draft|i['’]ll\s+draft|i\s+(?:have\s+)?drafted/i;
+          const claimsDrafts = HALLUCINATION_REGEX.test(fullContent);
+          if (claimsDrafts && totalDraftsPersisted === 0) {
+            const honestMessage = "I tried to draft those emails but the action didn’t actually go through — nothing landed in your inbox. Could you try asking again, or rephrase with the specific unit numbers / buyer names?";
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'override', content: honestMessage }) + '\n')
+            );
+            // Replace the recorded response so memory + analytics store the
+            // honest text, not the lie.
+            fullContent = honestMessage;
+            console.error('[hallucinated_drafts] overrode assistant response', {
+              kind: 'hallucinated_drafts',
+              user: agentContext.displayName,
+              userId: agentContext.userId,
+              originalMessage: message,
+              assistantClaimed: fullContent,
+              toolsCalled: toolsCalled.map((t) => t.tool_name),
+              draftToolCalled,
+              totalDraftsPersisted,
+            });
+          }
+
           // Store memory and log interaction (async, non-blocking)
           storeConversationMemory(supabase, agentContext, currentSessionId, message, fullContent, toolsCalled).catch(() => {});
-          logInteraction(supabase, tenantId, authUserId, message, fullContent, toolsCalled, startTime).catch(() => {});
+          logInteraction(supabase, tenantId, authUserId, message, fullContent, toolsCalled, startTime, {
+            hallucinatedDrafts: claimsDrafts && totalDraftsPersisted === 0,
+          }).catch(() => {});
 
           // Generate follow-up suggestions (non-blocking, appended after main response)
           try {
@@ -393,6 +466,30 @@ function extractEnvelope(result: any): AgenticSkillEnvelope | null {
 }
 
 /**
+ * Merge several non-empty envelopes produced in one turn into one. Drafts
+ * are concatenated preserving insert order; skill is the first skill seen
+ * (or `combined` when skills differ). The drawer store replaces state on
+ * every open call, so the client needs one envelope per turn, not many.
+ */
+function mergeEnvelopes(envelopes: AgenticSkillEnvelope[]): AgenticSkillEnvelope {
+  if (envelopes.length === 1) return envelopes[0];
+  const drafts = envelopes.flatMap((e) => e.drafts);
+  const skillSet = new Set(envelopes.map((e) => e.skill));
+  const skill = skillSet.size === 1 ? envelopes[0].skill : 'combined';
+  return {
+    skill,
+    status: 'awaiting_approval',
+    summary: `Drafted ${drafts.length} item${drafts.length === 1 ? '' : 's'}.`,
+    drafts,
+    meta: {
+      record_count: drafts.length,
+      generated_at: new Date().toISOString(),
+      query: envelopes.map((e) => e.meta.query).join(' | '),
+    },
+  };
+}
+
+/**
  * Store user and assistant messages in conversation memory for cross-session context.
  */
 async function storeConversationMemory(
@@ -446,7 +543,8 @@ async function logInteraction(
   queryText: string,
   responseText: string,
   toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }>,
-  startTime: number
+  startTime: number,
+  flags: { hallucinatedDrafts?: boolean } = {}
 ) {
   const latencyMs = Date.now() - startTime;
 
@@ -454,6 +552,14 @@ async function logInteraction(
   const isKnowledgeGap = responseText.toLowerCase().includes('i don\'t have that data') ||
     responseText.toLowerCase().includes('not in the system') ||
     responseText.toLowerCase().includes('no data available');
+
+  const responseType = flags.hallucinatedDrafts
+    ? 'hallucinated_drafts'
+    : toolsCalled.some(t => t.tool_name === 'draft_message' || t.tool_name === 'draft_buyer_followups')
+      ? 'draft'
+      : toolsCalled.some(t => t.tool_name === 'generate_developer_report') ? 'report'
+        : toolsCalled.some(t => t.tool_name === 'create_task') ? 'task_created'
+          : 'answer';
 
   await supabase.from('intelligence_interactions').insert({
     tenant_id: tenantId,
@@ -463,10 +569,7 @@ async function logInteraction(
     query_text: queryText,
     tools_called: toolsCalled,
     response_text: responseText.slice(0, 10000),
-    response_type: toolsCalled.some(t => t.tool_name === 'draft_message') ? 'draft'
-      : toolsCalled.some(t => t.tool_name === 'generate_developer_report') ? 'report'
-      : toolsCalled.some(t => t.tool_name === 'create_task') ? 'task_created'
-      : 'answer',
+    response_type: responseType,
     model_used: 'gpt-4o-mini',
     latency_ms: latencyMs,
   });
