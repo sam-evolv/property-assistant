@@ -22,6 +22,7 @@ import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
+import { captureInferredAlias } from '@/lib/agent-intelligence/scheme-resolver';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -282,6 +283,26 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Session 13 self-healing alias capture.
+    //
+    // When the model's previous turn surfaced a "I couldn't find a scheme
+    // matching 'X'" message AND this turn's tools resolved a scheme
+    // cleanly, insert the previous miss "X" as an alias for the resolved
+    // development. Capped at 50 inferred rows per development inside
+    // captureInferredAlias. This is fire-and-forget — aliases are a nice-
+    // to-have, never block the turn on a write.
+    try {
+      const previousMiss = extractPreviousSchemeMiss(history);
+      if (previousMiss) {
+        const resolvedDevId = resolvedSchemeFromEnvelopes(envelopes);
+        if (resolvedDevId) {
+          captureInferredAlias(supabase, resolvedDevId, previousMiss).catch(() => {});
+        }
+      }
+    } catch {
+      /* silent — alias capture is additive */
+    }
+
     // Merge all envelopes produced in this turn into one combined envelope.
     // The drawer store replaces state on every `openApprovalDrawer()` call,
     // so multiple sequential envelopes from parallel tool calls would show
@@ -487,6 +508,45 @@ function mergeEnvelopes(envelopes: AgenticSkillEnvelope[]): AgenticSkillEnvelope
       query: envelopes.map((e) => e.meta.query).join(' | '),
     },
   };
+}
+
+/**
+ * Session 13 self-healing alias extraction. When the previous assistant
+ * turn said "I couldn't find a scheme matching 'X'", pull X out so we
+ * can store it as an alias if the current turn resolves cleanly.
+ */
+function extractPreviousSchemeMiss(history: Array<{ role: string; content: string }> | undefined): string | null {
+  if (!history || !history.length) return null;
+  // Find the last assistant message.
+  for (let i = history.length - 1; i >= 0; i--) {
+    const msg = history[i];
+    if (msg.role !== 'assistant') continue;
+    const match = msg.content.match(/couldn['’]?t find a scheme matching ["“']([^"”']{1,80})["”']/i);
+    if (match) return match[1].trim();
+    // Only look at the immediately-preceding assistant turn; older
+    // misses belong to different conversation branches.
+    return null;
+  }
+  return null;
+}
+
+/**
+ * Pull the first resolved development_id out of this turn's envelopes.
+ * `draftBuyerFollowups` (Session 13) stashes `meta.resolved_development_ids`
+ * as it drafts — that's the canonical signal. Returns null when no
+ * envelope surfaced one (no scheme resolved this turn, so nothing to
+ * attach an inferred alias to).
+ */
+function resolvedSchemeFromEnvelopes(envelopes: AgenticSkillEnvelope[]): string | null {
+  for (const env of envelopes) {
+    const meta = (env.meta as any) || {};
+    const ids = Array.isArray(meta.resolved_development_ids)
+      ? (meta.resolved_development_ids as string[])
+      : [];
+    if (ids.length === 1) return ids[0];
+    // Multiple resolved — ambiguous to alias-capture; skip.
+  }
+  return null;
 }
 
 /**

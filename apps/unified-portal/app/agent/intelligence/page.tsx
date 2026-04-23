@@ -348,12 +348,21 @@ function IntelligencePageInner() {
         ),
       );
     } catch {
+      // Session 13 — honest error. We're in the voice path; the
+      // transcript itself is the best clue about what happened. If
+      // we got here with no transcript, fall back to the generic
+      // mic message. If we do have a transcript, surface it so the
+      // agent can see what Whisper heard and whether the misheard
+      // word is what's tripping them up.
+      const hadTranscript = !!transcript.trim();
       setMessages((prev) =>
         prev.map((m) =>
           m.id === thinkingMsgId
             ? {
                 ...m,
-                content: "Couldn't read that one. Tap the mic and try again?",
+                content: hadTranscript
+                  ? `I heard "${transcript.trim()}" but I'm not sure what you'd like me to do. Try again?`
+                  : "I couldn't catch that. Tap the mic and try again?",
                 voice: undefined,
               }
             : m,

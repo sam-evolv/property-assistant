@@ -8,6 +8,7 @@ import {
   getCandidateUnits,
   type CandidateIntent,
 } from '../unit-resolver';
+import { resolveSchemeName } from '../scheme-resolver';
 
 // Envelope returned by every agentic skill. Draft ids generated here are
 // temporary — the registry adapter funnels the envelope through
@@ -1359,6 +1360,11 @@ export async function draftBuyerFollowups(
     const drafts: AgenticSkillEnvelope['drafts'] = [];
     const skipped: Array<{ ref: string; reason: string }> = [];
     const seenUnitIds = new Set<string>();
+    // Session 13 — track which developments actually resolved this
+    // turn so the chat route's self-healing alias capture has
+    // something to key off of. Only dev_ids where at least one draft
+    // landed go into this set.
+    const resolvedDevIds = new Set<string>();
 
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
@@ -1371,22 +1377,45 @@ export async function draftBuyerFollowups(
       : { data: [] };
     const devList = (devs || []) as Array<{ id: string; name: string }>;
 
-    const schemeIdForName = (name: string | undefined): string | null => {
-      if (!name) return null;
-      const key = name.trim().toLowerCase();
-      for (const d of devList) {
-        if (d.name.toLowerCase().includes(key) || key.includes(d.name.toLowerCase())) {
-          return d.id;
-        }
-      }
-      return null;
+    // Session 13 — scheme-name resolution goes through the alias table
+    // so phonetic variants ("Ardawn View", "Add on View") map to the
+    // right development before we look up the unit.
+    const assignedContextForResolver = {
+      assignedDevelopmentIds: devList.map((d) => d.id),
+      assignedDevelopmentNames: devList.map((d) => d.name),
     };
 
     for (const target of targets) {
       const unitRef = (target.unit_identifier || '').trim();
       if (!unitRef) continue;
 
-      const preferredDevId = schemeIdForName(target.scheme_name);
+      let preferredDevId: string | null = null;
+      if (target.scheme_name) {
+        const schemeResolution = await resolveSchemeName(
+          supabase,
+          target.scheme_name,
+          assignedContextForResolver,
+        );
+        if (schemeResolution.ok) {
+          preferredDevId = schemeResolution.developmentId;
+        } else if (schemeResolution.reason === 'not_found') {
+          skipped.push({
+            ref: unitRef,
+            reason: `I couldn't find a scheme matching "${target.scheme_name}". Your assigned schemes are: ${schemeResolution.candidates.join(', ')}.`,
+          });
+          continue;
+        } else if (schemeResolution.reason === 'ambiguous') {
+          skipped.push({
+            ref: unitRef,
+            reason: `"${target.scheme_name}" matches multiple schemes (${schemeResolution.candidates.join(', ')}). Please be specific.`,
+          });
+          continue;
+        }
+        // not_assigned falls through to unit resolver with no
+        // preferredDevId — the unit resolver will also fail, giving
+        // a consistent "not in your assigned schemes" message.
+      }
+
       const resolution = await resolveUnitIdentifier(supabase, unitRef, {
         developmentIds: devIds,
         preferredDevelopmentId: preferredDevId,
@@ -1458,6 +1487,7 @@ export async function draftBuyerFollowups(
         affected_record: { kind: 'sales_unit', id: unit.id, label: unitLabel },
         reasoning: `${purpose} email to ${parsed.fullName} at ${unitLabel}. Tone: ${tone}.${resolvedEmail === 'buyer@tbc.invalid' ? ' Recipient email missing — placeholder used, please fill in before approving.' : ''}`,
       });
+      if (unit.development_id) resolvedDevIds.add(unit.development_id);
     }
 
     const summaryParts: string[] = [];
@@ -1484,6 +1514,8 @@ export async function draftBuyerFollowups(
         query,
         // @ts-ignore — extra diagnostic field read by the chat route
         skipped,
+        // @ts-ignore — Session 13: chat route uses this to key alias capture
+        resolved_development_ids: Array.from(resolvedDevIds),
       } as any,
     };
   } catch (err) {
