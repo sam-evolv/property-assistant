@@ -208,4 +208,28 @@ describe('Tool registry invariant (Session 6D)', () => {
       expect(tool.execute.name).toBe('');
     }
   });
+
+  // Session 6D hotfix: any `type: 'array'` parameter MUST carry an `items`
+  // sub-schema, otherwise OpenAI rejects the whole completion with a 400.
+  // Any `type: 'object'` parameter MUST carry `properties`. Walk every tool
+  // and assert both.
+  it('every array parameter declares items, every object declares properties', () => {
+    function walk(node: any, path: string): void {
+      if (!node || typeof node !== 'object') return;
+      if (node.type === 'array') {
+        expect(node.items).toBeDefined();
+        expect(typeof node.items?.type).toBe('string');
+        walk(node.items, `${path}.items`);
+      }
+      if (node.type === 'object' && node !== undefined) {
+        expect(node.properties).toBeDefined();
+        for (const [key, child] of Object.entries(node.properties || {})) {
+          walk(child, `${path}.${key}`);
+        }
+      }
+    }
+    for (const tool of AGENT_TOOL_DEFINITIONS) {
+      walk(tool.parameters, tool.name);
+    }
+  });
 });

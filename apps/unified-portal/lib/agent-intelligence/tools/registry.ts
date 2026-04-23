@@ -247,6 +247,15 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
         targets: {
           type: 'array',
           description: 'Units to draft emails for. Each item must reference a unit (and optionally the scheme / recipient name).',
+          items: {
+            type: 'object',
+            properties: {
+              unit_identifier: { type: 'string', description: 'Unit number or unit reference (e.g. "19", "Unit 37", "AV-36").' },
+              scheme_name: { type: 'string', description: 'Name of the scheme the unit lives in. Optional when the agent only has one assigned scheme.' },
+              recipient_name: { type: 'string', description: 'Override the purchaser name on the unit if the agent named someone specifically.' },
+            },
+            required: ['unit_identifier'],
+          },
         },
         topic: { type: 'string', description: 'Shared topic / reason for the follow-up (e.g. "asking when they expect to sign the contracts"). Becomes the lead of each email body.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
