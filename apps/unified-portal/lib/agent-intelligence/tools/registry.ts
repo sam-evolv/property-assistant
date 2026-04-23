@@ -14,13 +14,17 @@ import {
 import {
   createTask,
   logCommunication,
-  draftMessage,
   generateDeveloperReport,
 } from './write-tools';
 // schedule_viewing is intentionally NOT imported here: its immediate-write
 // behaviour has been replaced by schedule_viewing_draft. The underlying
 // scheduleViewing function remains exported from './write-tools' for any
 // internal code path that still needs a direct insert.
+//
+// draft_message is also NOT imported from write-tools any more — it was a
+// non-envelope "template helper" that let the model claim drafts were
+// ready without anything landing in pending_drafts. Session 6D replaced
+// it with draftMessageSkill() in agentic-skills.ts.
 import {
   chaseAgedContracts,
   draftViewingFollowup,
@@ -28,6 +32,8 @@ import {
   draftLeaseRenewal,
   naturalQuery,
   scheduleViewingDraft,
+  draftMessageSkill,
+  draftBuyerFollowups,
   SkillAgentContext,
 } from './agentic-skills';
 import type { AgenticSkillEnvelope } from '../envelope';
@@ -215,20 +221,49 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_message',
-    description: 'Draft an email or message for the agent to review and send. NEVER sends anything automatically — returns a draft for review.',
+    description: 'Draft a single email or message to ONE named recipient. Writes a draft to the agent\'s inbox and opens the approval drawer; the drawer controls whether it actually sends. Use this for "draft an email to X about Y" style requests. For multiple recipients in one go, prefer `draft_buyer_followups`.',
     parameters: {
       type: 'object',
       properties: {
         recipient_type: { type: 'string', description: 'Type of recipient', enum: ['buyer', 'developer', 'solicitor'] },
         recipient_name: { type: 'string', description: 'Name of the recipient' },
-        context: { type: 'string', description: 'What the message should cover' },
+        context: { type: 'string', description: 'What the message should cover, in the agent\'s own words — this becomes the body.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         related_unit: { type: 'string', description: 'Related unit number' },
         related_scheme: { type: 'string', description: 'Related scheme name' },
+        recipient_email: { type: 'string', description: 'Recipient email if known; otherwise leave empty and the drawer will show a placeholder for the agent to fill in.' },
       },
       required: ['recipient_type', 'recipient_name', 'context'],
     },
-    execute: draftMessage as ToolFunction,
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(draftMessageSkill, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'draft_buyer_followups',
+    description: 'Draft follow-up emails to a SPECIFIC list of units / buyers in one call. Use when the agent says "draft emails to those 3 units", "follow up with those buyers", "send those three a chase", etc. Each target produces one draft in the approval drawer.',
+    parameters: {
+      type: 'object',
+      properties: {
+        targets: {
+          type: 'array',
+          description: 'Units to draft emails for. Each item must reference a unit (and optionally the scheme / recipient name).',
+          items: {
+            type: 'object',
+            properties: {
+              unit_identifier: { type: 'string', description: 'Unit number or unit reference (e.g. "19", "Unit 37", "AV-36").' },
+              scheme_name: { type: 'string', description: 'Name of the scheme the unit lives in. Optional when the agent only has one assigned scheme.' },
+              recipient_name: { type: 'string', description: 'Override the purchaser name on the unit if the agent named someone specifically.' },
+            },
+            required: ['unit_identifier'],
+          },
+        },
+        topic: { type: 'string', description: 'Shared topic / reason for the follow-up (e.g. "asking when they expect to sign the contracts"). Becomes the lead of each email body.' },
+        tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
+      },
+      required: ['targets', 'topic'],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(draftBuyerFollowups, supabase, agentContext, params as any)) as ToolFunction,
   },
   {
     name: 'generate_developer_report',

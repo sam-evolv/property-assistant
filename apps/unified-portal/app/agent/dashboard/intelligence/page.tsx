@@ -126,6 +126,14 @@ function AgentDashboardIntelligencePageInner() {
                 try { window.dispatchEvent(new CustomEvent('oh:drafts:changed')); } catch { /* noop */ }
               }
             }
+            else if (data.type === 'override') {
+              // Server detected a hallucinated "drafts ready" — replace
+              // the streamed content so the agent is not misled.
+              if (typeof data.content === 'string') {
+                fullContent = data.content;
+                setMessages(ms => ms.map(m => m.id === assistantMsg.id ? { ...m, content: fullContent } : m));
+              }
+            }
           } catch {}
         }
       }

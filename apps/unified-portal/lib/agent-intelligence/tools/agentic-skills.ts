@@ -1005,3 +1005,294 @@ export async function scheduleViewingDraft(
     return errorEnvelope(skill, query, err);
   }
 }
+
+// =====================================================================
+// Skill 7 — draft_message (rewritten as envelope-producing)
+// =====================================================================
+//
+// Session 6D fix. The pre-6D `draftMessage` returned a template plus an
+// `instruction` string telling the model to "Generate the COMPLETE email
+// now" inline. That meant the model wrote a convincing email in its
+// streamed response, said "drafts are ready for your review", and
+// persisted NOTHING. This version produces a real draft every time the
+// tool is called. Multi-recipient requests naturally resolve as multiple
+// parallel tool calls (gpt-4o-mini supports these) — each call adds one
+// draft to the turn's envelope.
+
+interface DraftMessageSkillInput {
+  recipient_type: 'buyer' | 'solicitor' | 'developer' | string;
+  recipient_name: string;
+  context: string;
+  tone?: string;
+  related_unit?: string;
+  related_scheme?: string;
+  recipient_email?: string;
+}
+
+function toneGreeting(firstNameValue: string): string {
+  return `Hi ${firstNameValue},`;
+}
+
+function toneSignOff(tone: string): string {
+  if (tone === 'formal') return 'Kind regards,';
+  if (tone === 'urgent') return 'Thanks,';
+  if (tone === 'gentle_chase') return 'Thanks,';
+  return 'Thanks,';
+}
+
+export async function draftMessageSkill(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: DraftMessageSkillInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'draft_message';
+  const recipientName = (inputs.recipient_name || '').trim();
+  const context = (inputs.context || '').trim();
+  const tone = (inputs.tone || (inputs.recipient_type === 'solicitor' ? 'formal' : 'warm')).trim();
+  const query = `draft_message recipient="${recipientName}" unit="${inputs.related_unit || ''}" scheme="${inputs.related_scheme || ''}"`;
+
+  if (!recipientName) {
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: 'Recipient name is required to draft an email.',
+      drafts: [],
+      meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+    };
+  }
+
+  try {
+    // Resolve the unit / scheme / buyer if the model gave us references.
+    // This lets us stamp the real unit number + purchaser email into the
+    // draft rather than whatever placeholder the model chose.
+    let resolvedEmail: string | null = inputs.recipient_email || null;
+    let resolvedUnitNumber: string | null = null;
+    let resolvedSchemeName: string | null = null;
+    let affectedUnitId: string | null = null;
+
+    if (inputs.related_scheme && inputs.related_unit) {
+      const { data: dev } = await supabase
+        .from('developments')
+        .select('id, name')
+        .ilike('name', `%${inputs.related_scheme}%`)
+        .limit(1)
+        .maybeSingle();
+      if (dev) {
+        resolvedSchemeName = dev.name;
+        const { data: units } = await supabase
+          .from('units')
+          .select('id, unit_number, unit_uid, purchaser_email, purchaser_name')
+          .eq('development_id', dev.id)
+          .or(`unit_number.ilike.%${inputs.related_unit}%,unit_uid.ilike.%${inputs.related_unit}%,purchaser_name.ilike.%${recipientName}%`)
+          .limit(1);
+        const unit = units?.[0];
+        if (unit) {
+          resolvedUnitNumber = unit.unit_number || unit.unit_uid || inputs.related_unit;
+          if (!resolvedEmail && unit.purchaser_email) resolvedEmail = unit.purchaser_email;
+          affectedUnitId = unit.id;
+        }
+      }
+    }
+
+    const unitLabel = resolvedUnitNumber && resolvedSchemeName
+      ? `Unit ${resolvedUnitNumber}, ${resolvedSchemeName}`
+      : resolvedUnitNumber
+        ? `Unit ${resolvedUnitNumber}`
+        : resolvedSchemeName || '';
+
+    const subject = unitLabel
+      ? `Following up — ${unitLabel}`
+      : `Following up — ${context.slice(0, 60)}`;
+
+    const body = [
+      toneGreeting(firstName(recipientName)),
+      '',
+      context,
+      unitLabel ? `\nRegarding ${unitLabel}.` : '',
+      '',
+      toneSignOff(tone),
+      signature(agentContext),
+    ].filter((line) => line !== undefined).join('\n');
+
+    const draft = {
+      id: randomUUID(),
+      type: 'email' as const,
+      recipient: {
+        name: recipientName,
+        email: resolvedEmail || 'recipient@tbc.invalid',
+        role: inputs.recipient_type || 'recipient',
+      },
+      subject,
+      body,
+      affected_record: affectedUnitId
+        ? { kind: 'sales_unit', id: affectedUnitId, label: unitLabel || recipientName }
+        : { kind: 'contact', id: recipientName, label: recipientName },
+      reasoning: `Drafted per agent request (${tone} tone). ${resolvedEmail ? '' : 'Recipient email was not on file; placeholder used — please fill in before approving.'}`.trim(),
+    };
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Drafted email to ${recipientName}${unitLabel ? ` — ${unitLabel}` : ''}.`,
+      drafts: [draft],
+      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 8 — draft_buyer_followups (explicit multi-recipient)
+// =====================================================================
+//
+// Session 6D fix. Gives the model a direct path for "draft emails to
+// those 3 units" without needing three parallel tool calls. Input is a
+// list of unit/scheme references plus a shared topic. Returns one draft
+// per resolved unit.
+
+interface DraftBuyerFollowupsInput {
+  targets: Array<{
+    unit_identifier: string;
+    scheme_name?: string;
+    recipient_name?: string;
+  }>;
+  topic: string;
+  tone?: string;
+}
+
+export async function draftBuyerFollowups(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: DraftBuyerFollowupsInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'draft_buyer_followups';
+  const tone = (inputs.tone || 'gentle_chase').trim();
+  const topic = (inputs.topic || '').trim();
+  const targets = Array.isArray(inputs.targets) ? inputs.targets : [];
+  const query = `draft_buyer_followups targets=${targets.length} topic="${topic.slice(0, 80)}"`;
+
+  if (!targets.length) {
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: 'No targets provided — nothing to draft.',
+      drafts: [],
+      meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+    };
+  }
+  if (!topic) {
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: 'A topic is required so the follow-up makes sense to the recipient.',
+      drafts: [],
+      meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+    };
+  }
+
+  try {
+    const drafts: AgenticSkillEnvelope['drafts'] = [];
+
+    // Pre-resolve the agent's assigned developments so scheme-less targets
+    // can still be matched. Same chain as resolveAgentContext uses.
+    const { data: asgs } = await supabase
+      .from('agent_scheme_assignments')
+      .select('development_id')
+      .eq('agent_id', agentContext.agentId)
+      .eq('is_active', true);
+    const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
+    const { data: devs } = devIds.length
+      ? await supabase.from('developments').select('id, name').in('id', devIds)
+      : { data: [] };
+    const devList = (devs || []) as Array<{ id: string; name: string }>;
+    const devIdByName = new Map<string, string>(devList.map((d) => [d.name.toLowerCase(), d.id]));
+
+    for (const target of targets) {
+      const unitRef = (target.unit_identifier || '').trim();
+      if (!unitRef) continue;
+
+      let targetDevId: string | null = null;
+      let targetDevName: string | null = null;
+      if (target.scheme_name) {
+        const key = target.scheme_name.trim().toLowerCase();
+        // Fuzzy match against assigned scheme names.
+        for (const d of devList) {
+          if (d.name.toLowerCase().includes(key) || key.includes(d.name.toLowerCase())) {
+            targetDevId = d.id;
+            targetDevName = d.name;
+            break;
+          }
+        }
+        if (!targetDevId) {
+          targetDevId = devIdByName.get(key) || null;
+          targetDevName = target.scheme_name;
+        }
+      }
+      const searchDevIds = targetDevId ? [targetDevId] : devIds;
+      if (!searchDevIds.length) continue;
+
+      const { data: units } = await supabase
+        .from('units')
+        .select('id, unit_number, unit_uid, development_id, purchaser_name, purchaser_email')
+        .in('development_id', searchDevIds)
+        .or(`unit_number.ilike.%${unitRef}%,unit_uid.ilike.%${unitRef}%,purchaser_name.ilike.%${target.recipient_name || unitRef}%`)
+        .limit(1);
+      const unit = units?.[0];
+      if (!unit) continue;
+
+      const resolvedDevName = targetDevName
+        || devList.find((d) => d.id === unit.development_id)?.name
+        || 'Unknown scheme';
+      const resolvedUnitNumber = unit.unit_number || unit.unit_uid || unitRef;
+      const recipientName = target.recipient_name || unit.purchaser_name || 'Buyer';
+
+      const unitLabel = `Unit ${resolvedUnitNumber}, ${resolvedDevName}`;
+      const body = [
+        toneGreeting(firstName(recipientName)),
+        '',
+        topic,
+        '',
+        'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
+        '',
+        toneSignOff(tone),
+        signature(agentContext),
+      ].join('\n');
+
+      drafts.push({
+        id: randomUUID(),
+        type: 'email' as const,
+        recipient: {
+          name: recipientName,
+          email: unit.purchaser_email || 'buyer@tbc.invalid',
+          role: 'buyer',
+        },
+        subject: `Following up — ${unitLabel}`,
+        body,
+        affected_record: { kind: 'sales_unit', id: unit.id, label: unitLabel },
+        reasoning: `Requested follow-up to ${recipientName} at ${unitLabel}. Tone: ${tone}.${unit.purchaser_email ? '' : ' Recipient email missing — placeholder used, please fill in before approving.'}`,
+      });
+    }
+
+    if (!drafts.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'Could not resolve any of the requested units to real buyers. Try naming them more specifically.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Drafted ${drafts.length} follow-up email${drafts.length === 1 ? '' : 's'}.`,
+      drafts,
+      meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+

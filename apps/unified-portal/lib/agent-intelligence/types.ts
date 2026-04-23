@@ -41,16 +41,28 @@ export type ToolFunction = (
   params: Record<string, any>
 ) => Promise<ToolResult>;
 
+/**
+ * A JSON Schema parameter as accepted by OpenAI function-calling. Shaped
+ * recursively: `array` types MUST carry an `items` sub-schema, `object`
+ * types MUST carry a `properties` map — OpenAI 400s otherwise.
+ */
+export interface ToolParameterSchema {
+  type: string;
+  description?: string;
+  enum?: string[];
+  /** Required when `type === 'array'`. */
+  items?: ToolParameterSchema;
+  /** Required when `type === 'object'`. */
+  properties?: Record<string, ToolParameterSchema>;
+  required?: string[];
+}
+
 export interface ToolDefinition {
   name: string;
   description: string;
   parameters: {
     type: 'object';
-    properties: Record<string, {
-      type: string;
-      description: string;
-      enum?: string[];
-    }>;
+    properties: Record<string, ToolParameterSchema>;
     required: string[];
   };
   execute: ToolFunction;
