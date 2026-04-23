@@ -33,28 +33,31 @@ interface CapabilityChipsCarouselProps {
  * the Intelligence landing. Showcases Intelligence's capabilities without
  * a permanent button grid.
  *
+ * Session 8 Bug 3 fix. Previous implementation rendered chips into a
+ * flex-wrap container with per-chip CSS keyframes on every render. On
+ * iPhone viewports that produced 5-6 visible chips during the slide
+ * transition — flex-wrap spread the mount/unmount overlap across two
+ * rows. The carousel now pins exactly four cells into a 2×2 grid
+ * (`display: grid; grid-template-columns: repeat(2, 1fr);
+ * grid-template-rows: repeat(2, auto)`). Outside the grid nothing ever
+ * renders. The slide animation is scoped to an inner `<span>` keyed on
+ * the chip's (idx,text) so it plays once on mount, not on every
+ * re-render of the parent.
+ *
  * Rotation behaviour:
- *   - 4 chips visible at any time
+ *   - 4 chips visible at any time (no more, no less)
  *   - Advances by one slot every 6 seconds
  *   - Pauses when the paused prop is true (parent wires this to input
  *     focus)
  *   - Pauses on pointer hover so the agent can read a chip before it
  *     rotates away
  *   - Respects `prefers-reduced-motion` — fade-swap instead of slide
- *
- * Why a window of four from a shuffled pool rather than randomised-on-
- * every-tick: predictable rotation lets the eye follow along, and
- * shuffling once per mount means first-impression chips differ session
- * to session.
  */
 export default function CapabilityChipsCarousel({
   onChipTap,
   paused = false,
   pool = CAPABILITY_CHIPS,
 }: CapabilityChipsCarouselProps) {
-  // Shuffle once per mount so different sessions surface different
-  // chips first. useMemo with an empty dep list; the shuffle output is
-  // stable for the component lifetime.
   const deck = useMemo(() => shuffleChips(pool), [pool]);
   const safeDeck = deck.length >= VISIBLE ? deck : [...deck, ...deck];
 
@@ -64,8 +67,6 @@ export default function CapabilityChipsCarousel({
   const [fade, setFade] = useState(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Detect prefers-reduced-motion. Updates live if the user toggles the
-  // setting while the app is open.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -77,8 +78,6 @@ export default function CapabilityChipsCarousel({
 
   const advance = useCallback(() => {
     if (reducedMotion) {
-      // Fade out, swap, fade in — gentler than the slide for
-      // motion-sensitive users.
       setFade(0);
       window.setTimeout(() => {
         setOffset((o) => (o + 1) % safeDeck.length);
@@ -120,19 +119,20 @@ export default function CapabilityChipsCarousel({
       onTouchStart={() => setHovered(true)}
       onTouchEnd={() => setHovered(false)}
       style={{
-        display: 'flex',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        alignItems: 'center',
+        // Fixed 2x2 grid — exactly four cells, never more, never less.
+        // `overflow: hidden` clips any stray transform animation so a
+        // mid-transition chip can't escape its cell.
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, 1fr)',
+        gridTemplateRows: 'repeat(2, auto)',
         gap: 8,
         padding: '0 16px',
         width: '100%',
-        maxWidth: 720,
+        maxWidth: 360,
         margin: '0 auto',
+        overflow: 'hidden',
         opacity: reducedMotion ? fade : 1,
-        transition: reducedMotion
-          ? `opacity ${SLIDE_MS}ms ease`
-          : undefined,
+        transition: reducedMotion ? `opacity ${SLIDE_MS}ms ease` : undefined,
       }}
     >
       {visible.map((chip) => (
@@ -156,10 +156,10 @@ function Chip({
   reducedMotion: boolean;
   onTap: () => void;
 }) {
-  // Slide-in animation: each chip is keyed on its idx-text so when the
-  // rotation advances, React unmounts the leftmost chip and mounts a
-  // fresh rightmost one. The fresh chip enters from the right via a
-  // CSS keyframe. Reduced-motion users skip the keyframe.
+  // The button fills its grid cell, never expands beyond it. The
+  // slide-in animation lives on an inner span so re-renders of the
+  // parent don't restart it — the <span>'s key is the chip text, so
+  // React only plays the animation once, when the chip first mounts.
   return (
     <button
       type="button"
@@ -168,30 +168,43 @@ function Chip({
       data-testid="capability-chip"
       className="agent-tappable"
       style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
         maxWidth: '100%',
-        padding: '0 14px',
+        padding: '0 12px',
         height: 36,
         borderRadius: 999,
         background: 'rgba(13,13,18,0.04)',
         border: '0.5px solid rgba(13,13,18,0.08)',
         color: '#0b0c0f',
-        fontSize: 13,
+        fontSize: 12.5,
         fontWeight: 500,
         lineHeight: 1,
-        whiteSpace: 'nowrap',
-        overflow: 'hidden',
-        textOverflow: 'ellipsis',
         cursor: 'pointer',
         fontFamily: 'inherit',
-        animation: reducedMotion
-          ? undefined
-          : `oh-chip-slide-in ${SLIDE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        overflow: 'hidden',
       }}
     >
-      {text}
+      <span
+        key={text}
+        style={{
+          display: 'inline-block',
+          maxWidth: '100%',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          animation: reducedMotion
+            ? undefined
+            : `oh-chip-slide-in ${SLIDE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,
+        }}
+      >
+        {text}
+      </span>
       <style>{`
         @keyframes oh-chip-slide-in {
-          from { transform: translateX(12px); opacity: 0; }
+          from { transform: translateX(8px); opacity: 0; }
           to { transform: translateX(0); opacity: 1; }
         }
       `}</style>

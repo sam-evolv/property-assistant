@@ -675,13 +675,45 @@ function IntelligencePageInner() {
             }}
           >
             {/* Breathing room from the status bar. */}
-            <div style={{ height: 40, flexShrink: 0 }} />
+            <div style={{ height: 24, flexShrink: 0 }} />
+
+            {/* Session 8 Bug 4 — restore pre-Session-7 OPENHOUSE logo
+                treatment above the hero question. */}
+            <Image
+              src="/oh-logo.png"
+              alt="OpenHouse"
+              width={136}
+              height={136}
+              style={{
+                objectFit: 'contain',
+                display: 'block',
+                mixBlendMode: 'multiply',
+                marginBottom: 16,
+              }}
+              priority
+            />
+
+            <p
+              style={{
+                background: 'linear-gradient(135deg, #B8960C, #E8C84A)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.14em',
+                textTransform: 'uppercase',
+                margin: '0 0 16px',
+              }}
+            >
+              OpenHouse Intelligence
+            </p>
 
             <h1
               data-testid="intelligence-hero"
               style={{
                 color: '#0b0c0f',
-                fontSize: 30,
+                fontSize: 26,
                 fontWeight: 600,
                 letterSpacing: '-0.025em',
                 lineHeight: 1.2,

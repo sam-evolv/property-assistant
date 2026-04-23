@@ -240,13 +240,13 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_buyer_followups',
-    description: 'Draft follow-up emails to a SPECIFIC list of units / buyers in one call. Use when the agent says "draft emails to those 3 units", "follow up with those buyers", "send those three a chase", etc. Each target produces one draft in the approval drawer.',
+    description: 'Draft emails to a SPECIFIC list of units / buyers in one call. Each target produces ONE draft per unit in the approval drawer — joint purchasers (e.g. "Laura Hayes and Dylan Rogers" at a single unit) receive one email addressed to both names, not two separate drafts. Pick the `purpose` carefully: "chase" for overdue follow-ups, "congratulate_handover" for welcome-after-keys, "introduce" for first contact, "update" for generic status news, "custom" when none fit (then pass `custom_instruction`). If the user named a count but NOT specific units, do NOT invent targets — ask which units first.',
     parameters: {
       type: 'object',
       properties: {
         targets: {
           type: 'array',
-          description: 'Units to draft emails for. Each item must reference a unit (and optionally the scheme / recipient name).',
+          description: 'Units to draft emails for. One entry per unit; joint purchasers are NOT separate targets.',
           items: {
             type: 'object',
             properties: {
@@ -257,10 +257,16 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['unit_identifier'],
           },
         },
-        topic: { type: 'string', description: 'Shared topic / reason for the follow-up (e.g. "asking when they expect to sign the contracts"). Becomes the lead of each email body.' },
+        topic: { type: 'string', description: 'Shared topic / reason for the email. For chases: "asking when they expect to sign the contracts". For congratulate_handover: a personal note (optional — there\'s a sensible default). Becomes the lead of each email body.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
+        purpose: {
+          type: 'string',
+          description: 'Email intent. Defaults to "chase" if omitted.',
+          enum: ['chase', 'congratulate_handover', 'introduce', 'update', 'custom'],
+        },
+        custom_instruction: { type: 'string', description: 'Required when purpose="custom". Describes the email\'s intent and becomes the body lead (e.g. "price reduction notice for the vendor").' },
       },
-      required: ['targets', 'topic'],
+      required: ['targets'],
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(draftBuyerFollowups, supabase, agentContext, params as any)) as ToolFunction,

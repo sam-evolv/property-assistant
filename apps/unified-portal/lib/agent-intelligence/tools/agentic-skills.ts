@@ -1151,6 +1151,13 @@ export async function draftMessageSkill(
 // list of unit/scheme references plus a shared topic. Returns one draft
 // per resolved unit.
 
+export type DraftBuyerFollowupPurpose =
+  | 'chase'
+  | 'congratulate_handover'
+  | 'introduce'
+  | 'update'
+  | 'custom';
+
 interface DraftBuyerFollowupsInput {
   targets: Array<{
     unit_identifier: string;
@@ -1159,6 +1166,130 @@ interface DraftBuyerFollowupsInput {
   }>;
   topic: string;
   tone?: string;
+  /** Session 8 Bug 5 — shapes the subject + body template. Defaults to
+   *  'chase' to preserve the pre-6D chase-email behaviour. */
+  purpose?: DraftBuyerFollowupPurpose;
+  /** Only meaningful when purpose='custom'. Free-text instruction the
+   *  body is built around (e.g. "price reduction announcement"). */
+  custom_instruction?: string;
+}
+
+/**
+ * Parse a purchaser_name field into individual given names. The units
+ * table stores joint purchasers as a single free-text string like
+ * "Laura Hayes and Dylan Rogers" or "Laura Hayes & Dylan Rogers".
+ * Greeting both names as one household is how a real agent writes —
+ * one email per unit, not per purchaser.
+ */
+export function parseJointPurchaserNames(raw: string | null | undefined): {
+  fullName: string;
+  firstNames: string[];
+  greeting: string;
+} {
+  const fallback = { fullName: 'Buyer', firstNames: ['there'], greeting: 'Hi there,' };
+  if (!raw) return fallback;
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return fallback;
+
+  // Split on "and" or "&" between names, strip titles.
+  const parts = cleaned
+    .split(/\s+and\s+|\s*&\s*/i)
+    .map((p) => p.replace(/\b(Mr|Mrs|Ms|Miss|Dr)\.?\s+/gi, '').trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return fallback;
+
+  const firstNames = parts.map((p) => {
+    const token = p.split(/\s+/)[0];
+    return token || 'there';
+  });
+
+  const greeting =
+    firstNames.length === 1
+      ? `Hi ${firstNames[0]},`
+      : firstNames.length === 2
+        ? `Hi ${firstNames[0]} and ${firstNames[1]},`
+        : `Hi ${firstNames.slice(0, -1).join(', ')} and ${firstNames[firstNames.length - 1]},`;
+
+  return { fullName: cleaned, firstNames, greeting };
+}
+
+function buildFollowupContent(opts: {
+  purpose: DraftBuyerFollowupPurpose;
+  topic: string;
+  customInstruction?: string;
+  unitLabel: string;
+  greeting: string;
+  tone: string;
+  ctx: SkillAgentContext;
+}): { subject: string; body: string } {
+  const { purpose, topic, customInstruction, unitLabel, greeting, tone, ctx } = opts;
+  const sign = toneSignOff(tone);
+  const sig = signature(ctx);
+
+  if (purpose === 'congratulate_handover') {
+    return {
+      subject: `Welcome to your new home — ${unitLabel}`,
+      body: [
+        greeting,
+        '',
+        `Congratulations on getting the keys to ${unitLabel} — delighted to see you over the line.`,
+        '',
+        topic || 'Wishing you every happiness settling in.',
+        '',
+        'If anything comes up over the first few weeks — snags, paperwork, anything we can help with — just let me know and I\'ll sort it.',
+        '',
+        sign,
+        sig,
+      ].join('\n'),
+    };
+  }
+
+  if (purpose === 'introduce') {
+    return {
+      subject: `Introduction — ${unitLabel}`,
+      body: [
+        greeting,
+        '',
+        topic || `I\'m getting in touch as the agent looking after ${unitLabel}.`,
+        '',
+        'Happy to answer any questions and walk you through the next steps whenever suits.',
+        '',
+        sign,
+        sig,
+      ].join('\n'),
+    };
+  }
+
+  if (purpose === 'update') {
+    return {
+      subject: `Update — ${unitLabel}`,
+      body: [greeting, '', topic, '', sign, sig].join('\n'),
+    };
+  }
+
+  if (purpose === 'custom') {
+    const instruction = customInstruction?.trim() || topic;
+    return {
+      subject: `${unitLabel}`,
+      body: [greeting, '', instruction, '', sign, sig].join('\n'),
+    };
+  }
+
+  // Default: chase / gentle follow-up.
+  return {
+    subject: `Following up — ${unitLabel}`,
+    body: [
+      greeting,
+      '',
+      topic,
+      '',
+      'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
+      '',
+      sign,
+      sig,
+    ].join('\n'),
+  };
 }
 
 export async function draftBuyerFollowups(
@@ -1169,8 +1300,10 @@ export async function draftBuyerFollowups(
   const skill = 'draft_buyer_followups';
   const tone = (inputs.tone || 'gentle_chase').trim();
   const topic = (inputs.topic || '').trim();
+  const purpose: DraftBuyerFollowupPurpose = inputs.purpose || 'chase';
+  const customInstruction = inputs.custom_instruction?.trim();
   const targets = Array.isArray(inputs.targets) ? inputs.targets : [];
-  const query = `draft_buyer_followups targets=${targets.length} topic="${topic.slice(0, 80)}"`;
+  const query = `draft_buyer_followups targets=${targets.length} topic="${topic.slice(0, 80)}" purpose=${purpose}`;
 
   if (!targets.length) {
     return {
@@ -1181,7 +1314,10 @@ export async function draftBuyerFollowups(
       meta: { record_count: 0, generated_at: new Date().toISOString(), query },
     };
   }
-  if (!topic) {
+  // A topic is required for most purposes; `custom` may rely on
+  // custom_instruction alone, and `congratulate_handover` has a built-in
+  // fallback body.
+  if (!topic && purpose !== 'congratulate_handover' && !(purpose === 'custom' && customInstruction)) {
     return {
       skill,
       status: 'awaiting_approval',
@@ -1193,6 +1329,9 @@ export async function draftBuyerFollowups(
 
   try {
     const drafts: AgenticSkillEnvelope['drafts'] = [];
+    // Dedupe by resolved unit id — the model sometimes passes one target
+    // per purchaser for a joint-buyer unit. One draft per household.
+    const seenUnitIds = new Set<string>();
 
     // Pre-resolve the agent's assigned developments so scheme-less targets
     // can still be matched. Same chain as resolveAgentContext uses.
@@ -1216,7 +1355,6 @@ export async function draftBuyerFollowups(
       let targetDevName: string | null = null;
       if (target.scheme_name) {
         const key = target.scheme_name.trim().toLowerCase();
-        // Fuzzy match against assigned scheme names.
         for (const d of devList) {
           if (d.name.toLowerCase().includes(key) || key.includes(d.name.toLowerCase())) {
             targetDevId = d.id;
@@ -1241,36 +1379,41 @@ export async function draftBuyerFollowups(
       const unit = units?.[0];
       if (!unit) continue;
 
+      // Skip duplicates — joint-purchaser units should only produce one
+      // draft even if the model sent one target per name.
+      if (seenUnitIds.has(unit.id)) continue;
+      seenUnitIds.add(unit.id);
+
       const resolvedDevName = targetDevName
         || devList.find((d) => d.id === unit.development_id)?.name
         || 'Unknown scheme';
       const resolvedUnitNumber = unit.unit_number || unit.unit_uid || unitRef;
-      const recipientName = target.recipient_name || unit.purchaser_name || 'Buyer';
+      const rawName = target.recipient_name || unit.purchaser_name || 'Buyer';
+      const parsed = parseJointPurchaserNames(rawName);
 
       const unitLabel = `Unit ${resolvedUnitNumber}, ${resolvedDevName}`;
-      const body = [
-        toneGreeting(firstName(recipientName)),
-        '',
+      const { subject, body } = buildFollowupContent({
+        purpose,
         topic,
-        '',
-        'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
-        '',
-        toneSignOff(tone),
-        signature(agentContext),
-      ].join('\n');
+        customInstruction,
+        unitLabel,
+        greeting: parsed.greeting,
+        tone,
+        ctx: agentContext,
+      });
 
       drafts.push({
         id: randomUUID(),
         type: 'email' as const,
         recipient: {
-          name: recipientName,
+          name: parsed.fullName,
           email: unit.purchaser_email || 'buyer@tbc.invalid',
           role: 'buyer',
         },
-        subject: `Following up — ${unitLabel}`,
+        subject,
         body,
         affected_record: { kind: 'sales_unit', id: unit.id, label: unitLabel },
-        reasoning: `Requested follow-up to ${recipientName} at ${unitLabel}. Tone: ${tone}.${unit.purchaser_email ? '' : ' Recipient email missing — placeholder used, please fill in before approving.'}`,
+        reasoning: `Drafted ${purpose} email to ${parsed.fullName} at ${unitLabel}. Tone: ${tone}.${unit.purchaser_email ? '' : ' Recipient email missing — placeholder used, please fill in before approving.'}`,
       });
     }
 

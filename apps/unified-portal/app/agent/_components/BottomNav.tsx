@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
 import { useApplicantsCount } from '../_hooks/useApplicantsCount';
@@ -66,6 +66,7 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = (href: string) => pathname.startsWith(href);
   const intelActive = pathname.startsWith('/agent/intelligence');
   const { count: draftsCount } = useDraftsCount();
@@ -73,6 +74,21 @@ export default function BottomNav() {
 
   const leftTabs = TABS.slice(0, 2);
   const rightTabs = TABS.slice(2);
+
+  // Session 8 Bug 2 fix. On the installed PWA-Capacitor shell, iOS was
+  // handing bottom-nav taps off to Mobile Safari after the mic permission
+  // flow corrupted the WebView's decide-policy state. Even though <Link>
+  // should navigate internally, we now explicitly preventDefault and call
+  // router.push — Next.js client-side routing never hits the native
+  // delegate, so there's no opportunity for iOS to re-route to Safari.
+  const navigateInternal = (e: React.MouseEvent, href: string) => {
+    // Ignore non-left-click / modifier-key combinations (open-in-new-tab
+    // on desktop). Only the plain tap is forced through router.push.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    if ((e as any).button && (e as any).button !== 0) return;
+    e.preventDefault();
+    router.push(href);
+  };
 
   return (
     <nav
@@ -97,6 +113,7 @@ export default function BottomNav() {
           <Link
             key={tab.id}
             href={tab.href}
+            onClick={(e) => navigateInternal(e, tab.href)}
             className="agent-tappable"
             style={{
               flex: 1,
@@ -152,6 +169,7 @@ export default function BottomNav() {
         {/* The FAB — 80px dark circle with OH logo */}
         <Link
           href="/agent/intelligence"
+          onClick={(e) => navigateInternal(e, '/agent/intelligence')}
           style={{
             position: 'absolute',
             bottom: 0,
@@ -213,6 +231,7 @@ export default function BottomNav() {
           <Link
             key={tab.id}
             href={tab.href}
+            onClick={(e) => navigateInternal(e, tab.href)}
             className="agent-tappable"
             style={{
               flex: 1,
