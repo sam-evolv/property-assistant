@@ -3662,7 +3662,27 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           userHouseTypeCode || undefined
         );
         if (fpResult.found && fpResult.attachments.length > 0) {
-          floorPlanAttachments = fpResult.attachments;
+          // Select the most relevant single attachment based on the question
+          const lowerMsg = message.toLowerCase();
+          const bedroomQuestion = /\bbedroom\b|\bmaster\b|\ben-?suite\b|\bupstairs\b|\blanding\b/i.test(lowerMsg);
+          const groundFloorQuestion = /\bliving\b|\blounge\b|\bsitting\b|\bkitchen\b|\bdining\b|\butility\b|\bhall\b|\bdownstairs\s+wc\b|\bground\s*floor\b/i.test(lowerMsg);
+          const elevationQuestion = /\belevation\b|\bwindow\s+colou?r\b|\broof\b|\bbrick\b|\brender\b|\bexterior\b|\bfacade\b|\bheight\b/i.test(lowerMsg);
+          const foundationQuestion = /\bfoundation\b|\bhouse\s*pad\b|\bslab\b|\bblockwork\b|\bfooting\b/i.test(lowerMsg);
+          const sectionQuestion = /\bsection\b|\bceiling\s+height\b|\broof\s+pitch\b|\bridge\b/i.test(lowerMsg);
+
+          const pick = (tester: (title: string) => boolean) =>
+            fpResult.attachments.find(a => tester(a.title.toLowerCase()));
+
+          let chosen: typeof fpResult.attachments[0] | undefined;
+          if (foundationQuestion) chosen = pick(t => t.includes('foundation'));
+          else if (sectionQuestion) chosen = pick(t => t.includes('section'));
+          else if (elevationQuestion) chosen = pick(t => t.includes('elevation'));
+          else if (bedroomQuestion) chosen = pick(t => t.includes('first floor') || t.includes('first-floor'));
+          else if (groundFloorQuestion) chosen = pick(t => t.includes('ground floor') || t.includes('ground-floor'));
+
+          // Fallback: first floor plan if nothing matched, or first attachment overall
+          if (!chosen) chosen = pick(t => t.includes('floor plan')) || fpResult.attachments[0];
+          floorPlanAttachments = chosen ? [chosen] : [];
         }
       } catch (_fpErr) {
         // Floor plan lookup failed — continue without attachments
