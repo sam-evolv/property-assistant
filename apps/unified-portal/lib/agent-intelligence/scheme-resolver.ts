@@ -57,15 +57,26 @@ export async function resolveSchemeName(
     return { ok: false, reason: 'not_found', candidates, normalised };
   }
 
-  const { data, error } = await supabase
-    .from('development_aliases')
-    .select('development_id, alias')
-    .eq('alias_normalised', normalised);
-
-  if (error) {
-    // Degrade: if the alias table isn't available (bad connection,
-    // migration not yet applied), fall back to in-memory substring
-    // match so the feature still works.
+  // Session 13.1 — wrap the Supabase call in try/catch. The pre-13.1
+  // version destructured { data, error } and only fell back on the
+  // error branch; if the client itself throws (network, cold start,
+  // missing table propagated as an exception rather than a
+  // PostgREST error object), the exception escapes the resolver and
+  // crashes the caller. We now catch the throw too and degrade to
+  // the in-memory substring match.
+  let data: Array<{ development_id: string; alias: string }> | null = null;
+  try {
+    const res = await supabase
+      .from('development_aliases')
+      .select('development_id, alias')
+      .eq('alias_normalised', normalised);
+    if (res.error) {
+      console.error('[scheme-resolver] alias lookup error:', res.error.message);
+      return fallbackSubstringMatch(rawSchemeName, agentContext);
+    }
+    data = (res.data || []) as Array<{ development_id: string; alias: string }>;
+  } catch (err: any) {
+    console.error('[scheme-resolver] alias lookup threw:', err?.message || err);
     return fallbackSubstringMatch(rawSchemeName, agentContext);
   }
 
@@ -85,13 +96,18 @@ export async function resolveSchemeName(
   if (matchedDevIds.length > 1) {
     // Cross-scheme alias collision (rare with the canonical backfill;
     // possible if seeds get sloppy). Surface both.
-    const { data: devs } = await supabase
-      .from('developments')
-      .select('id, name')
-      .in('id', matchedDevIds);
-    const ambiguousCandidates = (devs ?? [])
-      .map((d: any) => d.name as string)
-      .filter(Boolean);
+    let ambiguousCandidates: string[] = [];
+    try {
+      const res = await supabase
+        .from('developments')
+        .select('id, name')
+        .in('id', matchedDevIds);
+      ambiguousCandidates = (res.data ?? [])
+        .map((d: any) => d.name as string)
+        .filter(Boolean);
+    } catch (err: any) {
+      console.error('[scheme-resolver] ambiguous lookup threw:', err?.message || err);
+    }
     return {
       ok: false,
       reason: 'ambiguous',
@@ -220,26 +236,54 @@ export async function captureInferredAlias(
   const aliasNormalised = normaliseSchemeName(alias);
   if (!aliasNormalised) return;
 
-  const { count } = await supabase
-    .from('development_aliases')
-    .select('id', { count: 'exact', head: true })
-    .eq('development_id', developmentId)
-    .eq('source', 'inferred');
-
-  if ((count ?? 0) >= 50) return;
-
-  await supabase
-    .from('development_aliases')
-    .insert({
-      development_id: developmentId,
-      alias,
-      alias_normalised: aliasNormalised,
-      source: 'inferred',
-    })
-    // onConflict handled by the unique index; Supabase's default behaviour
-    // is to return an error, so we wrap in upsert-semantics by catching.
-    .then(
-      () => {},
-      () => {}, // swallow — dup alias or caps hit; we're already at 50 or it's a race
+  // Session 13.1 — wrap BOTH the count probe and the insert in
+  // try/catch. The previous version only swallowed insert failures
+  // via a `.then(resolve, reject)` pair; the count probe could throw
+  // (missing table, RLS issue) and crash the caller. This function is
+  // called fire-and-forget from the chat route, but any exception
+  // still shows up in the Next.js error stream.
+  try {
+    const countRes = await supabase
+      .from('development_aliases')
+      .select('id', { count: 'exact', head: true })
+      .eq('development_id', developmentId)
+      .eq('source', 'inferred');
+    if (countRes.error) {
+      console.error(
+        '[scheme-resolver] captureInferredAlias count error:',
+        countRes.error.message,
+      );
+      return;
+    }
+    if ((countRes.count ?? 0) >= 50) return;
+  } catch (err: any) {
+    console.error(
+      '[scheme-resolver] captureInferredAlias count threw:',
+      err?.message || err,
     );
+    return;
+  }
+
+  try {
+    const insertRes = await supabase
+      .from('development_aliases')
+      .insert({
+        development_id: developmentId,
+        alias,
+        alias_normalised: aliasNormalised,
+        source: 'inferred',
+      });
+    if (insertRes.error) {
+      // Dup alias on the unique index is expected; not a real error.
+      const msg = insertRes.error.message || '';
+      if (!/duplicate|unique/i.test(msg)) {
+        console.error('[scheme-resolver] captureInferredAlias insert error:', msg);
+      }
+    }
+  } catch (err: any) {
+    console.error(
+      '[scheme-resolver] captureInferredAlias insert threw:',
+      err?.message || err,
+    );
+  }
 }

@@ -22,35 +22,98 @@ const CLAUDE_MODEL = 'claude-sonnet-4-6';
  * Multi-action extraction is mandatory — a single transcript can yield several
  * distinct actions and the model is instructed to emit all of them in parallel.
  */
+/**
+ * Session 13.1 — staged error handling.
+ *
+ * Previous version used a single top-level try/catch that returned 500
+ * on any throw. Every client-side error handler treated that 500 as
+ * "Claude didn't understand" — hiding what was actually a server
+ * crash. We now stage each step with its own try/catch and log with
+ * `console.error('[extract-actions] <stage>:', err)` so Vercel
+ * runtime logs pinpoint the exact failure. The route NEVER returns
+ * 500. Any unrecoverable failure degrades to `{ actions: [],
+ * transcript, degraded: true, stage }` with 200 status — the client
+ * already has a fallthrough that re-runs the transcript as a typed
+ * chat query when actions is empty, so the user still gets a
+ * response.
+ */
 export async function POST(request: NextRequest) {
+  // --- Stage: parse_body ---
+  let body: any;
   try {
-    const body = await request.json();
-    const transcript: string = (body?.transcript || '').trim();
-    const intentHint: string | undefined = body?.intentHint;
-    const activeDevelopmentId: string | undefined = body?.activeDevelopmentId;
+    body = await request.json();
+  } catch (err: any) {
+    console.error('[extract-actions] parse_body:', err?.message || err);
+    return NextResponse.json(
+      { actions: [], transcript: '', degraded: true, stage: 'parse_body' },
+      { status: 200 },
+    );
+  }
 
-    if (!transcript) {
-      return NextResponse.json({ error: 'transcript is required' }, { status: 400 });
-    }
+  const transcript: string = (body?.transcript || '').trim();
+  const intentHint: string | undefined = body?.intentHint;
+  const activeDevelopmentId: string | undefined = body?.activeDevelopmentId;
 
-    if (!process.env.ANTHROPIC_API_KEY) {
-      return NextResponse.json(
-        { error: 'Anthropic API not configured' },
-        { status: 500 }
-      );
-    }
+  if (!transcript) {
+    // Validation — genuine client bug, 400 is appropriate.
+    return NextResponse.json({ error: 'transcript is required' }, { status: 400 });
+  }
 
-    const supabase = getSupabaseAdmin();
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[extract-actions] missing ANTHROPIC_API_KEY in env');
+    return NextResponse.json(
+      { actions: [], transcript, degraded: true, stage: 'anthropic_config' },
+      { status: 200 },
+    );
+  }
+
+  // --- Stage: supabase_init ---
+  let supabase: ReturnType<typeof getSupabaseAdmin>;
+  try {
+    supabase = getSupabaseAdmin();
+  } catch (err: any) {
+    console.error('[extract-actions] supabase_init:', err?.message || err);
+    return NextResponse.json(
+      { actions: [], transcript, degraded: true, stage: 'supabase_init' },
+      { status: 200 },
+    );
+  }
+
+  // --- Stage: auth ---
+  let userId: string | undefined;
+  try {
     const cookieStore = cookies();
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
+    userId = user?.id;
+  } catch (err: any) {
+    // Non-fatal — buildVoiceContext handles undefined userId.
+    console.error('[extract-actions] auth:', err?.message || err);
+  }
 
-    // Load a slim context block for the prompt. Reuse the same shape the chat
-    // route builds so the extractor stays consistent with typed questions.
-    const context = await buildVoiceContext(supabase, user?.id, activeDevelopmentId);
+  // --- Stage: build_context ---
+  // buildVoiceContext runs multiple Supabase queries. Any one of them
+  // can throw on a cold connection, missing table, or schema drift.
+  // On failure we carry on with an empty context — Claude still gets
+  // the transcript and can extract actions without the recent-
+  // listings list.
+  let context: VoiceContext;
+  try {
+    context = await buildVoiceContext(supabase, userId, activeDevelopmentId);
+  } catch (err: any) {
+    console.error('[extract-actions] build_context:', err?.message || err);
+    context = {
+      activeDevelopmentId: activeDevelopmentId ?? null,
+      schemeName: null,
+      recentListings: [],
+      lettingProperties: [],
+    };
+  }
 
+  // --- Stage: anthropic_call ---
+  let payload: any;
+  try {
     const systemPrompt = buildExtractionSystemPrompt(context, intentHint);
-
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -71,23 +134,42 @@ export async function POST(request: NextRequest) {
     });
 
     if (!response.ok) {
-      const text = await response.text();
+      const text = await response.text().catch(() => '');
+      console.error(
+        '[extract-actions] anthropic_call: non-2xx',
+        response.status,
+        text.slice(0, 400),
+      );
       return NextResponse.json(
-        { error: 'Claude request failed', details: text.slice(0, 400) },
-        { status: 502 }
+        {
+          actions: [],
+          transcript,
+          degraded: true,
+          stage: 'anthropic_call',
+          detail: `status ${response.status}`,
+        },
+        { status: 200 },
       );
     }
 
-    const payload: any = await response.json();
-    const toolBlocks = (payload.content || []).filter(
-      (c: any) => c.type === 'tool_use'
+    payload = await response.json();
+  } catch (err: any) {
+    console.error('[extract-actions] anthropic_call:', err?.message || err);
+    return NextResponse.json(
+      { actions: [], transcript, degraded: true, stage: 'anthropic_call' },
+      { status: 200 },
     );
+  }
 
+  // --- Stage: parse_response ---
+  try {
+    const toolBlocks = (payload?.content || []).filter(
+      (c: any) => c && c.type === 'tool_use',
+    );
     const actions: ExtractedAction[] = toolBlocks.map((block: any) => {
       const confidenceMap: ConfidenceMap = (block.input?._confidence as ConfidenceMap) || {};
       const input = { ...block.input };
       delete input._confidence;
-
       return {
         id: block.id || `action_${Math.random().toString(36).slice(2, 10)}`,
         type: block.name,
@@ -104,11 +186,11 @@ export async function POST(request: NextRequest) {
         schemeName: context.schemeName,
       },
     });
-  } catch (error: any) {
-    console.error('[agent/intelligence/extract-actions] Error:', error.message);
+  } catch (err: any) {
+    console.error('[extract-actions] parse_response:', err?.message || err);
     return NextResponse.json(
-      { error: 'Extraction failed', details: error.message },
-      { status: 500 }
+      { actions: [], transcript, degraded: true, stage: 'parse_response' },
+      { status: 200 },
     );
   }
 }
