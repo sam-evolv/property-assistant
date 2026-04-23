@@ -62,6 +62,35 @@ export interface SkillPersistContext {
   skill: string;
 }
 
+/**
+ * Session 13.2 — defence-in-depth guard.
+ *
+ * Refuse to insert a draft whose recipient is the specific placeholder
+ * `recipient@tbc.invalid`. That placeholder only appears on the
+ * `draftMessageSkill` unresolved-scheme fall-through path — a pattern
+ * that Session 13.2 also fixes at the skill level. If a future skill
+ * regresses and produces a placeholder draft, this guard catches it
+ * before it lands in `pending_drafts`.
+ *
+ * NOTE: `buyer@tbc.invalid` and `solicitor@tbc.invalid` are NOT blocked.
+ * Those come from flows where the unit / solicitor is resolved but the
+ * email isn't on file yet — legitimate "fill in before approving"
+ * drafts. Only the catch-all `recipient@tbc.invalid` is the signal
+ * that the whole target is a hallucination.
+ */
+const BLOCKED_PLACEHOLDER_EMAILS = new Set(['recipient@tbc.invalid']);
+
+function shouldBlockDraft(draft: AgenticSkillDraft): { block: boolean; reason: string } {
+  const email = draft.recipient?.email ?? '';
+  if (BLOCKED_PLACEHOLDER_EMAILS.has(email.toLowerCase())) {
+    return {
+      block: true,
+      reason: `Draft blocked at persistence: recipient is placeholder "${email}". Target not resolved.`,
+    };
+  }
+  return { block: false, reason: '' };
+}
+
 export async function persistDraftsForEnvelope(
   supabase: SupabaseClient,
   envelope: AgenticSkillEnvelope,
@@ -70,7 +99,22 @@ export async function persistDraftsForEnvelope(
   if (!envelope.drafts.length) return envelope;
 
   const rewritten: AgenticSkillDraft[] = [];
+  const blocked: Array<{ draft: AgenticSkillDraft; reason: string }> = [];
+
   for (const draft of envelope.drafts) {
+    // Session 13.2 guard: placeholder recipient → refuse insert.
+    const guard = shouldBlockDraft(draft);
+    if (guard.block) {
+      console.error('[persistDraftsForEnvelope] BLOCKED: placeholder recipient', {
+        skill: ctx.skill,
+        recipient_email: draft.recipient?.email ?? null,
+        affected_record_kind: draft.affected_record?.kind ?? null,
+        reason: guard.reason,
+      });
+      blocked.push({ draft, reason: guard.reason });
+      continue;
+    }
+
     const draftType = resolveDraftType(ctx.skill, draft);
     const contentJson: Record<string, any> = {
       subject: draft.subject ?? null,
@@ -112,7 +156,29 @@ export async function persistDraftsForEnvelope(
     rewritten.push({ ...draft, id: data.id });
   }
 
-  return { ...envelope, drafts: rewritten };
+  // Thread the blocked list through meta so the chat route can force
+  // the model to surface the failure instead of claiming success.
+  const existingMeta: any = (envelope.meta as any) || {};
+  const existingBlocked: any[] = Array.isArray(existingMeta.blocked) ? existingMeta.blocked : [];
+  const mergedBlocked = blocked.length
+    ? [
+        ...existingBlocked,
+        ...blocked.map((b) => ({
+          unit_identifier: b.draft.affected_record?.label ?? b.draft.recipient?.name ?? '',
+          reason: b.reason,
+        })),
+      ]
+    : existingBlocked;
+
+  return {
+    ...envelope,
+    drafts: rewritten,
+    meta: {
+      ...existingMeta,
+      blocked: mergedBlocked,
+      record_count: rewritten.length,
+    },
+  };
 }
 
 /**

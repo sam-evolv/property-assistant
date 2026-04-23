@@ -283,6 +283,55 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Session 13.2 — scheme-not-found / blocked-placeholder hard stop.
+    //
+    // Collect any skipped (skill-level refusals — unresolved scheme, unknown
+    // unit, unresolved solicitor) and blocked (persistence-layer refusals —
+    // placeholder recipient) entries from this turn's envelopes. If a
+    // draft-producing tool fired and produced zero drafts while carrying
+    // skipped / blocked reasons, force the model to read them verbatim and
+    // refuse to claim drafts were created. The existing 6D guard covers the
+    // generic "no drafts" case; this one adds the specific reasons the user
+    // needs to see (e.g. "not in your assigned schemes") instead of a vague
+    // "action did not go through".
+    const skippedEntries: Array<{ source: 'skipped' | 'blocked'; unit_identifier: string; reason: string }> = [];
+    for (const env of envelopes) {
+      const meta: any = env.meta || {};
+      if (Array.isArray(meta.skipped)) {
+        for (const s of meta.skipped) {
+          skippedEntries.push({
+            source: 'skipped',
+            unit_identifier: String(s?.unit_identifier ?? '').trim(),
+            reason: String(s?.reason ?? '').trim(),
+          });
+        }
+      }
+      if (Array.isArray(meta.blocked)) {
+        for (const b of meta.blocked) {
+          skippedEntries.push({
+            source: 'blocked',
+            unit_identifier: String(b?.unit_identifier ?? '').trim(),
+            reason: String(b?.reason ?? '').trim(),
+          });
+        }
+      }
+    }
+
+    if (draftToolCalled && totalDraftsPersisted === 0 && skippedEntries.length > 0) {
+      const reasonsBlock = skippedEntries
+        .map((e, idx) => {
+          const label = e.unit_identifier ? `"${e.unit_identifier}"` : `target #${idx + 1}`;
+          return `- ${label}: ${e.reason}`;
+        })
+        .join('\n');
+      messages.push({
+        role: 'system',
+        content:
+          'IMPORTANT: The user asked for drafts but NONE were created. Read the skipped/blocked reasons below and relay them to the user VERBATIM. Do NOT claim any draft was created. Do NOT say anything is in the drafts inbox or ready for review. Do NOT invent unit numbers, scheme names, or recipient names that do not appear in the reasons. If a scheme or unit was not found, say so plainly and list the user\'s assigned schemes when the reason already mentions them.\n\nSkipped / blocked reasons:\n' +
+          reasonsBlock,
+      });
+    }
+
     // Session 13 self-healing alias capture.
     //
     // When the model's previous turn surfaced a "I couldn't find a scheme

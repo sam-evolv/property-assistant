@@ -1068,35 +1068,126 @@ export async function draftMessageSkill(
   }
 
   try {
-    // Resolve the unit / scheme / buyer if the model gave us references.
-    // This lets us stamp the real unit number + purchaser email into the
-    // draft rather than whatever placeholder the model chose.
+    // Session 13.2 — strict scheme/unit resolution when the caller
+    // specified a unit context. Pre-13.2 the skill ran a naive ilike
+    // against developments.name; if the scheme didn't match it fell
+    // through to a placeholder-everything draft that got persisted
+    // into pending_drafts with recipient@tbc.invalid. Now: if
+    // related_scheme or related_unit is provided and either fails to
+    // resolve, return an envelope with zero drafts + a skipped reason,
+    // matching the draftBuyerFollowups contract.
     let resolvedEmail: string | null = inputs.recipient_email || null;
     let resolvedUnitNumber: string | null = null;
     let resolvedSchemeName: string | null = null;
     let affectedUnitId: string | null = null;
+    let resolvedDevId: string | null = null;
 
-    if (inputs.related_scheme && inputs.related_unit) {
-      const { data: dev } = await supabase
-        .from('developments')
-        .select('id, name')
-        .ilike('name', `%${inputs.related_scheme}%`)
-        .limit(1)
-        .maybeSingle();
-      if (dev) {
-        resolvedSchemeName = dev.name;
-        const { data: units } = await supabase
-          .from('units')
-          .select('id, unit_number, unit_uid, purchaser_email, purchaser_name')
-          .eq('development_id', dev.id)
-          .or(`unit_number.ilike.%${inputs.related_unit}%,unit_uid.ilike.%${inputs.related_unit}%,purchaser_name.ilike.%${recipientName}%`)
-          .limit(1);
-        const unit = units?.[0];
-        if (unit) {
-          resolvedUnitNumber = unit.unit_number || unit.unit_uid || inputs.related_unit;
-          if (!resolvedEmail && unit.purchaser_email) resolvedEmail = unit.purchaser_email;
-          affectedUnitId = unit.id;
+    const hasUnitContext = Boolean(inputs.related_scheme || inputs.related_unit);
+
+    if (hasUnitContext) {
+      // --- Stage: resolve scheme ---
+      if (inputs.related_scheme) {
+        const { data: asgs } = await supabase
+          .from('agent_scheme_assignments')
+          .select('development_id')
+          .eq('agent_id', agentContext.agentId)
+          .eq('is_active', true);
+        const devIds = Array.from(
+          new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+        );
+        const { data: devs } = devIds.length
+          ? await supabase.from('developments').select('id, name').in('id', devIds)
+          : { data: [] };
+        const devList = (devs || []) as Array<{ id: string; name: string }>;
+        const schemeContext = {
+          assignedDevelopmentIds: devList.map((d) => d.id),
+          assignedDevelopmentNames: devList.map((d) => d.name),
+        };
+        const schemeResolution = await resolveSchemeName(
+          supabase,
+          inputs.related_scheme,
+          schemeContext,
+        );
+        if (!schemeResolution.ok) {
+          const reasonText =
+            schemeResolution.reason === 'not_found'
+              ? `I couldn't find a scheme matching "${inputs.related_scheme}". Your assigned schemes are: ${schemeResolution.candidates.join(', ')}.`
+              : schemeResolution.reason === 'ambiguous'
+                ? `"${inputs.related_scheme}" matches multiple schemes (${schemeResolution.candidates.join(', ')}). Please be specific.`
+                : `Scheme "${inputs.related_scheme}" is not in your assigned list.`;
+          return {
+            skill,
+            status: 'awaiting_approval',
+            summary: reasonText,
+            drafts: [],
+            meta: {
+              record_count: 0,
+              generated_at: new Date().toISOString(),
+              query,
+              // @ts-ignore — read by the chat route's scheme-not-found injector
+              skipped: [{ unit_identifier: inputs.related_unit || '', reason: reasonText }],
+            } as any,
+          };
         }
+        resolvedDevId = schemeResolution.developmentId;
+        resolvedSchemeName = schemeResolution.canonicalName;
+      }
+
+      // --- Stage: resolve unit ---
+      if (inputs.related_unit) {
+        // Need the scope list for the unit resolver. If scheme resolved,
+        // use just that dev; otherwise use the agent's full assigned set.
+        let unitScope: string[] = [];
+        if (resolvedDevId) {
+          unitScope = [resolvedDevId];
+        } else {
+          const { data: asgs } = await supabase
+            .from('agent_scheme_assignments')
+            .select('development_id')
+            .eq('agent_id', agentContext.agentId)
+            .eq('is_active', true);
+          unitScope = Array.from(
+            new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+          );
+        }
+        const unitRes = await resolveUnitIdentifier(supabase, inputs.related_unit, {
+          developmentIds: unitScope,
+          preferredDevelopmentId: resolvedDevId,
+        });
+        if (unitRes.status !== 'ok') {
+          const reasonText =
+            unitRes.status === 'not_found'
+              ? `I couldn't find Unit ${inputs.related_unit}${resolvedSchemeName ? ` in ${resolvedSchemeName}` : ''}.`
+              : `Unit "${inputs.related_unit}" matches multiple units across schemes. Include the scheme name.`;
+          return {
+            skill,
+            status: 'awaiting_approval',
+            summary: reasonText,
+            drafts: [],
+            meta: {
+              record_count: 0,
+              generated_at: new Date().toISOString(),
+              query,
+              // @ts-ignore
+              skipped: [{ unit_identifier: inputs.related_unit, reason: reasonText }],
+            } as any,
+          };
+        }
+        resolvedUnitNumber = unitRes.unit.unit_number || unitRes.unit.unit_uid || inputs.related_unit;
+        if (!resolvedEmail && unitRes.unit.purchaser_email) {
+          resolvedEmail = unitRes.unit.purchaser_email;
+        }
+        if (!resolvedSchemeName) {
+          // Only the unit was specified; pull the scheme name from the
+          // resolved unit's development_id.
+          const { data: dev } = await supabase
+            .from('developments')
+            .select('name')
+            .eq('id', unitRes.unit.development_id)
+            .maybeSingle();
+          resolvedSchemeName = dev?.name ?? null;
+        }
+        affectedUnitId = unitRes.unit.id;
       }
     }
 
@@ -1141,7 +1232,13 @@ export async function draftMessageSkill(
       status: 'awaiting_approval',
       summary: `Drafted email to ${recipientName}${unitLabel ? ` — ${unitLabel}` : ''}.`,
       drafts: [draft],
-      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+      meta: {
+        record_count: 1,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — Session 13 alias capture keys off this
+        resolved_development_ids: resolvedDevId ? [resolvedDevId] : [],
+      } as any,
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);
