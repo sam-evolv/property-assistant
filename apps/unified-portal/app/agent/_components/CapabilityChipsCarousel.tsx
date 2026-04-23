@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  CAPABILITY_CHIPS,
+  FALLBACK_CAPABILITY_CHIPS,
   shuffleChips,
 } from '@/lib/agent-intelligence/capability-chips';
 
@@ -22,39 +22,27 @@ interface CapabilityChipsCarouselProps {
    */
   paused?: boolean;
   /**
-   * Allows callers to override the pool (tests). Defaults to the full
-   * CAPABILITY_CHIPS list.
+   * Session 11 — chips are sourced from live agent data by the parent.
+   * The parent passes them in here. While the live fetch is in flight
+   * the carousel falls back to a short context-free set so first paint
+   * is never blank.
    */
-  pool?: readonly string[];
+  chips?: readonly string[];
 }
 
 /**
- * Session 7 — rotating chip carousel that sits above the input bar on
- * the Intelligence landing. Showcases Intelligence's capabilities without
+ * Rotating chip carousel that sits above the input bar on the
+ * Intelligence landing. Showcases Intelligence's capabilities without
  * a permanent button grid.
- *
- * Rotation behaviour:
- *   - 4 chips visible at any time
- *   - Advances by one slot every 6 seconds
- *   - Pauses when the paused prop is true (parent wires this to input
- *     focus)
- *   - Pauses on pointer hover so the agent can read a chip before it
- *     rotates away
- *   - Respects `prefers-reduced-motion` — fade-swap instead of slide
- *
- * Why a window of four from a shuffled pool rather than randomised-on-
- * every-tick: predictable rotation lets the eye follow along, and
- * shuffling once per mount means first-impression chips differ session
- * to session.
  */
 export default function CapabilityChipsCarousel({
   onChipTap,
   paused = false,
-  pool = CAPABILITY_CHIPS,
+  chips,
 }: CapabilityChipsCarouselProps) {
-  // Shuffle once per mount so different sessions surface different
-  // chips first. useMemo with an empty dep list; the shuffle output is
-  // stable for the component lifetime.
+  const pool = chips && chips.length ? chips : FALLBACK_CAPABILITY_CHIPS;
+  // Re-shuffle whenever the pool identity changes — this is how the
+  // live chips from the API replace the fallback set.
   const deck = useMemo(() => shuffleChips(pool), [pool]);
   const safeDeck = deck.length >= VISIBLE ? deck : [...deck, ...deck];
 
@@ -64,8 +52,6 @@ export default function CapabilityChipsCarousel({
   const [fade, setFade] = useState(1);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Detect prefers-reduced-motion. Updates live if the user toggles the
-  // setting while the app is open.
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) return;
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -77,8 +63,6 @@ export default function CapabilityChipsCarousel({
 
   const advance = useCallback(() => {
     if (reducedMotion) {
-      // Fade out, swap, fade in — gentler than the slide for
-      // motion-sensitive users.
       setFade(0);
       window.setTimeout(() => {
         setOffset((o) => (o + 1) % safeDeck.length);
@@ -156,10 +140,6 @@ function Chip({
   reducedMotion: boolean;
   onTap: () => void;
 }) {
-  // Slide-in animation: each chip is keyed on its idx-text so when the
-  // rotation advances, React unmounts the leftmost chip and mounts a
-  // fresh rightmost one. The fresh chip enters from the right via a
-  // CSS keyframe. Reduced-motion users skip the keyframe.
   return (
     <button
       type="button"
