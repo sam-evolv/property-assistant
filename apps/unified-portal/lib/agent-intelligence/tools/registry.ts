@@ -34,6 +34,7 @@ import {
   scheduleViewingDraft,
   draftMessageSkill,
   draftBuyerFollowups,
+  getCandidateUnitsSkill,
   SkillAgentContext,
 } from './agentic-skills';
 import type { AgenticSkillEnvelope } from '../envelope';
@@ -240,30 +241,62 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_buyer_followups',
-    description: 'Draft follow-up emails to a SPECIFIC list of units / buyers in one call. Use when the agent says "draft emails to those 3 units", "follow up with those buyers", "send those three a chase", etc. Each target produces one draft in the approval drawer.',
+    description: [
+      'Draft follow-up emails for one or more buyers. One draft per unit; joint purchasers (e.g. "Laura Hayes and Dylan Rogers") at a single unit share ONE email addressed to both names.',
+      'CRITICAL RULES:',
+      '1. Each target unit_identifier must be a unit number the user explicitly named OR that a previous tool returned. Do NOT guess.',
+      '2. The purpose parameter must match what the user is asking for. "Congratulate on keys" → congratulate_handover ONLY for units that have actually been handed over (handover_date present).',
+      '3. If the user gave a count but no specific units, call get_candidate_units with the right intent first; do not pick units silently.',
+      '4. The skill refuses to draft when the resolved unit does not satisfy the purpose (e.g. congratulate_handover for a unit with no handover_date). Surfaces skipped units via the envelope summary — relay those to the user.',
+    ].join(' '),
     parameters: {
       type: 'object',
       properties: {
         targets: {
           type: 'array',
-          description: 'Units to draft emails for. Each item must reference a unit (and optionally the scheme / recipient name).',
+          description: 'Units to draft emails for. One entry per unit; joint purchasers are NOT separate targets.',
           items: {
             type: 'object',
             properties: {
-              unit_identifier: { type: 'string', description: 'Unit number or unit reference (e.g. "19", "Unit 37", "AV-36").' },
-              scheme_name: { type: 'string', description: 'Name of the scheme the unit lives in. Optional when the agent only has one assigned scheme.' },
-              recipient_name: { type: 'string', description: 'Override the purchaser name on the unit if the agent named someone specifically.' },
+              unit_identifier: { type: 'string', description: 'Exact unit number or unit uid (e.g. "19", "Unit 37", "AV-36"). Matched exactly against units.unit_number then units.unit_uid — no wildcards, no buyer-name fuzz.' },
+              scheme_name: { type: 'string', description: 'Name of the scheme the unit lives in. Required when the agent has multiple assigned schemes; otherwise optional.' },
+              recipient_name: { type: 'string', description: 'Override the purchaser name if the agent named someone specifically. Usually leave blank so the skill greets the purchasers on file.' },
             },
             required: ['unit_identifier'],
           },
         },
-        topic: { type: 'string', description: 'Shared topic / reason for the follow-up (e.g. "asking when they expect to sign the contracts"). Becomes the lead of each email body.' },
+        topic: { type: 'string', description: 'Shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent. For congratulate_handover: a personal note (optional — there is a sensible default).' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
+        purpose: {
+          type: 'string',
+          description: 'Email intent — shapes subject + body template and drives the precondition check against the resolved unit. Defaults to chase.',
+          enum: ['chase', 'congratulate_handover', 'introduce', 'update', 'custom'],
+        },
+        custom_instruction: { type: 'string', description: 'Required when purpose="custom". Free-text description of the email\'s intent; becomes the body lead.' },
       },
-      required: ['targets', 'topic'],
+      required: ['targets'],
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(draftBuyerFollowups, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'get_candidate_units',
+    description: 'Return units from the agent\'s assigned schemes filtered by INTENT, for use as clarification candidates when the user specified a count but no specific unit identifiers. Read-only — returns an envelope with zero drafts and the candidate list in the summary. ALWAYS call this BEFORE asking the user "which N units?" so the example set reflects the actual eligible pool.',
+    parameters: {
+      type: 'object',
+      properties: {
+        intent: {
+          type: 'string',
+          description: 'Filter criterion. "handover" = units with handover_date (congratulate on keys). "overdue_contracts" = contracts issued >28d ago and unsigned. "sale_agreed" = sale_agreed but not yet signed/handed-over. "all" = every unit.',
+          enum: ['handover', 'overdue_contracts', 'sale_agreed', 'all'],
+        },
+        scheme_name: { type: 'string', description: 'Optional — narrow the candidates to one scheme.' },
+        limit: { type: 'number', description: 'Max candidates to return (default 6, max 20).' },
+      },
+      required: ['intent'],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(getCandidateUnitsSkill, supabase, agentContext, params as any)) as ToolFunction,
   },
   {
     name: 'generate_developer_report',

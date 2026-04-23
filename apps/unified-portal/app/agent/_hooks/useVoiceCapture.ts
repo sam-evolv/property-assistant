@@ -11,9 +11,11 @@ const SILENCE_THRESHOLD = 0.012;
 const SILENCE_TIMEOUT_MS = 2000;
 
 const MIC_DENIED_MESSAGE =
-  'Microphone access is needed for voice capture. Open Settings → OpenHouse → Microphone to enable.';
+  'Allow microphone access in iOS Settings → Safari (or OpenHouse) → Microphone.';
 const MIC_UNAVAILABLE_MESSAGE =
-  'Microphone is not available in this browser. Use the typing input instead.';
+  'Microphone isn’t available on this device. Use the typing input instead.';
+const MIC_NO_HARDWARE_MESSAGE =
+  'No microphone was detected. Use the typing input instead.';
 
 export interface VoiceCaptureState {
   status: 'idle' | 'recording' | 'transcribing' | 'offline-queued' | 'error';
@@ -119,11 +121,18 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
     setPartialTranscript('');
 
     try {
-      // Capacitor iOS: request mic permission via the plugin FIRST.
-      // Without this, WKWebView rejects getUserMedia on cold start (and on
-      // older iOS builds `navigator.mediaDevices` is undefined until the
-      // plugin warms the path up). `unavailable` = not native; fall through
-      // to the web path.
+      // Session 8 Bug 1 fix. Previous sequence pre-flighted
+      // navigator.mediaDevices and bailed out with "unavailable" when the
+      // property looked falsy. On iOS WKWebView the property read is
+      // unreliable until the first getUserMedia call activates the
+      // permission subsystem — so we now attempt the call directly and
+      // branch on the thrown error name.
+      //
+      // The Capacitor plugin permission probe is best-effort: if the plugin
+      // is installed in the shell, it primes iOS to present the permission
+      // sheet; if not, it returns 'unavailable' and we carry on via the
+      // browser path. The plugin path can skip directly to 'denied' so we
+      // never prompt the user through two layers.
       const native = await requestMicrophonePermission();
       if (native.status === 'denied') {
         setPermissionDenied(true);
@@ -132,21 +141,39 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
         return;
       }
 
-      // Guard against `navigator.mediaDevices` being undefined — seen on
-      // older iOS WKWebView and on insecure-context browsers. Before this
-      // guard the app crashed with "undefined is not an object
-      // (evaluating 'navigator.mediaDevices.getUserMedia')".
-      if (
-        typeof navigator === 'undefined' ||
-        !navigator.mediaDevices ||
-        typeof navigator.mediaDevices.getUserMedia !== 'function'
-      ) {
+      const getUserMediaFn: MediaDevices['getUserMedia'] | undefined =
+        typeof navigator !== 'undefined'
+          ? navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices)
+          : undefined;
+
+      if (!getUserMediaFn) {
         setErrorMessage(MIC_UNAVAILABLE_MESSAGE);
         setStatus('error');
         return;
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      let stream: MediaStream;
+      try {
+        stream = await getUserMediaFn({ audio: true });
+      } catch (err: any) {
+        const name: string = err?.name || '';
+        if (name === 'NotAllowedError' || name === 'SecurityError' || name === 'PermissionDeniedError') {
+          setPermissionDenied(true);
+          setErrorMessage(MIC_DENIED_MESSAGE);
+        } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError' || name === 'OverconstrainedError') {
+          setErrorMessage(MIC_NO_HARDWARE_MESSAGE);
+        } else if (name === 'TypeError' || name === 'NotSupportedError') {
+          // iOS throws TypeError when the insecure-context / missing-entitlement
+          // path triggers. Fall back to the "unavailable" message.
+          setErrorMessage(MIC_UNAVAILABLE_MESSAGE);
+        } else {
+          setErrorMessage(err?.message || MIC_UNAVAILABLE_MESSAGE);
+        }
+        setStatus('error');
+        cleanup();
+        return;
+      }
+
       streamRef.current = stream;
 
       // Waveform monitor + silence detection.
