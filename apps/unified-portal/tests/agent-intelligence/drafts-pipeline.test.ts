@@ -13,6 +13,7 @@
 import {
   draftMessageSkill,
   draftBuyerFollowups,
+  parseJointPurchaserNames,
 } from '../../lib/agent-intelligence/tools/agentic-skills';
 import { AGENT_TOOL_DEFINITIONS } from '../../lib/agent-intelligence/tools/registry';
 import { persistDraftsForEnvelope } from '../../lib/agent-intelligence/draft-store';
@@ -185,6 +186,117 @@ describe('draftBuyerFollowups (Session 6D)', () => {
     });
     expect(envelope.drafts).toHaveLength(0);
     expect(envelope.summary).toMatch(/could not resolve/i);
+  });
+});
+
+describe('parseJointPurchaserNames (Session 8 Bug 5)', () => {
+  it('single purchaser → one first name, "Hi Laura,"', () => {
+    const p = parseJointPurchaserNames('Laura Hayes');
+    expect(p.firstNames).toEqual(['Laura']);
+    expect(p.greeting).toBe('Hi Laura,');
+  });
+  it('joint purchasers via "and" → two first names, "Hi Laura and Dylan,"', () => {
+    const p = parseJointPurchaserNames('Laura Hayes and Dylan Rogers');
+    expect(p.firstNames).toEqual(['Laura', 'Dylan']);
+    expect(p.greeting).toBe('Hi Laura and Dylan,');
+  });
+  it('joint purchasers via "&" → two first names', () => {
+    const p = parseJointPurchaserNames('Laura Hayes & Dylan Rogers');
+    expect(p.firstNames).toEqual(['Laura', 'Dylan']);
+  });
+  it('strips titles', () => {
+    const p = parseJointPurchaserNames('Mr John O\'Shea and Mrs Mary O\'Shea');
+    expect(p.firstNames).toEqual(['John', 'Mary']);
+    expect(p.greeting).toBe('Hi John and Mary,');
+  });
+  it('empty input → fallback', () => {
+    const p = parseJointPurchaserNames(null);
+    expect(p.firstNames).toEqual(['there']);
+    expect(p.greeting).toBe('Hi there,');
+  });
+});
+
+describe('draftBuyerFollowups — Session 8 purpose + joint + dedupe', () => {
+  const joint_state = {
+    developments: [{ id: 'dev-1', name: 'Árdan View' }],
+    units: [
+      // Joint purchasers at Unit 19.
+      { id: 'u-19', development_id: 'dev-1', unit_number: '19', unit_uid: 'AV-19', purchaser_name: 'Laura Hayes and Dylan Rogers', purchaser_email: 'laura@example.com' },
+      { id: 'u-37', development_id: 'dev-1', unit_number: '37', unit_uid: 'AV-37', purchaser_name: 'Prem Rai', purchaser_email: 'prem@example.com' },
+    ],
+    agent_scheme_assignments: [
+      { agent_id: 'profile-1', development_id: 'dev-1', is_active: true },
+    ],
+  };
+
+  it('joint-purchaser unit produces ONE draft greeting both names', async () => {
+    const supabase = mockSupabase(joint_state);
+    const envelope = await draftBuyerFollowups(supabase, SKILL_CTX, {
+      targets: [{ unit_identifier: '19', scheme_name: 'Árdan View' }],
+      topic: 'Asking when they expect to sign the contracts.',
+    });
+    expect(envelope.drafts).toHaveLength(1);
+    expect(envelope.drafts[0].body).toContain('Laura and Dylan');
+    expect(envelope.drafts[0].recipient?.name).toBe('Laura Hayes and Dylan Rogers');
+  });
+
+  it('dedupe — two targets for the same unit id yield ONE draft', async () => {
+    const supabase = mockSupabase(joint_state);
+    const envelope = await draftBuyerFollowups(supabase, SKILL_CTX, {
+      targets: [
+        { unit_identifier: '19', scheme_name: 'Árdan View', recipient_name: 'Laura Hayes' },
+        { unit_identifier: '19', scheme_name: 'Árdan View', recipient_name: 'Dylan Rogers' },
+      ],
+      topic: 'Chase signing',
+    });
+    expect(envelope.drafts).toHaveLength(1);
+  });
+
+  it('three distinct units, one joint → three drafts total', async () => {
+    const supabase = mockSupabase({
+      developments: [{ id: 'dev-1', name: 'Árdan View' }],
+      units: [
+        { id: 'u-3', development_id: 'dev-1', unit_number: '3', unit_uid: 'AV-3', purchaser_name: 'Anna Byrne', purchaser_email: 'anna@x.com' },
+        { id: 'u-7', development_id: 'dev-1', unit_number: '7', unit_uid: 'AV-7', purchaser_name: 'Seán Murphy and Aoife Murphy', purchaser_email: 'sean@x.com' },
+        { id: 'u-12', development_id: 'dev-1', unit_number: '12', unit_uid: 'AV-12', purchaser_name: 'Priya Shah', purchaser_email: 'priya@x.com' },
+      ],
+      agent_scheme_assignments: [
+        { agent_id: 'profile-1', development_id: 'dev-1', is_active: true },
+      ],
+    });
+    const envelope = await draftBuyerFollowups(supabase, SKILL_CTX, {
+      targets: [
+        { unit_identifier: '3', scheme_name: 'Árdan View' },
+        { unit_identifier: '7', scheme_name: 'Árdan View' },
+        { unit_identifier: '12', scheme_name: 'Árdan View' },
+      ],
+      topic: 'Congrats on getting the keys',
+      purpose: 'congratulate_handover',
+    });
+    expect(envelope.drafts).toHaveLength(3);
+    // Welcome subject for all three.
+    for (const d of envelope.drafts) {
+      expect(d.subject).toMatch(/^Welcome to your new home/);
+      // No "where do you stand" chase tail.
+      expect(d.body).not.toMatch(/where things stand/i);
+    }
+    // Joint-purchaser unit greets both names.
+    const joint = envelope.drafts.find((d) => d.affected_record.id === 'u-7');
+    expect(joint?.body).toContain('Seán and Aoife');
+  });
+
+  it('congratulate_handover subject + body shape', async () => {
+    const supabase = mockSupabase(joint_state);
+    const envelope = await draftBuyerFollowups(supabase, SKILL_CTX, {
+      targets: [{ unit_identifier: '37', scheme_name: 'Árdan View' }],
+      topic: '',
+      purpose: 'congratulate_handover',
+    });
+    expect(envelope.drafts).toHaveLength(1);
+    const d = envelope.drafts[0];
+    expect(d.subject).toMatch(/Welcome to your new home — Unit 37/);
+    expect(d.body).toMatch(/[Cc]ongratulations/);
+    expect(d.body).not.toMatch(/where things stand/i);
   });
 });
 
