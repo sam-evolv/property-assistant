@@ -11,6 +11,7 @@ import {
   getListings,
 } from '@/lib/agent/independentAgentService';
 import DraftsHomeTile from './DraftsHomeTile';
+import DocsHomeTile from './DocsHomeTile';
 
 interface IndependentHomeViewProps {
   agent: AgentProfile;
@@ -82,6 +83,8 @@ export default function IndependentHomeView({ agent }: IndependentHomeViewProps)
 
       {/* Drafts tile — replaces the bottom-nav Drafts tab. */}
       <DraftsHomeTile />
+      {/* Docs tile — replaces the bottom-nav Docs tab (Session 6C). */}
+      <DocsHomeTile />
 
       {/* Price review alerts */}
       {priceReviews.length > 0 && (

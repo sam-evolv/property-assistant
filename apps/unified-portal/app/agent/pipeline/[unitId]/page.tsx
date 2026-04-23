@@ -381,6 +381,51 @@ export default function UnitProfilePage() {
             </Section>
           )}
 
+          {/* Documents — Session 6C: alternative entry point to /agent/docs
+              now that Docs is off the bottom nav. Filtered to the unit's
+              parent scheme so the agent lands on the relevant shelf. */}
+          <Link
+            href={`/agent/docs?scheme=${encodeURIComponent(profile.developmentId || '')}`}
+            data-testid="unit-docs-link"
+            className="agent-tappable"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              padding: '14px 16px',
+              background: '#FFFFFF',
+              borderRadius: 14,
+              marginBottom: 12,
+              textDecoration: 'none',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
+            }}
+          >
+            <div
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 17,
+                background: 'rgba(13,13,18,0.05)',
+                border: '1px solid rgba(13,13,18,0.08)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <FileText size={16} color="#6B7280" strokeWidth={1.8} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#0D0D12', letterSpacing: '-0.01em' }}>
+                View documents
+              </div>
+              <div style={{ fontSize: 12, color: '#A0A8B0', marginTop: 2 }}>
+                BER, brochures, forms for {profile.developmentName}
+              </div>
+            </div>
+            <ChevronRight size={16} color="#B0B8C4" />
+          </Link>
+
           {/* Note Logger */}
           <Section title="Log a note">
             <div className="space-y-2">

@@ -11,6 +11,7 @@ import AgentShell from '../_components/AgentShell';
 import StatModal from '../_components/StatModal';
 import IndependentHomeView from '../_components/IndependentHomeView';
 import DraftsHomeTile from '../_components/DraftsHomeTile';
+import DocsHomeTile from '../_components/DocsHomeTile';
 import type { StatModalType, Scheme as UIScheme, Buyer as UIBuyer } from '../_components/types';
 
 // Convert real pipeline data to the Scheme/Buyer types that StatModal expects
@@ -191,6 +192,10 @@ export default function AgentHomePage() {
 
         {/* Drafts tile — replaces the bottom-nav Drafts tab from Session 1. */}
         <DraftsHomeTile />
+        {/* Docs tile — replaces the bottom-nav Docs tab from Session 6C.
+            Drafts sits first because overdue drafts are more time-sensitive
+            than browsing documents. */}
+        <DocsHomeTile />
 
         {/* Requires action section */}
         <SectionLabel>Requires action</SectionLabel>
