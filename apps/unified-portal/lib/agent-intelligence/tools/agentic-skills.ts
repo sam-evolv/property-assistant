@@ -3,6 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { getRenewalWindow, getRentArrears, getUpcomingWeekViewings } from '../context';
 import { isInRPZ, rpzUpliftCap } from '../rpz-zones';
 import type { AgenticSkillEnvelope } from '../envelope';
+import {
+  resolveUnitIdentifier,
+  getCandidateUnits,
+  type CandidateIntent,
+} from '../unit-resolver';
 
 // Envelope returned by every agentic skill. Draft ids generated here are
 // temporary — the registry adapter funnels the envelope through
@@ -1146,10 +1151,16 @@ export async function draftMessageSkill(
 // Skill 8 — draft_buyer_followups (explicit multi-recipient)
 // =====================================================================
 //
-// Session 6D fix. Gives the model a direct path for "draft emails to
-// those 3 units" without needing three parallel tool calls. Input is a
-// list of unit/scheme references plus a shared topic. Returns one draft
-// per resolved unit.
+// Session 6D introduced this skill. Session 8 was planned to add `purpose`
+// + joint-purchaser handling but didn't land. Session 9 adds those plus
+// strict unit resolution and purpose preconditions in one go.
+
+export type DraftBuyerFollowupPurpose =
+  | 'chase'
+  | 'congratulate_handover'
+  | 'introduce'
+  | 'update'
+  | 'custom';
 
 interface DraftBuyerFollowupsInput {
   targets: Array<{
@@ -1157,8 +1168,157 @@ interface DraftBuyerFollowupsInput {
     scheme_name?: string;
     recipient_name?: string;
   }>;
-  topic: string;
+  topic?: string;
   tone?: string;
+  purpose?: DraftBuyerFollowupPurpose;
+  custom_instruction?: string;
+}
+
+/**
+ * Parse a purchaser_name field into individual given names. The units
+ * table stores joint purchasers as a single free-text string like
+ * "Laura Hayes and Dylan Rogers" or "Laura Hayes & Dylan Rogers".
+ * One email per household, both names greeted — matches how an agent
+ * actually writes.
+ */
+export function parseJointPurchaserNames(raw: string | null | undefined): {
+  fullName: string;
+  firstNames: string[];
+  greeting: string;
+} {
+  const fallback = { fullName: 'Buyer', firstNames: ['there'], greeting: 'Hi there,' };
+  if (!raw) return fallback;
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return fallback;
+
+  const parts = cleaned
+    .split(/\s+and\s+|\s*&\s*/i)
+    .map((p) => p.replace(/\b(Mr|Mrs|Ms|Miss|Dr)\.?\s+/gi, '').trim())
+    .filter(Boolean);
+  if (!parts.length) return fallback;
+
+  const firstNames = parts.map((p) => p.split(/\s+/)[0] || 'there');
+  const greeting =
+    firstNames.length === 1
+      ? `Hi ${firstNames[0]},`
+      : firstNames.length === 2
+        ? `Hi ${firstNames[0]} and ${firstNames[1]},`
+        : `Hi ${firstNames.slice(0, -1).join(', ')} and ${firstNames[firstNames.length - 1]},`;
+  return { fullName: cleaned, firstNames, greeting };
+}
+
+// -- Purpose preconditions: the skill refuses to draft when the resolved
+//    unit doesn't satisfy the precondition for the requested purpose.
+//    "Welcome to your new home" for a unit with no handover_date is the
+//    bug we're killing.
+interface UnitStateForPrecondition {
+  handover_date: string | null;
+  unit_status: string | null;
+  contracts_issued_date: string | null;
+  signed_contracts_date: string | null;
+  counter_signed_date: string | null;
+  purchaser_name: string | null;
+}
+
+const PURPOSE_PRECONDITIONS: Record<
+  DraftBuyerFollowupPurpose,
+  { check: (u: UnitStateForPrecondition) => boolean; rejectionReason: (unitLabel: string) => string }
+> = {
+  congratulate_handover: {
+    check: (u) => Boolean(u.handover_date) || u.unit_status === 'handed_over' || u.unit_status === 'sold',
+    rejectionReason: (label) =>
+      `Cannot congratulate ${label} on receiving keys — handover hasn't happened yet.`,
+  },
+  chase: {
+    check: (u) => !!u.contracts_issued_date && !u.signed_contracts_date && !u.counter_signed_date,
+    rejectionReason: (label) =>
+      `Cannot draft a contract chase for ${label} — no unsigned contracts on file.`,
+  },
+  introduce: {
+    check: (u) => !!u.purchaser_name,
+    rejectionReason: (label) =>
+      `Cannot draft an introduction for ${label} — no buyer on file yet.`,
+  },
+  update: { check: () => true, rejectionReason: () => '' },
+  custom: { check: () => true, rejectionReason: () => '' },
+};
+
+function buildFollowupContent(opts: {
+  purpose: DraftBuyerFollowupPurpose;
+  topic: string;
+  customInstruction?: string;
+  unitLabel: string;
+  greeting: string;
+  tone: string;
+  ctx: SkillAgentContext;
+}): { subject: string; body: string } {
+  const { purpose, topic, customInstruction, unitLabel, greeting, tone, ctx } = opts;
+  const sign = toneSignOff(tone);
+  const sig = signature(ctx);
+
+  if (purpose === 'congratulate_handover') {
+    return {
+      subject: `Welcome to your new home — ${unitLabel}`,
+      body: [
+        greeting,
+        '',
+        `Congratulations on getting the keys to ${unitLabel} — delighted to see you over the line.`,
+        '',
+        topic || 'Wishing you every happiness settling in.',
+        '',
+        'If anything comes up over the first few weeks — snags, paperwork, anything we can help with — just let me know and I\'ll sort it.',
+        '',
+        sign,
+        sig,
+      ].join('\n'),
+    };
+  }
+
+  if (purpose === 'introduce') {
+    return {
+      subject: `Introduction — ${unitLabel}`,
+      body: [
+        greeting,
+        '',
+        topic || `I\'m getting in touch as the agent looking after ${unitLabel}.`,
+        '',
+        'Happy to answer any questions and walk you through the next steps whenever suits.',
+        '',
+        sign,
+        sig,
+      ].join('\n'),
+    };
+  }
+
+  if (purpose === 'update') {
+    return {
+      subject: `Update — ${unitLabel}`,
+      body: [greeting, '', topic || 'Quick update on where things stand.', '', sign, sig].join('\n'),
+    };
+  }
+
+  if (purpose === 'custom') {
+    const instruction = customInstruction?.trim() || topic;
+    return {
+      subject: unitLabel,
+      body: [greeting, '', instruction, '', sign, sig].join('\n'),
+    };
+  }
+
+  // Default: chase.
+  return {
+    subject: `Following up — ${unitLabel}`,
+    body: [
+      greeting,
+      '',
+      topic,
+      '',
+      'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
+      '',
+      sign,
+      sig,
+    ].join('\n'),
+  };
 }
 
 export async function draftBuyerFollowups(
@@ -1169,8 +1329,10 @@ export async function draftBuyerFollowups(
   const skill = 'draft_buyer_followups';
   const tone = (inputs.tone || 'gentle_chase').trim();
   const topic = (inputs.topic || '').trim();
+  const purpose: DraftBuyerFollowupPurpose = inputs.purpose || 'chase';
+  const customInstruction = inputs.custom_instruction?.trim();
   const targets = Array.isArray(inputs.targets) ? inputs.targets : [];
-  const query = `draft_buyer_followups targets=${targets.length} topic="${topic.slice(0, 80)}"`;
+  const query = `draft_buyer_followups targets=${targets.length} purpose=${purpose} topic="${topic.slice(0, 80)}"`;
 
   if (!targets.length) {
     return {
@@ -1181,7 +1343,9 @@ export async function draftBuyerFollowups(
       meta: { record_count: 0, generated_at: new Date().toISOString(), query },
     };
   }
-  if (!topic) {
+  // Most purposes need a topic. congratulate_handover has a built-in
+  // fallback; custom can rely on custom_instruction alone.
+  if (!topic && purpose !== 'congratulate_handover' && !(purpose === 'custom' && customInstruction)) {
     return {
       skill,
       status: 'awaiting_approval',
@@ -1193,9 +1357,9 @@ export async function draftBuyerFollowups(
 
   try {
     const drafts: AgenticSkillEnvelope['drafts'] = [];
+    const skipped: Array<{ ref: string; reason: string }> = [];
+    const seenUnitIds = new Set<string>();
 
-    // Pre-resolve the agent's assigned developments so scheme-less targets
-    // can still be matched. Same chain as resolveAgentContext uses.
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
@@ -1206,90 +1370,211 @@ export async function draftBuyerFollowups(
       ? await supabase.from('developments').select('id, name').in('id', devIds)
       : { data: [] };
     const devList = (devs || []) as Array<{ id: string; name: string }>;
-    const devIdByName = new Map<string, string>(devList.map((d) => [d.name.toLowerCase(), d.id]));
+
+    const schemeIdForName = (name: string | undefined): string | null => {
+      if (!name) return null;
+      const key = name.trim().toLowerCase();
+      for (const d of devList) {
+        if (d.name.toLowerCase().includes(key) || key.includes(d.name.toLowerCase())) {
+          return d.id;
+        }
+      }
+      return null;
+    };
 
     for (const target of targets) {
       const unitRef = (target.unit_identifier || '').trim();
       if (!unitRef) continue;
 
-      let targetDevId: string | null = null;
-      let targetDevName: string | null = null;
-      if (target.scheme_name) {
-        const key = target.scheme_name.trim().toLowerCase();
-        // Fuzzy match against assigned scheme names.
-        for (const d of devList) {
-          if (d.name.toLowerCase().includes(key) || key.includes(d.name.toLowerCase())) {
-            targetDevId = d.id;
-            targetDevName = d.name;
-            break;
-          }
-        }
-        if (!targetDevId) {
-          targetDevId = devIdByName.get(key) || null;
-          targetDevName = target.scheme_name;
-        }
+      const preferredDevId = schemeIdForName(target.scheme_name);
+      const resolution = await resolveUnitIdentifier(supabase, unitRef, {
+        developmentIds: devIds,
+        preferredDevelopmentId: preferredDevId,
+      });
+
+      if (resolution.status === 'not_found') {
+        skipped.push({ ref: unitRef, reason: `No unit "${resolution.normalised}" in your assigned schemes.` });
+        continue;
       }
-      const searchDevIds = targetDevId ? [targetDevId] : devIds;
-      if (!searchDevIds.length) continue;
+      if (resolution.status === 'ambiguous') {
+        const list = resolution.candidates
+          .map((c) => `${c.scheme_name ?? '?'} Unit ${c.unit_number ?? '?'}`)
+          .join(', ');
+        skipped.push({
+          ref: unitRef,
+          reason: `"${unitRef}" matches multiple units across schemes (${list}). Include the scheme name.`,
+        });
+        continue;
+      }
 
-      const { data: units } = await supabase
-        .from('units')
-        .select('id, unit_number, unit_uid, development_id, purchaser_name, purchaser_email')
-        .in('development_id', searchDevIds)
-        .or(`unit_number.ilike.%${unitRef}%,unit_uid.ilike.%${unitRef}%,purchaser_name.ilike.%${target.recipient_name || unitRef}%`)
-        .limit(1);
-      const unit = units?.[0];
-      if (!unit) continue;
+      const unit = resolution.unit;
+      const pipeline = resolution.pipeline;
+      if (seenUnitIds.has(unit.id)) continue;
+      seenUnitIds.add(unit.id);
 
-      const resolvedDevName = targetDevName
-        || devList.find((d) => d.id === unit.development_id)?.name
-        || 'Unknown scheme';
-      const resolvedUnitNumber = unit.unit_number || unit.unit_uid || unitRef;
-      const recipientName = target.recipient_name || unit.purchaser_name || 'Buyer';
+      const schemeName =
+        devList.find((d) => d.id === unit.development_id)?.name ?? target.scheme_name ?? 'Unknown scheme';
+      const unitLabel = `Unit ${unit.unit_number ?? unit.unit_uid ?? unitRef}, ${schemeName}`;
 
-      const unitLabel = `Unit ${resolvedUnitNumber}, ${resolvedDevName}`;
-      const body = [
-        toneGreeting(firstName(recipientName)),
-        '',
+      // Precondition: resolved unit must satisfy the purpose.
+      const preconditionState: UnitStateForPrecondition = {
+        handover_date: pipeline?.handover_date ?? null,
+        unit_status: unit.unit_status,
+        contracts_issued_date: pipeline?.contracts_issued_date ?? null,
+        signed_contracts_date: pipeline?.signed_contracts_date ?? null,
+        counter_signed_date: pipeline?.counter_signed_date ?? null,
+        purchaser_name: unit.purchaser_name,
+      };
+      const precondition = PURPOSE_PRECONDITIONS[purpose];
+      if (!precondition.check(preconditionState)) {
+        skipped.push({ ref: unitRef, reason: precondition.rejectionReason(unitLabel) });
+        continue;
+      }
+
+      const rawName =
+        target.recipient_name ||
+        unit.purchaser_name ||
+        pipeline?.purchaser_name ||
+        'Buyer';
+      const parsed = parseJointPurchaserNames(rawName);
+      const resolvedEmail = unit.purchaser_email || pipeline?.purchaser_email || 'buyer@tbc.invalid';
+
+      const { subject, body } = buildFollowupContent({
+        purpose,
         topic,
-        '',
-        'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
-        '',
-        toneSignOff(tone),
-        signature(agentContext),
-      ].join('\n');
+        customInstruction,
+        unitLabel,
+        greeting: parsed.greeting,
+        tone,
+        ctx: agentContext,
+      });
 
       drafts.push({
         id: randomUUID(),
         type: 'email' as const,
-        recipient: {
-          name: recipientName,
-          email: unit.purchaser_email || 'buyer@tbc.invalid',
-          role: 'buyer',
-        },
-        subject: `Following up — ${unitLabel}`,
+        recipient: { name: parsed.fullName, email: resolvedEmail, role: 'buyer' },
+        subject,
         body,
         affected_record: { kind: 'sales_unit', id: unit.id, label: unitLabel },
-        reasoning: `Requested follow-up to ${recipientName} at ${unitLabel}. Tone: ${tone}.${unit.purchaser_email ? '' : ' Recipient email missing — placeholder used, please fill in before approving.'}`,
+        reasoning: `${purpose} email to ${parsed.fullName} at ${unitLabel}. Tone: ${tone}.${resolvedEmail === 'buyer@tbc.invalid' ? ' Recipient email missing — placeholder used, please fill in before approving.' : ''}`,
       });
     }
 
-    if (!drafts.length) {
-      return {
-        skill,
-        status: 'awaiting_approval',
-        summary: 'Could not resolve any of the requested units to real buyers. Try naming them more specifically.',
-        drafts: [],
-        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
-      };
+    const summaryParts: string[] = [];
+    if (drafts.length) {
+      summaryParts.push(`Drafted ${drafts.length} ${purpose} email${drafts.length === 1 ? '' : 's'}.`);
+    }
+    if (skipped.length) {
+      summaryParts.push(`Skipped ${skipped.length}: ${skipped.map((s) => s.reason).join(' ')}`);
+    }
+    if (!summaryParts.length) {
+      summaryParts.push(
+        'Could not resolve any of the requested units. Try naming them more specifically.',
+      );
     }
 
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted ${drafts.length} follow-up email${drafts.length === 1 ? '' : 's'}.`,
+      summary: summaryParts.join(' '),
       drafts,
-      meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
+      meta: {
+        record_count: drafts.length,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — extra diagnostic field read by the chat route
+        skipped,
+      } as any,
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 9 — get_candidate_units (intent-aware clarification helper)
+// =====================================================================
+//
+// Session 9 fix. Before prompting "which N units?", the model must see
+// a candidate set filtered by INTENT, not the first N unit numbers in
+// whatever order they sit in the DB. For "congratulate on keys" intent
+// that means handed-over units only.
+//
+// This skill is technically read-only — it returns an envelope with
+// zero drafts and surfaces the candidate list in the summary + meta.
+// Not strictly an agentic skill (no approvals), but registered as one
+// so it lives on the same runAgenticSkill adapter and benefits from
+// the anti-hallucination telemetry.
+
+export async function getCandidateUnitsSkill(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: { intent: CandidateIntent; scheme_name?: string; limit?: number },
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'get_candidate_units';
+  const intent: CandidateIntent = (inputs.intent || 'all') as CandidateIntent;
+  const limit = Math.max(1, Math.min(20, inputs.limit ?? 6));
+  const query = `get_candidate_units intent=${intent} scheme=${inputs.scheme_name ?? '(any)'}`;
+
+  try {
+    const { data: asgs } = await supabase
+      .from('agent_scheme_assignments')
+      .select('development_id')
+      .eq('agent_id', agentContext.agentId)
+      .eq('is_active', true);
+    const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
+    if (!devIds.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'No assigned schemes — no candidate units.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    let preferredDevId: string | null = null;
+    if (inputs.scheme_name) {
+      const key = inputs.scheme_name.trim().toLowerCase();
+      const { data: devs } = await supabase
+        .from('developments')
+        .select('id, name')
+        .in('id', devIds);
+      const match = (devs || []).find((d: any) => {
+        const n = String(d.name).toLowerCase();
+        return n === key || n.includes(key) || key.includes(n);
+      });
+      if (match) preferredDevId = match.id as string;
+    }
+
+    const candidates = await getCandidateUnits(supabase, intent, {
+      developmentIds: devIds,
+      preferredDevelopmentId: preferredDevId,
+      limit,
+    });
+
+    const summaryLines = candidates.length
+      ? [
+          `Found ${candidates.length} candidate unit${candidates.length === 1 ? '' : 's'} (${intent}):`,
+          ...candidates.map((c) => {
+            const buyer = c.purchaser_name ? ` — ${c.purchaser_name}` : '';
+            return `- ${c.scheme_name} Unit ${c.unit_number}${buyer} (${c.status_hint})`;
+          }),
+        ]
+      : [`No candidate units found for intent '${intent}'.`];
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: summaryLines.join('\n'),
+      drafts: [],
+      meta: {
+        record_count: candidates.length,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore extra diagnostic
+        candidates,
+      } as any,
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);

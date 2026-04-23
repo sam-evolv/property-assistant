@@ -65,18 +65,25 @@ export async function requestMicrophonePermission(): Promise<NativeMicPermission
   const native = await isCapacitorNative();
   if (!native) return { status: 'unavailable' };
 
-  try {
-    const specifier = '@capacitor/microphone';
-    // @ts-ignore — optional plugin; loaded only on native
-    const mod = await import(/* webpackIgnore: true */ specifier);
-    const plugin = mod?.Microphone;
-    if (!plugin || typeof plugin.requestPermissions !== 'function') {
-      // Plugin missing in the wrapper — best-effort: let getUserMedia try.
-      return { status: 'prompt' };
-    }
+  // Session 8 Bug 2 fix. Previous implementation always ran
+  // `await import('@capacitor/microphone')`. When the plugin isn't
+  // installed in the shell (the PWA-Capacitor config), the bare specifier
+  // hits the WebView as an unresolved fetch — on iOS that can corrupt the
+  // WebView's decide-policy state, causing subsequent relative-href taps
+  // to be treated as external navigations and handed off to Mobile Safari.
+  // Gate the `import()` behind a pre-check that the plugin is already
+  // registered on `Capacitor.Plugins.Microphone`. If it isn't, never run
+  // the bare-specifier import — just return 'unavailable' so the browser
+  // path handles permission directly via getUserMedia.
+  const cap = await getCapacitor();
+  const preregistered = cap?.Plugins?.Microphone;
+  if (!preregistered || typeof preregistered.requestPermissions !== 'function') {
+    return { status: 'unavailable' };
+  }
 
-    const check = typeof plugin.checkPermissions === 'function'
-      ? await plugin.checkPermissions().catch(() => null)
+  try {
+    const check = typeof preregistered.checkPermissions === 'function'
+      ? await preregistered.checkPermissions().catch(() => null)
       : null;
 
     if (check?.microphone === 'granted') return { status: 'granted' };
@@ -84,14 +91,13 @@ export async function requestMicrophonePermission(): Promise<NativeMicPermission
       return { status: 'denied', canOpenSettings: true };
     }
 
-    const res = await plugin.requestPermissions();
+    const res = await preregistered.requestPermissions();
     if (res?.microphone === 'granted') return { status: 'granted' };
     if (res?.microphone === 'denied') {
       return { status: 'denied', canOpenSettings: true };
     }
     return { status: 'prompt' };
   } catch {
-    // Plugin import failed — treat as unavailable so the web path still works.
     return { status: 'unavailable' };
   }
 }
@@ -102,17 +108,16 @@ export async function requestMicrophonePermission(): Promise<NativeMicPermission
  * no-op if the App plugin is not installed.
  */
 export async function openNativeSettings(): Promise<boolean> {
+  // Same hardening as the mic path: only try the App plugin if it's
+  // already on Capacitor.Plugins. Never emit a bare-specifier import
+  // that could be interpreted as a network URL by the WebView.
+  const cap = await getCapacitor();
+  const App = cap?.Plugins?.App;
+  if (!App || typeof App.openSettings !== 'function') return false;
   try {
-    const specifier = '@capacitor/app';
-    // @ts-ignore
-    const mod = await import(/* webpackIgnore: true */ specifier);
-    const App = mod?.App;
-    if (App && typeof App.openSettings === 'function') {
-      await App.openSettings();
-      return true;
-    }
+    await App.openSettings();
+    return true;
   } catch {
-    /* no-op */
+    return false;
   }
-  return false;
 }
