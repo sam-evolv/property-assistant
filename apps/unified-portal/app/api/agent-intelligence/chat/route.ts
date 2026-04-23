@@ -79,6 +79,21 @@ export async function POST(request: NextRequest) {
       activeDevelopmentId: activeDevelopmentId ?? null,
     };
 
+    // Session 14.2 — trip-wire log. If `resolveAgentContext` returned a
+    // profile but zero assigned schemes, every downstream read tool will
+    // reply "(none)" against every real scheme name. That's the silent
+    // state Session 14.2 is fixing; log it at the dispatch layer too,
+    // because the next regression will surface here before it shows up
+    // in the tool result summary.
+    if (!agentContext.assignedDevelopmentIds.length) {
+      console.error('[chat/route] agent context has empty assignedDevelopmentIds', {
+        agentProfileId: resolved.agentProfileId,
+        userId: authUserId,
+        tenantId,
+        message: message.slice(0, 200),
+      });
+    }
+
     // 2. Build context components in parallel — legacy loaders + new live-context blocks.
     // Each new helper is wrapped in .catch() so a failing query (e.g. a column
     // mismatch on agent_letting_properties / agent_tenancies) degrades to an

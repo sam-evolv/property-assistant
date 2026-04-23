@@ -110,6 +110,20 @@ export async function resolveAgentContext(
     }
   }
 
+  // Session 14.2 — surface the silent "profile loaded but no assignments"
+  // state. If we got here with a real agent profile but zero assignments
+  // AND no activeDevelopmentId fallback was supplied to prop things up,
+  // that's the exact shape that makes downstream tools reply "you have
+  // no schemes assigned" even when the database says otherwise. Log it.
+  if (!assignedSchemes.length && !opts.activeDevelopmentId) {
+    console.error('[agent-context] resolveAgentContext: profile loaded but ZERO assigned schemes', {
+      agentProfileId: profile.id,
+      authUserId,
+      tenantId: profile.tenant_id ?? null,
+      displayName: profile.display_name,
+    });
+  }
+
   return {
     authUserId: authUserId || profile.user_id || profile.id,
     agentProfileId: profile.id,
@@ -148,11 +162,30 @@ async function fetchAssignments(supabase: SupabaseClient, agentProfileId: string
   // Intentionally no tenant_id filter: the join through agent_profiles already
   // establishes tenant scope. Filtering here drops rows whose tenant_id
   // column is null on legacy data.
-  const { data } = await supabase
+  //
+  // Session 14.2 — capture and log errors instead of swallowing them.
+  // Pre-14.2 this function did `const { data } = …; return data ?? []`,
+  // which turned a transient Supabase error (network hiccup, cold
+  // start, revoked service-role key) into a silent empty assignment
+  // list. Downstream code (scheme-resolver, read-tools) then told the
+  // user "you have no schemes assigned" — the exact Session 6A
+  // regression. Now: if the call errors, log loudly AND throw, so the
+  // caller surfaces a 500 the operator will actually see instead of a
+  // silent "(none)".
+  const { data, error } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id, is_active, role')
     .eq('agent_id', agentProfileId)
     .eq('is_active', true);
+  if (error) {
+    console.error('[agent-context] fetchAssignments error', {
+      agentProfileId,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+    });
+    throw new Error(`fetchAssignments failed for agent ${agentProfileId}: ${error.message}`);
+  }
   return (data ?? []) as Array<{ development_id: string; is_active: boolean; role: string | null }>;
 }
 

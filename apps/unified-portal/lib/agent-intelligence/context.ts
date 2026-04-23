@@ -1,7 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { AgentContext } from './types';
 import { isInRPZ } from './rpz-zones';
-import { resolveAgentContext } from './agent-context';
 
 export interface AgentProfileExtras {
   agencyName: string | null;
@@ -76,36 +75,10 @@ export interface ViewingRow {
   buyerPhone: string | null;
 }
 
-/**
- * Load the agent profile and assigned schemes for the authenticated user.
- *
- * Thin wrapper around `resolveAgentContext` that reshapes the result into the
- * legacy `AgentContext` returned to existing callers. Kept so historical code
- * paths (e.g. the chat route) keep working; new call sites should use
- * `resolveAgentContext` directly.
- */
-export async function loadAgentContext(
-  supabase: SupabaseClient,
-  userId: string,
-  tenantId: string,
-  opts: { activeDevelopmentId?: string | null } = {},
-): Promise<AgentContext | null> {
-  const resolved = await resolveAgentContext(supabase, userId, opts);
-  if (!resolved) return null;
-
-  return {
-    agentId: resolved.agentProfileId,
-    userId: resolved.authUserId,
-    tenantId: resolved.tenantId ?? tenantId,
-    displayName: resolved.displayName,
-    agencyName: resolved.agencyName,
-    agentType: resolved.agentType,
-    assignedSchemes: resolved.assignedSchemes,
-    assignedDevelopmentIds: resolved.assignedDevelopmentIds,
-    assignedDevelopmentNames: resolved.assignedDevelopmentNames,
-    activeDevelopmentId: opts.activeDevelopmentId ?? null,
-  };
-}
+// Session 14.2 — `loadAgentContext` removed. It was a thin wrapper around
+// `resolveAgentContext` with zero active callers (grep -rn loadAgentContext
+// returned only its own definition). Dead code is the trap that invites
+// the next Session 6A regression; one loader, one import path.
 
 /**
  * Build a summary of recent activity across assigned schemes (last 7 days).

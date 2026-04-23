@@ -65,6 +65,25 @@ export async function resolveSchemeName(
     'assignedDevelopmentIds' | 'assignedDevelopmentNames'
   >,
 ): Promise<SchemeResolution> {
+  // Session 14.2 — defense-in-depth guard. If the caller handed us an
+  // empty assignedDevelopmentIds list, downstream we're guaranteed to
+  // return not_assigned (or not_found) against any real scheme name.
+  // That's the "(none)" reply the user saw on Árdan View. Log loudly
+  // so the next regression is five seconds of reading logs rather than
+  // an hour of tracing. We still proceed — the resolver's not_found /
+  // not_assigned paths produce the correct honest refusal.
+  if (
+    !Array.isArray(agentContext.assignedDevelopmentIds) ||
+    agentContext.assignedDevelopmentIds.length === 0
+  ) {
+    console.error('[scheme-resolver] CRITICAL: agentContext has empty assignedDevelopmentIds', {
+      rawSchemeName,
+      keys: Object.keys(agentContext),
+      assignedDevelopmentIds: agentContext.assignedDevelopmentIds,
+      assignedDevelopmentNames: agentContext.assignedDevelopmentNames,
+    });
+  }
+
   const normalised = normaliseSchemeName(rawSchemeName);
   const candidates = agentContext.assignedDevelopmentNames.slice();
 
