@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { resolveAgentContext } from '@/lib/agent-intelligence/agent-context';
+import { resolveAgentContextV2 } from '@/lib/agent-intelligence/resolve-agent-v2';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -225,6 +226,17 @@ export async function GET(_request: NextRequest) {
     resolvedFreshError = err?.message || String(err);
   }
 
+  // Session 14.6 — call the V2 resolver as well. If V2 returns the
+  // correct 5 assignments while V1 returns 0, V2 is shippable as-is
+  // and we can wire it into the chat route.
+  let v2Result: Awaited<ReturnType<typeof resolveAgentContextV2>> | null = null;
+  let v2Error: string | null = null;
+  try {
+    v2Result = await resolveAgentContextV2(sharedClient, resolved.authUserId);
+  } catch (err: any) {
+    v2Error = err?.message || String(err);
+  }
+
   const probe = await supabase
     .from('agent_scheme_assignments')
     .select('development_id', { count: 'exact', head: true })
@@ -259,6 +271,13 @@ export async function GET(_request: NextRequest) {
         assignedDevelopmentIds: resolvedFresh?.assignedDevelopmentIds ?? null,
         assignedDevelopmentNames: resolvedFresh?.assignedDevelopmentNames ?? null,
         error: resolvedFreshError,
+      },
+      resolverV2: {
+        agentProfileId: v2Result?.context?.agentProfileId ?? null,
+        assignedDevelopmentIds: v2Result?.context?.assignedDevelopmentIds ?? null,
+        assignedDevelopmentNames: v2Result?.context?.assignedDevelopmentNames ?? null,
+        trace: v2Result?.trace ?? null,
+        error: v2Error,
       },
       verdict: ok
         ? `OK — ${resolvedCount} assigned scheme(s), resolver and probe agree.`
