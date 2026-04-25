@@ -75,6 +75,12 @@ export async function requestMicrophonePermission(): Promise<NativeMicPermission
   // registered on `Capacitor.Plugins.Microphone`. If it isn't, never run
   // the bare-specifier import — just return 'unavailable' so the browser
   // path handles permission directly via getUserMedia.
+  //
+  // Session 14.13.3 — the iOS wrapper installs
+  // `@capacitor-community/microphone`, which registers itself on
+  // `Capacitor.Plugins.Microphone`. Same global key as the (non-existent)
+  // first-party `@capacitor/microphone` would have used, so the lookup
+  // below is correct.
   const cap = await getCapacitor();
   const preregistered = cap?.Plugins?.Microphone;
   if (!preregistered || typeof preregistered.requestPermissions !== 'function') {
