@@ -704,7 +704,26 @@ function IntelligencePageInner() {
                 Same brand DNA: contained logo mark above the hero, all-caps
                 product label, larger H1 with intentional vertical rhythm,
                 drafts promoted from underline to a proper chip. */}
-            <div style={{ height: isDesktop ? 56 : 32, flexShrink: 0 }} />
+            <div style={{ height: isDesktop ? 40 : 18, flexShrink: 0 }} />
+
+            {/* Session 14.13.2 — disclaimer relocated to just above the
+                brand mark. It used to sit under the input bar, but on
+                iOS the floating bottom-tab home glyph occluded it. Now
+                it has its own breathing room in the hero and is always
+                visible regardless of bottom-bar UI. */}
+            <p
+              style={{
+                margin: 0,
+                marginBottom: isDesktop ? 18 : 14,
+                fontSize: 10,
+                color: '#9CA3AF',
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                fontWeight: 600,
+              }}
+            >
+              Powered by AI · For reference only
+            </p>
 
             {/* Logo — contained mark, sized like a brand surface, not a
                 watermark. Sits in a soft circular frame so it reads as
