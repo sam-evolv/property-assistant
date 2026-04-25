@@ -44,3 +44,6 @@ coverage/
 apps/unified-portal/.next/
 packages/api/.next/
 packages/api/tmp/
+
+.vercel/
+scripts/seed-test-users.mjs
