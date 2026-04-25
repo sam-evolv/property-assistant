@@ -131,40 +131,47 @@ async function composeChips(
   const rentalViewingsCount = rentalViewingsCountRes.count ?? 0;
   const draftsCount = draftsCountRes.count ?? 0;
 
+  // Session 14.12 — chip copy is short, action-oriented, and never
+  // truncated in the carousel. Each phrase is ≤22 chars where possible.
+  // Scheme-specific phrases use the shortest scheme name (token 1) when
+  // including a name in the copy would otherwise blow the budget.
   const chips: string[] = [];
 
+  const shortest = (names: string[]): string => {
+    const ranked = [...names].sort((a, b) => a.length - b.length);
+    return ranked[0] || '';
+  };
+  const firstScheme = shortest(schemeNames);
+
   // --- Sales pipeline: scheme-specific, only when we have real names.
-  if (schemeNames.length) {
-    chips.push(`What's outstanding on contracts in ${schemeNames[0]}?`);
-    chips.push(`Brief me on ${schemeNames[0]}`);
-    if (schemeNames.length > 1) {
-      chips.push(`Switch to ${schemeNames[1]}`);
-      chips.push('Show me everything across all schemes');
-    }
+  if (firstScheme && firstScheme.length <= 14) {
+    chips.push(`Brief on ${firstScheme}`);
+  } else if (schemeNames.length) {
+    chips.push('Brief on a scheme');
   }
-  chips.push('Show me overdue chases');
-  chips.push('What signed this week?');
   chips.push('Chase aged contracts');
+  chips.push('Show overdue chases');
+  chips.push('Signed this week?');
 
   // --- Lettings: only when real rows exist.
   if (lettingAddresses.length) {
-    chips.push(`Log a rental viewing for ${lettingAddresses[0]}`);
+    chips.push('Log a rental viewing');
   }
   if (tenanciesCount > 0) {
-    chips.push('Which tenancies are up for renewal?');
+    chips.push('Renewals due');
   }
   if (applicantsCount > 0 && lettingAddresses.length) {
-    chips.push(`Show me applicants for ${lettingAddresses[0]}`);
+    chips.push('Letting applicants');
   }
   if (rentalViewingsCount > 0) {
-    chips.push("What rental viewings do I have this week?");
+    chips.push('Rental viewings');
   }
 
   // --- Reporting / scheduling / briefings: always safe.
-  chips.push('Generate developer weekly report');
-  chips.push('Give me a scheme summary');
-  chips.push("What's on for me today?");
-  chips.push('What viewings do I have this week?');
+  chips.push('Weekly report');
+  chips.push('Scheme summary');
+  chips.push("What's on today?");
+  chips.push('This week’s viewings');
 
   // --- Drafts: only surface when the inbox actually has items.
   if (draftsCount > 0) {
@@ -172,8 +179,8 @@ async function composeChips(
   }
 
   chips.push('Invite an applicant');
-  chips.push('Draft a buyer follow-up email');
-  chips.push('Schedule a viewing for Saturday at 2pm');
+  chips.push('Draft a follow-up');
+  chips.push('Schedule a viewing');
 
   const seen = new Set<string>();
   const deduped: string[] = [];

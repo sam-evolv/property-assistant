@@ -700,65 +700,94 @@ function IntelligencePageInner() {
               minHeight: 0,
             }}
           >
-            {/* Breathing room from the status bar. */}
-            <div style={{ height: 24, flexShrink: 0 }} />
+            {/* Session 14.12 — landing redesign anchored to OpenHouse Select.
+                Same brand DNA: contained logo mark above the hero, all-caps
+                product label, larger H1 with intentional vertical rhythm,
+                drafts promoted from underline to a proper chip. */}
+            <div style={{ height: isDesktop ? 56 : 32, flexShrink: 0 }} />
 
-            {/* Session 11 restored, Session 12 enlarged — OPENHOUSE
-                logo centred above the hero. 80×80 on mobile, 96×96 on
-                desktop. Always rendered regardless of drafts state. */}
-            <Image
-              src="/oh-logo.png"
-              alt="OpenHouse"
-              width={isDesktop ? 96 : 80}
-              height={isDesktop ? 96 : 80}
-              priority
+            {/* Logo — contained mark, sized like a brand surface, not a
+                watermark. Sits in a soft circular frame so it reads as
+                deliberate rather than pasted in. */}
+            <div
               style={{
-                objectFit: 'contain',
-                display: 'block',
-                mixBlendMode: 'multiply',
-                marginBottom: 32,
+                width: isDesktop ? 128 : 104,
+                height: isDesktop ? 128 : 104,
+                borderRadius: '50%',
+                background: 'rgba(196,155,42,0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 14,
               }}
-            />
+            >
+              <Image
+                src="/oh-logo.png"
+                alt="OpenHouse"
+                width={isDesktop ? 92 : 76}
+                height={isDesktop ? 92 : 76}
+                priority
+                style={{
+                  objectFit: 'contain',
+                  display: 'block',
+                  mixBlendMode: 'multiply',
+                }}
+              />
+            </div>
+
+            {/* Product label — small, all-caps, calm. Mirrors the
+                "OPENHOUSE SELECT" treatment on the homeowner surface. */}
+            <div
+              style={{
+                color: '#C49B2A',
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                marginBottom: 16,
+              }}
+            >
+              OpenHouse Intelligence
+            </div>
 
             <h1
               data-testid="intelligence-hero"
               style={{
                 color: '#0b0c0f',
-                fontSize: 26,
+                fontSize: isDesktop ? 38 : 30,
                 fontWeight: 600,
-                letterSpacing: '-0.025em',
-                lineHeight: 1.2,
+                letterSpacing: '-0.03em',
+                lineHeight: 1.15,
                 margin: 0,
-                maxWidth: 320,
+                maxWidth: 380,
               }}
             >
               What can I help with, {firstName}?
             </h1>
 
-            <div style={{ height: 18, flexShrink: 0 }} />
+            <div style={{ height: 14, flexShrink: 0 }} />
 
             <p
               style={{
                 color: '#6B7280',
-                fontSize: 14,
-                lineHeight: 1.5,
+                fontSize: 15,
+                lineHeight: 1.55,
                 margin: 0,
-                maxWidth: 300,
-                letterSpacing: '0.005em',
+                maxWidth: 320,
+                letterSpacing: 0,
               }}
             >
               Voice or text. I&rsquo;ll show you what I drafted before sending.
             </p>
 
-            {/* Session 11 — quiet drafts link.
-                Single muted line under the helper sentence; only
-                rendered when count resolves to > 0. 20px reserved so
-                the chip carousel doesn't shift when the link appears
-                or disappears. The FAB badge already shows the count. */}
+            {/* Session 14.12 — drafts chip. Promoted from a quiet underlined
+                link to a proper card. Light gold background, count badge on
+                the left, label and chevron. Reserves height even when count
+                is 0 so layout doesn't shift. */}
             <div
               style={{
-                marginTop: 12,
-                minHeight: 20,
+                marginTop: 22,
+                minHeight: 44,
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
@@ -771,19 +800,43 @@ function IntelligencePageInner() {
                   type="button"
                   data-testid="intelligence-drafts-link"
                   onClick={() => router.push('/agent/drafts')}
+                  className="agent-tappable"
                   style={{
-                    background: 'transparent',
-                    border: 'none',
-                    padding: 0,
-                    color: '#6B7280',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    background: 'rgba(196,155,42,0.10)',
+                    border: '0.5px solid rgba(196,155,42,0.22)',
+                    borderRadius: 999,
+                    padding: '8px 14px 8px 8px',
+                    color: '#0b0c0f',
                     fontSize: 13,
                     fontFamily: 'inherit',
-                    textDecoration: 'underline',
-                    textUnderlineOffset: 3,
+                    fontWeight: 500,
                     cursor: 'pointer',
                   }}
                 >
-                  {pendingDraftsCount} draft{pendingDraftsCount === 1 ? '' : 's'} waiting in your inbox
+                  <span
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      minWidth: 26,
+                      height: 26,
+                      borderRadius: 999,
+                      background: '#C49B2A',
+                      color: '#fff',
+                      fontWeight: 700,
+                      fontSize: 12,
+                      padding: '0 8px',
+                    }}
+                  >
+                    {pendingDraftsCount}
+                  </span>
+                  <span>draft{pendingDraftsCount === 1 ? '' : 's'} waiting</span>
+                  <span aria-hidden="true" style={{ color: '#9CA3AF', fontSize: 14, marginLeft: 2 }}>
+                    ›
+                  </span>
                 </button>
               ) : null}
             </div>
