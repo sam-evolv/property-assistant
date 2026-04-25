@@ -161,6 +161,33 @@ describe('resolveAgentContext', () => {
     expect(asgCall!.filters).toHaveProperty('is_active', true);
   });
 
+  it('returns null for an unauthenticated request — never falls back to the earliest agent (Session 15)', async () => {
+    const state = baseState();
+    const supabase = createMockSupabase(state);
+
+    // Pre-Session-15, this would have silently returned Orla's context
+    // because the resolver fell back to the earliest profile in the
+    // table when no auth user was supplied. Post-fix, an unauthenticated
+    // request must yield null so the caller renders an empty/auth-required
+    // state instead of leaking another agent's data.
+    const resolved = await resolveAgentContext(supabase, undefined);
+    expect(resolved).toBeNull();
+
+    const resolvedNull = await resolveAgentContext(supabase, null);
+    expect(resolvedNull).toBeNull();
+  });
+
+  it('returns null when the auth user has no agent_profile row — no fallback to another agent (Session 15)', async () => {
+    const state = baseState();
+    const supabase = createMockSupabase(state);
+
+    // Auth user exists but is not an agent. Pre-Session-15, this would
+    // have returned Orla's context via the earliest-profile fallback.
+    const ghostUserId = '00000000-0000-0000-0000-deadbeef0000';
+    const resolved = await resolveAgentContext(supabase, ghostUserId);
+    expect(resolved).toBeNull();
+  });
+
   it('matchAssignedScheme confirms a scheme is in scope (fuzzy, case-insensitive)', () => {
     const ctx = {
       assignedDevelopmentIds: [ARDAN_VIEW_ID],

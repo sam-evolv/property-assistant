@@ -65,20 +65,14 @@ export async function resolveAgentContextV2(
     profile = (profileRes.data as AgentProfileRow | null) ?? null;
   }
 
-  // 2. Fallback: earliest profile.
-  if (!profile) {
-    const fallbackRes = await supabase
-      .from('agent_profiles')
-      .select('id, user_id, tenant_id, display_name, agent_type, agency_name')
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    log('profile-fallback', {
-      data: fallbackRes.data ? { id: (fallbackRes.data as any).id, user_id: (fallbackRes.data as any).user_id } : null,
-      error: fallbackRes.error?.message ?? null,
-    });
-    profile = (fallbackRes.data as AgentProfileRow | null) ?? null;
-  }
+  // Session 15 — generalize-agent. Removed the "earliest profile"
+  // fallback. Previously, when an auth user couldn't be resolved (logged
+  // out, expired session, missing JWT), we'd grab the first row from
+  // `agent_profiles` ordered by created_at. In production that's Orla,
+  // because she was seeded first — meaning every unauthenticated request
+  // silently received Orla's full agent context. That's a per-user data
+  // isolation bug. Now: no auth user → no profile → caller renders an
+  // unauthenticated state, never another agent's data.
 
   if (!profile) {
     log('no-profile', {});
