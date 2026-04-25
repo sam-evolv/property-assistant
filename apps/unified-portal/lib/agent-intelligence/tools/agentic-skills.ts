@@ -1065,16 +1065,24 @@ export async function draftMessageSkill(
   inputs: DraftMessageSkillInput,
 ): Promise<AgenticSkillEnvelope> {
   const skill = 'draft_message';
-  const recipientName = (inputs.recipient_name || '').trim();
+  // Session 14.10 — recipient_name is now optional. Many real instructions
+  // refer to a buyer by unit only ("reach out to number 3, Árdan View" —
+  // no name attached). The skill can derive the recipient name from the
+  // resolved unit's purchaser_name. We carry recipientName as a let so the
+  // unit-resolution stage below can fill it in when empty.
+  let recipientName = (inputs.recipient_name || '').trim();
   const context = (inputs.context || '').trim();
   const tone = (inputs.tone || (inputs.recipient_type === 'solicitor' ? 'formal' : 'warm')).trim();
   const query = `draft_message recipient="${recipientName}" unit="${inputs.related_unit || ''}" scheme="${inputs.related_scheme || ''}"`;
 
-  if (!recipientName) {
+  // Defer the "no recipient" check until AFTER unit resolution. We only
+  // surface the error if no unit was given AND no name was given AND no
+  // scheme was given — i.e. nothing the skill can hang a draft on.
+  if (!recipientName && !inputs.related_unit && !inputs.related_scheme) {
     return {
       skill,
       status: 'awaiting_approval',
-      summary: 'Recipient name is required to draft an email.',
+      summary: 'Recipient name (or unit/scheme) is required to draft an email.',
       drafts: [],
       meta: { record_count: 0, generated_at: new Date().toISOString(), query },
     };
@@ -1202,6 +1210,27 @@ export async function draftMessageSkill(
         if (!resolvedEmail && unitRes.unit.purchaser_email) {
           resolvedEmail = unitRes.unit.purchaser_email;
         }
+        // Session 14.10 — derive recipientName from the unit's purchaser
+        // when the user didn't name a person explicitly. "reach out to
+        // number 3, Árdan View" should draft to whoever the purchaser of
+        // Unit 3 is on file (the Foley family in our test data) without
+        // requiring the user to also type the name. Falls back to the
+        // unit_sales_pipeline.purchaser_name if the units row doesn't
+        // carry one, since pipeline rows are the canonical record for
+        // sale-agreed-and-later state.
+        if (!recipientName) {
+          if (unitRes.unit.purchaser_name) {
+            recipientName = unitRes.unit.purchaser_name.trim();
+          } else {
+            const { data: pipe } = await supabase
+              .from('unit_sales_pipeline')
+              .select('purchaser_name, purchaser_email')
+              .eq('unit_id', unitRes.unit.id)
+              .maybeSingle();
+            if (pipe?.purchaser_name) recipientName = pipe.purchaser_name.trim();
+            if (!resolvedEmail && pipe?.purchaser_email) resolvedEmail = pipe.purchaser_email;
+          }
+        }
         if (!resolvedSchemeName) {
           // Only the unit was specified; pull the scheme name from the
           // resolved unit's development_id.
@@ -1214,6 +1243,21 @@ export async function draftMessageSkill(
         }
         affectedUnitId = unitRes.unit.id;
       }
+    }
+
+    // Session 14.10 — final guard: if after unit resolution we STILL have
+    // no recipient name, surface the honest reason. The unit has no
+    // purchaser on file yet (truly unsold or reserved-without-record).
+    if (!recipientName) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: resolvedUnitNumber && resolvedSchemeName
+          ? `I couldn't find a buyer on file for Unit ${resolvedUnitNumber}, ${resolvedSchemeName}. Add a recipient name or specify the buyer.`
+          : 'Recipient name (or unit/scheme) is required to draft an email.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
     }
 
     const unitLabel = resolvedUnitNumber && resolvedSchemeName
