@@ -23,7 +23,7 @@ import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
-import { captureInferredAlias } from '@/lib/agent-intelligence/scheme-resolver';
+import { captureInferredAlias, suggestClosestScheme, normaliseSchemeName } from '@/lib/agent-intelligence/scheme-resolver';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -394,9 +394,63 @@ export async function POST(request: NextRequest) {
     // DIFFERENT candidates the prompt would be ambiguous — skip entirely.
     // Only fires when zero drafts landed, so a successful partial draft
     // doesn't interrupt the normal flow with a clarification.
-    const topCandidateForPrompt = totalDraftsPersisted === 0
+    let topCandidateForPrompt: ReturnType<typeof pickSingleTopCandidate> = totalDraftsPersisted === 0
       ? pickSingleTopCandidate(envelopes)
       : null;
+
+    // Session 14.10 — disambiguation safety net.
+    //
+    // When the model defies the WRITE-SIDE TOOL-USE MANDATE and refuses
+    // a "reach out / draft / email" instruction inline (without calling
+    // any draft tool), no envelope is produced and no top_candidate
+    // surfaces. The user sees a flat "X isn't one of your schemes"
+    // refusal even when X is one Levenshtein hop from a real scheme.
+    //
+    // This safety net fires when:
+    //   - No tool was called this turn (toolsCalled is empty), AND
+    //   - The user message contains a candidate scheme phrase (a
+    //     capitalised multi-word noun phrase or a phrase preceded by
+    //     "in" / "at" / "," that looks like a place name), AND
+    //   - That candidate is within Levenshtein distance ≤ 3 of exactly
+    //     one assigned scheme name (per scheme-resolver's
+    //     suggestClosestScheme heuristic), AND
+    //   - The user message looks like a write request (contains a verb
+    //     from a known set: reach out, draft, email, send, follow up,
+    //     chase, ping, message, write, contact, let X know).
+    //
+    // When all four hold, we pre-populate topCandidateForPrompt so the
+    // existing yes/no short-circuit downstream emits "Did you mean X?".
+    // The next turn's "yes" reply then re-runs the original message
+    // with the canonical scheme name substituted in — same flow as the
+    // tool-driven path.
+    if (!topCandidateForPrompt && toolsCalled.length === 0 && agentContext.assignedDevelopmentNames.length) {
+      const writeIntent = /\b(reach\s*out|draft|email|send|follow\s*up|chase|ping|message|write\s*to|contact|let\s+\w+\s+know)\b/i.test(message);
+      if (writeIntent) {
+        const candidateNames = extractCandidateSchemePhrases(message);
+        for (const candidate of candidateNames) {
+          const closest = suggestClosestScheme(candidate, {
+            assignedDevelopmentNames: agentContext.assignedDevelopmentNames,
+          });
+          if (closest && normaliseForCompare(closest) !== normaliseForCompare(candidate)) {
+            const idx = agentContext.assignedDevelopmentNames.findIndex((n) => n === closest);
+            if (idx >= 0) {
+              topCandidateForPrompt = {
+                name: closest,
+                typed: candidate,
+                developmentId: agentContext.assignedDevelopmentIds[idx],
+              };
+              console.error('[disambiguation-safety-net] activated', {
+                userId: agentContext.authUserId,
+                typed: candidate,
+                suggested: closest,
+                originalMessage: message.slice(0, 200),
+              });
+              break;
+            }
+          }
+        }
+      }
+    }
 
     // Session 13 self-healing alias capture.
     //
@@ -862,6 +916,69 @@ function pickSingleTopCandidate(envelopes: AgenticSkillEnvelope[]): {
   const distinct = new Set(seen.map((c) => c.developmentId));
   if (distinct.size !== 1) return null;
   return seen[0];
+}
+
+/**
+ * Session 14.10 — disambiguation safety net.
+ *
+ * Pull plausible scheme-name phrases out of a free-form user message.
+ * Heuristic: any sequence of 1–4 capitalised tokens (allowing words like
+ * "View", "Park", "Heights", "Apartments", "Lawn"), optionally preceded
+ * by "in", "at", "for", or a comma. Returns candidates in order of
+ * appearance, deduped, lowercase-collapsed for compare.
+ *
+ * Examples:
+ *   "Reach out to number 3, Erdon View"        → ["Erdon View"]
+ *   "Email the Murphys at Castlebar Heights"   → ["Castlebar Heights"]
+ *   "Tell me about Rathárd Park and Longview"  → ["Rathárd Park", "Longview"]
+ *   "What's the status of Unit 3 in Árdan View?" → ["Árdan View"]
+ *
+ * Intentionally permissive — false positives are filtered downstream
+ * by the Levenshtein distance check in suggestClosestScheme. We only
+ * lose disambiguation suggestions if NO capitalised phrase appears in
+ * the message, which for write-side scheme references is essentially
+ * never.
+ */
+function extractCandidateSchemePhrases(message: string): string[] {
+  // Match a run of 1–4 Capitalised Words. Allow Irish chars (Á, É, Í, Ó, Ú).
+  // Loose: doesn't require the run to be preceded by anything, but excludes
+  // sentence-initial 'I', and excludes obvious non-place phrases.
+  const TOKEN = "[A-ZÁÉÍÓÚ][a-záéíóúA-ZÁÉÍÓÚ'’-]+";
+  const regex = new RegExp(`(?:${TOKEN}(?:\\s+${TOKEN}){0,3})`, 'g');
+  const matches = message.match(regex) ?? [];
+  const stopwords = new Set([
+    'I', 'Unit', 'Number', 'Apt', 'Apartment', 'House', 'Mr', 'Mrs', 'Ms',
+    'Reach', 'Draft', 'Email', 'Send', 'Follow', 'Chase', 'Ping', 'Message',
+    'Write', 'Contact', 'Let', 'Please', 'Tell', 'Show', 'Find', 'Get', 'Check',
+    'What', 'Who', 'When', 'Where', 'Why', 'How', 'Yes', 'No', 'Hi', 'Hello',
+    'OK', 'Okay', 'Thanks', 'Thank', 'Sure',
+  ]);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of matches) {
+    const trimmed = raw.trim().replace(/^(in|at|for|to|the)\s+/i, '');
+    // Skip obviously single-word stopwords.
+    const tokens = trimmed.split(/\s+/);
+    if (tokens.length === 1 && stopwords.has(tokens[0])) continue;
+    // Strip leading stopword token if multi-word.
+    while (tokens.length > 1 && stopwords.has(tokens[0])) tokens.shift();
+    const cleaned = tokens.join(' ').trim();
+    if (!cleaned || cleaned.length < 3) continue;
+    const key = normaliseForCompare(cleaned);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+/**
+ * Lowercased, fadá-stripped, whitespace-collapsed compare key. Mirrors
+ * scheme-resolver's normaliseSchemeName so two phrases compare equal
+ * iff scheme-resolver would treat them as the same alias key.
+ */
+function normaliseForCompare(s: string): string {
+  return normaliseSchemeName(s);
 }
 
 /**

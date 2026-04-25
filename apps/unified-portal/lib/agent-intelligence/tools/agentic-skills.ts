@@ -1236,12 +1236,22 @@ export async function draftMessageSkill(
       signature(agentContext),
     ].filter((line) => line !== undefined).join('\n');
 
+    // Session 14.10 — placeholder semantics. The persistence-layer guard
+    // (draft-store.ts) refuses recipient@tbc.invalid because that
+    // placeholder originally signaled "the WHOLE target is a hallucination —
+    // we never resolved a unit, scheme, or buyer." But on this code path
+    // we DID resolve a real unit (affectedUnitId is set), we just don't
+    // have an email on file. That's the legitimate "fill-in-before-send"
+    // case — use buyer@tbc.invalid (which the guard explicitly allows)
+    // when we have an affected unit, falling back to the catch-all only
+    // when no unit was resolved.
+    const placeholderEmail = affectedUnitId ? 'buyer@tbc.invalid' : 'recipient@tbc.invalid';
     const draft = {
       id: randomUUID(),
       type: 'email' as const,
       recipient: {
         name: recipientName,
-        email: resolvedEmail || 'recipient@tbc.invalid',
+        email: resolvedEmail || placeholderEmail,
         role: inputs.recipient_type || 'recipient',
       },
       subject,
