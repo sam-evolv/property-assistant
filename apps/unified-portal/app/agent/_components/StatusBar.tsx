@@ -192,73 +192,75 @@ export default function StatusBar({
           </span>
         </div>
 
-        {/* Session 14.13 — drafts chip in the top bar, beside the bell.
-            Promoted out of the hero so the agent landing centres entirely
-            on the brand mark + input. Tappable shortcut to /agent/drafts. */}
-        {draftsReady && draftsCount > 0 ? (
-          <button
-            type="button"
-            data-testid="statusbar-drafts-chip"
-            onClick={() => router.push('/agent/drafts')}
-            className="agent-tappable"
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'rgba(196,155,42,0.10)',
-              border: '0.5px solid rgba(196,155,42,0.22)',
-              borderRadius: 999,
-              padding: '4px 10px 4px 4px',
-              color: '#0b0c0f',
-              fontSize: 12,
-              fontFamily: 'inherit',
-              fontWeight: 500,
-              cursor: 'pointer',
-              marginRight: 6,
-              height: 28,
-            }}
-            aria-label={`${draftsCount} drafts waiting`}
-          >
-            <span
+        {/* Session 14.13.1 — right-side cluster: drafts chip + bell sit
+            together, anchored to the right edge. Wrapping them in one
+            flex group fixes the off-centre chip seen in the wild
+            (header was space-between with three children, which pushed
+            the chip into the middle). */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {draftsReady && draftsCount > 0 ? (
+            <button
+              type="button"
+              data-testid="statusbar-drafts-chip"
+              onClick={() => router.push('/agent/drafts')}
+              className="agent-tappable"
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                minWidth: 20,
-                height: 20,
+                gap: 8,
+                background: 'rgba(196,155,42,0.10)',
+                border: '0.5px solid rgba(196,155,42,0.22)',
                 borderRadius: 999,
-                background: '#C49B2A',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: 11,
-                padding: '0 6px',
-                lineHeight: 1,
+                padding: '4px 10px 4px 4px',
+                color: '#0b0c0f',
+                fontSize: 12,
+                fontFamily: 'inherit',
+                fontWeight: 500,
+                cursor: 'pointer',
+                height: 28,
               }}
+              aria-label={`${draftsCount} drafts waiting`}
             >
-              {draftsCount > 99 ? '99+' : draftsCount}
-            </span>
-            <span style={{ lineHeight: 1 }}>Drafts</span>
-          </button>
-        ) : null}
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 20,
+                  height: 20,
+                  borderRadius: 999,
+                  background: '#C49B2A',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: 11,
+                  padding: '0 6px',
+                  lineHeight: 1,
+                }}
+              >
+                {draftsCount > 99 ? '99+' : draftsCount}
+              </span>
+              <span style={{ lineHeight: 1 }}>Drafts</span>
+            </button>
+          ) : null}
 
-        {/* Bell — opens notification panel */}
-        <button
-          onClick={() => setPanelOpen((prev) => !prev)}
-          className="agent-tappable"
-          style={{
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: 'none',
-            border: 'none',
-            padding: 12,
-            margin: -12,
-            minWidth: 44,
-            minHeight: 44,
-            cursor: 'pointer',
-          }}
-        >
+          {/* Bell — opens notification panel */}
+          <button
+            onClick={() => setPanelOpen((prev) => !prev)}
+            className="agent-tappable"
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'none',
+              border: 'none',
+              padding: 12,
+              margin: -12,
+              minWidth: 44,
+              minHeight: 44,
+              cursor: 'pointer',
+            }}
+          >
           <svg
             width="20"
             height="20"
@@ -302,7 +304,8 @@ export default function StatusBar({
               </span>
             </div>
           )}
-        </button>
+          </button>
+        </div>
       </header>
 
       {/* Context switcher bottom sheet */}

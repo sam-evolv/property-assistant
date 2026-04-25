@@ -714,8 +714,8 @@ function IntelligencePageInner() {
                 surface and should feel like it. */}
             <div
               style={{
-                width: isDesktop ? 256 : 208,
-                height: isDesktop ? 256 : 208,
+                width: isDesktop ? 320 : 260,
+                height: isDesktop ? 320 : 260,
                 borderRadius: '50%',
                 background: 'rgba(196,155,42,0.06)',
                 display: 'flex',
@@ -727,8 +727,8 @@ function IntelligencePageInner() {
               <Image
                 src="/oh-logo.png"
                 alt="OpenHouse"
-                width={isDesktop ? 184 : 152}
-                height={isDesktop ? 184 : 152}
+                width={isDesktop ? 230 : 190}
+                height={isDesktop ? 230 : 190}
                 priority
                 style={{
                   objectFit: 'contain',
