@@ -161,6 +161,70 @@ export async function GET(_request: NextRequest) {
     );
   }
 
+  // Session 14.5 — quad-shape probe. We've established (Session 14.4) that
+  // resolver returns 0 while service-role probe returns 5 for the same
+  // agent_id with the same client. To distinguish "shared client JWT
+  // state mutates between calls" from "PostgREST handles different
+  // SELECT shapes differently" from "supabase-js itself drops rows on
+  // certain queries", run all four shapes here and report each.
+  //
+  // Crucially: also build a FRESH service-role client (separate from
+  // getSupabaseAdmin's possibly-cached one) and run the same query —
+  // if the fresh client returns 5 but the shared one returns 0, we
+  // know the issue is client state.
+  const sharedClient = supabase;
+  const { createClient } = await import('@supabase/supabase-js');
+  const freshClient = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+
+  const aid = resolved.agentProfileId;
+
+  // Helper to run a query and return a normalized result line.
+  type Probe = { name: string; client: 'shared' | 'fresh'; selected: string; head: boolean; count: number | null; rows: number | null; error: string | null };
+  const probes: Probe[] = [];
+
+  async function runProbe(name: string, client: typeof sharedClient, clientLabel: 'shared' | 'fresh', selected: string, head: boolean): Promise<void> {
+    try {
+      let q = client.from('agent_scheme_assignments').select(selected, head ? { count: 'exact', head: true } : { count: 'exact' });
+      q = q.eq('agent_id', aid).eq('is_active', true);
+      const res: any = await q;
+      probes.push({
+        name,
+        client: clientLabel,
+        selected,
+        head,
+        count: res.count ?? null,
+        rows: head ? null : (Array.isArray(res.data) ? res.data.length : null),
+        error: res.error ? `${res.error.code || ''}: ${res.error.message || ''}` : null,
+      });
+    } catch (err: any) {
+      probes.push({ name, client: clientLabel, selected, head, count: null, rows: null, error: err?.message || String(err) });
+    }
+  }
+
+  // 1. Shared client, head+count, single column 'id' (matches /health line 86 shape but agent-filtered)
+  await runProbe('shared/head/id', sharedClient, 'shared', 'id', true);
+  // 2. Shared client, head+count, single column 'development_id' (the per-user probe shape from before)
+  await runProbe('shared/head/development_id', sharedClient, 'shared', 'development_id', true);
+  // 3. Shared client, full SELECT, three columns (the resolver shape)
+  await runProbe('shared/full/development_id,is_active,role', sharedClient, 'shared', 'development_id, is_active, role', false);
+  // 4. Fresh client, full SELECT, three columns (compare: same query, separate client)
+  await runProbe('fresh/full/development_id,is_active,role', freshClient, 'fresh', 'development_id, is_active, role', false);
+  // 5. Fresh client, head+count (sanity)
+  await runProbe('fresh/head/development_id', freshClient, 'fresh', 'development_id', true);
+
+  // Re-resolve via the FRESH client to see if resolveAgentContext gives different counts there.
+  let resolvedFresh: Awaited<ReturnType<typeof resolveAgentContext>> = null;
+  let resolvedFreshError: string | null = null;
+  try {
+    resolvedFresh = await resolveAgentContext(freshClient, resolved.authUserId);
+  } catch (err: any) {
+    resolvedFreshError = err?.message || String(err);
+  }
+
   const probe = await supabase
     .from('agent_scheme_assignments')
     .select('development_id', { count: 'exact', head: true })
@@ -190,11 +254,17 @@ export async function GET(_request: NextRequest) {
         viaServiceRoleProbe: probeCount,
         match: matches,
       },
+      probesQuadShape: probes,
+      resolverViaFreshClient: {
+        assignedDevelopmentIds: resolvedFresh?.assignedDevelopmentIds ?? null,
+        assignedDevelopmentNames: resolvedFresh?.assignedDevelopmentNames ?? null,
+        error: resolvedFreshError,
+      },
       verdict: ok
         ? `OK — ${resolvedCount} assigned scheme(s), resolver and probe agree.`
         : !matches
           ? `MISMATCH — resolver returned ${resolvedCount} but service-role probe sees ${probeCount}. ` +
-            `RLS is filtering rows from the resolver path. Verify SUPABASE_SERVICE_ROLE_KEY value on this Vercel scope.`
+            `RLS is filtering rows from the resolver path. Inspect probesQuadShape and resolverViaFreshClient to identify the differentiating factor.`
           : `EMPTY — resolver and probe agree at 0 assignments. Either the agent genuinely has none, or the seed data is missing.`,
     },
     { status: ok ? 200 : 500 },
