@@ -50,11 +50,16 @@ export async function resolveAgentContext(
   authUserId: string | null | undefined,
   opts: ResolveOptions = {},
 ): Promise<ResolvedAgentContext | null> {
-  let profile = authUserId ? await fetchProfileByUserId(supabase, authUserId) : null;
-
-  if (!profile) {
-    profile = await fetchEarliestProfile(supabase);
-  }
+  // Session 15 — generalize-agent. Removed the `fetchEarliestProfile`
+  // fallback that previously kicked in when no auth user resolved a
+  // profile. That fallback silently returned the first row in
+  // `agent_profiles` ordered by created_at — which, with Orla being the
+  // first seeded agent, meant any unauthenticated request silently
+  // received Orla's full agent context (assignments, schemes, units).
+  // That's a per-user data-isolation bug. The correct behaviour is to
+  // return `null` and let the caller render an unauthenticated/empty
+  // state, never another agent's data.
+  const profile = authUserId ? await fetchProfileByUserId(supabase, authUserId) : null;
 
   if (!profile) return null;
 
@@ -134,15 +139,10 @@ async function fetchProfileByUserId(supabase: SupabaseClient, userId: string) {
   return data as AgentProfileRow | null;
 }
 
-async function fetchEarliestProfile(supabase: SupabaseClient) {
-  const { data } = await supabase
-    .from('agent_profiles')
-    .select('id, user_id, tenant_id, display_name, agent_type, agency_name')
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-  return data as AgentProfileRow | null;
-}
+// Session 15 — `fetchEarliestProfile` was removed. It used to be the
+// fallback for unresolved auth users, but it returned the first
+// row in `agent_profiles` (Orla, in production), silently leaking her
+// data to any session that lost its auth user. Do not re-add it.
 
 async function fetchAssignments(supabase: SupabaseClient, agentProfileId: string) {
   // Intentionally no tenant_id filter: the join through agent_profiles already

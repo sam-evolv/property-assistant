@@ -197,19 +197,18 @@ async function resolveAgentProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   userId: string | undefined,
 ): Promise<{ id: string } | null> {
-  if (userId) {
-    const { data } = await supabase
-      .from('agent_profiles')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (data) return data as any;
-  }
+  // Session 15 — generalize-agent. Removed the "earliest profile"
+  // fallback. Without an authenticated user we now return null, which
+  // causes the route handler to send back the static
+  // `FALLBACK_CAPABILITY_CHIPS`. Previously this fell back to the first
+  // agent in the table (Orla, in production), which silently leaked her
+  // chip set — including scheme names and address fragments composed
+  // by `composeChips` — to unauthenticated visitors.
+  if (!userId) return null;
   const { data } = await supabase
     .from('agent_profiles')
     .select('id')
-    .order('created_at', { ascending: true })
-    .limit(1)
+    .eq('user_id', userId)
     .maybeSingle();
-  return (data as any) || null;
+  return (data as { id: string } | null) ?? null;
 }
