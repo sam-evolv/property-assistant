@@ -61,12 +61,12 @@ async function runAgenticSkill<I extends Record<string, any>>(
   // extras loader only when the context did not carry it.
   let agencyName = agentContext.agencyName ?? '';
   if (!agencyName) {
-    const profile = await getAgentProfileExtras(supabase, agentContext.agentId).catch(() => null);
+    const profile = await getAgentProfileExtras(supabase, agentContext.agentProfileId).catch(() => null);
     agencyName = profile?.agencyName || '';
   }
   const skillCtx: SkillAgentContext = {
-    agentId: agentContext.agentId,
-    userId: agentContext.userId,
+    agentProfileId: agentContext.agentProfileId,
+    authUserId: agentContext.authUserId,
     displayName: agentContext.displayName,
     agencyName,
   };

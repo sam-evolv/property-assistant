@@ -1,6 +1,75 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ToolResult, AgentContext } from '../types';
-import { matchAssignedScheme } from '../agent-context';
+import { resolveSchemeName } from '../scheme-resolver';
+import { resolveUnitIdentifier } from '../unit-resolver';
+
+/**
+ * Session 14 — strict scheme resolution shared by every read-side skill.
+ *
+ * Replaces the pre-14 pattern of running `.ilike('name', '%X%').limit(1)`
+ * and either picking the first row or returning null. That pattern matched
+ * fadá / phonetic typos inconsistently and, worse, matched neighbouring
+ * schemes ("Ard" matches "Árdan View", "Ardawn View", or anything starting
+ * with "Ard") before falling through to an arbitrary row.
+ *
+ * Returns `{ ok: true, developmentIds: [...] }` for the caller to run the
+ * actual query against, or `{ ok: false, summary: '<honest reason>' }`
+ * which is passed straight back to the model as `{ data: null, summary }`.
+ *
+ * Shape note: the caller doesn't need the `top_candidate` field from the
+ * resolver — that's only surfaced by skills the chat route turns into a
+ * yes/no prompt, and read skills don't have an "I'll try again" path.
+ * We still include it on `meta` so the chat route can pick it up when
+ * reading skill envelopes (currently only draft envelopes, but the field
+ * is cheap).
+ */
+async function resolveReadScope(
+  supabase: SupabaseClient,
+  agentContext: AgentContext,
+  schemeName: string | undefined,
+): Promise<
+  | { ok: true; developmentIds: string[]; schemeNames: string[] }
+  | { ok: false; summary: string; error: 'not_found' | 'not_assigned' | 'ambiguous'; top_candidate?: { name: string; developmentId: string } }
+> {
+  if (!schemeName) {
+    // Caller didn't specify a scheme — scope to every assigned development.
+    if (!agentContext.assignedDevelopmentIds.length) {
+      return { ok: false, summary: 'No schemes assigned to this agent yet.', error: 'not_found' };
+    }
+    return {
+      ok: true,
+      developmentIds: agentContext.assignedDevelopmentIds.slice(),
+      schemeNames: agentContext.assignedDevelopmentNames.slice(),
+    };
+  }
+
+  const resolution = await resolveSchemeName(supabase, schemeName, agentContext);
+  if (resolution.ok) {
+    return {
+      ok: true,
+      developmentIds: [resolution.developmentId],
+      schemeNames: [resolution.canonicalName],
+    };
+  }
+
+  const assignedList = agentContext.assignedDevelopmentNames.join(', ') || '(none)';
+  let summary: string;
+  if (resolution.reason === 'not_found') {
+    summary = `I couldn't find a scheme matching "${schemeName}". Your assigned schemes are: ${assignedList}.`;
+  } else if (resolution.reason === 'ambiguous') {
+    summary = `"${schemeName}" matches multiple schemes (${resolution.candidates.join(', ')}). Please be specific.`;
+  } else {
+    summary = `"${schemeName}" is not in your assigned schemes. Assigned: ${assignedList}.`;
+  }
+  return {
+    ok: false,
+    summary,
+    error: resolution.reason,
+    ...(resolution.reason === 'not_found' && resolution.top_candidate
+      ? { top_candidate: { name: resolution.top_candidate.name, developmentId: resolution.top_candidate.developmentId } }
+      : {}),
+  };
+}
 
 export async function getUnitStatus(
   supabase: SupabaseClient,
@@ -8,32 +77,61 @@ export async function getUnitStatus(
   agentContext: AgentContext,
   params: { scheme_name: string; unit_identifier: string }
 ): Promise<ToolResult> {
-  // Resolve scheme by name
-  const { data: dev } = await supabase
-    .from('developments')
-    .select('id, name')
-    .eq('tenant_id', tenantId)
-    .ilike('name', `%${params.scheme_name}%`)
-    .limit(1)
-    .maybeSingle();
+  // Session 14 — strict scheme + unit resolution.
+  //
+  // The pre-14 version used `.ilike('name', '%X%').limit(1)` for the scheme
+  // and `.or('unit_number.ilike.%X%,unit_uid.ilike.%X%')` for the unit, then
+  // took `units[0]`. On "Unit 3 in Árdan View" the unit clause matched AV-3,
+  // AV-13, AV-23, AV-30, AV-31 — and units[0] returned Unit 10. The model
+  // relayed that as "Unit 3 is actually Unit 10", a grammatically-nonsense
+  // statement presented as authoritative fact.
+  //
+  // Now: exact-match resolvers that refuse to silently substitute. If the
+  // scheme doesn't resolve we return null with an honest reason. If the
+  // unit doesn't exist we return null — NEVER a different unit's row.
+  const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
+  if (!scope.ok) return { data: null, summary: scope.summary };
 
-  if (!dev) {
-    return { data: null, summary: `No scheme found matching "${params.scheme_name}"` };
+  const devId = scope.developmentIds[0];
+  const devName = scope.schemeNames[0];
+
+  const unitRes = await resolveUnitIdentifier(supabase, params.unit_identifier, {
+    developmentIds: scope.developmentIds,
+    preferredDevelopmentId: devId,
+  });
+  if (unitRes.status === 'not_found') {
+    return {
+      data: null,
+      summary: `Unit ${params.unit_identifier} doesn't exist in ${devName}.`,
+    };
+  }
+  if (unitRes.status === 'ambiguous') {
+    const list = unitRes.candidates
+      .map((c) => `Unit ${c.unit_number ?? '?'}${c.scheme_name ? ` (${c.scheme_name})` : ''}`)
+      .join(', ');
+    return {
+      data: null,
+      summary: `"${params.unit_identifier}" matches multiple units: ${list}. Please be specific.`,
+    };
   }
 
-  // Find unit by number/identifier
-  const { data: units } = await supabase
+  // Pull the fuller row shape getUnitStatus needs — resolveUnitIdentifier
+  // returns the minimum columns required for disambiguation, not the full
+  // surface this skill surfaces to the model.
+  const { data: fullUnit } = await supabase
     .from('units')
     .select('id, unit_uid, unit_number, house_type_code, bedrooms, bathrooms, eircode, development_id, purchaser_name')
-    .eq('tenant_id', tenantId)
-    .eq('development_id', dev.id)
-    .or(`unit_number.ilike.%${params.unit_identifier}%,unit_uid.ilike.%${params.unit_identifier}%`);
+    .eq('id', unitRes.unit.id)
+    .maybeSingle();
 
-  if (!units?.length) {
-    return { data: null, summary: `No unit "${params.unit_identifier}" found in ${dev.name}` };
+  if (!fullUnit) {
+    // Shouldn't happen — resolveUnitIdentifier returned a row seconds ago
+    // — but handle defensively rather than crash.
+    return { data: null, summary: `Unit ${params.unit_identifier} couldn't be loaded.` };
   }
 
-  const unit = units[0];
+  const unit = fullUnit;
+  const dev = { id: devId, name: devName };
 
   // Get pipeline data
   const { data: pipeline } = await supabase
@@ -216,25 +314,25 @@ export async function getSchemeOverview(
   agentContext: AgentContext,
   params: { scheme_name?: string }
 ): Promise<ToolResult> {
-  // If no scheme name is provided (the "give me a scheme summary" case) and
-  // the agent has exactly one assigned development, default to it. If they
-  // have several assigned, ask the model to name one.
+  // Session 14 — strict scheme resolution. Pre-14 used `matchAssignedScheme`
+  // (substring) then fell back to `.ilike('name', '%X%')` against the
+  // developments table, which would return the first scheme whose name
+  // contained the input — so "Ard" matched any scheme starting with "Ard".
   let dev: { id: string; name: string } | null = null;
 
   if (params.scheme_name) {
-    const scoped = matchAssignedScheme(agentContext, params.scheme_name);
-    if (scoped) {
-      dev = { id: scoped.developmentId, name: scoped.schemeName };
+    const resolution = await resolveSchemeName(supabase, params.scheme_name, agentContext);
+    if (resolution.ok) {
+      dev = { id: resolution.developmentId, name: resolution.canonicalName };
     } else {
-      // Allow fall-through to name search for admins / unassigned queries.
-      const { data } = await supabase
-        .from('developments')
-        .select('id, name')
-        .eq('tenant_id', tenantId)
-        .ilike('name', `%${params.scheme_name}%`)
-        .limit(1)
-        .maybeSingle();
-      if (data) dev = { id: data.id, name: data.name };
+      const list = agentContext.assignedDevelopmentNames.join(', ') || '(none)';
+      const reason =
+        resolution.reason === 'not_found'
+          ? `I couldn't find a scheme matching "${params.scheme_name}". Your assigned schemes are: ${list}.`
+          : resolution.reason === 'ambiguous'
+            ? `"${params.scheme_name}" matches multiple schemes (${resolution.candidates.join(', ')}). Please be specific.`
+            : `"${params.scheme_name}" is not in your assigned schemes. Assigned: ${list}.`;
+      return { data: null, summary: reason };
     }
   } else if (agentContext.assignedDevelopmentIds.length === 1) {
     dev = {
@@ -252,9 +350,7 @@ export async function getSchemeOverview(
   if (!dev) {
     return {
       data: null,
-      summary: params.scheme_name
-        ? `No scheme found matching "${params.scheme_name}"`
-        : 'No schemes assigned to this agent yet.',
+      summary: 'No schemes assigned to this agent yet.',
     };
   }
 
@@ -338,19 +434,16 @@ export async function getOutstandingItems(
   const daysAhead = params.days_ahead || 14;
   const futureDate = new Date(Date.now() + daysAhead * 86400000).toISOString();
 
-  // Get development if specified, otherwise scope to agent's assigned developments
+  // Session 14 — strict scheme scope. Refuse to proceed on a bad scheme
+  // name; do NOT silently fall back to "all schemes" when the user named
+  // a scheme we couldn't find.
   let developmentId: string | undefined;
   let agentDevIds: string[] = [];
 
   if (params.scheme_name) {
-    const { data: dev } = await supabase
-      .from('developments')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .ilike('name', `%${params.scheme_name}%`)
-      .limit(1)
-      .maybeSingle();
-    developmentId = dev?.id;
+    const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
+    if (!scope.ok) return { data: null, summary: scope.summary };
+    developmentId = scope.developmentIds[0];
   } else {
     // Scope to agent's assigned developments
     agentDevIds = agentContext.assignedSchemes.map(s => s.developmentId);
@@ -494,26 +587,34 @@ export async function getCommunicationHistory(
 
   let unitId: string | undefined;
 
-  // Resolve unit if specified
+  // Session 14 — strict scheme + unit resolution. Refuse to fall back to
+  // "no unit filter" when the caller asked for a specific unit that
+  // doesn't resolve — better to say "couldn't find that unit" than to
+  // return every comm row in the scheme.
   if (params.unit_identifier && params.scheme_name) {
-    const { data: dev } = await supabase
-      .from('developments')
-      .select('id')
-      .eq('tenant_id', tenantId)
-      .ilike('name', `%${params.scheme_name}%`)
-      .limit(1)
-      .maybeSingle();
+    const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
+    if (!scope.ok) return { data: null, summary: scope.summary };
 
-    if (dev) {
-      const { data: units } = await supabase
-        .from('units')
-        .select('id')
-        .eq('development_id', dev.id)
-        .or(`unit_number.ilike.%${params.unit_identifier}%,unit_uid.ilike.%${params.unit_identifier}%`)
-        .limit(1);
-
-      unitId = units?.[0]?.id;
+    const unitRes = await resolveUnitIdentifier(supabase, params.unit_identifier, {
+      developmentIds: scope.developmentIds,
+      preferredDevelopmentId: scope.developmentIds[0],
+    });
+    if (unitRes.status === 'not_found') {
+      return {
+        data: null,
+        summary: `Unit ${params.unit_identifier} doesn't exist in ${scope.schemeNames[0]}.`,
+      };
     }
+    if (unitRes.status === 'ambiguous') {
+      const list = unitRes.candidates
+        .map((c) => `Unit ${c.unit_number ?? '?'}${c.scheme_name ? ` (${c.scheme_name})` : ''}`)
+        .join(', ');
+      return {
+        data: null,
+        summary: `"${params.unit_identifier}" matches multiple units: ${list}. Please be specific.`,
+      };
+    }
+    unitId = unitRes.unit.id;
   }
 
   let query = supabase
@@ -560,14 +661,14 @@ export async function getViewings(
   params: { scheme_name?: string; buyer_name?: string; from_date?: string; to_date?: string; status?: string }
 ): Promise<ToolResult> {
   // Agent identity is threaded from the chat route — no re-resolve.
-  if (!agentContext.agentId) {
+  if (!agentContext.agentProfileId) {
     return { data: { viewings: [] }, summary: 'No agent profile found' };
   }
 
   let query = supabase
     .from('agent_viewings')
     .select('id, buyer_name, buyer_phone, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status, notes, source')
-    .eq('agent_id', agentContext.agentId)
+    .eq('agent_id', agentContext.agentProfileId)
     .order('viewing_date', { ascending: true })
     .order('viewing_time', { ascending: true });
 
@@ -666,19 +767,14 @@ export async function getSchemeSummary(
   agentContext: AgentContext,
   params: { scheme_name?: string }
 ): Promise<ToolResult> {
-  const developmentIds = resolveSchemeScope(agentContext, params.scheme_name);
-  if (!developmentIds) {
-    return {
-      data: null,
-      summary: params.scheme_name
-        ? `"${params.scheme_name}" is not in your assigned schemes.`
-        : 'No schemes assigned to this agent yet.',
-    };
-  }
-
-  const schemeNames = developmentIds.map(
-    (id) => agentContext.assignedDevelopmentNames[agentContext.assignedDevelopmentIds.indexOf(id)] || 'Unknown scheme',
-  );
+  // Session 14 — strict scheme resolution. Pre-14 this used the substring
+  // `matchAssignedScheme` helper; a user typing "Ard" would bind to
+  // "Árdan View" silently without going through the alias table, which
+  // skipped the phonetic signal that Session 13 put in place.
+  const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
+  if (!scope.ok) return { data: null, summary: scope.summary };
+  const developmentIds = scope.developmentIds;
+  const schemeNames = scope.schemeNames;
 
   const [unitsResult, pipelineResult] = await Promise.all([
     supabase
@@ -784,27 +880,6 @@ export async function getSchemeSummary(
     },
     summary,
   };
-}
-
-/**
- * Resolve the development-ids to query for a summary. Always honours
- * `agentContext.assignedDevelopmentIds` as the outer scope — a named scheme
- * has to match one of those to be returned.
- *
- * Returns `null` when the agent has nothing assigned and nothing was named.
- */
-function resolveSchemeScope(
-  agentContext: AgentContext,
-  schemeName: string | undefined,
-): string[] | null {
-  if (schemeName) {
-    const matched = matchAssignedScheme(agentContext, schemeName);
-    return matched ? [matched.developmentId] : null;
-  }
-  if (agentContext.assignedDevelopmentIds.length > 0) {
-    return agentContext.assignedDevelopmentIds;
-  }
-  return null;
 }
 
 function buildNextActions(counts: {
