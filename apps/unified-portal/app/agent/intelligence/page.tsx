@@ -708,24 +708,27 @@ function IntelligencePageInner() {
 
             {/* Logo — contained mark, sized like a brand surface, not a
                 watermark. Sits in a soft circular frame so it reads as
-                deliberate rather than pasted in. */}
+                deliberate rather than pasted in.
+                Session 14.13 — 2x size pass. The previous 104/128 made it
+                look hesitant; the OpenHouse mark is the brand on this
+                surface and should feel like it. */}
             <div
               style={{
-                width: isDesktop ? 128 : 104,
-                height: isDesktop ? 128 : 104,
+                width: isDesktop ? 256 : 208,
+                height: isDesktop ? 256 : 208,
                 borderRadius: '50%',
                 background: 'rgba(196,155,42,0.06)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: 14,
+                marginBottom: 18,
               }}
             >
               <Image
                 src="/oh-logo.png"
                 alt="OpenHouse"
-                width={isDesktop ? 92 : 76}
-                height={isDesktop ? 92 : 76}
+                width={isDesktop ? 184 : 152}
+                height={isDesktop ? 184 : 152}
                 priority
                 style={{
                   objectFit: 'contain',
@@ -780,66 +783,10 @@ function IntelligencePageInner() {
               Voice or text. I&rsquo;ll show you what I drafted before sending.
             </p>
 
-            {/* Session 14.12 — drafts chip. Promoted from a quiet underlined
-                link to a proper card. Light gold background, count badge on
-                the left, label and chevron. Reserves height even when count
-                is 0 so layout doesn't shift. */}
-            <div
-              style={{
-                marginTop: 22,
-                minHeight: 44,
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                width: '100%',
-                maxWidth: 360,
-              }}
-            >
-              {draftsReady && pendingDraftsCount > 0 ? (
-                <button
-                  type="button"
-                  data-testid="intelligence-drafts-link"
-                  onClick={() => router.push('/agent/drafts')}
-                  className="agent-tappable"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    background: 'rgba(196,155,42,0.10)',
-                    border: '0.5px solid rgba(196,155,42,0.22)',
-                    borderRadius: 999,
-                    padding: '8px 14px 8px 8px',
-                    color: '#0b0c0f',
-                    fontSize: 13,
-                    fontFamily: 'inherit',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      minWidth: 26,
-                      height: 26,
-                      borderRadius: 999,
-                      background: '#C49B2A',
-                      color: '#fff',
-                      fontWeight: 700,
-                      fontSize: 12,
-                      padding: '0 8px',
-                    }}
-                  >
-                    {pendingDraftsCount}
-                  </span>
-                  <span>draft{pendingDraftsCount === 1 ? '' : 's'} waiting</span>
-                  <span aria-hidden="true" style={{ color: '#9CA3AF', fontSize: 14, marginLeft: 2 }}>
-                    ›
-                  </span>
-                </button>
-              ) : null}
-            </div>
+            {/* Session 14.13 — drafts chip moved to the top bar (StatusBar)
+                beside the bell. Keeps the hero focused on brand mark + input.
+                Tiny placeholder spacing keeps the visual rhythm consistent. */}
+            <div style={{ height: 8, flexShrink: 0 }} />
 
             {/* Flex spacer — pushes chips down toward the input bar. */}
             <div style={{ flex: 1, minHeight: 24 }} />

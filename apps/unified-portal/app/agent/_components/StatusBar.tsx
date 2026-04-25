@@ -7,6 +7,7 @@ import NotificationPanel from './NotificationPanel';
 import type { Notification } from './NotificationPanel';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { type Alert, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
+import { useDraftsCount } from '../_hooks/useDraftsCount';
 
 interface UserContext {
   id: string;
@@ -96,6 +97,7 @@ export default function StatusBar({
   agentName = 'Sam',
 }: StatusBarProps) {
   const { alerts, pipeline } = useAgent();
+  const { count: draftsCount, ready: draftsReady } = useDraftsCount();
   const [panelOpen, setPanelOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
@@ -189,6 +191,55 @@ export default function StatusBar({
             {agentName} &#9662;
           </span>
         </div>
+
+        {/* Session 14.13 — drafts chip in the top bar, beside the bell.
+            Promoted out of the hero so the agent landing centres entirely
+            on the brand mark + input. Tappable shortcut to /agent/drafts. */}
+        {draftsReady && draftsCount > 0 ? (
+          <button
+            type="button"
+            data-testid="statusbar-drafts-chip"
+            onClick={() => router.push('/agent/drafts')}
+            className="agent-tappable"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(196,155,42,0.10)',
+              border: '0.5px solid rgba(196,155,42,0.22)',
+              borderRadius: 999,
+              padding: '4px 10px 4px 4px',
+              color: '#0b0c0f',
+              fontSize: 12,
+              fontFamily: 'inherit',
+              fontWeight: 500,
+              cursor: 'pointer',
+              marginRight: 6,
+              height: 28,
+            }}
+            aria-label={`${draftsCount} drafts waiting`}
+          >
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: 20,
+                height: 20,
+                borderRadius: 999,
+                background: '#C49B2A',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: 11,
+                padding: '0 6px',
+                lineHeight: 1,
+              }}
+            >
+              {draftsCount > 99 ? '99+' : draftsCount}
+            </span>
+            <span style={{ lineHeight: 1 }}>Drafts</span>
+          </button>
+        ) : null}
 
         {/* Bell — opens notification panel */}
         <button
