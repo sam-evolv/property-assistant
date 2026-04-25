@@ -69,10 +69,28 @@ export async function resolveAgentContext(
 
   let assignedSchemes: ResolvedAgentContext['assignedSchemes'] = [];
   if (developmentIds.length) {
-    const { data: devs } = await supabase
+    // Session 14.6 — capture and log errors. The previous code destructured
+    // only `{ data }` and ignored `error`; on any Supabase error (column
+    // doesn't exist, RLS denial, etc.) `data` was null, the `.map()`
+    // produced zero schemes, `assignedDevelopmentIds` ended up empty —
+    // and downstream code reported "no schemes assigned" while the actual
+    // bug was a swallowed PostgREST error. Three sessions of debugging
+    // were wasted because this error never surfaced. Throw on error so
+    // the next regression of this class is a 500 in the logs, not a
+    // silent lie to the user.
+    const { data: devs, error: devsError } = await supabase
       .from('developments')
-      .select('id, name, county')
+      .select('id, name, address')
       .in('id', developmentIds);
+    if (devsError) {
+      console.error('[agent-context] developments hydrate error', {
+        developmentIds,
+        code: devsError.code,
+        message: devsError.message,
+        details: devsError.details,
+      });
+      throw new Error(`developments hydrate failed: ${devsError.message}`);
+    }
 
     const unitCounts = await fetchUnitCounts(supabase, developmentIds, profile.tenant_id ?? null);
 
@@ -80,7 +98,7 @@ export async function resolveAgentContext(
       developmentId: d.id,
       schemeName: d.name,
       unitCount: unitCounts.get(d.id) ?? 0,
-      location: d.county ?? null,
+      location: d.address ?? null,
       developerName: tenantResult,
     }));
   }
@@ -93,7 +111,7 @@ export async function resolveAgentContext(
   if (!assignedSchemes.length && opts.activeDevelopmentId) {
     const { data: dev } = await supabase
       .from('developments')
-      .select('id, name, county')
+      .select('id, name, address')
       .eq('id', opts.activeDevelopmentId)
       .maybeSingle();
     if (dev) {
@@ -103,7 +121,7 @@ export async function resolveAgentContext(
           developmentId: dev.id,
           schemeName: dev.name,
           unitCount: unitCounts.get(dev.id) ?? 0,
-          location: dev.county ?? null,
+          location: dev.address ?? null,
           developerName: tenantResult,
         },
       ];
