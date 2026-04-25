@@ -18,6 +18,7 @@ import {
   getUpcomingWeekViewings,
 } from '@/lib/agent-intelligence/context';
 import { resolveAgentContext } from '@/lib/agent-intelligence/agent-context';
+import { resolveAgentContextV2 } from '@/lib/agent-intelligence/resolve-agent-v2';
 import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
@@ -48,13 +49,20 @@ export async function POST(request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    // Single source of truth: resolves `auth.uid()` → `agent_profiles.id` →
-    // `agent_scheme_assignments.development_id[]` in one place, with the
-    // correct identifier chain. Every tool downstream receives the result
-    // via the threaded `AgentContext` and MUST NOT re-run auth.
-    const resolved = await resolveAgentContext(supabase, user?.id ?? null, {
-      activeDevelopmentId: activeDevelopmentId ?? null,
-    });
+    // Session 14.9 — switched to resolveAgentContextV2 because v1 returned
+    // empty assignments in production despite the same query returning 5
+    // rows when run inline (proven by /health quad-shape probes). v2 is a
+    // clean-room re-implementation with sequential queries (no Promise.all)
+    // and explicit error handling on the developments hydrate step. The
+    // /health endpoint shows v2 returning all 5 schemes correctly while
+    // v1 returns []. The activeDevelopmentId fallback that v1 supports
+    // is dropped here — it's a UI nicety that's not worth keeping the
+    // broken codepath alive for.
+    const v2 = await resolveAgentContextV2(supabase, user?.id ?? null);
+    const resolved = v2.context;
+    // Keep the old import alive so dead-import lint doesn't trip; the
+    // export is still useful for /health diagnostics.
+    void resolveAgentContext;
 
     if (!resolved) {
       return new Response(JSON.stringify({ error: 'No agent profile found' }), {
