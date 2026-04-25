@@ -168,7 +168,7 @@ export async function resolveAgentContextV2(
   if (developmentIds.length) {
     const devsRes = await supabase
       .from('developments')
-      .select('id, name, county')
+      .select('id, name, address')
       .in('id', developmentIds);
     log('developments-hydrate', {
       count: devsRes.data?.length ?? null,
@@ -178,7 +178,7 @@ export async function resolveAgentContextV2(
       developmentId: d.id,
       schemeName: d.name,
       unitCount: 0, // skip unit counts to keep this minimal — chat route can hydrate later if needed
-      location: d.county ?? null,
+      location: d.address ?? null,
       developerName: null,
     }));
   }
