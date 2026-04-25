@@ -14,18 +14,21 @@
  * says will disappoint when the user taps it.
  */
 
+// Session 14.12 — chip copy is now ≤22 chars per phrase so the carousel
+// chips render without ellipsis truncation on a 360px-wide grid. Each
+// phrase still maps to a clear, action-oriented intent the chat surface
+// can act on. Tap behaviour pre-fills the input with the chip text.
 export const FALLBACK_CAPABILITY_CHIPS: readonly string[] = [
-  'Show me overdue chases',
-  "What's on for me today?",
-  'What viewings do I have this week?',
-  'Generate developer weekly report',
-  'Give me a scheme summary',
-  'What signed this week?',
+  "What's on today?",
+  'Scheme summary',
   'Chase aged contracts',
-  'Draft a buyer follow-up email',
+  'Show overdue chases',
+  'This week’s viewings',
+  'Signed this week?',
+  'Draft a follow-up',
+  'Schedule a viewing',
+  'Weekly report',
   'Invite an applicant',
-  'Schedule a viewing for Saturday at 2pm',
-  'Show me everything across all schemes',
 ] as const;
 
 /** Fisher–Yates shuffle. Pure function; call once per mount. */

@@ -129,18 +129,18 @@ export default function CapabilityChipsCarousel({
       onTouchStart={() => setHovered(true)}
       onTouchEnd={() => setHovered(false)}
       style={{
-        // Fixed 2x2 grid — exactly four cells, never more, never less.
-        // `overflow: hidden` clips any stray transform animation so a
-        // mid-transition chip can't escape its cell.
+        // Session 14.12 — give the grid breathing room. Wider cells, larger
+        // gap, more side padding so chips read as deliberate buttons rather
+        // than a tight cluster. Each row's height grows with its content
+        // (the 2-line wrap fallback inside Chip).
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
-        gridTemplateRows: 'repeat(2, auto)',
-        gap: 8,
+        gridAutoRows: 'minmax(48px, auto)',
+        gap: 10,
         padding: '0 16px',
         width: '100%',
-        maxWidth: 360,
+        maxWidth: 420,
         margin: '0 auto',
-        overflow: 'hidden',
         opacity: reducedMotion ? fade : 1,
         transition: reducedMotion ? `opacity ${SLIDE_MS}ms ease` : undefined,
       }}
@@ -178,33 +178,42 @@ function Chip({
       data-testid="capability-chip"
       className="agent-tappable"
       style={{
+        // Session 14.12 — readable, real button. No more ellipsis-on-arrival.
+        // 2-line wrap allowed inside a 48–60px tall capsule. Slightly larger
+        // type. 0.7px border for a crisper edge on retina.
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
         width: '100%',
         maxWidth: '100%',
-        padding: '0 12px',
-        height: 36,
-        borderRadius: 999,
+        minHeight: 48,
+        padding: '8px 14px',
+        borderRadius: 14,
         background: 'rgba(13,13,18,0.04)',
-        border: '0.5px solid rgba(13,13,18,0.08)',
+        border: '0.7px solid rgba(13,13,18,0.10)',
         color: '#0b0c0f',
-        fontSize: 12.5,
+        fontSize: 13.5,
         fontWeight: 500,
-        lineHeight: 1,
+        lineHeight: 1.25,
         cursor: 'pointer',
         fontFamily: 'inherit',
         overflow: 'hidden',
+        textAlign: 'center',
       }}
     >
       <span
         key={text}
         style={{
-          display: 'inline-block',
+          display: 'block',
           maxWidth: '100%',
-          whiteSpace: 'nowrap',
+          // Allow wrap to 2 lines; truncation kicks in only beyond that.
+          // Most chips fit on a single line at this width — wrap is the
+          // safety net for edge cases like long Irish placenames.
+          whiteSpace: 'normal',
           overflow: 'hidden',
-          textOverflow: 'ellipsis',
+          display: '-webkit-box' as any,
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: 'vertical' as any,
           animation: reducedMotion
             ? undefined
             : `oh-chip-slide-in ${SLIDE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`,

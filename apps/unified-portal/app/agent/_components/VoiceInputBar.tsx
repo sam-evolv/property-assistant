@@ -48,8 +48,11 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
   const inputRef = useRef<HTMLInputElement | null>(null);
   useImperativeHandle(ref, () => inputRef.current as HTMLInputElement, []);
   const recording = voice.status === 'recording' || voice.status === 'transcribing';
-  const micSize = isDesktop ? 40 : 34;
-  const sendSize = 34;
+  // Session 14.12 — more deliberate proportions. The input bar is the
+  // centre of gravity on this surface; bigger touch targets + larger
+  // type signal that.
+  const micSize = isDesktop ? 44 : 40;
+  const sendSize = isDesktop ? 40 : 38;
 
   return (
     <div
@@ -66,18 +69,23 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
         data-testid="voice-input-bar"
         data-recording={recording ? 'true' : 'false'}
         style={{
+          // Session 14.12 — pill input bar, more presence. White on the
+          // off-white page surface (instead of the same warm grey as the
+          // page) so it reads as a contained input. Soft outer shadow
+          // adds depth without weight. Slightly larger radius matches
+          // the OpenHouse Select reference.
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          background: '#F5F5F3',
-          borderRadius: 28,
+          background: '#FFFFFF',
+          borderRadius: 32,
           border: recording
             ? '0.5px solid rgba(196,155,42,0.45)'
-            : '0.5px solid rgba(0,0,0,0.08)',
-          padding: '6px 6px 6px 14px',
+            : '0.5px solid rgba(0,0,0,0.10)',
+          padding: '7px 7px 7px 16px',
           boxShadow: recording
-            ? '0 0 0 3px rgba(196,155,42,0.12), 0 1px 2px rgba(0,0,0,0.04) inset'
-            : '0 1px 2px rgba(0,0,0,0.04) inset',
+            ? '0 0 0 3px rgba(196,155,42,0.12), 0 6px 16px rgba(0,0,0,0.05)'
+            : '0 6px 16px rgba(0,0,0,0.05)',
           transition: 'box-shadow 0.2s ease, border-color 0.2s ease',
           animation: recording ? 'oh-voice-pulse 1.6s ease-in-out infinite' : undefined,
         }}
@@ -123,17 +131,18 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
             onKeyDown={(e) => e.key === 'Enter' && onSend()}
             onFocus={onFocus}
             onBlur={onBlur}
-            placeholder="Ask Intelligence anything..."
+            placeholder="Ask Intelligence anything…"
             style={{
               flex: 1,
               border: 'none',
               background: 'transparent',
               outline: 'none',
-              fontSize: 14,
+              fontSize: 15,
               fontWeight: 400,
               color: '#0D0D12',
               fontFamily: 'inherit',
               letterSpacing: '-0.01em',
+              padding: '0 4px',
             }}
           />
         )}
