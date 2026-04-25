@@ -222,19 +222,19 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_message',
-    description: 'Draft a single email or message to ONE named recipient. Writes a draft to the agent\'s inbox and opens the approval drawer; the drawer controls whether it actually sends. Use this for "draft an email to X about Y" style requests. For multiple recipients in one go, prefer `draft_buyer_followups`.',
+    description: 'Draft a single email or message to ONE recipient. Writes a draft to the agent\'s inbox and opens the approval drawer; the drawer controls whether it actually sends. Use this for "draft an email to X about Y" style requests. For multiple recipients in one go, prefer `draft_buyer_followups`. NOTE: recipient_name is OPTIONAL when related_unit is supplied — the skill derives the buyer from the unit\'s purchaser on file. "Reach out to number 3, Árdan View" is a valid call with NO recipient_name; just pass related_unit + related_scheme + context.',
     parameters: {
       type: 'object',
       properties: {
         recipient_type: { type: 'string', description: 'Type of recipient', enum: ['buyer', 'developer', 'solicitor'] },
-        recipient_name: { type: 'string', description: 'Name of the recipient' },
+        recipient_name: { type: 'string', description: 'Name of the recipient. OPTIONAL when related_unit is supplied — the skill resolves the buyer from the unit\'s purchaser on file. Required only when no unit is in scope (e.g. messaging a developer or solicitor by name).' },
         context: { type: 'string', description: 'What the message should cover, in the agent\'s own words — this becomes the body.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         related_unit: { type: 'string', description: 'Related unit number' },
         related_scheme: { type: 'string', description: 'Related scheme name' },
         recipient_email: { type: 'string', description: 'Recipient email if known; otherwise leave empty and the drawer will show a placeholder for the agent to fill in.' },
       },
-      required: ['recipient_type', 'recipient_name', 'context'],
+      required: ['recipient_type', 'context'],
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(draftMessageSkill, supabase, agentContext, params as any)) as ToolFunction,
