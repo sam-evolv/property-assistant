@@ -274,19 +274,9 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
         </div>
       )}
 
-      {!recording && voice.status !== 'offline-queued' && voice.status !== 'error' && (
-        <p
-          style={{
-            textAlign: 'center',
-            fontSize: 10,
-            color: '#C0C8D4',
-            marginTop: 8,
-            letterSpacing: '0.01em',
-          }}
-        >
-          Powered by AI. Information for reference only.
-        </p>
-      )}
+      {/* Session 14.13.2 — disclaimer moved out of the input bar (it
+          was being occluded by the floating bottom-tab home glyph on
+          iOS). It now lives in the hero, above the brand mark. */}
 
       <style>{`
         @keyframes oh-voice-pulse {
