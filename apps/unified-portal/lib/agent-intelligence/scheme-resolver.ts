@@ -24,7 +24,22 @@ export type SchemeResolution =
       candidates: string[];
       /** Normalised input, so downstream can store it as a later alias. */
       normalised: string;
+      /**
+       * Session 14 — populated on not_found only, when EXACTLY one assigned
+       * scheme is within Levenshtein distance ≤ 3 of the normalised input
+       * AND no other assigned scheme is within that distance. The chat
+       * route uses it to turn a plain refusal into an interactive "Did you
+       * mean X? (yes/no)" prompt and to seed an alias on confirmation.
+       */
+      top_candidate?: {
+        name: string;
+        developmentId: string;
+        distance: number;
+      };
     };
+
+/** Session 14 — Levenshtein threshold for the yes/no disambiguation hook. */
+const TOP_CANDIDATE_MAX_DISTANCE = 3;
 
 /**
  * Strip fadas (á→a), drop non-alphanumerics (keep spaces), collapse
@@ -50,6 +65,25 @@ export async function resolveSchemeName(
     'assignedDevelopmentIds' | 'assignedDevelopmentNames'
   >,
 ): Promise<SchemeResolution> {
+  // Session 14.2 — defense-in-depth guard. If the caller handed us an
+  // empty assignedDevelopmentIds list, downstream we're guaranteed to
+  // return not_assigned (or not_found) against any real scheme name.
+  // That's the "(none)" reply the user saw on Árdan View. Log loudly
+  // so the next regression is five seconds of reading logs rather than
+  // an hour of tracing. We still proceed — the resolver's not_found /
+  // not_assigned paths produce the correct honest refusal.
+  if (
+    !Array.isArray(agentContext.assignedDevelopmentIds) ||
+    agentContext.assignedDevelopmentIds.length === 0
+  ) {
+    console.error('[scheme-resolver] CRITICAL: agentContext has empty assignedDevelopmentIds', {
+      rawSchemeName,
+      keys: Object.keys(agentContext),
+      assignedDevelopmentIds: agentContext.assignedDevelopmentIds,
+      assignedDevelopmentNames: agentContext.assignedDevelopmentNames,
+    });
+  }
+
   const normalised = normaliseSchemeName(rawSchemeName);
   const candidates = agentContext.assignedDevelopmentNames.slice();
 
@@ -57,15 +91,28 @@ export async function resolveSchemeName(
     return { ok: false, reason: 'not_found', candidates, normalised };
   }
 
-  const { data, error } = await supabase
-    .from('development_aliases')
-    .select('development_id, alias')
-    .eq('alias_normalised', normalised);
+  const topCandidate = findUniqueTopCandidate(normalised, agentContext);
 
-  if (error) {
-    // Degrade: if the alias table isn't available (bad connection,
-    // migration not yet applied), fall back to in-memory substring
-    // match so the feature still works.
+  // Session 13.1 — wrap the Supabase call in try/catch. The pre-13.1
+  // version destructured { data, error } and only fell back on the
+  // error branch; if the client itself throws (network, cold start,
+  // missing table propagated as an exception rather than a
+  // PostgREST error object), the exception escapes the resolver and
+  // crashes the caller. We now catch the throw too and degrade to
+  // the in-memory substring match.
+  let data: Array<{ development_id: string; alias: string }> | null = null;
+  try {
+    const res = await supabase
+      .from('development_aliases')
+      .select('development_id, alias')
+      .eq('alias_normalised', normalised);
+    if (res.error) {
+      console.error('[scheme-resolver] alias lookup error:', res.error.message);
+      return fallbackSubstringMatch(rawSchemeName, agentContext);
+    }
+    data = (res.data || []) as Array<{ development_id: string; alias: string }>;
+  } catch (err: any) {
+    console.error('[scheme-resolver] alias lookup threw:', err?.message || err);
     return fallbackSubstringMatch(rawSchemeName, agentContext);
   }
 
@@ -79,19 +126,30 @@ export async function resolveSchemeName(
     // alias backfill hasn't run yet.
     const fallback = fallbackSubstringMatch(rawSchemeName, agentContext);
     if (fallback.ok) return fallback;
-    return { ok: false, reason: 'not_found', candidates, normalised };
+    return {
+      ok: false,
+      reason: 'not_found',
+      candidates,
+      normalised,
+      ...(topCandidate ? { top_candidate: topCandidate } : {}),
+    };
   }
 
   if (matchedDevIds.length > 1) {
     // Cross-scheme alias collision (rare with the canonical backfill;
     // possible if seeds get sloppy). Surface both.
-    const { data: devs } = await supabase
-      .from('developments')
-      .select('id, name')
-      .in('id', matchedDevIds);
-    const ambiguousCandidates = (devs ?? [])
-      .map((d: any) => d.name as string)
-      .filter(Boolean);
+    let ambiguousCandidates: string[] = [];
+    try {
+      const res = await supabase
+        .from('developments')
+        .select('id, name')
+        .in('id', matchedDevIds);
+      ambiguousCandidates = (res.data ?? [])
+        .map((d: any) => d.name as string)
+        .filter(Boolean);
+    } catch (err: any) {
+      console.error('[scheme-resolver] ambiguous lookup threw:', err?.message || err);
+    }
     return {
       ok: false,
       reason: 'ambiguous',
@@ -148,7 +206,50 @@ function fallbackSubstringMatch(
       };
     }
   }
-  return { ok: false, reason: 'not_found', candidates, normalised: needle };
+  const topCandidate = findUniqueTopCandidate(needle, agentContext);
+  return {
+    ok: false,
+    reason: 'not_found',
+    candidates,
+    normalised: needle,
+    ...(topCandidate ? { top_candidate: topCandidate } : {}),
+  };
+}
+
+/**
+ * Session 14 — pick a single phonetic-neighbour candidate for the yes/no
+ * disambiguation prompt. Returns the assigned scheme whose normalised name
+ * is within Levenshtein distance ≤ TOP_CANDIDATE_MAX_DISTANCE of the input
+ * — but only when EXACTLY ONE scheme sits inside that radius. If two or
+ * more schemes are close (or none are), we suppress the candidate: the
+ * user's input is either ambiguous or unrelated, and asking "Did you mean
+ * X?" would be a guess. The chat route falls back to the standard "not
+ * found, here are your assigned schemes" refusal in that case.
+ *
+ * Input is the already-normalised needle. Levenshtein runs on the
+ * normalised canonical names so "Erdon View" vs "Árdan View" is a pure
+ * letter-distance comparison on "erdon view" vs "ardan view" = 2.
+ */
+function findUniqueTopCandidate(
+  normalisedNeedle: string,
+  agentContext: Pick<
+    ResolvedAgentContext,
+    'assignedDevelopmentIds' | 'assignedDevelopmentNames'
+  >,
+): { name: string; developmentId: string; distance: number } | null {
+  if (!normalisedNeedle) return null;
+  const inRadius: Array<{ name: string; developmentId: string; distance: number }> = [];
+  for (let i = 0; i < agentContext.assignedDevelopmentNames.length; i++) {
+    const name = agentContext.assignedDevelopmentNames[i];
+    const id = agentContext.assignedDevelopmentIds[i];
+    if (!name || !id) continue;
+    const distance = levenshtein(normalisedNeedle, normaliseSchemeName(name));
+    if (distance <= TOP_CANDIDATE_MAX_DISTANCE) {
+      inRadius.push({ name, developmentId: id, distance });
+    }
+  }
+  if (inRadius.length !== 1) return null;
+  return inRadius[0];
 }
 
 /**
@@ -220,26 +321,54 @@ export async function captureInferredAlias(
   const aliasNormalised = normaliseSchemeName(alias);
   if (!aliasNormalised) return;
 
-  const { count } = await supabase
-    .from('development_aliases')
-    .select('id', { count: 'exact', head: true })
-    .eq('development_id', developmentId)
-    .eq('source', 'inferred');
-
-  if ((count ?? 0) >= 50) return;
-
-  await supabase
-    .from('development_aliases')
-    .insert({
-      development_id: developmentId,
-      alias,
-      alias_normalised: aliasNormalised,
-      source: 'inferred',
-    })
-    // onConflict handled by the unique index; Supabase's default behaviour
-    // is to return an error, so we wrap in upsert-semantics by catching.
-    .then(
-      () => {},
-      () => {}, // swallow — dup alias or caps hit; we're already at 50 or it's a race
+  // Session 13.1 — wrap BOTH the count probe and the insert in
+  // try/catch. The previous version only swallowed insert failures
+  // via a `.then(resolve, reject)` pair; the count probe could throw
+  // (missing table, RLS issue) and crash the caller. This function is
+  // called fire-and-forget from the chat route, but any exception
+  // still shows up in the Next.js error stream.
+  try {
+    const countRes = await supabase
+      .from('development_aliases')
+      .select('id', { count: 'exact', head: true })
+      .eq('development_id', developmentId)
+      .eq('source', 'inferred');
+    if (countRes.error) {
+      console.error(
+        '[scheme-resolver] captureInferredAlias count error:',
+        countRes.error.message,
+      );
+      return;
+    }
+    if ((countRes.count ?? 0) >= 50) return;
+  } catch (err: any) {
+    console.error(
+      '[scheme-resolver] captureInferredAlias count threw:',
+      err?.message || err,
     );
+    return;
+  }
+
+  try {
+    const insertRes = await supabase
+      .from('development_aliases')
+      .insert({
+        development_id: developmentId,
+        alias,
+        alias_normalised: aliasNormalised,
+        source: 'inferred',
+      });
+    if (insertRes.error) {
+      // Dup alias on the unique index is expected; not a real error.
+      const msg = insertRes.error.message || '';
+      if (!/duplicate|unique/i.test(msg)) {
+        console.error('[scheme-resolver] captureInferredAlias insert error:', msg);
+      }
+    }
+  } catch (err: any) {
+    console.error(
+      '[scheme-resolver] captureInferredAlias insert threw:',
+      err?.message || err,
+    );
+  }
 }

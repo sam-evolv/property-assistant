@@ -17,8 +17,8 @@ import { resolveSchemeName } from '../scheme-resolver';
 export type { AgenticSkillEnvelope };
 
 export interface SkillAgentContext {
-  agentId: string;
-  userId: string;
+  agentProfileId: import('../ids').AgentProfileId;
+  authUserId: import('../ids').AuthUserId;
   displayName: string;
   agencyName: string;
   phone?: string;
@@ -83,7 +83,7 @@ export async function chaseAgedContracts(
     const { data: assignments, error: asgErr } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     if (asgErr) throw asgErr;
 
@@ -200,13 +200,13 @@ export async function draftViewingFollowup(
   const windowDays = Math.max(1, Math.ceil(windowHours / 24));
   const skill = 'draft_viewing_followup';
   const cutoffIso = new Date(Date.now() - windowDays * 86400000).toISOString().split('T')[0];
-  const query = `agent_viewings WHERE status = 'completed' AND viewing_date >= current_date - ${windowDays} day${windowDays === 1 ? '' : 's'} AND agent_id = '${agentContext.agentId}'`;
+  const query = `agent_viewings WHERE status = 'completed' AND viewing_date >= current_date - ${windowDays} day${windowDays === 1 ? '' : 's'} AND agent_id = '${agentContext.agentProfileId}'`;
 
   try {
     const { data, error } = await supabase
       .from('agent_viewings')
       .select('id, buyer_name, buyer_email, scheme_name, unit_ref, viewing_date, viewing_time, status')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('status', 'completed')
       .gte('viewing_date', cutoffIso)
       .order('viewing_date', { ascending: false });
@@ -357,10 +357,10 @@ export async function weeklyMondayBriefing(
 
   try {
     const [aged, renewals, arrears, viewings] = await Promise.all([
-      loadAgedForBriefing(supabase, agentContext.agentId).catch(() => []),
-      getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
-      getRentArrears(supabase, agentContext.agentId).catch(() => []),
-      getUpcomingWeekViewings(supabase, agentContext.agentId).catch(() => []),
+      loadAgedForBriefing(supabase, agentContext.agentProfileId).catch(() => []),
+      getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
+      getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
+      getUpcomingWeekViewings(supabase, agentContext.agentProfileId).catch(() => []),
     ]);
 
     // --- Section 1: Sales movement ---
@@ -471,13 +471,13 @@ export async function draftLeaseRenewal(
   const todayIso = today.toISOString().split('T')[0];
   const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
   const tenancyFilter = inputs.tenancy_id ? ` AND id = '${inputs.tenancy_id}'` : '';
-  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
+  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
 
   try {
     let tenancyQ = supabase
       .from('agent_tenancies')
       .select('id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('status', 'active')
       .gte('lease_end', todayIso)
       .lte('lease_end', ninetyIso);
@@ -667,7 +667,7 @@ export async function naturalQuery(
       const { data } = await supabase
         .from('agent_tenancies')
         .select('id, rent_pcm')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .eq('status', 'active');
       const rows = data || [];
       const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
@@ -681,7 +681,7 @@ export async function naturalQuery(
         const { data } = await supabase
           .from('agent_tenancies')
           .select('id, letting_property_id, tenant_name, lease_end, status')
-          .eq('agent_id', agentContext.agentId)
+          .eq('agent_id', agentContext.agentProfileId)
           .eq('status', 'active')
           .ilike('tenant_name', `%${name}%`);
         const rows = data || [];
@@ -710,7 +710,7 @@ export async function naturalQuery(
         }
       }
     } else if (intent === 'aged_contracts') {
-      const aged = await loadAgedForBriefing(supabase, agentContext.agentId, 42);
+      const aged = await loadAgedForBriefing(supabase, agentContext.agentProfileId, 42);
       if (!aged.length) {
         answer = 'There are 0 contracts issued over 6 weeks ago with no signature.';
       } else {
@@ -722,7 +722,7 @@ export async function naturalQuery(
       const { data } = await supabase
         .from('agent_viewings')
         .select('id, buyer_name, scheme_name, unit_ref, viewing_date, viewing_time')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .gte('viewing_date', period.start)
         .lte('viewing_date', period.end)
         .order('viewing_date', { ascending: true });
@@ -742,7 +742,7 @@ export async function naturalQuery(
       const { data: asgs } = await supabase
         .from('agent_scheme_assignments')
         .select('development_id')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .eq('is_active', true);
       const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
       if (!devIds.length) {
@@ -758,9 +758,9 @@ export async function naturalQuery(
       }
     } else if (intent === 'needs_attention') {
       const [aged, arrears, renewals] = await Promise.all([
-        loadAgedForBriefing(supabase, agentContext.agentId, 42).catch(() => []),
-        getRentArrears(supabase, agentContext.agentId).catch(() => []),
-        getRenewalWindow(supabase, agentContext.agentId).catch(() => []),
+        loadAgedForBriefing(supabase, agentContext.agentProfileId, 42).catch(() => []),
+        getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
+        getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
       ]);
       answer = `Items needing attention: ${aged.length} aged contracts, ${arrears.length} rent arrears, ${renewals.length} renewals due.`;
     } else {
@@ -860,27 +860,40 @@ export async function scheduleViewingDraft(
       const unitToken = unitMatch[1];
       const schemeToken = ref.slice(0, unitMatch.index).trim();
       if (schemeToken) {
-        const { data: devs } = await supabase
-          .from('developments')
-          .select('id, name')
-          .ilike('name', `%${schemeToken}%`);
-        const devList = devs || [];
-        if (devList.length) {
-          const { data: units } = await supabase
-            .from('units')
-            .select('id, development_id, unit_number, unit_uid')
-            .in('development_id', devList.map((d: any) => d.id))
-            .or(`unit_number.ilike.${unitToken},unit_uid.ilike.%${unitToken}%`);
-          const unit = (units || [])[0];
-          if (unit) {
-            const dev = devList.find((d: any) => d.id === unit.development_id);
+        // Session 14 — resolve the scheme through the alias table and the
+        // unit through the strict exact-match resolver. Pre-14 this was
+        // `.ilike('name', '%<schemeToken>%')` + `unit_number.ilike.<t>` →
+        // silent first-row pick.
+        const { data: asgs } = await supabase
+          .from('agent_scheme_assignments')
+          .select('development_id')
+          .eq('agent_id', agentContext.agentProfileId)
+          .eq('is_active', true);
+        const devIds = Array.from(
+          new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+        );
+        const { data: devs } = devIds.length
+          ? await supabase.from('developments').select('id, name').in('id', devIds)
+          : { data: [] };
+        const devList = (devs || []) as Array<{ id: string; name: string }>;
+        const schemeContext = {
+          assignedDevelopmentIds: devList.map((d) => d.id),
+          assignedDevelopmentNames: devList.map((d) => d.name),
+        };
+        const schemeResolution = await resolveSchemeName(supabase, schemeToken, schemeContext);
+        if (schemeResolution.ok) {
+          const unitRes = await resolveUnitIdentifier(supabase, unitToken, {
+            developmentIds: [schemeResolution.developmentId],
+            preferredDevelopmentId: schemeResolution.developmentId,
+          });
+          if (unitRes.status === 'ok') {
             resolved = {
               kind: 'sales_unit',
-              unitId: unit.id,
-              developmentId: unit.development_id,
-              schemeName: dev?.name || schemeToken,
-              unitNumber: unit.unit_number || unit.unit_uid || unitToken,
-              label: `${dev?.name || schemeToken} Unit ${unit.unit_number || unit.unit_uid || unitToken}`,
+              unitId: unitRes.unit.id,
+              developmentId: unitRes.unit.development_id,
+              schemeName: schemeResolution.canonicalName,
+              unitNumber: unitRes.unit.unit_number || unitRes.unit.unit_uid || unitToken,
+              label: `${schemeResolution.canonicalName} Unit ${unitRes.unit.unit_number || unitRes.unit.unit_uid || unitToken}`,
             };
           }
         }
@@ -891,7 +904,7 @@ export async function scheduleViewingDraft(
       const { data: props } = await supabase
         .from('agent_letting_properties')
         .select('id, address, city')
-        .eq('agent_id', agentContext.agentId)
+        .eq('agent_id', agentContext.agentProfileId)
         .ilike('address', `%${ref}%`);
       const prop = (props || [])[0];
       if (prop) {
@@ -919,7 +932,7 @@ export async function scheduleViewingDraft(
     const { data: existing } = await supabase
       .from('agent_viewings')
       .select('id, buyer_name, viewing_time, viewing_date')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('viewing_date', viewingDate);
 
     const prefMinutes = dt.getUTCHours() * 60 + dt.getUTCMinutes();
@@ -938,7 +951,7 @@ export async function scheduleViewingDraft(
     const schemeName = resolved.kind === 'sales_unit' ? resolved.schemeName : null;
     const unitRef = resolved.kind === 'sales_unit' ? resolved.unitNumber : resolved.address;
     const recordRow: Record<string, any> = {
-      agent_id: agentContext.agentId,
+      agent_id: agentContext.agentProfileId,
       buyer_name: inputs.buyer_name,
       buyer_email: inputs.buyer_email || null,
       buyer_phone: inputs.buyer_phone || null,
@@ -1068,35 +1081,138 @@ export async function draftMessageSkill(
   }
 
   try {
-    // Resolve the unit / scheme / buyer if the model gave us references.
-    // This lets us stamp the real unit number + purchaser email into the
-    // draft rather than whatever placeholder the model chose.
+    // Session 13.2 — strict scheme/unit resolution when the caller
+    // specified a unit context. Pre-13.2 the skill ran a naive ilike
+    // against developments.name; if the scheme didn't match it fell
+    // through to a placeholder-everything draft that got persisted
+    // into pending_drafts with recipient@tbc.invalid. Now: if
+    // related_scheme or related_unit is provided and either fails to
+    // resolve, return an envelope with zero drafts + a skipped reason,
+    // matching the draftBuyerFollowups contract.
     let resolvedEmail: string | null = inputs.recipient_email || null;
     let resolvedUnitNumber: string | null = null;
     let resolvedSchemeName: string | null = null;
     let affectedUnitId: string | null = null;
+    let resolvedDevId: string | null = null;
 
-    if (inputs.related_scheme && inputs.related_unit) {
-      const { data: dev } = await supabase
-        .from('developments')
-        .select('id, name')
-        .ilike('name', `%${inputs.related_scheme}%`)
-        .limit(1)
-        .maybeSingle();
-      if (dev) {
-        resolvedSchemeName = dev.name;
-        const { data: units } = await supabase
-          .from('units')
-          .select('id, unit_number, unit_uid, purchaser_email, purchaser_name')
-          .eq('development_id', dev.id)
-          .or(`unit_number.ilike.%${inputs.related_unit}%,unit_uid.ilike.%${inputs.related_unit}%,purchaser_name.ilike.%${recipientName}%`)
-          .limit(1);
-        const unit = units?.[0];
-        if (unit) {
-          resolvedUnitNumber = unit.unit_number || unit.unit_uid || inputs.related_unit;
-          if (!resolvedEmail && unit.purchaser_email) resolvedEmail = unit.purchaser_email;
-          affectedUnitId = unit.id;
+    const hasUnitContext = Boolean(inputs.related_scheme || inputs.related_unit);
+
+    if (hasUnitContext) {
+      // --- Stage: resolve scheme ---
+      if (inputs.related_scheme) {
+        const { data: asgs } = await supabase
+          .from('agent_scheme_assignments')
+          .select('development_id')
+          .eq('agent_id', agentContext.agentProfileId)
+          .eq('is_active', true);
+        const devIds = Array.from(
+          new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+        );
+        const { data: devs } = devIds.length
+          ? await supabase.from('developments').select('id, name').in('id', devIds)
+          : { data: [] };
+        const devList = (devs || []) as Array<{ id: string; name: string }>;
+        const schemeContext = {
+          assignedDevelopmentIds: devList.map((d) => d.id),
+          assignedDevelopmentNames: devList.map((d) => d.name),
+        };
+        const schemeResolution = await resolveSchemeName(
+          supabase,
+          inputs.related_scheme,
+          schemeContext,
+        );
+        if (!schemeResolution.ok) {
+          const reasonText =
+            schemeResolution.reason === 'not_found'
+              ? `I couldn't find a scheme matching "${inputs.related_scheme}". Your assigned schemes are: ${schemeResolution.candidates.join(', ')}.`
+              : schemeResolution.reason === 'ambiguous'
+                ? `"${inputs.related_scheme}" matches multiple schemes (${schemeResolution.candidates.join(', ')}). Please be specific.`
+                : `Scheme "${inputs.related_scheme}" is not in your assigned list.`;
+          // Session 14 — thread top_candidate through so the chat route
+          // can turn this refusal into a "Did you mean X? (yes/no)" prompt
+          // when exactly one assigned scheme is a phonetic neighbour.
+          const topCandidate =
+            schemeResolution.reason === 'not_found' && schemeResolution.top_candidate
+              ? {
+                  name: schemeResolution.top_candidate.name,
+                  developmentId: schemeResolution.top_candidate.developmentId,
+                  typed: inputs.related_scheme,
+                }
+              : null;
+          return {
+            skill,
+            status: 'awaiting_approval',
+            summary: reasonText,
+            drafts: [],
+            meta: {
+              record_count: 0,
+              generated_at: new Date().toISOString(),
+              query,
+              // @ts-ignore — read by the chat route's scheme-not-found injector
+              skipped: [{ unit_identifier: inputs.related_unit || '', reason: reasonText }],
+              ...(topCandidate ? { top_candidate: topCandidate } : {}),
+            } as any,
+          };
         }
+        resolvedDevId = schemeResolution.developmentId;
+        resolvedSchemeName = schemeResolution.canonicalName;
+      }
+
+      // --- Stage: resolve unit ---
+      if (inputs.related_unit) {
+        // Need the scope list for the unit resolver. If scheme resolved,
+        // use just that dev; otherwise use the agent's full assigned set.
+        let unitScope: string[] = [];
+        if (resolvedDevId) {
+          unitScope = [resolvedDevId];
+        } else {
+          const { data: asgs } = await supabase
+            .from('agent_scheme_assignments')
+            .select('development_id')
+            .eq('agent_id', agentContext.agentProfileId)
+            .eq('is_active', true);
+          unitScope = Array.from(
+            new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+          );
+        }
+        const unitRes = await resolveUnitIdentifier(supabase, inputs.related_unit, {
+          developmentIds: unitScope,
+          preferredDevelopmentId: resolvedDevId,
+        });
+        if (unitRes.status !== 'ok') {
+          const reasonText =
+            unitRes.status === 'not_found'
+              ? `I couldn't find Unit ${inputs.related_unit}${resolvedSchemeName ? ` in ${resolvedSchemeName}` : ''}.`
+              : `Unit "${inputs.related_unit}" matches multiple units across schemes. Include the scheme name.`;
+          return {
+            skill,
+            status: 'awaiting_approval',
+            summary: reasonText,
+            drafts: [],
+            meta: {
+              record_count: 0,
+              generated_at: new Date().toISOString(),
+              query,
+              // @ts-ignore
+              skipped: [{ unit_identifier: inputs.related_unit, reason: reasonText }],
+            } as any,
+          };
+        }
+        resolvedUnitNumber = unitRes.unit.unit_number || unitRes.unit.unit_uid || inputs.related_unit;
+        if (!resolvedEmail && unitRes.unit.purchaser_email) {
+          resolvedEmail = unitRes.unit.purchaser_email;
+        }
+        if (!resolvedSchemeName) {
+          // Only the unit was specified; pull the scheme name from the
+          // resolved unit's development_id.
+          const { data: dev } = await supabase
+            .from('developments')
+            .select('name')
+            .eq('id', unitRes.unit.development_id)
+            .maybeSingle();
+          resolvedSchemeName = dev?.name ?? null;
+        }
+        affectedUnitId = unitRes.unit.id;
       }
     }
 
@@ -1141,7 +1257,13 @@ export async function draftMessageSkill(
       status: 'awaiting_approval',
       summary: `Drafted email to ${recipientName}${unitLabel ? ` — ${unitLabel}` : ''}.`,
       drafts: [draft],
-      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+      meta: {
+        record_count: 1,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — Session 13 alias capture keys off this
+        resolved_development_ids: resolvedDevId ? [resolvedDevId] : [],
+      } as any,
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);
@@ -1365,11 +1487,18 @@ export async function draftBuyerFollowups(
     // something to key off of. Only dev_ids where at least one draft
     // landed go into this set.
     const resolvedDevIds = new Set<string>();
+    // Session 14 — when a target's scheme resolution returns not_found
+    // with a single phonetic-neighbour candidate, stash it keyed by the
+    // typed input. We only surface top_candidate on the final envelope
+    // if ALL distinct typed inputs collapsed to the same single
+    // candidate and zero drafts landed — otherwise the yes/no prompt
+    // would be ambiguous.
+    const topCandidatesByTyped = new Map<string, { name: string; developmentId: string; typed: string }>();
 
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
     const { data: devs } = devIds.length
@@ -1399,6 +1528,13 @@ export async function draftBuyerFollowups(
         if (schemeResolution.ok) {
           preferredDevId = schemeResolution.developmentId;
         } else if (schemeResolution.reason === 'not_found') {
+          if (schemeResolution.top_candidate) {
+            topCandidatesByTyped.set(target.scheme_name, {
+              name: schemeResolution.top_candidate.name,
+              developmentId: schemeResolution.top_candidate.developmentId,
+              typed: target.scheme_name,
+            });
+          }
           skipped.push({
             ref: unitRef,
             reason: `I couldn't find a scheme matching "${target.scheme_name}". Your assigned schemes are: ${schemeResolution.candidates.join(', ')}.`,
@@ -1503,6 +1639,20 @@ export async function draftBuyerFollowups(
       );
     }
 
+    // Session 14 — surface top_candidate only when zero drafts landed AND
+    // every failed scheme_name pointed at the same single phonetic
+    // neighbour. Mixed inputs or any successful drafts → no candidate,
+    // the user needs to re-state rather than yes/no.
+    let topCandidate: { name: string; developmentId: string; typed: string } | null = null;
+    if (drafts.length === 0 && topCandidatesByTyped.size > 0) {
+      const uniqueCandidates = new Set(
+        Array.from(topCandidatesByTyped.values()).map((c) => c.developmentId),
+      );
+      if (uniqueCandidates.size === 1) {
+        topCandidate = Array.from(topCandidatesByTyped.values())[0];
+      }
+    }
+
     return {
       skill,
       status: 'awaiting_approval',
@@ -1516,6 +1666,8 @@ export async function draftBuyerFollowups(
         skipped,
         // @ts-ignore — Session 13: chat route uses this to key alias capture
         resolved_development_ids: Array.from(resolvedDevIds),
+        // @ts-ignore — Session 14: chat route uses this for yes/no disambiguation
+        ...(topCandidate ? { top_candidate: topCandidate } : {}),
       } as any,
     };
   } catch (err) {
@@ -1552,7 +1704,7 @@ export async function getCandidateUnitsSkill(
     const { data: asgs } = await supabase
       .from('agent_scheme_assignments')
       .select('development_id')
-      .eq('agent_id', agentContext.agentId)
+      .eq('agent_id', agentContext.agentProfileId)
       .eq('is_active', true);
     const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
     if (!devIds.length) {

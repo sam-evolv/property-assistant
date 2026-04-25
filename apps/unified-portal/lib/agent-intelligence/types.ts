@@ -1,8 +1,15 @@
 import { SupabaseClient } from '@supabase/supabase-js';
+import type { AgentProfileId, AuthUserId } from './ids';
 
+/**
+ * Session 14.3 — the two identifier fields are branded so a raw string
+ * or the wrong brand cannot be assigned in either slot. Historical
+ * field names (`agentId`, `userId`) are gone; every consumer reads
+ * `agentProfileId` / `authUserId` and the compiler refuses to mix them.
+ */
 export interface AgentContext {
-  agentId: string;
-  userId: string;
+  agentProfileId: AgentProfileId;
+  authUserId: AuthUserId;
   tenantId: string;
   displayName: string;
   agencyName?: string | null;
