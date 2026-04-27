@@ -127,6 +127,45 @@ const INITIAL_TENANCY: FormState['tenancy'] = {
   rtbRegistrationNumber: null,
 };
 
+// Mirrors the completeness scoring from migration 052 so the ring can update
+// live without a server round-trip. Server still enforces on save.
+function computeCompleteness(
+  state: FormState,
+  lookup: LookupResponse | null,
+  extraction: ExtractResponse | null,
+): number {
+  let score = 0;
+  // Property (60). The address card is sourced from lookupData; treat
+  // address_line_1 + eircode as a single +10 slot.
+  if (lookup?.address?.line1) score += 10;
+  if (state.property.propertyType) score += 8;
+  if (state.property.bedrooms != null) score += 8;
+  if (state.property.bathrooms != null) score += 4;
+  if (state.property.floorAreaSqm != null) score += 5;
+  if (state.property.yearBuilt != null) score += 3;
+  if (state.property.berRating) score += 12;
+  if (state.property.berCertNumber) score += 5;
+  if (state.property.berExpiryDate) score += 5;
+  // Tenancy (30). Vacant properties don't lose points for missing tenancy
+  // data; off_market follows the tenanted scoring (a tenancy may still exist).
+  if (state.status === 'vacant') {
+    score += 30;
+  } else {
+    if (state.tenancy.monthlyRentEur != null) score += 6;
+    if (state.tenancy.depositAmountEur != null) score += 4;
+    if (state.tenancy.leaseStartDate) score += 4;
+    if (state.tenancy.leaseEndDate) score += 4;
+    if (state.tenancy.rtbRegistrationNumber) score += 8;
+    if (state.tenancy.leaseType) score += 4;
+  }
+  // Documents (10). Lease PDF: +5. BER cert document upload isn't shipped
+  // yet (Session 10), so treat populated cert# + expiry as equivalent to
+  // "BER cert on record" for v1.0 scoring.
+  if (extraction?.documentId) score += 5;
+  if (state.property.berCertNumber && state.property.berExpiryDate) score += 5;
+  return Math.min(100, score);
+}
+
 export default function ReviewPropertyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -313,6 +352,24 @@ export default function ReviewPropertyPage() {
 
   const updateTenancy = (patch: Partial<FormState['tenancy']>) =>
     setForm((prev) => ({ ...prev, tenancy: { ...prev.tenancy, ...patch } }));
+
+  const completeness = computeCompleteness(form, lookupData, extractionData);
+
+  const requiredValues: Array<unknown> = [
+    form.property.propertyType,
+    form.property.bedrooms,
+    ...(form.status === 'tenanted'
+      ? [form.tenancy.tenantName, form.tenancy.monthlyRentEur, form.tenancy.leaseStartDate]
+      : []),
+  ];
+  const missingRequired = requiredValues.filter((v) => v == null || v === '').length;
+  const saveDisabled = missingRequired > 0;
+  const saveLabel =
+    missingRequired > 0
+      ? `${missingRequired} required field${missingRequired === 1 ? '' : 's'} missing`
+      : completeness < 100
+        ? `Save with ${100 - completeness}% outstanding`
+        : 'Save property';
 
   const handleSave = () => {
     console.log('[review/8a] Save tapped — current form state:', form);
@@ -896,25 +953,50 @@ export default function ReviewPropertyPage() {
           }}
         >
           <div style={{ maxWidth: 480, margin: '0 auto' }}>
-            <button
-              type="button"
-              onClick={handleSave}
-              style={{
-                width: '100%',
-                height: 48,
-                borderRadius: 8,
-                border: 'none',
-                background: '#D4AF37',
-                color: '#FFFFFF',
-                fontSize: 15,
-                fontWeight: 600,
-                cursor: 'pointer',
-                fontFamily: 'inherit',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)',
-              }}
-            >
-              Save property
-            </button>
+            <div className="flex items-center gap-3">
+              <div className="relative w-10 h-10 flex-shrink-0">
+                <svg width="40" height="40" viewBox="0 0 40 40" className="-rotate-90">
+                  <circle cx="20" cy="20" r="16" fill="none" stroke="#F3F4F6" strokeWidth="3.5" />
+                  <circle
+                    cx="20"
+                    cy="20"
+                    r="16"
+                    fill="none"
+                    stroke="#D4AF37"
+                    strokeWidth="3.5"
+                    strokeLinecap="round"
+                    strokeDasharray={2 * Math.PI * 16}
+                    strokeDashoffset={2 * Math.PI * 16 * (1 - completeness / 100)}
+                    style={{ transition: 'stroke-dashoffset 250ms cubic-bezier(0.16, 1, 0.3, 1)' }}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[10px] font-semibold text-[#0D0D12]">{completeness}</span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saveDisabled}
+                style={{
+                  flex: 1,
+                  height: 48,
+                  borderRadius: 8,
+                  border: 'none',
+                  background: '#D4AF37',
+                  color: '#FFFFFF',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  cursor: saveDisabled ? 'not-allowed' : 'pointer',
+                  fontFamily: 'inherit',
+                  boxShadow: saveDisabled ? 'none' : '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)',
+                  opacity: saveDisabled ? 0.5 : 1,
+                  pointerEvents: saveDisabled ? 'none' : 'auto',
+                }}
+              >
+                {saveLabel}
+              </button>
+            </div>
           </div>
         </div>
       </div>
