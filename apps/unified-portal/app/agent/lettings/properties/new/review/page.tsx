@@ -234,7 +234,11 @@ export default function ReviewPropertyPage() {
         tenancy: { ...prev.tenancy },
       };
       if (lookupData?.ber) {
-        if (next.property.berRating == null) next.property.berRating = lookupData.ber.rating;
+        // SEAI returns rating as upper-case ("A1"); storage values are
+        // lower-case ("a1") so the <select> option matches.
+        if (next.property.berRating == null) {
+          next.property.berRating = lookupData.ber.rating ? lookupData.ber.rating.toLowerCase() : null;
+        }
         if (next.property.berCertNumber == null) next.property.berCertNumber = lookupData.ber.certNumber;
         if (next.property.berExpiryDate == null) next.property.berExpiryDate = lookupData.ber.expiryDate;
       }
@@ -294,6 +298,9 @@ export default function ReviewPropertyPage() {
     !loading && Boolean(placeId || eircode) && !lookupData && !addressLine;
 
   const tenancyVisible = form.status === 'tenanted' || form.status === 'off_market';
+
+  const updateProperty = (patch: Partial<FormState['property']>) =>
+    setForm((prev) => ({ ...prev, property: { ...prev.property, ...patch } }));
 
   const handleSave = () => {
     console.log('[review/8a] Save tapped — current form state:', form);
@@ -417,7 +424,155 @@ export default function ReviewPropertyPage() {
 
           {/* Section: PROPERTY */}
           <SectionContainer title="PROPERTY" style={{ marginTop: 24 }}>
-            <SectionPlaceholder />
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    Property type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.property.propertyType ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ propertyType: e.target.value === '' ? null : e.target.value })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  >
+                    <option value="">Select…</option>
+                    <option value="apartment">Apartment</option>
+                    <option value="house_terraced">House (terraced)</option>
+                    <option value="house_semi_detached">House (semi-detached)</option>
+                    <option value="house_detached">House (detached)</option>
+                    <option value="house_end_of_terrace">House (end of terrace)</option>
+                    <option value="duplex">Duplex</option>
+                    <option value="studio">Studio</option>
+                    <option value="bungalow">Bungalow</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    Bedrooms <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={form.property.bedrooms ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ bedrooms: e.target.value === '' ? null : Number(e.target.value) })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    Bathrooms
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={form.property.bathrooms ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ bathrooms: e.target.value === '' ? null : Number(e.target.value) })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    Floor area (sqm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    inputMode="decimal"
+                    value={form.property.floorAreaSqm ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ floorAreaSqm: e.target.value === '' ? null : Number(e.target.value) })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    Year built
+                  </label>
+                  <input
+                    type="number"
+                    min={1700}
+                    max={2030}
+                    inputMode="numeric"
+                    value={form.property.yearBuilt ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ yearBuilt: e.target.value === '' ? null : Number(e.target.value) })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    BER rating
+                  </label>
+                  <select
+                    value={form.property.berRating ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ berRating: e.target.value === '' ? null : e.target.value })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  >
+                    <option value="">Select…</option>
+                    <option value="a1">A1</option>
+                    <option value="a2">A2</option>
+                    <option value="a3">A3</option>
+                    <option value="b1">B1</option>
+                    <option value="b2">B2</option>
+                    <option value="b3">B3</option>
+                    <option value="c1">C1</option>
+                    <option value="c2">C2</option>
+                    <option value="c3">C3</option>
+                    <option value="d1">D1</option>
+                    <option value="d2">D2</option>
+                    <option value="e1">E1</option>
+                    <option value="e2">E2</option>
+                    <option value="f">F</option>
+                    <option value="g">G</option>
+                    <option value="exempt">Exempt</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    BER cert number
+                  </label>
+                  <input
+                    type="text"
+                    value={form.property.berCertNumber ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ berCertNumber: e.target.value === '' ? null : e.target.value })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                    BER expiry
+                  </label>
+                  <input
+                    type="date"
+                    value={form.property.berExpiryDate ?? ''}
+                    onChange={(e) =>
+                      updateProperty({ berExpiryDate: e.target.value === '' ? null : e.target.value })
+                    }
+                    className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                  />
+                </div>
+              </div>
+            )}
           </SectionContainer>
 
           {/* Section: TENANCY (conditional on status) */}
