@@ -244,7 +244,14 @@ export default function ReviewPropertyPage() {
       }
       const ex = extractionData?.extracted;
       if (ex) {
-        if (next.tenancy.tenantName == null) next.tenancy.tenantName = ex.primaryTenantName;
+        if (next.tenancy.tenantName == null) {
+          // Join primary + co-tenants with ' & ' so multi-tenant lets render
+          // as a single human-readable string (e.g. "Mary Murphy & John Murphy").
+          const names = [ex.primaryTenantName, ...ex.coTenantNames].filter(
+            (n): n is string => typeof n === 'string' && n.length > 0,
+          );
+          next.tenancy.tenantName = names.length > 0 ? names.join(' & ') : null;
+        }
         if (next.tenancy.monthlyRentEur == null) next.tenancy.monthlyRentEur = ex.monthlyRentEur;
         if (next.tenancy.depositAmountEur == null) next.tenancy.depositAmountEur = ex.depositAmountEur;
         if (next.tenancy.rentPaymentDay == null) next.tenancy.rentPaymentDay = ex.rentPaymentDay;
@@ -301,6 +308,9 @@ export default function ReviewPropertyPage() {
 
   const updateProperty = (patch: Partial<FormState['property']>) =>
     setForm((prev) => ({ ...prev, property: { ...prev.property, ...patch } }));
+
+  const updateTenancy = (patch: Partial<FormState['tenancy']>) =>
+    setForm((prev) => ({ ...prev, tenancy: { ...prev.tenancy, ...patch } }));
 
   const handleSave = () => {
     console.log('[review/8a] Save tapped — current form state:', form);
@@ -578,7 +588,166 @@ export default function ReviewPropertyPage() {
           {/* Section: TENANCY (conditional on status) */}
           {tenancyVisible && (
             <SectionContainer title="TENANCY" style={{ marginTop: 24 }}>
-              <SectionPlaceholder />
+              {loading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Tenant name <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Mary Murphy"
+                      value={form.tenancy.tenantName ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ tenantName: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                    <p className="text-[11px] text-[#A0A8B0] mt-1">
+                      For multiple tenants, separate with &lsquo; &amp; &rsquo;
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Tenant email
+                    </label>
+                    <input
+                      type="email"
+                      value={form.tenancy.tenantEmail ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ tenantEmail: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Tenant phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={form.tenancy.tenantPhone ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ tenantPhone: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Monthly rent <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex">
+                      <span className="h-10 w-10 bg-gray-50 border border-r-0 border-[#E5E7EB] rounded-l-lg flex items-center justify-center text-sm text-gray-500">€</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={form.tenancy.monthlyRentEur ?? ''}
+                        onChange={(e) =>
+                          updateTenancy({ monthlyRentEur: e.target.value === '' ? null : Number(e.target.value) })
+                        }
+                        className="h-10 flex-1 min-w-0 border border-[#E5E7EB] rounded-r-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Deposit amount
+                    </label>
+                    <div className="flex">
+                      <span className="h-10 w-10 bg-gray-50 border border-r-0 border-[#E5E7EB] rounded-l-lg flex items-center justify-center text-sm text-gray-500">€</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={form.tenancy.depositAmountEur ?? ''}
+                        onChange={(e) =>
+                          updateTenancy({ depositAmountEur: e.target.value === '' ? null : Number(e.target.value) })
+                        }
+                        className="h-10 flex-1 min-w-0 border border-[#E5E7EB] rounded-r-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Rent payment day
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={31}
+                      inputMode="numeric"
+                      value={form.tenancy.rentPaymentDay ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ rentPaymentDay: e.target.value === '' ? null : Number(e.target.value) })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Lease start <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={form.tenancy.leaseStartDate ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ leaseStartDate: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Lease end
+                    </label>
+                    <input
+                      type="date"
+                      value={form.tenancy.leaseEndDate ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ leaseEndDate: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      Lease type
+                    </label>
+                    <select
+                      value={form.tenancy.leaseType ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ leaseType: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    >
+                      <option value="">Select…</option>
+                      <option value="fixed_term">Fixed term</option>
+                      <option value="periodic">Periodic</option>
+                      <option value="part_4">Part 4</option>
+                      <option value="further_part_4">Further Part 4</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
+                      RTB registration number
+                    </label>
+                    <input
+                      type="text"
+                      value={form.tenancy.rtbRegistrationNumber ?? ''}
+                      onChange={(e) =>
+                        updateTenancy({ rtbRegistrationNumber: e.target.value === '' ? null : e.target.value })
+                      }
+                      className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] focus:ring-2 focus:ring-[#D4AF37]/20"
+                    />
+                  </div>
+                </div>
+              )}
             </SectionContainer>
           )}
 
