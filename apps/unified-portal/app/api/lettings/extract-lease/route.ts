@@ -155,7 +155,7 @@ export async function POST(request: NextRequest) {
 
     const { data: doc, error: docErr } = await admin
       .from('lettings_documents')
-      .select('id, agent_id, tenant_id, file_url, doc_type, ai_extracted_data, ai_extraction_status')
+      .select('id, agent_id, tenant_id, file_url, doc_type, original_filename, file_size_bytes, ai_extracted_data, ai_extraction_status')
       .eq('id', documentId)
       .maybeSingle();
 
@@ -186,6 +186,8 @@ export async function POST(request: NextRequest) {
         status: doc.ai_extraction_status,
         extracted: doc.ai_extracted_data,
         cached: true,
+        originalFilename: doc.original_filename,
+        fileSizeBytes: doc.file_size_bytes,
       });
     }
 
@@ -361,6 +363,8 @@ export async function POST(request: NextRequest) {
       status,
       extracted,
       cached: false,
+      originalFilename: doc.original_filename,
+      fileSizeBytes: doc.file_size_bytes,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
