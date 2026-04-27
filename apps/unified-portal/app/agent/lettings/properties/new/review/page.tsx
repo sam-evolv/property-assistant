@@ -5,21 +5,26 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import AgentShell from '../../../../_components/AgentShell';
 
 /**
- * Review screen — Session 7 build.
+ * Review screen — Session 8a layout skeleton.
  *
- * Two parallel flows feed this screen:
- *   1. Address path (placeId or eircode in the URL) — fires
- *      /api/lettings/property-lookup, shows the address/BER status panel.
- *   2. Lease PDF path (leaseDocumentId in the URL) — fires
- *      /api/lettings/extract-lease, shows the extraction status panel
- *      with rows specific to lease data (tenant, rent+dates, RTB number).
+ * Wholesale rebuild of the Session 7 debug-pane review. This chunk lays in
+ * the page structure: top bar, address card, status segmented control,
+ * empty section containers, and a stub save button. 8b populates the
+ * Property + Tenancy sections with real fields. 8c wires up persistence,
+ * the completeness ring and source icons.
  *
- * Both paths render the same raw-JSON debug pane below their status panel
- * and share the same Continue affordance. Session 8 replaces the entire
- * file with the full review form.
+ * Data flow:
+ *   - URL params (placeId | eircode | leaseDocumentId) drive two parallel
+ *     fetches on mount: /api/lettings/property-lookup and
+ *     /api/lettings/extract-lease. Results are held in lookupData and
+ *     extractionData. 8b reads them to seed the form.
+ *
+ * UI status → DB column mapping (used by the 8c save handler — the
+ * segmented control here only stores the UI value):
+ *   Vacant     → agent_letting_properties.status = 'vacant'
+ *   Tenanted   → agent_letting_properties.status = 'let'
+ *   Off-market → agent_letting_properties.status = 'off_market'
  */
-
-type RowStatus = 'pending' | 'ok' | 'soft-miss' | 'fail' | 'skipped';
 
 type LookupResponse = {
   address: {
@@ -68,17 +73,57 @@ type ExtractResponse = {
   reason?: string;
 };
 
-type AddressState =
-  | { phase: 'idle' }
-  | { phase: 'loading' }
-  | { phase: 'success'; data: LookupResponse }
-  | { phase: 'error'; message: string };
+type StatusValue = 'vacant' | 'tenanted' | 'off_market';
 
-type LeaseState =
-  | { phase: 'idle' }
-  | { phase: 'loading' }
-  | { phase: 'success'; data: ExtractResponse }
-  | { phase: 'error'; message: string };
+type FormState = {
+  status: StatusValue;
+  property: {
+    propertyType: string | null;
+    bedrooms: number | null;
+    bathrooms: number | null;
+    floorAreaSqm: number | null;
+    yearBuilt: number | null;
+    berRating: string | null;
+    berCertNumber: string | null;
+    berExpiryDate: string | null;
+  };
+  tenancy: {
+    tenantName: string | null;
+    tenantEmail: string | null;
+    tenantPhone: string | null;
+    monthlyRentEur: number | null;
+    depositAmountEur: number | null;
+    rentPaymentDay: number | null;
+    leaseStartDate: string | null;
+    leaseEndDate: string | null;
+    leaseType: string | null;
+    rtbRegistrationNumber: string | null;
+  };
+};
+
+const INITIAL_PROPERTY: FormState['property'] = {
+  propertyType: null,
+  bedrooms: null,
+  bathrooms: null,
+  floorAreaSqm: null,
+  yearBuilt: null,
+  berRating: null,
+  berCertNumber: null,
+  berExpiryDate: null,
+};
+
+const INITIAL_TENANCY: FormState['tenancy'] = {
+  tenantName: null,
+  tenantEmail: null,
+  tenantPhone: null,
+  monthlyRentEur: null,
+  depositAmountEur: null,
+  rentPaymentDay: null,
+  leaseStartDate: null,
+  leaseEndDate: null,
+  leaseType: null,
+  rtbRegistrationNumber: null,
+};
 
 export default function ReviewPropertyPage() {
   const router = useRouter();
@@ -88,137 +133,173 @@ export default function ReviewPropertyPage() {
   const eircode = searchParams.get('eircode');
   const leaseDocumentId = searchParams.get('leaseDocumentId');
 
-  const [addressState, setAddressState] = useState<AddressState>({ phase: 'idle' });
-  const [leaseState, setLeaseState] = useState<LeaseState>({ phase: 'idle' });
-  const [debugOpen, setDebugOpen] = useState(true);
+  const [lookupData, setLookupData] = useState<LookupResponse | null>(null);
+  const [extractionData, setExtractionData] = useState<ExtractResponse | null>(null);
+  const [loading, setLoading] = useState<boolean>(
+    Boolean(placeId || eircode || leaseDocumentId),
+  );
+  const [error, setError] = useState<string | null>(null);
 
-  // Address path
+  const [form, setForm] = useState<FormState>(() => ({
+    status: leaseDocumentId ? 'tenanted' : 'vacant',
+    property: { ...INITIAL_PROPERTY },
+    tenancy: { ...INITIAL_TENANCY },
+  }));
+
+  // Parallel data fetch on mount. Either, both or neither call may run
+  // depending on what the previous screen handed us in the URL.
   useEffect(() => {
-    if (leaseDocumentId) return;
-    if (!placeId && !eircode) return;
+    const haveAddress = Boolean(placeId || eircode);
+    const haveLease = Boolean(leaseDocumentId);
+    if (!haveAddress && !haveLease) {
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
-    setAddressState({ phase: 'loading' });
-    (async () => {
-      try {
-        const res = await fetch('/api/lettings/property-lookup', {
+    setLoading(true);
+    setError(null);
+
+    const lookupCall: Promise<LookupResponse | null> = haveAddress
+      ? fetch('/api/lettings/property-lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(placeId ? { placeId } : { eircode }),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          if (cancelled) return;
-          setAddressState({
-            phase: 'error',
-            message: errBody?.error || `Lookup failed (${res.status})`,
-          });
-          return;
-        }
-        const data = (await res.json()) as LookupResponse;
-        if (cancelled) return;
-        setAddressState({ phase: 'success', data });
-      } catch (err) {
-        if (cancelled) return;
-        setAddressState({
-          phase: 'error',
-          message: err instanceof Error ? err.message : 'Network error',
-        });
+        }).then(async (res) => {
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body?.error || `Address lookup failed (${res.status})`);
+          }
+          return (await res.json()) as LookupResponse;
+        })
+      : Promise.resolve(null);
+
+    const extractCall: Promise<ExtractResponse | null> = haveLease
+      ? fetch('/api/lettings/extract-lease', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: leaseDocumentId }),
+        }).then(async (res) => {
+          if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body?.error || `Lease extraction failed (${res.status})`);
+          }
+          return (await res.json()) as ExtractResponse;
+        })
+      : Promise.resolve(null);
+
+    Promise.allSettled([lookupCall, extractCall]).then((results) => {
+      if (cancelled) return;
+      const [lookupRes, extractRes] = results;
+      const messages: string[] = [];
+
+      if (lookupRes.status === 'fulfilled') {
+        setLookupData(lookupRes.value);
+      } else if (haveAddress) {
+        messages.push(
+          lookupRes.reason instanceof Error
+            ? lookupRes.reason.message
+            : 'Address lookup failed',
+        );
       }
-    })();
+
+      if (extractRes.status === 'fulfilled') {
+        setExtractionData(extractRes.value);
+      } else if (haveLease) {
+        messages.push(
+          extractRes.reason instanceof Error
+            ? extractRes.reason.message
+            : 'Lease extraction failed',
+        );
+      }
+
+      setError(messages.length > 0 ? messages.join(' · ') : null);
+      setLoading(false);
+    });
+
     return () => {
       cancelled = true;
     };
   }, [placeId, eircode, leaseDocumentId]);
 
-  // Lease path
+  // Seed the form from API responses. Only writes into fields that are
+  // still null — once 8b/8c add real inputs, user edits won't get clobbered
+  // by a re-render with the same data.
   useEffect(() => {
-    if (!leaseDocumentId) return;
-
-    let cancelled = false;
-    setLeaseState({ phase: 'loading' });
-    (async () => {
-      try {
-        const res = await fetch('/api/lettings/extract-lease', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ documentId: leaseDocumentId }),
-        });
-        if (!res.ok) {
-          const errBody = await res.json().catch(() => ({}));
-          if (cancelled) return;
-          setLeaseState({
-            phase: 'error',
-            message: errBody?.error || `Extraction failed (${res.status})`,
-          });
-          return;
-        }
-        const data = (await res.json()) as ExtractResponse;
-        if (cancelled) return;
-        setLeaseState({ phase: 'success', data });
-      } catch (err) {
-        if (cancelled) return;
-        setLeaseState({
-          phase: 'error',
-          message: err instanceof Error ? err.message : 'Network error',
-        });
+    if (!lookupData && !extractionData) return;
+    setForm((prev) => {
+      const next: FormState = {
+        ...prev,
+        property: { ...prev.property },
+        tenancy: { ...prev.tenancy },
+      };
+      if (lookupData?.ber) {
+        if (next.property.berRating == null) next.property.berRating = lookupData.ber.rating;
+        if (next.property.berCertNumber == null) next.property.berCertNumber = lookupData.ber.certNumber;
+        if (next.property.berExpiryDate == null) next.property.berExpiryDate = lookupData.ber.expiryDate;
       }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [leaseDocumentId]);
+      const ex = extractionData?.extracted;
+      if (ex) {
+        if (next.tenancy.tenantName == null) next.tenancy.tenantName = ex.primaryTenantName;
+        if (next.tenancy.monthlyRentEur == null) next.tenancy.monthlyRentEur = ex.monthlyRentEur;
+        if (next.tenancy.depositAmountEur == null) next.tenancy.depositAmountEur = ex.depositAmountEur;
+        if (next.tenancy.rentPaymentDay == null) next.tenancy.rentPaymentDay = ex.rentPaymentDay;
+        if (next.tenancy.leaseStartDate == null) next.tenancy.leaseStartDate = ex.leaseStartDate;
+        if (next.tenancy.leaseEndDate == null) next.tenancy.leaseEndDate = ex.leaseEndDate;
+        if (next.tenancy.leaseType == null) next.tenancy.leaseType = ex.leaseType;
+        if (next.tenancy.rtbRegistrationNumber == null) {
+          next.tenancy.rtbRegistrationNumber = ex.rtbRegistrationNumber;
+        }
+      }
+      return next;
+    });
+  }, [lookupData, extractionData]);
 
-  const addressStatus: RowStatus = useMemo(() => {
-    if (addressState.phase === 'idle' || addressState.phase === 'loading') return 'pending';
-    if (addressState.phase === 'error') return 'fail';
-    return addressState.data.address.line1 || addressState.data.address.eircode ? 'ok' : 'fail';
-  }, [addressState]);
+  const addressLine = useMemo(() => {
+    if (loading) return null;
+    if (lookupData?.address) {
+      const a = lookupData.address;
+      return (
+        a.formattedAddress ||
+        [a.line1, a.town, a.county, a.eircode].filter(Boolean).join(', ')
+      );
+    }
+    if (eircode && !lookupData) {
+      // Lookup failed but we have the eircode the user typed.
+      return eircode;
+    }
+    return null;
+  }, [loading, lookupData, eircode]);
 
-  const berStatus: RowStatus = useMemo(() => {
-    if (addressState.phase === 'idle' || addressState.phase === 'loading') return 'pending';
-    if (addressState.phase === 'error') return 'skipped';
-    return addressState.data.ber?.rating ? 'ok' : 'soft-miss';
-  }, [addressState]);
+  const sourcesLabel = useMemo(() => {
+    if (loading) return null;
+    const parts: string[] = [];
+    if (lookupData) {
+      const sources = new Set<string>();
+      for (const p of lookupData.provenance) {
+        if (p.source === 'google_places') sources.add('Google Places');
+        else if (p.source === 'eircode') sources.add('Eircode');
+        else if (p.source === 'seai_register') sources.add('SEAI register');
+      }
+      if (sources.size > 0) parts.push(Array.from(sources).join(' + '));
+    }
+    if (extractionData) {
+      parts.push('the lease document');
+    }
+    if (parts.length === 0) return null;
+    return `From ${parts.join(' + ')}`;
+  }, [loading, lookupData, extractionData]);
 
-  const pprStatus: RowStatus =
-    addressState.phase === 'loading' || addressState.phase === 'idle'
-      ? 'pending'
-      : 'skipped';
+  const addressFailed =
+    !loading && Boolean(placeId || eircode) && !lookupData && !addressLine;
 
-  // Lease row statuses
-  const leaseDocStatus: RowStatus = useMemo(() => {
-    if (leaseState.phase === 'idle' || leaseState.phase === 'loading') return 'pending';
-    if (leaseState.phase === 'error') return 'fail';
-    return leaseState.data.status === 'failed' ? 'fail' : 'ok';
-  }, [leaseState]);
+  const tenancyVisible = form.status === 'tenanted' || form.status === 'off_market';
 
-  const tenantStatus: RowStatus = useMemo(() => {
-    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
-    return leaseState.data.extracted.primaryTenantName ? 'ok' : 'soft-miss';
-  }, [leaseState, leaseDocStatus]);
-
-  const rentDatesStatus: RowStatus = useMemo(() => {
-    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
-    const e = leaseState.data.extracted;
-    return e.monthlyRentEur != null && e.leaseStartDate ? 'ok' : 'soft-miss';
-  }, [leaseState, leaseDocStatus]);
-
-  const rtbStatus: RowStatus = useMemo(() => {
-    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
-    return leaseState.data.extracted.rtbRegistrationNumber ? 'ok' : 'soft-miss';
-  }, [leaseState, leaseDocStatus]);
-
-  const continueEnabled = leaseDocumentId
-    ? leaseState.phase === 'success' && leaseState.data.status !== 'failed'
-    : addressStatus === 'ok';
-
-  const handleContinue = () => {
-    const params = new URLSearchParams();
-    if (placeId) params.set('placeId', placeId);
-    if (eircode) params.set('eircode', eircode);
-    if (leaseDocumentId) params.set('leaseDocumentId', leaseDocumentId);
-    router.push(`/agent/lettings/properties/new/save?${params.toString()}`);
+  const handleSave = () => {
+    console.log('[review/8a] Save tapped — current form state:', form);
+    if (typeof window !== 'undefined') {
+      window.alert('Save handler coming in part 3 of this session');
+    }
   };
 
   return (
@@ -226,21 +307,27 @@ export default function ReviewPropertyPage() {
       <div
         style={{
           minHeight: '100%',
-          padding: '8px 20px 100px',
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
+          background: '#FAFAF8',
         }}
       >
+        {/* Sticky top bar */}
         <div
           style={{
+            position: 'sticky',
+            top: 0,
+            zIndex: 5,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
-            padding: '10px 0 18px',
+            height: 56,
+            padding: '0 16px',
+            background: '#FAFAF8',
+            borderBottom: '0.5px solid rgba(0,0,0,0.06)',
           }}
         >
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={() => router.push('/agent/lettings/properties/new')}
             aria-label="Back"
             style={{
               display: 'inline-flex',
@@ -263,6 +350,7 @@ export default function ReviewPropertyPage() {
           <h1
             style={{
               flex: 1,
+              textAlign: 'center',
               color: '#0D0D12',
               fontSize: 16,
               fontWeight: 600,
@@ -270,492 +358,312 @@ export default function ReviewPropertyPage() {
               margin: 0,
             }}
           >
-            Add property
+            Review property
           </h1>
           <span
             style={{
+              minWidth: 36,
+              textAlign: 'right',
               color: '#A0A8B0',
               fontSize: 12,
               fontWeight: 500,
-              letterSpacing: '0.04em',
             }}
           >
-            Step 2 of 3
+            3 of 3
           </span>
         </div>
 
-        {/* LEASE PATH ─────────────────────────────────────── */}
-        {leaseDocumentId ? (
-          <>
+        {/* Scrollable content */}
+        <div
+          style={{
+            maxWidth: 480,
+            margin: '0 auto',
+            padding: '24px 16px 120px',
+          }}
+        >
+          {error && (
             <div
+              role="alert"
               style={{
-                maxWidth: 480,
-                margin: '0 auto',
-                padding: 16,
-                background: '#fff',
-                border: '0.5px solid #E5E7EB',
-                borderRadius: 14,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                marginBottom: 16,
+                padding: '10px 12px',
+                background: 'rgba(239,68,68,0.06)',
+                border: '0.5px solid rgba(239,68,68,0.25)',
+                borderRadius: 10,
+                color: '#B91C1C',
+                fontSize: 12,
               }}
             >
-              <p
-                style={{
-                  color: '#0D0D12',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  letterSpacing: '-0.01em',
-                  margin: '0 0 12px',
-                }}
-              >
-                {leaseState.phase === 'success'
-                  ? 'Lease details ready'
-                  : leaseState.phase === 'error'
-                    ? 'Couldn’t read the lease'
-                    : 'Reading your lease…'}
-              </p>
-
-              <StatusRow
-                status={leaseDocStatus}
-                label="Reading lease document"
-                source="PDF text extraction"
-                detail={
-                  leaseState.phase === 'success' && leaseState.data.cached
-                    ? 'Loaded previous extraction'
-                    : undefined
-                }
-              />
-              <StatusRow
-                status={tenantStatus}
-                label="Extracting tenant details"
-                source="GPT-4o-mini"
-                detail={
-                  leaseState.phase === 'success'
-                    ? leaseState.data.extracted.primaryTenantName
-                      ? `${leaseState.data.extracted.primaryTenantName}${
-                          leaseState.data.extracted.coTenantNames.length > 0
-                            ? ` (+${leaseState.data.extracted.coTenantNames.length} co-tenant${leaseState.data.extracted.coTenantNames.length === 1 ? '' : 's'})`
-                            : ''
-                        }`
-                      : 'Tenant name not found — fill in on the next screen'
-                    : undefined
-                }
-              />
-              <StatusRow
-                status={rentDatesStatus}
-                label="Extracting rent and dates"
-                source="GPT-4o-mini"
-                detail={
-                  leaseState.phase === 'success'
-                    ? formatRentDetail(leaseState.data.extracted)
-                    : undefined
-                }
-              />
-              <StatusRow
-                status={rtbStatus}
-                label="Looking for RTB number"
-                source="GPT-4o-mini"
-                detail={
-                  leaseState.phase === 'success'
-                    ? leaseState.data.extracted.rtbRegistrationNumber
-                      ? leaseState.data.extracted.rtbRegistrationNumber
-                      : 'Not found — register the tenancy with RTB if you haven’t already'
-                    : undefined
-                }
-              />
-
-              {leaseState.phase === 'error' && (
-                <div
-                  role="alert"
-                  style={{
-                    marginTop: 12,
-                    padding: '10px 12px',
-                    background: 'rgba(239,68,68,0.06)',
-                    border: '0.5px solid rgba(239,68,68,0.25)',
-                    borderRadius: 10,
-                    color: '#B91C1C',
-                    fontSize: 12,
-                  }}
-                >
-                  {leaseState.message}
-                </div>
-              )}
-
-              {leaseState.phase === 'success' && leaseState.data.status === 'failed' && (
-                <div
-                  role="alert"
-                  style={{
-                    marginTop: 12,
-                    padding: '10px 12px',
-                    background: 'rgba(239,68,68,0.06)',
-                    border: '0.5px solid rgba(239,68,68,0.25)',
-                    borderRadius: 10,
-                    color: '#B91C1C',
-                    fontSize: 12,
-                  }}
-                >
-                  {leaseState.data.reason ?? 'Extraction failed — please try a different file or fill in manually.'}
-                </div>
-              )}
+              {error}
             </div>
+          )}
 
-            {leaseState.phase === 'success' && (
-              <DebugPane
-                open={debugOpen}
-                onToggle={() => setDebugOpen((p) => !p)}
-                label="Extracted lease data (debug)"
-                json={leaseState.data.extracted}
-              />
-            )}
-          </>
-        ) : (
-          /* ADDRESS PATH ───────────────────────────────── */
-          <>
-            <div
-              style={{
-                maxWidth: 480,
-                margin: '0 auto',
-                padding: 16,
-                background: '#fff',
-                border: '0.5px solid #E5E7EB',
-                borderRadius: 14,
-                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-              }}
-            >
-              <p
-                style={{
-                  color: '#0D0D12',
-                  fontSize: 15,
-                  fontWeight: 600,
-                  letterSpacing: '-0.01em',
-                  margin: '0 0 12px',
-                }}
-              >
-                {addressState.phase === 'success'
-                  ? 'Property details ready'
-                  : 'Looking up property details…'}
-              </p>
+          {/* Address card (locked, read-only) */}
+          <AddressCard
+            loading={loading}
+            failed={addressFailed}
+            addressLine={addressLine}
+            sourcesLabel={sourcesLabel}
+            extractionPresent={Boolean(extractionData)}
+          />
 
-              <StatusRow
-                status={addressStatus}
-                label="Address verified"
-                source={placeId ? 'Google Places' : 'Eircode'}
-                detail={
-                  addressState.phase === 'success'
-                    ? formatAddressLine(addressState.data.address)
-                    : undefined
-                }
-              />
-              <StatusRow
-                status={berStatus}
-                label="BER rating"
-                source="SEAI register"
-                detail={
-                  addressState.phase === 'success' && addressState.data.ber?.rating
-                    ? `${addressState.data.ber.rating}${addressState.data.ber.expiryDate ? ` · expires ${addressState.data.ber.expiryDate}` : ''}`
-                    : addressState.phase === 'success' && !addressState.data.ber?.rating
-                      ? 'Not in SEAI register — you can upload the cert later'
-                      : undefined
-                }
-              />
-              <StatusRow
-                status={pprStatus}
-                label="Property details"
-                source="Property Price Register"
-                detail={
-                  pprStatus === 'skipped' ? 'Not available — coming post-launch' : undefined
-                }
-              />
+          {/* Status segmented control */}
+          <div style={{ marginTop: 24 }}>
+            <SegmentedStatus
+              value={form.status}
+              onChange={(next) => setForm((prev) => ({ ...prev, status: next }))}
+            />
+          </div>
 
-              {addressState.phase === 'error' && (
-                <div
-                  role="alert"
-                  style={{
-                    marginTop: 12,
-                    padding: '10px 12px',
-                    background: 'rgba(239,68,68,0.06)',
-                    border: '0.5px solid rgba(239,68,68,0.25)',
-                    borderRadius: 10,
-                    color: '#B91C1C',
-                    fontSize: 12,
-                  }}
-                >
-                  Couldn&rsquo;t verify the address &mdash; please go back and try again.
-                  <br />
-                  <span style={{ opacity: 0.7 }}>{addressState.message}</span>
-                </div>
-              )}
-            </div>
+          {/* Section: PROPERTY */}
+          <SectionContainer title="PROPERTY" style={{ marginTop: 24 }}>
+            <SectionPlaceholder />
+          </SectionContainer>
 
-            {addressState.phase === 'success' && (
-              <DebugPane
-                open={debugOpen}
-                onToggle={() => setDebugOpen((p) => !p)}
-                label="Raw response (debug)"
-                json={addressState.data}
-              />
-            )}
-          </>
-        )}
+          {/* Section: TENANCY (conditional on status) */}
+          {tenancyVisible && (
+            <SectionContainer title="TENANCY" style={{ marginTop: 24 }}>
+              <SectionPlaceholder />
+            </SectionContainer>
+          )}
 
+          {/* Section: COMPLIANCE */}
+          <SectionContainer title="COMPLIANCE" style={{ marginTop: 24 }}>
+            <SectionPlaceholder />
+          </SectionContainer>
+
+          {/* Section: DOCUMENTS */}
+          <SectionContainer title="DOCUMENTS" style={{ marginTop: 24 }}>
+            <SectionPlaceholder />
+          </SectionContainer>
+        </div>
+
+        {/* Sticky save footer.
+            Sits flush with the top of AgentShell's BottomNav (76px tall) so
+            the bottom nav remains visible below it — see report. */}
         <div
           style={{
             position: 'fixed',
             left: 0,
             right: 0,
             bottom: 'calc(76px + env(safe-area-inset-bottom))',
-            padding: '12px 20px',
-            display: 'flex',
-            justifyContent: 'center',
-            pointerEvents: 'none',
+            zIndex: 60,
+            padding: 16,
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(20px)',
+            WebkitBackdropFilter: 'blur(20px)',
+            borderTop: '0.5px solid rgba(0,0,0,0.08)',
           }}
         >
-          <button
-            type="button"
-            disabled={!continueEnabled}
-            onClick={handleContinue}
-            style={{
-              pointerEvents: 'auto',
-              width: '100%',
-              maxWidth: 480,
-              height: 50,
-              borderRadius: 12,
-              border: 'none',
-              background: continueEnabled
-                ? 'linear-gradient(135deg, #D4AF37, #C49B2A)'
-                : '#EDEDE6',
-              color: continueEnabled ? '#0D0D12' : '#9CA3AF',
-              fontSize: 14,
-              fontWeight: 600,
-              letterSpacing: '-0.01em',
-              cursor: continueEnabled ? 'pointer' : 'not-allowed',
-              fontFamily: 'inherit',
-              boxShadow: continueEnabled
-                ? '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)'
-                : 'none',
-            }}
-          >
-            Continue
-          </button>
+          <div style={{ maxWidth: 480, margin: '0 auto' }}>
+            <button
+              type="button"
+              onClick={handleSave}
+              style={{
+                width: '100%',
+                height: 48,
+                borderRadius: 8,
+                border: 'none',
+                background: '#D4AF37',
+                color: '#FFFFFF',
+                fontSize: 15,
+                fontWeight: 600,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)',
+              }}
+            >
+              Save property
+            </button>
+          </div>
         </div>
       </div>
-
-      <style>{`
-        @keyframes oh-spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </AgentShell>
   );
 }
 
-function StatusRow({
-  status,
-  label,
-  source,
-  detail,
+function AddressCard({
+  loading,
+  failed,
+  addressLine,
+  sourcesLabel,
+  extractionPresent,
 }: {
-  status: RowStatus;
-  label: string;
-  source: string;
-  detail?: string;
+  loading: boolean;
+  failed: boolean;
+  addressLine: string | null;
+  sourcesLabel: string | null;
+  extractionPresent: boolean;
 }) {
-  const muted = status === 'skipped' || status === 'soft-miss';
   return (
     <div
       style={{
+        background: '#fff',
+        border: '0.5px solid #E5E7EB',
+        borderRadius: 12,
+        padding: 16,
         display: 'flex',
         alignItems: 'flex-start',
         gap: 12,
-        padding: '10px 0',
-        borderBottom: '0.5px solid rgba(0,0,0,0.04)',
-        opacity: muted ? 0.85 : 1,
       }}
     >
-      <span
-        style={{
-          flexShrink: 0,
-          marginTop: 2,
-          width: 20,
-          height: 20,
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <StatusIcon status={status} />
+      <span style={{ flexShrink: 0, marginTop: 2 }}>
+        <MapPinIcon />
       </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span
-          style={{
-            display: 'block',
-            color: '#0D0D12',
-            fontSize: 14,
-            fontWeight: 500,
-          }}
-        >
-          {label}
-        </span>
-        <span
-          style={{
-            display: 'block',
-            color: '#A0A8B0',
-            fontSize: 12,
-            marginTop: 2,
-          }}
-        >
-          {source}
-        </span>
-        {detail ? (
-          <span
-            style={{
-              display: 'block',
-              color: '#0D0D12',
-              fontSize: 12,
-              marginTop: 4,
-              lineHeight: 1.4,
-            }}
-          >
-            {detail}
-          </span>
-        ) : null}
-      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {loading ? (
+          <>
+            <div className="h-5 bg-gray-100 animate-pulse rounded w-3/4" />
+            <div className="h-3 bg-gray-100 animate-pulse rounded w-1/2" style={{ marginTop: 8 }} />
+          </>
+        ) : failed ? (
+          <>
+            <p style={{ margin: 0, color: '#EF4444', fontSize: 16, fontWeight: 600 }}>
+              Address could not be verified
+            </p>
+            <p style={{ margin: '4px 0 0', color: '#A0A8B0', fontSize: 12 }}>
+              Go back and try again
+            </p>
+          </>
+        ) : (
+          <>
+            <p
+              style={{
+                margin: 0,
+                color: '#0D0D12',
+                fontSize: 16,
+                fontWeight: 600,
+                lineHeight: 1.35,
+              }}
+            >
+              {addressLine ?? (extractionPresent ? 'Address from lease' : 'No address provided')}
+            </p>
+            {sourcesLabel && (
+              <p style={{ margin: '4px 0 0', color: '#A0A8B0', fontSize: 12 }}>
+                {sourcesLabel}
+              </p>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }
 
-function StatusIcon({ status }: { status: RowStatus }) {
-  if (status === 'pending') {
-    return (
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="#A0A8B0"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        style={{ animation: 'oh-spin 900ms linear infinite' }}
-      >
-        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-      </svg>
-    );
-  }
-  if (status === 'ok') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="20 6 9 17 4 12" />
-      </svg>
-    );
-  }
-  if (status === 'fail') {
-    return (
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18" />
-        <line x1="6" y1="6" x2="18" y2="18" />
-      </svg>
-    );
-  }
-  return (
-    <span
-      style={{
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: '#D8D8D2',
-        display: 'inline-block',
-      }}
-    />
-  );
-}
-
-function DebugPane({
-  open,
-  onToggle,
-  label,
-  json,
+function SegmentedStatus({
+  value,
+  onChange,
 }: {
-  open: boolean;
-  onToggle: () => void;
-  label: string;
-  json: unknown;
+  value: StatusValue;
+  onChange: (next: StatusValue) => void;
 }) {
+  const options: { value: StatusValue; label: string }[] = [
+    { value: 'vacant', label: 'Vacant' },
+    { value: 'tenanted', label: 'Tenanted' },
+    { value: 'off_market', label: 'Off-market' },
+  ];
   return (
     <div
+      role="tablist"
       style={{
-        maxWidth: 480,
-        margin: '16px auto 0',
-        background: '#fff',
-        border: '0.5px solid #E5E7EB',
-        borderRadius: 14,
-        overflow: 'hidden',
+        display: 'flex',
+        width: '100%',
+        background: '#F3F4F6',
+        borderRadius: 8,
+        padding: 4,
+        gap: 0,
       }}
     >
-      <button
-        type="button"
-        onClick={onToggle}
-        style={{
-          width: '100%',
-          padding: '12px 16px',
-          background: '#F8F8F4',
-          border: 'none',
-          borderBottom: open ? '0.5px solid rgba(0,0,0,0.04)' : 'none',
-          color: '#6B7280',
-          fontSize: 11,
-          fontWeight: 600,
-          letterSpacing: '0.08em',
-          textTransform: 'uppercase',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          fontFamily: 'inherit',
-        }}
-      >
-        {label}
-        <span style={{ fontSize: 12 }}>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && (
-        <pre
-          style={{
-            margin: 0,
-            padding: 14,
-            fontSize: 12,
-            lineHeight: 1.5,
-            fontFamily: '"SF Mono", Menlo, Monaco, monospace',
-            color: '#0D0D12',
-            background: '#fff',
-            overflowX: 'auto',
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-          }}
-        >
-          {JSON.stringify(json, null, 2)}
-        </pre>
-      )}
+      {options.map((opt) => {
+        const selected = opt.value === value;
+        return (
+          <button
+            key={opt.value}
+            role="tab"
+            aria-selected={selected}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            style={{
+              flex: 1,
+              height: 36,
+              borderRadius: 6,
+              border: 'none',
+              background: selected ? '#FFFFFF' : 'transparent',
+              color: selected ? '#0D0D12' : '#6B7280',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              boxShadow: selected ? '0 1px 2px rgba(0,0,0,0.08)' : 'none',
+              transition: 'background 120ms ease, color 120ms ease',
+            }}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
 
-function formatAddressLine(address: LookupResponse['address']): string {
-  if (address.formattedAddress) return address.formattedAddress;
-  return [address.line1, address.town, address.county, address.eircode]
-    .filter(Boolean)
-    .join(', ');
+function SectionContainer({
+  title,
+  children,
+  style,
+}: {
+  title: string;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  return (
+    <section
+      style={{
+        background: '#fff',
+        border: '0.5px solid #E5E7EB',
+        borderRadius: 12,
+        padding: 16,
+        ...style,
+      }}
+    >
+      <h2
+        style={{
+          margin: '0 0 12px',
+          color: '#9EA8B5',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.06em',
+          textTransform: 'uppercase',
+        }}
+      >
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
 }
 
-function formatRentDetail(extracted: ExtractedLease): string {
-  const parts: string[] = [];
-  if (extracted.monthlyRentEur != null) {
-    parts.push(`€${extracted.monthlyRentEur.toLocaleString()}/month`);
-  }
-  if (extracted.leaseStartDate) {
-    parts.push(`from ${extracted.leaseStartDate}`);
-  }
-  if (extracted.leaseEndDate) {
-    parts.push(`to ${extracted.leaseEndDate}`);
-  }
-  if (parts.length === 0) return 'Rent or dates not found — fill in on the next screen';
-  return parts.join(' · ');
+function SectionPlaceholder() {
+  return (
+    <p style={{ margin: 0, color: '#A0A8B0', fontSize: 13, lineHeight: 1.5 }}>
+      Form fields coming in part 2 of this session
+    </p>
+  );
+}
+
+function MapPinIcon() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#D4AF37"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  );
 }
