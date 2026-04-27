@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getAgentWorkspaces, getActiveWorkspace } from '@/lib/agent/workspaces';
 
 export const dynamic = 'force-dynamic';
@@ -15,14 +15,12 @@ export const dynamic = 'force-dynamic';
  *
  * Shape: { workspaces: AgentWorkspace[]; activeWorkspaceId: string | null }
  *
- * Auth: requireRole — 'agent' is not a real AdminRole in this codebase
- * (only super_admin / developer / admin / tenant_admin), so we mirror the
- * existing /api/agent/* routes and gate on the same allowlist.
+ * Auth: cookie-based — matches /api/agent/pipeline-data. Real agents have no
+ * AdminRole in raw_app_meta_data, so requireRole would 401 every legitimate
+ * caller. The agent_profiles lookup keyed on user_id is the security boundary.
  */
 export async function GET() {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
-
     const cookieStore = cookies();
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();

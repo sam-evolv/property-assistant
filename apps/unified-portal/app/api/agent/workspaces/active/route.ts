@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { setActiveWorkspace } from '@/lib/agent/workspaces';
 
 export const dynamic = 'force-dynamic';
@@ -22,8 +22,6 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
-
     const body = await request.json().catch(() => null);
     const workspaceId = typeof body?.workspaceId === 'string' ? body.workspaceId : null;
     if (!workspaceId) {
