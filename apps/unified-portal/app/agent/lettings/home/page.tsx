@@ -1,66 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../../_components/AgentShell';
 
+// Always renders the empty-state CTA for now. The previous redirect-when-
+// properties-exist path sent the agent into /agent/lettings/properties,
+// which is still a "Coming soon" placeholder until Session 9 ships the real
+// dashboard — a broken redirect is worse than no redirect.
 export default function LettingsHomePage() {
-  const router = useRouter();
-  const { activeWorkspace, loading } = useAgent();
-  const [checkedExisting, setCheckedExisting] = useState(false);
-
-  // If properties already exist for this workspace, send the agent straight to
-  // the list. The empty state is only meaningful for first-run. Until the
-  // rent-roll dashboard lands in Session 11 the list IS the home for users
-  // with stock in flight.
-  useEffect(() => {
-    if (loading || checkedExisting) return;
-    if (!activeWorkspace || activeWorkspace.mode !== 'lettings') {
-      setCheckedExisting(true);
-      return;
-    }
-
-    let cancelled = false;
-    (async () => {
-      try {
-        const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL)
-          && Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-        if (!hasEnv) {
-          if (!cancelled) setCheckedExisting(true);
-          return;
-        }
-
-        const supabase = createClientComponentClient();
-        const { count, error } = await supabase
-          .from('agent_letting_properties')
-          .select('id', { count: 'exact', head: true })
-          .eq('workspace_id', activeWorkspace.id);
-
-        if (cancelled) return;
-        if (!error && (count ?? 0) > 0) {
-          router.replace('/agent/lettings/properties');
-          return;
-        }
-        setCheckedExisting(true);
-      } catch {
-        if (!cancelled) setCheckedExisting(true);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [loading, activeWorkspace, checkedExisting, router]);
-
-  // Show nothing until we've decided whether to redirect — avoids a flash of
-  // empty state for agents who already have stock.
-  if (loading || !checkedExisting) {
-    return <AgentShell><div /></AgentShell>;
-  }
-
   return (
     <AgentShell>
       <div
@@ -143,7 +90,7 @@ export default function LettingsHomePage() {
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          Add your first property
+          Add a property
         </Link>
 
         <Link

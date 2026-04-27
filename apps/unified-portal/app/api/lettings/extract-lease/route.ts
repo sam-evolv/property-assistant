@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import OpenAI from 'openai';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -125,8 +125,6 @@ const RESPONSE_JSON_SCHEMA = {
 export async function POST(request: NextRequest) {
   const started = Date.now();
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
-
     const body = await request.json().catch(() => null);
     const documentId = typeof body?.documentId === 'string' ? body.documentId.trim() : '';
     if (!documentId) {

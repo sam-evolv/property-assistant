@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { requireRole } from '@/lib/supabase-server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { fetchPlaceDetails, addressFromEircodeOnly, type ResolvedAddress } from '@/lib/lettings/places-details';
 import { lookupBerByAddress, type BerLookupResult } from '@/lib/lettings/seai-ber-lookup';
 
@@ -34,7 +35,9 @@ type LookupResponse = {
 export async function POST(request: NextRequest) {
   const started = Date.now();
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookies() });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await request.json().catch(() => null);
     const placeId = typeof body?.placeId === 'string' ? body.placeId.trim() : '';

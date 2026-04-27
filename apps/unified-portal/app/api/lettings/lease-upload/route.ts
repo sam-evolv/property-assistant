@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
-import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,8 +30,6 @@ const MAX_BYTES = 10 * 1024 * 1024;
 export async function POST(request: NextRequest) {
   const started = Date.now();
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
-
     const form = await request.formData().catch(() => null);
     if (!form) {
       return NextResponse.json({ error: 'Invalid form data' }, { status: 400 });

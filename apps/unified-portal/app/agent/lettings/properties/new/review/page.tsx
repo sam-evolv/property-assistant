@@ -430,6 +430,7 @@ export default function ReviewPropertyPage() {
   const handleSave = async () => {
     if (saving || saveDisabled) return;
     setSaving(true);
+    setError(null);
 
     // Reuse 8c-ii's source detection. Remap the UI 'lease_pdf' value to
     // the DB enum 'lease_pdf_extraction'.
@@ -475,7 +476,7 @@ export default function ReviewPropertyPage() {
       if (!res.ok || !json?.propertyId) {
         const message = json?.error || `Save failed (${res.status})`;
         console.error('[review/save] failed:', message);
-        window.alert(`Couldn't save: ${message}`);
+        setError(`Couldn't save: ${message}`);
         setSaving(false);
         return;
       }
@@ -483,7 +484,7 @@ export default function ReviewPropertyPage() {
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Network error';
       console.error('[review/save] error:', message);
-      window.alert(`Couldn't save: ${message}`);
+      setError(`Couldn't save: ${message}`);
       setSaving(false);
     }
   };
