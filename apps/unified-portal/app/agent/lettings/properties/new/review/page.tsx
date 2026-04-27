@@ -4,6 +4,33 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AgentShell from '../../../../_components/AgentShell';
 
+type FieldSource = 'google_places' | 'eircode' | 'seai_register' | 'lease_pdf' | null;
+
+// Returns the source if the current form value still matches what the API
+// returned. Once the user edits a field, the icon disappears (manual override).
+function getFieldSource(
+  formValue: unknown,
+  lookupValue: unknown,
+  extractionValue: unknown,
+  lookupSource: FieldSource = null,
+): FieldSource {
+  if (formValue === null || formValue === '' || formValue === undefined) return null;
+  if (extractionValue !== null && extractionValue !== undefined && formValue === extractionValue) {
+    return 'lease_pdf';
+  }
+  if (lookupValue !== null && lookupValue !== undefined && formValue === lookupValue) {
+    return lookupSource ?? 'google_places';
+  }
+  return null;
+}
+
+const SOURCE_LABEL: Record<NonNullable<FieldSource>, string> = {
+  google_places: 'Google Places',
+  eircode: 'Eircode lookup',
+  seai_register: 'SEAI register',
+  lease_pdf: 'AI extracted from your lease',
+};
+
 /**
  * Review screen — Session 8a layout skeleton.
  *
@@ -353,6 +380,34 @@ export default function ReviewPropertyPage() {
   const updateTenancy = (patch: Partial<FormState['tenancy']>) =>
     setForm((prev) => ({ ...prev, tenancy: { ...prev.tenancy, ...patch } }));
 
+  const [openPopover, setOpenPopover] = useState<string | null>(null);
+
+  // Close any open popover on outside click. The trigger button stops
+  // propagation so taps on it never reach this listener.
+  useEffect(() => {
+    if (!openPopover) return;
+    const onDocClick = (e: MouseEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest('[data-popover-trigger]') || t.closest('[data-popover-content]')) return;
+      setOpenPopover(null);
+    };
+    document.addEventListener('click', onDocClick);
+    return () => document.removeEventListener('click', onDocClick);
+  }, [openPopover]);
+
+  // Precompute the values the auto-fill effect would have written, so the
+  // strict-equality match in getFieldSource still recognises seeded data.
+  // BER rating is lower-cased on seed; tenant name is primary + co-tenants
+  // joined with ' & '.
+  const seededBerRating = lookupData?.ber?.rating ? lookupData.ber.rating.toLowerCase() : null;
+  const ex = extractionData?.extracted ?? null;
+  const seededTenantName = ex
+    ? [ex.primaryTenantName, ...ex.coTenantNames]
+        .filter((n): n is string => typeof n === 'string' && n.length > 0)
+        .join(' & ') || null
+    : null;
+
   const completeness = computeCompleteness(form, lookupData, extractionData);
 
   const requiredValues: Array<unknown> = [
@@ -504,6 +559,7 @@ export default function ReviewPropertyPage() {
                 <div>
                   <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                     Property type <span className="text-red-500">*</span>
+                    <SourceIcon source={getFieldSource(form.property.propertyType, null, null)} fieldName="propertyType" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                   </label>
                   <select
                     value={form.property.propertyType ?? ''}
@@ -527,6 +583,7 @@ export default function ReviewPropertyPage() {
                 <div>
                   <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                     Bedrooms <span className="text-red-500">*</span>
+                    <SourceIcon source={getFieldSource(form.property.bedrooms, null, null)} fieldName="bedrooms" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                   </label>
                   <input
                     type="number"
@@ -586,6 +643,7 @@ export default function ReviewPropertyPage() {
                 <div>
                   <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                     BER rating
+                    <SourceIcon source={getFieldSource(form.property.berRating, seededBerRating, null, 'seai_register')} fieldName="berRating" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                   </label>
                   <select
                     value={form.property.berRating ?? ''}
@@ -617,6 +675,7 @@ export default function ReviewPropertyPage() {
                 <div>
                   <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                     BER cert number
+                    <SourceIcon source={getFieldSource(form.property.berCertNumber, lookupData?.ber?.certNumber ?? null, null, 'seai_register')} fieldName="berCertNumber" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                   </label>
                   <input
                     type="text"
@@ -630,6 +689,7 @@ export default function ReviewPropertyPage() {
                 <div>
                   <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                     BER expiry
+                    <SourceIcon source={getFieldSource(form.property.berExpiryDate, lookupData?.ber?.expiryDate ?? null, null, 'seai_register')} fieldName="berExpiryDate" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                   </label>
                   <input
                     type="date"
@@ -658,6 +718,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Tenant name <span className="text-red-500">*</span>
+                      <SourceIcon source={getFieldSource(form.tenancy.tenantName, null, seededTenantName)} fieldName="tenantName" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <input
                       type="text"
@@ -701,6 +762,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Monthly rent <span className="text-red-500">*</span>
+                      <SourceIcon source={getFieldSource(form.tenancy.monthlyRentEur, null, ex?.monthlyRentEur ?? null)} fieldName="monthlyRentEur" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <div className="flex">
                       <span className="h-10 w-10 bg-gray-50 border border-r-0 border-[#E5E7EB] rounded-l-lg flex items-center justify-center text-sm text-gray-500">€</span>
@@ -718,6 +780,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Deposit amount
+                      <SourceIcon source={getFieldSource(form.tenancy.depositAmountEur, null, ex?.depositAmountEur ?? null)} fieldName="depositAmountEur" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <div className="flex">
                       <span className="h-10 w-10 bg-gray-50 border border-r-0 border-[#E5E7EB] rounded-l-lg flex items-center justify-center text-sm text-gray-500">€</span>
@@ -735,6 +798,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Rent payment day
+                      <SourceIcon source={getFieldSource(form.tenancy.rentPaymentDay, null, ex?.rentPaymentDay ?? null)} fieldName="rentPaymentDay" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <input
                       type="number"
@@ -751,6 +815,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Lease start <span className="text-red-500">*</span>
+                      <SourceIcon source={getFieldSource(form.tenancy.leaseStartDate, null, ex?.leaseStartDate ?? null)} fieldName="leaseStartDate" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <input
                       type="date"
@@ -764,6 +829,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Lease end
+                      <SourceIcon source={getFieldSource(form.tenancy.leaseEndDate, null, ex?.leaseEndDate ?? null)} fieldName="leaseEndDate" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <input
                       type="date"
@@ -777,6 +843,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       Lease type
+                      <SourceIcon source={getFieldSource(form.tenancy.leaseType, null, ex?.leaseType ?? null)} fieldName="leaseType" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <select
                       value={form.tenancy.leaseType ?? ''}
@@ -795,6 +862,7 @@ export default function ReviewPropertyPage() {
                   <div>
                     <label className="block text-[13px] font-medium text-[#6B7280] mb-1">
                       RTB registration number
+                      <SourceIcon source={getFieldSource(form.tenancy.rtbRegistrationNumber, null, ex?.rtbRegistrationNumber ?? null)} fieldName="rtbRegistrationNumber" openPopover={openPopover} setOpenPopover={setOpenPopover} />
                     </label>
                     <input
                       type="text"
@@ -1169,6 +1237,75 @@ function SectionPlaceholder() {
     <p style={{ margin: 0, color: '#A0A8B0', fontSize: 13, lineHeight: 1.5 }}>
       Form fields coming in part 2 of this session
     </p>
+  );
+}
+
+function SourceIcon({
+  source,
+  fieldName,
+  openPopover,
+  setOpenPopover,
+}: {
+  source: FieldSource;
+  fieldName: string;
+  openPopover: string | null;
+  setOpenPopover: (next: string | null) => void;
+}) {
+  if (!source) return null;
+  const isOpen = openPopover === fieldName;
+  const stroke = source === 'lease_pdf' ? '#D4AF37' : '#6B7280';
+  return (
+    <span className="relative inline-flex ml-1.5">
+      <button
+        type="button"
+        data-popover-trigger
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpenPopover(isOpen ? null : fieldName);
+        }}
+        className="inline-flex items-center justify-center w-4 h-4 rounded hover:bg-gray-100 transition-colors"
+        aria-label={`Source: ${SOURCE_LABEL[source]}`}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          {source === 'google_places' && (
+            <>
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+              <circle cx="12" cy="10" r="3" />
+            </>
+          )}
+          {source === 'eircode' && (
+            <>
+              <line x1="4" y1="9" x2="20" y2="9" />
+              <line x1="4" y1="15" x2="20" y2="15" />
+              <line x1="10" y1="3" x2="8" y2="21" />
+              <line x1="16" y1="3" x2="14" y2="21" />
+            </>
+          )}
+          {source === 'seai_register' && (
+            <>
+              <rect x="4" y="2" width="16" height="20" rx="2" />
+              <line x1="9" y1="6" x2="15" y2="6" />
+              <line x1="9" y1="10" x2="15" y2="10" />
+              <line x1="9" y1="14" x2="11" y2="14" />
+            </>
+          )}
+          {source === 'lease_pdf' && (
+            <path d="M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3z" />
+          )}
+        </svg>
+      </button>
+      {isOpen && (
+        <div
+          data-popover-content
+          className="absolute z-50 mt-1 left-0 top-full w-56 bg-[#0D0D12] text-white rounded-lg shadow-lg p-3 text-xs"
+        >
+          <div className="font-medium mb-0.5">{SOURCE_LABEL[source]}</div>
+          <div className="text-[#A0A8B0]">
+            Filled automatically from this source. Edit to override.
+          </div>
+        </div>
+      )}
+    </span>
   );
 }
 
