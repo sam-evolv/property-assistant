@@ -3,18 +3,20 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AgentShell from '../../../../_components/AgentShell';
-import {
-  getPendingLease,
-  getPendingLeaseMeta,
-  type LeaseMeta,
-} from '@/lib/agent/lettings/leasePdfHandoff';
 
 /**
- * Review screen — Session 6 build.
+ * Review screen — Session 7 build.
  *
- * Status-panel + raw JSON pane while the lookup orchestrator runs. Session 8
- * replaces this with the full review form. Session 7 wires real lease-PDF
- * extraction (right now lease-PDF input just shows the filename).
+ * Two parallel flows feed this screen:
+ *   1. Address path (placeId or eircode in the URL) — fires
+ *      /api/lettings/property-lookup, shows the address/BER status panel.
+ *   2. Lease PDF path (leaseDocumentId in the URL) — fires
+ *      /api/lettings/extract-lease, shows the extraction status panel
+ *      with rows specific to lease data (tenant, rent+dates, RTB number).
+ *
+ * Both paths render the same raw-JSON debug pane below their status panel
+ * and share the same Continue affordance. Session 8 replaces the entire
+ * file with the full review form.
  */
 
 type RowStatus = 'pending' | 'ok' | 'soft-miss' | 'fail' | 'skipped';
@@ -43,10 +45,39 @@ type LookupResponse = {
   }>;
 };
 
-type LookupState =
+type ExtractedLease = {
+  primaryTenantName: string | null;
+  coTenantNames: string[];
+  monthlyRentEur: number | null;
+  depositAmountEur: number | null;
+  leaseStartDate: string | null;
+  leaseEndDate: string | null;
+  leaseType: 'fixed_term' | 'periodic' | 'part_4' | 'further_part_4' | null;
+  noticePeriodDays: number | null;
+  rtbRegistrationNumber: string | null;
+  breakClauseText: string | null;
+  rentPaymentDay: number | null;
+  fieldConfidences: Record<string, number>;
+};
+
+type ExtractResponse = {
+  documentId: string;
+  status: 'success' | 'partial' | 'failed';
+  extracted: ExtractedLease;
+  cached?: boolean;
+  reason?: string;
+};
+
+type AddressState =
   | { phase: 'idle' }
   | { phase: 'loading' }
   | { phase: 'success'; data: LookupResponse }
+  | { phase: 'error'; message: string };
+
+type LeaseState =
+  | { phase: 'idle' }
+  | { phase: 'loading' }
+  | { phase: 'success'; data: ExtractResponse }
   | { phase: 'error'; message: string };
 
 export default function ReviewPropertyPage() {
@@ -55,40 +86,30 @@ export default function ReviewPropertyPage() {
 
   const placeId = searchParams.get('placeId');
   const eircode = searchParams.get('eircode');
-  const leasePdfTempId = searchParams.get('leasePdf');
+  const leaseDocumentId = searchParams.get('leaseDocumentId');
 
-  const [state, setState] = useState<LookupState>({ phase: 'idle' });
+  const [addressState, setAddressState] = useState<AddressState>({ phase: 'idle' });
+  const [leaseState, setLeaseState] = useState<LeaseState>({ phase: 'idle' });
   const [debugOpen, setDebugOpen] = useState(true);
-  const [leaseMeta, setLeaseMeta] = useState<LeaseMeta | null>(null);
-  const [leaseFilePresent, setLeaseFilePresent] = useState(false);
 
-  // Lease PDF path — show metadata only; extraction is Session 7.
+  // Address path
   useEffect(() => {
-    if (!leasePdfTempId) return;
-    setLeaseMeta(getPendingLeaseMeta(leasePdfTempId));
-    setLeaseFilePresent(getPendingLease(leasePdfTempId) !== null);
-  }, [leasePdfTempId]);
-
-  // Address path — kick the orchestrator on mount.
-  useEffect(() => {
-    if (leasePdfTempId) return;
+    if (leaseDocumentId) return;
     if (!placeId && !eircode) return;
 
     let cancelled = false;
-    setState({ phase: 'loading' });
+    setAddressState({ phase: 'loading' });
     (async () => {
       try {
         const res = await fetch('/api/lettings/property-lookup', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(
-            placeId ? { placeId } : { eircode },
-          ),
+          body: JSON.stringify(placeId ? { placeId } : { eircode }),
         });
         if (!res.ok) {
           const errBody = await res.json().catch(() => ({}));
           if (cancelled) return;
-          setState({
+          setAddressState({
             phase: 'error',
             message: errBody?.error || `Lookup failed (${res.status})`,
           });
@@ -96,47 +117,107 @@ export default function ReviewPropertyPage() {
         }
         const data = (await res.json()) as LookupResponse;
         if (cancelled) return;
-        setState({ phase: 'success', data });
+        setAddressState({ phase: 'success', data });
       } catch (err) {
         if (cancelled) return;
-        const message = err instanceof Error ? err.message : 'Network error';
-        setState({ phase: 'error', message });
+        setAddressState({
+          phase: 'error',
+          message: err instanceof Error ? err.message : 'Network error',
+        });
       }
     })();
-
     return () => {
       cancelled = true;
     };
-  }, [placeId, eircode, leasePdfTempId]);
+  }, [placeId, eircode, leaseDocumentId]);
+
+  // Lease path
+  useEffect(() => {
+    if (!leaseDocumentId) return;
+
+    let cancelled = false;
+    setLeaseState({ phase: 'loading' });
+    (async () => {
+      try {
+        const res = await fetch('/api/lettings/extract-lease', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ documentId: leaseDocumentId }),
+        });
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          if (cancelled) return;
+          setLeaseState({
+            phase: 'error',
+            message: errBody?.error || `Extraction failed (${res.status})`,
+          });
+          return;
+        }
+        const data = (await res.json()) as ExtractResponse;
+        if (cancelled) return;
+        setLeaseState({ phase: 'success', data });
+      } catch (err) {
+        if (cancelled) return;
+        setLeaseState({
+          phase: 'error',
+          message: err instanceof Error ? err.message : 'Network error',
+        });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [leaseDocumentId]);
 
   const addressStatus: RowStatus = useMemo(() => {
-    if (state.phase === 'idle') return 'pending';
-    if (state.phase === 'loading') return 'pending';
-    if (state.phase === 'error') return 'fail';
-    return state.data.address.line1 || state.data.address.eircode ? 'ok' : 'fail';
-  }, [state]);
+    if (addressState.phase === 'idle' || addressState.phase === 'loading') return 'pending';
+    if (addressState.phase === 'error') return 'fail';
+    return addressState.data.address.line1 || addressState.data.address.eircode ? 'ok' : 'fail';
+  }, [addressState]);
 
   const berStatus: RowStatus = useMemo(() => {
-    if (state.phase === 'idle' || state.phase === 'loading') return 'pending';
-    if (state.phase === 'error') return 'skipped';
-    return state.data.ber?.rating ? 'ok' : 'soft-miss';
-  }, [state]);
+    if (addressState.phase === 'idle' || addressState.phase === 'loading') return 'pending';
+    if (addressState.phase === 'error') return 'skipped';
+    return addressState.data.ber?.rating ? 'ok' : 'soft-miss';
+  }, [addressState]);
 
-  // PPR is permanently out of scope for v1.0 — render as a soft "skipped" row
-  // so the user understands we know it's not available, not that it failed.
-  const pprStatus: RowStatus = state.phase === 'loading' || state.phase === 'idle'
-    ? 'pending'
-    : 'skipped';
+  const pprStatus: RowStatus =
+    addressState.phase === 'loading' || addressState.phase === 'idle'
+      ? 'pending'
+      : 'skipped';
 
-  const continueEnabled = leasePdfTempId
-    ? leaseFilePresent
+  // Lease row statuses
+  const leaseDocStatus: RowStatus = useMemo(() => {
+    if (leaseState.phase === 'idle' || leaseState.phase === 'loading') return 'pending';
+    if (leaseState.phase === 'error') return 'fail';
+    return leaseState.data.status === 'failed' ? 'fail' : 'ok';
+  }, [leaseState]);
+
+  const tenantStatus: RowStatus = useMemo(() => {
+    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
+    return leaseState.data.extracted.primaryTenantName ? 'ok' : 'soft-miss';
+  }, [leaseState, leaseDocStatus]);
+
+  const rentDatesStatus: RowStatus = useMemo(() => {
+    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
+    const e = leaseState.data.extracted;
+    return e.monthlyRentEur != null && e.leaseStartDate ? 'ok' : 'soft-miss';
+  }, [leaseState, leaseDocStatus]);
+
+  const rtbStatus: RowStatus = useMemo(() => {
+    if (leaseState.phase !== 'success') return leaseDocStatus === 'fail' ? 'fail' : 'pending';
+    return leaseState.data.extracted.rtbRegistrationNumber ? 'ok' : 'soft-miss';
+  }, [leaseState, leaseDocStatus]);
+
+  const continueEnabled = leaseDocumentId
+    ? leaseState.phase === 'success' && leaseState.data.status !== 'failed'
     : addressStatus === 'ok';
 
   const handleContinue = () => {
     const params = new URLSearchParams();
     if (placeId) params.set('placeId', placeId);
     if (eircode) params.set('eircode', eircode);
-    if (leasePdfTempId) params.set('leasePdf', leasePdfTempId);
+    if (leaseDocumentId) params.set('leaseDocumentId', leaseDocumentId);
     router.push(`/agent/lettings/properties/new/save?${params.toString()}`);
   };
 
@@ -149,7 +230,6 @@ export default function ReviewPropertyPage() {
           fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif",
         }}
       >
-        {/* Top bar */}
         <div
           style={{
             display: 'flex',
@@ -204,67 +284,9 @@ export default function ReviewPropertyPage() {
           </span>
         </div>
 
-        {/* Lease PDF path — Session 7 will replace this */}
-        {leasePdfTempId ? (
-          <div
-            style={{
-              maxWidth: 480,
-              margin: '24px auto 0',
-              padding: 20,
-              background: '#fff',
-              border: '0.5px solid #E5E7EB',
-              borderRadius: 14,
-              boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
-            }}
-          >
-            <p
-              style={{
-                color: '#9EA8B5',
-                fontSize: 11,
-                fontWeight: 600,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
-                margin: '0 0 8px',
-              }}
-            >
-              Lease PDF detected
-            </p>
-            <p
-              style={{
-                color: '#0D0D12',
-                fontSize: 15,
-                fontWeight: 500,
-                margin: '0 0 4px',
-              }}
-            >
-              {leaseMeta?.name ?? 'Unknown file'}
-            </p>
-            <p
-              style={{ color: '#A0A8B0', fontSize: 13, margin: '0 0 16px' }}
-            >
-              {leaseMeta ? `${(leaseMeta.size / 1024).toFixed(0)} KB` : ''}
-              {leaseMeta && leaseFilePresent ? ' · ready to extract' : ''}
-              {leaseMeta && !leaseFilePresent ? ' · file buffer lost — please re-drop on previous screen' : ''}
-            </p>
-            <p
-              style={{
-                color: '#6B7280',
-                fontSize: 13,
-                lineHeight: 1.5,
-                margin: 0,
-                padding: '12px',
-                background: '#F8F8F4',
-                border: '0.5px solid rgba(0,0,0,0.04)',
-                borderRadius: 10,
-              }}
-            >
-              Extraction coming in Session 7. For now this screen confirms the
-              PDF made it through the handoff.
-            </p>
-          </div>
-        ) : (
+        {/* LEASE PATH ─────────────────────────────────────── */}
+        {leaseDocumentId ? (
           <>
-            {/* Status panel */}
             <div
               style={{
                 maxWidth: 480,
@@ -285,7 +307,130 @@ export default function ReviewPropertyPage() {
                   margin: '0 0 12px',
                 }}
               >
-                {state.phase === 'success'
+                {leaseState.phase === 'success'
+                  ? 'Lease details ready'
+                  : leaseState.phase === 'error'
+                    ? 'Couldn’t read the lease'
+                    : 'Reading your lease…'}
+              </p>
+
+              <StatusRow
+                status={leaseDocStatus}
+                label="Reading lease document"
+                source="PDF text extraction"
+                detail={
+                  leaseState.phase === 'success' && leaseState.data.cached
+                    ? 'Loaded previous extraction'
+                    : undefined
+                }
+              />
+              <StatusRow
+                status={tenantStatus}
+                label="Extracting tenant details"
+                source="GPT-4o-mini"
+                detail={
+                  leaseState.phase === 'success'
+                    ? leaseState.data.extracted.primaryTenantName
+                      ? `${leaseState.data.extracted.primaryTenantName}${
+                          leaseState.data.extracted.coTenantNames.length > 0
+                            ? ` (+${leaseState.data.extracted.coTenantNames.length} co-tenant${leaseState.data.extracted.coTenantNames.length === 1 ? '' : 's'})`
+                            : ''
+                        }`
+                      : 'Tenant name not found — fill in on the next screen'
+                    : undefined
+                }
+              />
+              <StatusRow
+                status={rentDatesStatus}
+                label="Extracting rent and dates"
+                source="GPT-4o-mini"
+                detail={
+                  leaseState.phase === 'success'
+                    ? formatRentDetail(leaseState.data.extracted)
+                    : undefined
+                }
+              />
+              <StatusRow
+                status={rtbStatus}
+                label="Looking for RTB number"
+                source="GPT-4o-mini"
+                detail={
+                  leaseState.phase === 'success'
+                    ? leaseState.data.extracted.rtbRegistrationNumber
+                      ? leaseState.data.extracted.rtbRegistrationNumber
+                      : 'Not found — register the tenancy with RTB if you haven’t already'
+                    : undefined
+                }
+              />
+
+              {leaseState.phase === 'error' && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    background: 'rgba(239,68,68,0.06)',
+                    border: '0.5px solid rgba(239,68,68,0.25)',
+                    borderRadius: 10,
+                    color: '#B91C1C',
+                    fontSize: 12,
+                  }}
+                >
+                  {leaseState.message}
+                </div>
+              )}
+
+              {leaseState.phase === 'success' && leaseState.data.status === 'failed' && (
+                <div
+                  role="alert"
+                  style={{
+                    marginTop: 12,
+                    padding: '10px 12px',
+                    background: 'rgba(239,68,68,0.06)',
+                    border: '0.5px solid rgba(239,68,68,0.25)',
+                    borderRadius: 10,
+                    color: '#B91C1C',
+                    fontSize: 12,
+                  }}
+                >
+                  {leaseState.data.reason ?? 'Extraction failed — please try a different file or fill in manually.'}
+                </div>
+              )}
+            </div>
+
+            {leaseState.phase === 'success' && (
+              <DebugPane
+                open={debugOpen}
+                onToggle={() => setDebugOpen((p) => !p)}
+                label="Extracted lease data (debug)"
+                json={leaseState.data.extracted}
+              />
+            )}
+          </>
+        ) : (
+          /* ADDRESS PATH ───────────────────────────────── */
+          <>
+            <div
+              style={{
+                maxWidth: 480,
+                margin: '0 auto',
+                padding: 16,
+                background: '#fff',
+                border: '0.5px solid #E5E7EB',
+                borderRadius: 14,
+                boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+              }}
+            >
+              <p
+                style={{
+                  color: '#0D0D12',
+                  fontSize: 15,
+                  fontWeight: 600,
+                  letterSpacing: '-0.01em',
+                  margin: '0 0 12px',
+                }}
+              >
+                {addressState.phase === 'success'
                   ? 'Property details ready'
                   : 'Looking up property details…'}
               </p>
@@ -293,14 +438,10 @@ export default function ReviewPropertyPage() {
               <StatusRow
                 status={addressStatus}
                 label="Address verified"
-                source={
-                  placeId
-                    ? 'Google Places'
-                    : 'Eircode'
-                }
+                source={placeId ? 'Google Places' : 'Eircode'}
                 detail={
-                  state.phase === 'success'
-                    ? formatAddressLine(state.data.address)
+                  addressState.phase === 'success'
+                    ? formatAddressLine(addressState.data.address)
                     : undefined
                 }
               />
@@ -309,9 +450,9 @@ export default function ReviewPropertyPage() {
                 label="BER rating"
                 source="SEAI register"
                 detail={
-                  state.phase === 'success' && state.data.ber?.rating
-                    ? `${state.data.ber.rating}${state.data.ber.expiryDate ? ` · expires ${state.data.ber.expiryDate}` : ''}`
-                    : state.phase === 'success' && !state.data.ber?.rating
+                  addressState.phase === 'success' && addressState.data.ber?.rating
+                    ? `${addressState.data.ber.rating}${addressState.data.ber.expiryDate ? ` · expires ${addressState.data.ber.expiryDate}` : ''}`
+                    : addressState.phase === 'success' && !addressState.data.ber?.rating
                       ? 'Not in SEAI register — you can upload the cert later'
                       : undefined
                 }
@@ -325,7 +466,7 @@ export default function ReviewPropertyPage() {
                 }
               />
 
-              {state.phase === 'error' && (
+              {addressState.phase === 'error' && (
                 <div
                   role="alert"
                   style={{
@@ -338,73 +479,24 @@ export default function ReviewPropertyPage() {
                     fontSize: 12,
                   }}
                 >
-                  Couldn&rsquo;t verify the address — please go back and try again.
+                  Couldn&rsquo;t verify the address &mdash; please go back and try again.
                   <br />
-                  <span style={{ opacity: 0.7 }}>{state.message}</span>
+                  <span style={{ opacity: 0.7 }}>{addressState.message}</span>
                 </div>
               )}
             </div>
 
-            {/* Raw JSON debug pane — gone in Session 8 */}
-            {state.phase === 'success' && (
-              <div
-                style={{
-                  maxWidth: 480,
-                  margin: '16px auto 0',
-                  background: '#fff',
-                  border: '0.5px solid #E5E7EB',
-                  borderRadius: 14,
-                  overflow: 'hidden',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setDebugOpen((p) => !p)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    background: '#F8F8F4',
-                    border: 'none',
-                    borderBottom: debugOpen ? '0.5px solid rgba(0,0,0,0.04)' : 'none',
-                    color: '#6B7280',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontFamily: 'inherit',
-                  }}
-                >
-                  Raw response (debug)
-                  <span style={{ fontSize: 12 }}>{debugOpen ? '▾' : '▸'}</span>
-                </button>
-                {debugOpen && (
-                  <pre
-                    style={{
-                      margin: 0,
-                      padding: 14,
-                      fontSize: 12,
-                      lineHeight: 1.5,
-                      fontFamily: '"SF Mono", Menlo, Monaco, monospace',
-                      color: '#0D0D12',
-                      background: '#fff',
-                      overflowX: 'auto',
-                      whiteSpace: 'pre-wrap',
-                      wordBreak: 'break-word',
-                    }}
-                  >
-                    {JSON.stringify(state.data, null, 2)}
-                  </pre>
-                )}
-              </div>
+            {addressState.phase === 'success' && (
+              <DebugPane
+                open={debugOpen}
+                onToggle={() => setDebugOpen((p) => !p)}
+                label="Raw response (debug)"
+                json={addressState.data}
+              />
             )}
           </>
         )}
 
-        {/* Continue button */}
         <div
           style={{
             position: 'fixed',
@@ -565,7 +657,6 @@ function StatusIcon({ status }: { status: RowStatus }) {
       </svg>
     );
   }
-  // soft-miss & skipped share a soft grey dot — both mean "no data, no error".
   return (
     <span
       style={{
@@ -579,9 +670,92 @@ function StatusIcon({ status }: { status: RowStatus }) {
   );
 }
 
+function DebugPane({
+  open,
+  onToggle,
+  label,
+  json,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  label: string;
+  json: unknown;
+}) {
+  return (
+    <div
+      style={{
+        maxWidth: 480,
+        margin: '16px auto 0',
+        background: '#fff',
+        border: '0.5px solid #E5E7EB',
+        borderRadius: 14,
+        overflow: 'hidden',
+      }}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        style={{
+          width: '100%',
+          padding: '12px 16px',
+          background: '#F8F8F4',
+          border: 'none',
+          borderBottom: open ? '0.5px solid rgba(0,0,0,0.04)' : 'none',
+          color: '#6B7280',
+          fontSize: 11,
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          fontFamily: 'inherit',
+        }}
+      >
+        {label}
+        <span style={{ fontSize: 12 }}>{open ? '▾' : '▸'}</span>
+      </button>
+      {open && (
+        <pre
+          style={{
+            margin: 0,
+            padding: 14,
+            fontSize: 12,
+            lineHeight: 1.5,
+            fontFamily: '"SF Mono", Menlo, Monaco, monospace',
+            color: '#0D0D12',
+            background: '#fff',
+            overflowX: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordBreak: 'break-word',
+          }}
+        >
+          {JSON.stringify(json, null, 2)}
+        </pre>
+      )}
+    </div>
+  );
+}
+
 function formatAddressLine(address: LookupResponse['address']): string {
   if (address.formattedAddress) return address.formattedAddress;
   return [address.line1, address.town, address.county, address.eircode]
     .filter(Boolean)
     .join(', ');
+}
+
+function formatRentDetail(extracted: ExtractedLease): string {
+  const parts: string[] = [];
+  if (extracted.monthlyRentEur != null) {
+    parts.push(`€${extracted.monthlyRentEur.toLocaleString()}/month`);
+  }
+  if (extracted.leaseStartDate) {
+    parts.push(`from ${extracted.leaseStartDate}`);
+  }
+  if (extracted.leaseEndDate) {
+    parts.push(`to ${extracted.leaseEndDate}`);
+  }
+  if (parts.length === 0) return 'Rent or dates not found — fill in on the next screen';
+  return parts.join(' · ');
 }

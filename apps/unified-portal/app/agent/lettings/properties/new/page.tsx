@@ -5,7 +5,7 @@ import Link from 'next/link';
 import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import AgentShell from '../../../_components/AgentShell';
-import { setPendingLease } from '@/lib/agent/lettings/leasePdfHandoff';
+import { uploadLeasePdf } from '@/lib/agent/lettings/leasePdfHandoff';
 
 // Minimal shape of the bits of the Google Places JS API we touch. We don't
 // take a dep on @types/google.maps just for two interfaces.
@@ -62,6 +62,7 @@ export default function AddPropertyPage() {
   const [predictions, setPredictions] = useState<PlacePrediction[]>([]);
   const [placesReady, setPlacesReady] = useState(false);
   const [leaseError, setLeaseError] = useState<string | null>(null);
+  const [leaseUploading, setLeaseUploading] = useState(false);
   const [dropActive, setDropActive] = useState(false);
 
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -152,7 +153,7 @@ export default function AddPropertyPage() {
   );
 
   const handleLeaseFile = useCallback(
-    (file: File | null) => {
+    async (file: File | null) => {
       setLeaseError(null);
       if (!file) return;
       if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
@@ -163,8 +164,17 @@ export default function AddPropertyPage() {
         setLeaseError('PDF is over 10MB. Try a smaller file.');
         return;
       }
-      const tempId = setPendingLease(file);
-      router.push(`/agent/lettings/properties/new/review?leasePdf=${encodeURIComponent(tempId)}`);
+      setLeaseUploading(true);
+      try {
+        const { documentId } = await uploadLeasePdf(file);
+        router.push(
+          `/agent/lettings/properties/new/review?leaseDocumentId=${encodeURIComponent(documentId)}`,
+        );
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Upload failed';
+        setLeaseError(message);
+        setLeaseUploading(false);
+      }
     },
     [router],
   );
@@ -366,7 +376,7 @@ export default function AddPropertyPage() {
               textAlign: 'center',
             }}
           >
-            <FileUpIcon />
+            {leaseUploading ? <UploadSpinner /> : <FileUpIcon />}
             <p
               style={{
                 color: '#0D0D12',
@@ -375,7 +385,7 @@ export default function AddPropertyPage() {
                 margin: '4px 0 2px',
               }}
             >
-              Got the lease handy?
+              {leaseUploading ? 'Uploading lease…' : 'Got the lease handy?'}
             </p>
             <p
               style={{
@@ -386,7 +396,9 @@ export default function AddPropertyPage() {
                 lineHeight: 1.45,
               }}
             >
-              Drop the PDF and we&rsquo;ll fill in the tenant, rent, and dates for you.
+              {leaseUploading
+                ? 'Holding tight — extraction starts on the next screen.'
+                : 'Drop the PDF and we’ll fill in the tenant, rent, and dates for you.'}
             </p>
 
             <input
@@ -395,25 +407,27 @@ export default function AddPropertyPage() {
               accept="application/pdf,.pdf"
               hidden
               onChange={(e) => handleLeaseFile(e.target.files?.[0] ?? null)}
+              disabled={leaseUploading}
             />
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
+              disabled={leaseUploading}
               style={{
                 marginTop: 10,
                 padding: '8px 16px',
                 borderRadius: 10,
-                background: '#fff',
+                background: leaseUploading ? '#F5F5F3' : '#fff',
                 border: '0.5px solid #D8D8D2',
-                color: '#0D0D12',
+                color: leaseUploading ? '#9CA3AF' : '#0D0D12',
                 fontSize: 13,
                 fontWeight: 500,
-                cursor: 'pointer',
+                cursor: leaseUploading ? 'wait' : 'pointer',
                 fontFamily: 'inherit',
                 boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
               }}
             >
-              Choose file
+              {leaseUploading ? 'Uploading…' : 'Choose file'}
             </button>
 
             {leaseError && (
@@ -574,5 +588,31 @@ function FileUpIcon() {
       <path d="M12 12v6" />
       <path d="m9 15 3-3 3 3" />
     </svg>
+  );
+}
+
+function UploadSpinner() {
+  return (
+    <>
+      <svg
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="#C49B2A"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        style={{ animation: 'oh-upload-spin 900ms linear infinite' }}
+      >
+        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+      </svg>
+      <style>{`
+        @keyframes oh-upload-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </>
   );
 }
