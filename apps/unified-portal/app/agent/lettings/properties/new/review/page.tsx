@@ -751,9 +751,88 @@ export default function ReviewPropertyPage() {
             </SectionContainer>
           )}
 
-          {/* Section: COMPLIANCE */}
+          {/* Section: COMPLIANCE (off-market follows tenanted rules for RTB) */}
           <SectionContainer title="COMPLIANCE" style={{ marginTop: 24 }}>
-            <SectionPlaceholder />
+            <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-2.5">
+                {form.property.berCertNumber && form.property.berCertNumber.length > 0 ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2">
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                )}
+                <span className="text-sm text-[#0D0D12]">BER cert</span>
+              </div>
+              <span className="text-xs text-[#A0A8B0]">
+                {form.property.berCertNumber && form.property.berCertNumber.length > 0 ? 'On record' : 'Outstanding'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-2.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2">
+                  <circle cx="12" cy="12" r="4" />
+                </svg>
+                <span className="text-sm text-[#0D0D12]">Gas safety cert</span>
+              </div>
+              <span className="text-xs text-[#A0A8B0]">Outstanding</span>
+            </div>
+            <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-2.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2">
+                  <circle cx="12" cy="12" r="4" />
+                </svg>
+                <span className="text-sm text-[#0D0D12]">Electrical cert</span>
+              </div>
+              <span className="text-xs text-[#A0A8B0]">Outstanding</span>
+            </div>
+            <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-2.5">
+                {form.status === 'vacant' ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                ) : form.tenancy.rtbRegistrationNumber && form.tenancy.rtbRegistrationNumber.length > 0 ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2">
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                )}
+                <span className="text-sm text-[#0D0D12]">RTB registration</span>
+              </div>
+              <span className="text-xs text-[#A0A8B0]">
+                {form.status === 'vacant'
+                  ? 'Not applicable'
+                  : form.tenancy.rtbRegistrationNumber && form.tenancy.rtbRegistrationNumber.length > 0
+                    ? 'Registered'
+                    : 'Outstanding'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+              <div className="flex items-center gap-2.5">
+                {extractionData?.documentId ? (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                    <polyline points="22 4 12 14.01 9 11.01" />
+                  </svg>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2">
+                    <circle cx="12" cy="12" r="4" />
+                  </svg>
+                )}
+                <span className="text-sm text-[#0D0D12]">Signed lease on file</span>
+              </div>
+              <span className="text-xs text-[#A0A8B0]">
+                {extractionData?.documentId ? 'Uploaded' : 'Outstanding'}
+              </span>
+            </div>
           </SectionContainer>
 
           {/* Section: DOCUMENTS */}
