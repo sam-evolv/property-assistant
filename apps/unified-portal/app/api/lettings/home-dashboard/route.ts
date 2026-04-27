@@ -29,7 +29,30 @@ const ZERO_PAYLOAD = {
     leaseRenewalsNext90Days: 0,
     berExpiriesNext90Days: 0,
   },
+  comingUp: [] as ComingUpEvent[],
 };
+
+type ComingUpEvent = {
+  id: string;
+  type: 'lease_renewal' | 'ber_expiry';
+  propertyId: string;
+  propertyAddress: string;
+  eventDate: string;
+  daysUntil: number;
+  label: string;
+  contextLine: string;
+  urgency: 'urgent' | 'soon' | 'upcoming';
+};
+
+function urgencyFromDays(days: number): ComingUpEvent['urgency'] {
+  if (days < 30) return 'urgent';
+  if (days < 60) return 'soon';
+  return 'upcoming';
+}
+
+function diffDays(target: Date, today: Date): number {
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
 
 export async function GET() {
   const started = Date.now();
@@ -66,7 +89,7 @@ export async function GET() {
 
     const { data: properties, error: propsErr } = await admin
       .from('agent_letting_properties')
-      .select('id, status, completeness_score, ber_expiry_date')
+      .select('id, address, address_line_1, status, completeness_score, ber_rating, ber_expiry_date')
       .eq('agent_id', agentProfile.id)
       .eq('workspace_id', workspace.id);
     if (propsErr) {
@@ -87,15 +110,33 @@ export async function GET() {
     const day90 = new Date(today);
     day90.setDate(day90.getDate() + 90);
     let berExpiriesNext90Days = 0;
+    const comingUp: ComingUpEvent[] = [];
+    const propertyById = new Map<string, { address: string; berRating: string | null }>();
 
     for (const p of propertyRows) {
       const s = (p.status ?? '').toLowerCase();
       if (TENANTED_STATUSES.has(s)) tenantedCount += 1;
       else if (VACANT_STATUSES.has(s)) vacantCount += 1;
       completenessSum += p.completeness_score ?? 0;
+      const propertyAddress = p.address ?? p.address_line_1 ?? 'Untitled property';
+      propertyById.set(p.id, { address: propertyAddress, berRating: p.ber_rating ?? null });
       if (p.ber_expiry_date) {
         const d = new Date(p.ber_expiry_date);
-        if (d >= today && d <= day90) berExpiriesNext90Days += 1;
+        if (d >= today && d <= day90) {
+          berExpiriesNext90Days += 1;
+          const days = diffDays(d, today);
+          comingUp.push({
+            id: `ber_expiry-${p.id}`,
+            type: 'ber_expiry',
+            propertyId: p.id,
+            propertyAddress,
+            eventDate: p.ber_expiry_date,
+            daysUntil: days,
+            label: 'BER cert expiring',
+            contextLine: p.ber_rating ? `BER ${String(p.ber_rating).toUpperCase()} cert` : 'BER cert',
+            urgency: urgencyFromDays(days),
+          });
+        }
       }
     }
 
@@ -106,7 +147,7 @@ export async function GET() {
       const ids = propertyRows.map((p) => p.id);
       const { data: tenancies } = await admin
         .from('agent_tenancies')
-        .select('rent_pcm, lease_end')
+        .select('id, letting_property_id, tenant_name, rent_pcm, lease_end')
         .eq('status', 'active')
         .in('letting_property_id', ids);
       for (const t of tenancies ?? []) {
@@ -116,10 +157,29 @@ export async function GET() {
           if (d >= today && d <= day90) {
             leaseRenewalsNext90Days += 1;
             if (d <= day30) leaseRenewalsNext30Days += 1;
+            const days = diffDays(d, today);
+            const prop = propertyById.get(t.letting_property_id);
+            const ctxParts: string[] = [];
+            if (t.tenant_name) ctxParts.push(t.tenant_name);
+            if (t.rent_pcm != null) ctxParts.push(`€${Number(t.rent_pcm).toLocaleString()}/m`);
+            comingUp.push({
+              id: `lease_renewal-${t.id}`,
+              type: 'lease_renewal',
+              propertyId: t.letting_property_id,
+              propertyAddress: prop?.address ?? 'Untitled property',
+              eventDate: t.lease_end,
+              daysUntil: days,
+              label: 'Lease ending',
+              contextLine: ctxParts.length > 0 ? ctxParts.join(' · ') : 'Active tenancy',
+              urgency: urgencyFromDays(days),
+            });
           }
         }
       }
     }
+
+    comingUp.sort((a, b) => a.daysUntil - b.daysUntil);
+    const cappedComingUp = comingUp.slice(0, 10);
 
     const avgCompleteness =
       totalProperties > 0 ? Math.round(completenessSum / totalProperties) : 0;
@@ -141,6 +201,7 @@ export async function GET() {
         leaseRenewalsNext90Days,
         berExpiriesNext90Days,
       },
+      comingUp: cappedComingUp,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';

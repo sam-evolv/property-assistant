@@ -4,6 +4,18 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AgentShell from '../../_components/AgentShell';
 
+type ComingUpEvent = {
+  id: string;
+  type: 'lease_renewal' | 'ber_expiry';
+  propertyId: string;
+  propertyAddress: string;
+  eventDate: string;
+  daysUntil: number;
+  label: string;
+  contextLine: string;
+  urgency: 'urgent' | 'soon' | 'upcoming';
+};
+
 type Dashboard = {
   agent: { firstName: string; displayName: string };
   stats: {
@@ -18,6 +30,12 @@ type Dashboard = {
     leaseRenewalsNext90Days: number;
     berExpiriesNext90Days: number;
   };
+  comingUp: ComingUpEvent[];
+};
+
+const formatDate = (iso: string) => {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 };
 
 const greeting = () => {
@@ -118,9 +136,61 @@ export default function LettingsHomePage() {
           )}
         </div>
 
-        {/* Coming up feed — Session 11b */}
-        <div style={{ height: 100, margin: '24px 16px 0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ color: '#A0A8B0', fontSize: 12 }}>Upcoming events coming next</span>
+        {/* Coming up feed */}
+        <div style={{ marginTop: 32, padding: '0 16px' }}>
+          <h2 style={{ margin: '0 0 12px', color: '#9EA8B5', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Coming up
+          </h2>
+          {loading ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="bg-white border border-[#E5E7EB] rounded-xl p-3 h-[60px] animate-pulse" />
+              ))}
+            </div>
+          ) : !data || data.comingUp.length === 0 ? (
+            <div style={{ background: '#fff', border: '1px dashed #E5E7EB', borderRadius: 12, padding: 24, textAlign: 'center', color: '#A0A8B0', fontSize: 14 }}>
+              Nothing coming up in the next 90 days
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {data.comingUp.map((ev) => {
+                const isUrgent = ev.urgency === 'urgent';
+                const pillStyle =
+                  ev.urgency === 'urgent' ? { background: 'rgba(239,68,68,0.10)', color: '#B91C1C' }
+                  : ev.urgency === 'soon' ? { background: 'rgba(245,158,11,0.12)', color: '#A16207' }
+                  : { background: '#F3F4F6', color: '#6B7280' };
+                return (
+                  <Link key={ev.id} href={`/agent/lettings/properties/${ev.propertyId}`} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 12, background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: 12 }}>
+                    <div style={{ flexShrink: 0, width: 32, height: 32, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', background: isUrgent ? 'rgba(212,175,55,0.10)' : '#F3F4F6', border: isUrgent ? '0.5px solid rgba(212,175,55,0.22)' : '0.5px solid #E5E7EB' }}>
+                      {ev.type === 'lease_renewal' ? (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isUrgent ? '#C49B2A' : '#6B7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 7.5V6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" /><circle cx="18" cy="18" r="4" /><polyline points="18 16.5 18 18 19.5 19" />
+                        </svg>
+                      ) : (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isUrgent ? '#C49B2A' : '#6B7280'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="8" r="6" /><polyline points="8.21 13.89 7 22 12 19 17 22 15.79 13.88" />
+                        </svg>
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: '#0D0D12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {ev.label}: {ev.propertyAddress}
+                      </div>
+                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                        {ev.contextLine}
+                      </div>
+                    </div>
+                    <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+                      <span style={{ ...pillStyle, padding: '2px 8px', fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', borderRadius: 999 }}>
+                        {ev.daysUntil <= 0 ? 'Today' : `${ev.daysUntil}d`}
+                      </span>
+                      <span style={{ fontSize: 11, color: '#A0A8B0' }}>{formatDate(ev.eventDate)}</span>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </AgentShell>
