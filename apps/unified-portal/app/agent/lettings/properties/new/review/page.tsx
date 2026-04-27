@@ -381,6 +381,7 @@ export default function ReviewPropertyPage() {
     setForm((prev) => ({ ...prev, tenancy: { ...prev.tenancy, ...patch } }));
 
   const [openPopover, setOpenPopover] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   // Close any open popover on outside click. The trigger button stops
   // propagation so taps on it never reach this listener.
@@ -426,10 +427,64 @@ export default function ReviewPropertyPage() {
         ? `Save with ${100 - completeness}% outstanding`
         : 'Save property';
 
-  const handleSave = () => {
-    console.log('[review/8a] Save tapped — current form state:', form);
-    if (typeof window !== 'undefined') {
-      window.alert('Save handler coming in part 3 of this session');
+  const handleSave = async () => {
+    if (saving || saveDisabled) return;
+    setSaving(true);
+
+    // Reuse 8c-ii's source detection. Remap the UI 'lease_pdf' value to
+    // the DB enum 'lease_pdf_extraction'.
+    const sourceEntries: Array<[string, FieldSource]> = [
+      ['propertyType', getFieldSource(form.property.propertyType, null, null)],
+      ['bedrooms', getFieldSource(form.property.bedrooms, null, null)],
+      ['berRating', getFieldSource(form.property.berRating, seededBerRating, null, 'seai_register')],
+      ['berCertNumber', getFieldSource(form.property.berCertNumber, lookupData?.ber?.certNumber ?? null, null, 'seai_register')],
+      ['berExpiryDate', getFieldSource(form.property.berExpiryDate, lookupData?.ber?.expiryDate ?? null, null, 'seai_register')],
+      ['tenantName', getFieldSource(form.tenancy.tenantName, null, seededTenantName)],
+      ['monthlyRentEur', getFieldSource(form.tenancy.monthlyRentEur, null, ex?.monthlyRentEur ?? null)],
+      ['depositAmountEur', getFieldSource(form.tenancy.depositAmountEur, null, ex?.depositAmountEur ?? null)],
+      ['rentPaymentDay', getFieldSource(form.tenancy.rentPaymentDay, null, ex?.rentPaymentDay ?? null)],
+      ['leaseStartDate', getFieldSource(form.tenancy.leaseStartDate, null, ex?.leaseStartDate ?? null)],
+      ['leaseEndDate', getFieldSource(form.tenancy.leaseEndDate, null, ex?.leaseEndDate ?? null)],
+      ['leaseType', getFieldSource(form.tenancy.leaseType, null, ex?.leaseType ?? null)],
+      ['rtbRegistrationNumber', getFieldSource(form.tenancy.rtbRegistrationNumber, null, ex?.rtbRegistrationNumber ?? null)],
+    ];
+    const provenance = sourceEntries
+      .filter((e): e is [string, NonNullable<FieldSource>] => e[1] !== null)
+      .map(([fieldName, src]) => ({
+        fieldName,
+        source: src === 'lease_pdf' ? 'lease_pdf_extraction' : src,
+      }));
+
+    const body = {
+      status: form.status,
+      address: lookupData?.address ?? { line1: '' },
+      property: form.property,
+      tenancy: form.status === 'vacant' ? null : form.tenancy,
+      leaseDocumentId,
+      provenance,
+      completenessScore: completeness,
+    };
+
+    try {
+      const res = await fetch('/api/lettings/properties', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json?.propertyId) {
+        const message = json?.error || `Save failed (${res.status})`;
+        console.error('[review/save] failed:', message);
+        window.alert(`Couldn't save: ${message}`);
+        setSaving(false);
+        return;
+      }
+      router.push(`/agent/lettings/properties/${json.propertyId}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Network error';
+      console.error('[review/save] error:', message);
+      window.alert(`Couldn't save: ${message}`);
+      setSaving(false);
     }
   };
 
@@ -1045,7 +1100,7 @@ export default function ReviewPropertyPage() {
               <button
                 type="button"
                 onClick={handleSave}
-                disabled={saveDisabled}
+                disabled={saveDisabled || saving}
                 style={{
                   flex: 1,
                   height: 48,
@@ -1055,14 +1110,14 @@ export default function ReviewPropertyPage() {
                   color: '#FFFFFF',
                   fontSize: 15,
                   fontWeight: 600,
-                  cursor: saveDisabled ? 'not-allowed' : 'pointer',
+                  cursor: saveDisabled || saving ? 'not-allowed' : 'pointer',
                   fontFamily: 'inherit',
-                  boxShadow: saveDisabled ? 'none' : '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)',
-                  opacity: saveDisabled ? 0.5 : 1,
-                  pointerEvents: saveDisabled ? 'none' : 'auto',
+                  boxShadow: saveDisabled || saving ? 'none' : '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)',
+                  opacity: saveDisabled || saving ? 0.5 : 1,
+                  pointerEvents: saveDisabled || saving ? 'none' : 'auto',
                 }}
               >
-                {saveLabel}
+                {saving ? 'Saving…' : saveLabel}
               </button>
             </div>
           </div>
