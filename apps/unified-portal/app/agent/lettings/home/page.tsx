@@ -172,11 +172,11 @@ export default function LettingsHomePage() {
                         </svg>
                       )}
                     </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: '#0D0D12', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <div className="flex-1 min-w-0">
+                      <div className="truncate" style={{ fontSize: 14, fontWeight: 600, color: '#0D0D12' }}>
                         {ev.label}: {ev.propertyAddress}
                       </div>
-                      <div style={{ fontSize: 12, color: '#6B7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                      <div className="truncate" style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
                         {ev.contextLine}
                       </div>
                     </div>

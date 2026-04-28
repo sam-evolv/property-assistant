@@ -868,7 +868,7 @@ function ComplianceTab({ property, activeTenancy, documents }: { property: Prope
     <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
       <div className="flex items-baseline justify-between mb-2">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Compliance status</span>
-        <span className="text-xs font-medium text-[#0D0D12]">{property.completenessScore}%</span>
+        <span className="text-base font-semibold text-[#0D0D12]">{property.completenessScore}%</span>
       </div>
       {rows.map((r, i) => (
         <div key={r.label} className="flex items-center justify-between py-2.5" style={{ borderTop: i === 0 ? 'none' : '0.5px solid #F3F4F6' }}>

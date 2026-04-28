@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import AgentShell from '../../../../_components/AgentShell';
 
@@ -382,6 +382,10 @@ export default function ReviewPropertyPage() {
 
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Synchronous guard: the saving state flag flips on a render boundary, so
+  // a fast double-tap can fire two requests before React re-renders. The ref
+  // is set inline before any await and reliably blocks the second tap.
+  const savingRef = useRef(false);
 
   // Close any open popover on outside click. The trigger button stops
   // propagation so taps on it never reach this listener.
@@ -428,7 +432,8 @@ export default function ReviewPropertyPage() {
         : 'Save property';
 
   const handleSave = async () => {
-    if (saving || saveDisabled) return;
+    if (savingRef.current || saveDisabled) return;
+    savingRef.current = true;
     setSaving(true);
     setError(null);
 
@@ -488,6 +493,7 @@ export default function ReviewPropertyPage() {
         console.error('[review/save] failed:', message);
         setError(`Couldn't save: ${message}`);
         setSaving(false);
+        savingRef.current = false;
         return;
       }
       router.push(`/agent/lettings/properties/${json.propertyId}`);
@@ -496,6 +502,7 @@ export default function ReviewPropertyPage() {
       console.error('[review/save] error:', message);
       setError(`Couldn't save: ${message}`);
       setSaving(false);
+      savingRef.current = false;
     }
   };
 
