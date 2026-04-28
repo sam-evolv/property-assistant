@@ -72,6 +72,8 @@ export default function ImportPage() {
   const [results, setResults] = useState<ImportResult[]>([]);
   const [cancelled, setCancelled] = useState(false);
   const cancelledRef = useRef(false);
+  const [editedFailedRows, setEditedFailedRows] = useState<Record<number, Record<string, string>>>({});
+  const [retryingRow, setRetryingRow] = useState<number | null>(null);
 
   const handleFile = async (file: File | null) => {
     setError(null);
@@ -165,6 +167,48 @@ export default function ImportPage() {
 
     setProgress({ current: rows.length, total: rows.length });
     setPhase('done');
+  };
+
+  const retryRow = async (failed: ImportResult) => {
+    const idx = failed.row - 1;
+    setRetryingRow(idx);
+    const orig = rows[idx] ?? [];
+    const edited = editedFailedRows[idx] ?? {};
+
+    const mappingObj: Record<string, string> = {};
+    for (const m of mappings) {
+      if (m.suggestedField && m.suggestedField !== '_skip') mappingObj[m.header] = m.suggestedField;
+    }
+    const rowObj: Record<string, string> = {};
+    headers.forEach((h, i) => {
+      if (mappingObj[h]) rowObj[h] = h in edited ? edited[h] : (orig[i] ?? '');
+    });
+    const addrHeader = headers.find((h) => mappingObj[h] === 'address_line_1');
+    const newAddress = addrHeader ? (rowObj[addrHeader] || '(no address)') : failed.address;
+
+    try {
+      const res = await fetch('/api/lettings/import/row', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ row: rowObj, mapping: mappingObj }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data.ok) {
+        setResults((prev) => prev.map((r) => r.row === failed.row
+          ? { row: r.row, ok: true, address: newAddress, propertyId: data.propertyId }
+          : r));
+        setEditedFailedRows((prev) => { const next = { ...prev }; delete next[idx]; return next; });
+      } else {
+        setResults((prev) => prev.map((r) => r.row === failed.row
+          ? { ...r, address: newAddress, error: data.error || `Failed (${res.status})` }
+          : r));
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      setResults((prev) => prev.map((r) => r.row === failed.row ? { ...r, error: msg } : r));
+    } finally {
+      setRetryingRow(null);
+    }
   };
 
   return (
@@ -271,7 +315,7 @@ export default function ImportPage() {
             </>
           )}
 
-          {(phase === 'importing' || phase === 'done') && (() => {
+          {phase === 'importing' && (() => {
             const successCount = results.filter((r) => r.ok).length;
             const failedCount = results.filter((r) => !r.ok).length;
             const total = progress.total || rows.length;
@@ -279,9 +323,7 @@ export default function ImportPage() {
             const offset = 2 * Math.PI * 40 * (1 - pct / 100);
             return (
               <>
-                <h2 className="text-lg font-semibold text-[#0D0D12] mb-5 text-center">
-                  {phase === 'done' ? 'Import complete' : 'Importing properties'}
-                </h2>
+                <h2 className="text-lg font-semibold text-[#0D0D12] mb-5 text-center">Importing properties</h2>
                 <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 flex flex-col items-center mb-4">
                   <div className="relative w-24 h-24 mb-4">
                     <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
@@ -291,29 +333,105 @@ export default function ImportPage() {
                     <div className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#0D0D12]">{pct}</div>
                   </div>
                   <div className="text-base font-semibold text-[#0D0D12]">{progress.current} of {total}</div>
-                  {phase === 'importing' && (
-                    <div className="text-xs text-[#6B7280] mt-1 max-w-full truncate">Adding {currentAddress}…</div>
-                  )}
-                  {cancelled && (
-                    <div className="mt-3 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-full" style={{ background: 'rgba(245,158,11,0.12)', color: '#A16207' }}>
-                      Cancelled. Already-imported properties were kept.
-                    </div>
-                  )}
+                  <div className="text-xs text-[#6B7280] mt-1 max-w-full truncate">Adding {currentAddress}…</div>
                   <div className="mt-3 text-xs">
                     <span style={{ color: '#A47E1B', fontWeight: 600 }}>{successCount} imported</span>
                     <span className="text-[#A0A8B0]"> · </span>
                     <span style={{ color: failedCount > 0 ? '#B91C1C' : '#A0A8B0', fontWeight: failedCount > 0 ? 600 : 400 }}>{failedCount} failed</span>
                   </div>
                 </div>
-                {phase === 'importing' ? (
-                  <div className="text-center">
-                    <button type="button" onClick={() => { cancelledRef.current = true; setCancelled(true); }} className="text-sm font-medium text-[#6B7280] bg-transparent border-0 cursor-pointer">Cancel import</button>
+                <div className="text-center">
+                  <button type="button" onClick={() => { cancelledRef.current = true; setCancelled(true); }} className="text-sm font-medium text-[#6B7280] bg-transparent border-0 cursor-pointer">Cancel import</button>
+                </div>
+              </>
+            );
+          })()}
+
+          {phase === 'done' && (() => {
+            const successful = results.filter((r) => r.ok);
+            const failed = results.filter((r) => !r.ok);
+            const skipped = cancelled ? Math.max(0, rows.length - results.length) : 0;
+            const mappedHeaders = mappings.filter((m) => m.suggestedField && m.suggestedField !== '_skip');
+            return (
+              <>
+                <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
+                  <h2 className="text-xl font-semibold text-[#0D0D12] m-0 mb-3">{cancelled ? 'Import cancelled' : 'Import complete'}</h2>
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: 'rgba(212,175,55,0.12)', color: '#A47E1B' }}>{successful.length} imported</span>
+                    {failed.length > 0 && <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: 'rgba(239,68,68,0.10)', color: '#B91C1C' }}>{failed.length} failed</span>}
+                    {skipped > 0 && <span className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: '#F3F4F6', color: '#6B7280' }}>{skipped} skipped</span>}
                   </div>
-                ) : (
-                  <button type="button" onClick={() => router.push('/agent/lettings/properties')} className="w-full h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
-                    Back to properties
-                  </button>
+                  <p className="text-sm text-[#6B7280] m-0">{failed.length > 0 ? 'Review the failures below to fix and retry.' : successful.length > 0 ? 'All properties are now in your portfolio.' : 'No properties were imported.'}</p>
+                </div>
+
+                {failed.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-[11px] font-semibold tracking-wider uppercase text-[#B91C1C] mb-2">Failed rows ({failed.length})</div>
+                    <div className="flex flex-col gap-2">
+                      {failed.map((f) => {
+                        const idx = f.row - 1;
+                        const orig = rows[idx] ?? [];
+                        const edited = editedFailedRows[idx] ?? {};
+                        const isRetrying = retryingRow === idx;
+                        return (
+                          <div key={f.row} className="bg-white rounded-xl p-3" style={{ border: '0.5px solid #E5E7EB', borderLeft: '3px solid #F87171' }}>
+                            <div className="flex items-baseline justify-between mb-1 gap-2">
+                              <span className="text-sm font-semibold text-[#0D0D12] truncate">Row {f.row}: {f.address}</span>
+                            </div>
+                            <div className="text-xs text-[#B91C1C] mb-3">{f.error || 'Failed'}</div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+                              {mappedHeaders.map((m) => {
+                                const colIdx = headers.indexOf(m.header);
+                                const value = m.header in edited ? edited[m.header] : (colIdx >= 0 ? orig[colIdx] ?? '' : '');
+                                return (
+                                  <div key={m.header}>
+                                    <label className="block text-[10px] font-medium text-[#6B7280] mb-0.5 truncate">{m.header}</label>
+                                    <input
+                                      type="text"
+                                      value={value}
+                                      onChange={(e) => setEditedFailedRows((prev) => ({ ...prev, [idx]: { ...(prev[idx] ?? {}), [m.header]: e.target.value } }))}
+                                      className="h-8 w-full border border-[#E5E7EB] rounded-md px-2 text-xs text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37]"
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex justify-end">
+                              <button type="button" disabled={isRetrying} onClick={() => retryRow(f)} className="px-3 py-1.5 rounded-lg border-0 text-xs font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: isRetrying ? 0.5 : 1, pointerEvents: isRetrying ? 'none' : 'auto' }}>
+                                {isRetrying ? 'Retrying…' : 'Retry'}
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
+
+                {successful.length > 0 && (
+                  <div className="mb-4">
+                    <div className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5] mb-2">Imported ({successful.length})</div>
+                    <div className="flex flex-col gap-1.5">
+                      {successful.slice(0, 10).map((s) => (
+                        <Link key={s.row} href={`/agent/lettings/properties/${s.propertyId}`} className="flex items-center gap-3 bg-white border border-[#E5E7EB] rounded-lg px-3 py-2 no-underline">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium text-[#0D0D12] truncate">{s.address}</div>
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full flex-shrink-0" style={{ background: '#FAF3DD', color: '#A47E1B' }}>Saved</span>
+                        </Link>
+                      ))}
+                      {successful.length > 10 && (
+                        <Link href="/agent/lettings/properties" className="text-xs text-[#6B7280] no-underline text-center py-2">
+                          Showing 10 of {successful.length} · View all
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <button type="button" onClick={() => router.push('/agent/lettings/properties')} className="w-full h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+                  Done — back to Properties
+                </button>
               </>
             );
           })()}
