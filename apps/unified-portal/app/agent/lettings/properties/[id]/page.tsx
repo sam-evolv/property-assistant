@@ -22,14 +22,37 @@ type PropertyFields = {
   completenessScore: number;
 };
 
+type Tenancy = {
+  id: string;
+  tenantName: string | null;
+  tenantEmail: string | null;
+  tenantPhone: string | null;
+  rentPcm: number | null;
+  depositAmount: number | null;
+  rentPaymentDay: number | null;
+  leaseStart: string | null;
+  leaseEnd: string | null;
+  leaseType: string | null;
+  rtbRegistrationNumber: string | null;
+  status: string;
+};
+
 type Detail = {
   property: PropertyFields;
-  activeTenancy: { rentPcm: number | null } | null;
+  activeTenancy: Tenancy | null;
+  tenancyHistory: Array<{ id: string; tenantName: string | null; leaseStart: string | null; leaseEnd: string | null; status: string; rentPcm: number | null }>;
   maintenance: Array<{ status: string }>;
   provenance: Array<{ fieldName: string; source: FieldSource; confidence: number | null }>;
 };
 
 type EditableKey = 'propertyType' | 'bedrooms' | 'bathrooms' | 'floorAreaSqm' | 'yearBuilt' | 'berRating' | 'berCertNumber' | 'berExpiryDate';
+
+const LEASE_TYPE_OPTIONS: Array<[string, string]> = [
+  ['fixed_term', 'Fixed term'],
+  ['periodic', 'Periodic'],
+  ['part_4', 'Part 4'],
+  ['further_part_4', 'Further Part 4'],
+];
 
 const SOURCE_LABEL: Record<NonNullable<Exclude<FieldSource, 'manual'>>, string> = {
   google_places: 'Google Places',
@@ -88,6 +111,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<TabId>('overview');
   const [openPopover, setOpenPopover] = useState<string | null>(null);
+  const [endingTenancy, setEndingTenancy] = useState(false);
+  const [addingTenancy, setAddingTenancy] = useState(false);
 
   useEffect(() => {
     if (!openPopover) return;
@@ -184,6 +209,27 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const provenanceMap = new Map<string, FieldSource>();
   for (const pv of data.provenance) provenanceMap.set(pv.fieldName, pv.source);
 
+  const refetch = async () => {
+    const res = await fetch(`/api/lettings/properties/${params.id}`);
+    if (res.ok) setData(await res.json());
+  };
+
+  const handlePatchTenancy = async (tenancyId: string, patch: Record<string, unknown>) => {
+    const before = data?.activeTenancy;
+    setData((prev) => prev?.activeTenancy ? { ...prev, activeTenancy: { ...prev.activeTenancy, ...patch } as Tenancy } : prev);
+    const res = await fetch(`/api/lettings/tenancies/${tenancyId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setData((prev) => prev && before ? { ...prev, activeTenancy: before } : prev);
+      throw new Error(json?.error || `Save failed (${res.status})`);
+    }
+    setData((prev) => prev ? { ...prev, activeTenancy: { ...prev.activeTenancy, ...json.updatedTenancy } as Tenancy } : prev);
+  };
+
   const handlePatch = async (patch: Partial<Record<EditableKey, unknown>>) => {
     const before = data.property;
     setData((prev) => prev ? { ...prev, property: { ...prev.property, ...patch } as PropertyFields } : prev);
@@ -249,7 +295,20 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         </div>
 
         <div className="px-4">
-          {tab === 'overview' ? (
+          {tab === 'tenancy' ? (
+            <TenancyTab
+              activeTenancy={data.activeTenancy}
+              history={data.tenancyHistory}
+              openPopover={openPopover}
+              setOpenPopover={setOpenPopover}
+              onEditField={(patch) => {
+                if (!data.activeTenancy) return Promise.reject(new Error('No active tenancy'));
+                return handlePatchTenancy(data.activeTenancy.id, patch);
+              }}
+              onEndTenancy={() => setEndingTenancy(true)}
+              onAddTenancy={() => setAddingTenancy(true)}
+            />
+          ) : tab === 'overview' ? (
             <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <EditableField fieldKey="propertyType" label="Property type" type="select" options={PROPERTY_TYPE_OPTIONS} value={p.propertyType} formatted={p.propertyType ? PROPERTY_TYPE_LABEL[p.propertyType] ?? p.propertyType : null} source={provenanceMap.get('propertyType') ?? null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => handlePatch({ propertyType: v })} />
@@ -266,8 +325,213 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             <p className="text-sm text-[#A0A8B0]">{activePlaceholder}</p>
           )}
         </div>
+
+        {endingTenancy && data.activeTenancy && (
+          <EndTenancySheet
+            tenancyId={data.activeTenancy.id}
+            onClose={() => setEndingTenancy(false)}
+            onSuccess={async () => { setEndingTenancy(false); await refetch(); }}
+          />
+        )}
+        {addingTenancy && !data.activeTenancy && (
+          <AddTenancySheet
+            propertyId={params.id}
+            onClose={() => setAddingTenancy(false)}
+            onSuccess={async () => { setAddingTenancy(false); await refetch(); }}
+          />
+        )}
       </div>
     </AgentShell>
+  );
+}
+
+function TenancyTab({ activeTenancy, history, openPopover, setOpenPopover, onEditField, onEndTenancy, onAddTenancy }: {
+  activeTenancy: Tenancy | null;
+  history: Array<{ id: string; tenantName: string | null; leaseStart: string | null; leaseEnd: string | null; status: string; rentPcm: number | null }>;
+  openPopover: string | null;
+  setOpenPopover: (next: string | null) => void;
+  onEditField: (patch: Record<string, unknown>) => Promise<void>;
+  onEndTenancy: () => void;
+  onAddTenancy: () => void;
+}) {
+  const past = history.filter((t) => t.status !== 'active');
+  const t = activeTenancy;
+  return (
+    <>
+      {t ? (
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
+          <div className="flex items-start justify-between mb-3">
+            <div>
+              <div className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Active tenancy</div>
+              <div className="text-base font-semibold text-[#0D0D12] mt-0.5">{t.tenantName ?? 'Unnamed tenant'}</div>
+            </div>
+            <button type="button" onClick={onEndTenancy} className="inline-flex items-center gap-1.5 text-xs text-[#6B7280] bg-transparent border-0 cursor-pointer">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+              End tenancy
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <EditableField fieldKey="t_tenantName" label="Tenant name" type="text" value={t.tenantName} formatted={t.tenantName} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ tenantName: v })} />
+            <EditableField fieldKey="t_tenantEmail" label="Tenant email" type="text" value={t.tenantEmail} formatted={t.tenantEmail} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ tenantEmail: v })} />
+            <EditableField fieldKey="t_tenantPhone" label="Tenant phone" type="text" value={t.tenantPhone} formatted={t.tenantPhone} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ tenantPhone: v })} />
+            <EditableField fieldKey="t_rentPcm" label="Monthly rent" type="number" value={t.rentPcm} formatted={t.rentPcm != null ? `€${Number(t.rentPcm).toLocaleString()}/m` : null} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ rentPcm: v })} />
+            <EditableField fieldKey="t_depositAmount" label="Deposit" type="number" value={t.depositAmount} formatted={t.depositAmount != null ? `€${Number(t.depositAmount).toLocaleString()}` : null} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ depositAmount: v })} />
+            <EditableField fieldKey="t_rentPaymentDay" label="Rent payment day" type="number" min={1} max={31} value={t.rentPaymentDay} formatted={t.rentPaymentDay != null ? String(t.rentPaymentDay) : null} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ rentPaymentDay: v })} />
+            <EditableField fieldKey="t_leaseStart" label="Lease start" type="date" value={t.leaseStart} formatted={formatDate(t.leaseStart)} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ leaseStartDate: v })} />
+            <EditableField fieldKey="t_leaseEnd" label="Lease end" type="date" value={t.leaseEnd} formatted={formatDate(t.leaseEnd)} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ leaseEndDate: v })} />
+            <EditableField fieldKey="t_leaseType" label="Lease type" type="select" options={LEASE_TYPE_OPTIONS} value={t.leaseType} formatted={t.leaseType ? (LEASE_TYPE_OPTIONS.find(([v]) => v === t.leaseType)?.[1] ?? t.leaseType) : null} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ leaseType: v })} />
+            <EditableField fieldKey="t_rtb" label="RTB registration number" type="text" value={t.rtbRegistrationNumber} formatted={t.rtbRegistrationNumber} source={null} openPopover={openPopover} setOpenPopover={setOpenPopover} onSave={(v) => onEditField({ rtbRegistrationNumber: v })} />
+          </div>
+        </div>
+      ) : (
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 mb-4 text-center">
+          <h3 className="text-base font-semibold text-[#0D0D12] m-0 mb-2">No active tenancy</h3>
+          <p className="text-[13px] text-[#6B7280] m-0 mb-4">When a new tenant moves in, add the tenancy here so you can track rent, lease dates, and RTB.</p>
+          <button type="button" onClick={onAddTenancy} className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-[#0D0D12] border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', boxShadow: '0 1px 2px rgba(0,0,0,0.06), 0 6px 18px rgba(196,155,42,0.32)' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add new tenancy
+          </button>
+        </div>
+      )}
+
+      <div className="flex items-center mb-2">
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Tenancy history</span>
+        {past.length > 0 && <span className="ml-2 text-[11px] text-[#A0A8B0]">({past.length})</span>}
+      </div>
+      {past.length === 0 ? (
+        <p className="text-center text-xs text-[#A0A8B0] py-4">No previous tenancies</p>
+      ) : (
+        <div className="bg-white border border-[#E5E7EB] rounded-xl overflow-hidden">
+          {past.map((h, i) => (
+            <div key={h.id} className="flex items-center gap-3 p-3" style={{ borderTop: i === 0 ? 'none' : '0.5px solid #E5E7EB' }}>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-[#0D0D12] truncate">{h.tenantName ?? 'Unnamed tenant'}</div>
+                <div className="text-xs text-[#6B7280] truncate">{formatDate(h.leaseStart) ?? '—'} → {formatDate(h.leaseEnd) ?? '—'}</div>
+              </div>
+              {h.rentPcm != null && <div className="text-xs font-medium text-[#0D0D12]">€{Number(h.rentPcm).toLocaleString()}/m</div>}
+              <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={{ background: '#F3F4F6', color: '#6B7280' }}>
+                {h.status === 'ended' ? 'Ended' : h.status}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+function SheetShell({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: 'rgba(0,0,0,0.4)' }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-4 sm:p-6" style={{ maxHeight: '90vh', overflowY: 'auto' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base font-semibold text-[#0D0D12] m-0">{title}</h3>
+          <button type="button" onClick={onClose} aria-label="Close" className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-transparent border-0 cursor-pointer">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function EndTenancySheet({ tenancyId, onClose, onSuccess }: { tenancyId: string; onClose: () => void; onSuccess: () => Promise<void> }) {
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setErrMsg(null);
+    try {
+      const res = await fetch(`/api/lettings/tenancies/${tenancyId}/end`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leaseEndDate: date }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
+      await onSuccess();
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Failed to end tenancy');
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <SheetShell title="End tenancy" onClose={onClose}>
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Last day of tenancy</label>
+      <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37]" />
+      <p className="text-[12px] text-[#6B7280] mt-2 mb-4">Setting an end date marks the tenancy as ended. The property will become Vacant.</p>
+      {errMsg && <div className="text-xs text-red-600 mb-3">{errMsg}</div>}
+      <div className="flex gap-2">
+        <button type="button" onClick={onClose} className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#6B7280] cursor-pointer">Cancel</button>
+        <button type="button" onClick={submit} disabled={submitting} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: submitting ? 0.5 : 1 }}>
+          {submitting ? 'Ending…' : 'End tenancy'}
+        </button>
+      </div>
+    </SheetShell>
+  );
+}
+
+function AddTenancySheet({ propertyId, onClose, onSuccess }: { propertyId: string; onClose: () => void; onSuccess: () => Promise<void> }) {
+  const [tenantName, setTenantName] = useState('');
+  const [rentPcm, setRentPcm] = useState('');
+  const [leaseStartDate, setLeaseStartDate] = useState('');
+  const [leaseEndDate, setLeaseEndDate] = useState('');
+  const [leaseType, setLeaseType] = useState('');
+  const [depositAmount, setDepositAmount] = useState('');
+  const [rtb, setRtb] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const ready = tenantName.trim() && rentPcm && leaseStartDate;
+
+  const submit = async () => {
+    setSubmitting(true);
+    setErrMsg(null);
+    const body: Record<string, unknown> = {
+      lettingPropertyId: propertyId,
+      tenantName: tenantName.trim(),
+      rentPcm: Number(rentPcm),
+      leaseStartDate,
+    };
+    if (leaseEndDate) body.leaseEndDate = leaseEndDate;
+    if (leaseType) body.leaseType = leaseType;
+    if (depositAmount) body.depositAmount = Number(depositAmount);
+    if (rtb.trim()) body.rtbRegistrationNumber = rtb.trim();
+    try {
+      const res = await fetch('/api/lettings/tenancies', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
+      await onSuccess();
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Failed to add tenancy');
+      setSubmitting(false);
+    }
+  };
+
+  const inputCls = "h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37]";
+  const labelCls = "block text-[12px] font-medium text-[#6B7280] mb-1";
+
+  return (
+    <SheetShell title="Add new tenancy" onClose={onClose}>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="sm:col-span-2"><label className={labelCls}>Tenant name <span className="text-red-500">*</span></label><input type="text" placeholder="e.g. Mary Murphy" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Monthly rent <span className="text-red-500">*</span></label><input type="number" value={rentPcm} onChange={(e) => setRentPcm(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Deposit</label><input type="number" value={depositAmount} onChange={(e) => setDepositAmount(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Lease start <span className="text-red-500">*</span></label><input type="date" value={leaseStartDate} onChange={(e) => setLeaseStartDate(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Lease end</label><input type="date" value={leaseEndDate} onChange={(e) => setLeaseEndDate(e.target.value)} className={inputCls} /></div>
+        <div><label className={labelCls}>Lease type</label><select value={leaseType} onChange={(e) => setLeaseType(e.target.value)} className={inputCls}><option value="">—</option>{LEASE_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>
+        <div><label className={labelCls}>RTB registration</label><input type="text" value={rtb} onChange={(e) => setRtb(e.target.value)} className={inputCls} /></div>
+      </div>
+      {errMsg && <div className="text-xs text-red-600 mt-3">{errMsg}</div>}
+      <div className="flex gap-2 mt-4">
+        <button type="button" onClick={onClose} className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#6B7280] cursor-pointer">Cancel</button>
+        <button type="button" onClick={submit} disabled={!ready || submitting} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: !ready || submitting ? 0.5 : 1, pointerEvents: !ready || submitting ? 'none' : 'auto' }}>
+          {submitting ? 'Adding…' : 'Add tenancy'}
+        </button>
+      </div>
+    </SheetShell>
   );
 }
 
