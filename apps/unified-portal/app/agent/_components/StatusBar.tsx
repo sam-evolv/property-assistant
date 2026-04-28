@@ -96,7 +96,7 @@ function getContextEmoji(ctx: UserContext): string {
 export default function StatusBar({
   agentName = 'Sam',
 }: StatusBarProps) {
-  const { alerts, pipeline } = useAgent();
+  const { alerts, pipeline, workspaces, activeWorkspace, switchWorkspace } = useAgent();
   const { count: draftsCount, ready: draftsReady } = useDraftsCount();
   const [panelOpen, setPanelOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -107,7 +107,28 @@ export default function StatusBar({
   }, [alerts, pipeline]);
   const [contexts, setContexts] = useState<UserContext[]>([]);
   const [showSwitcher, setShowSwitcher] = useState(false);
+  const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const router = useRouter();
+
+  const hasWorkspaces = workspaces.length > 0 && activeWorkspace !== null;
+
+  const handleSwitchWorkspace = useCallback(
+    async (workspaceId: string) => {
+      if (workspaceId === activeWorkspace?.id) {
+        setShowWorkspaceSwitcher(false);
+        return;
+      }
+      try {
+        const { destinationUrl } = await switchWorkspace(workspaceId);
+        setShowWorkspaceSwitcher(false);
+        router.push(destinationUrl);
+      } catch (err) {
+        console.error('[StatusBar] switchWorkspace failed', err);
+        setShowWorkspaceSwitcher(false);
+      }
+    },
+    [activeWorkspace, router, switchWorkspace],
+  );
 
   useEffect(() => {
     const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) && Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
@@ -155,9 +176,15 @@ export default function StatusBar({
           zIndex: 10,
         }}
       >
-        {/* Brand wordmark */}
+        {/* Brand wordmark — taps open the cross-product switcher
+            (homeowner / care / developer / agent). The wordmark used to be
+            decorative; it became the trigger when the agent-name slot was
+            taken over by the workspace switcher in Session 3. */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
           <span
+            onClick={() => setShowSwitcher((prev) => !prev)}
+            role="button"
+            aria-label="Switch product"
             style={{
               background: 'linear-gradient(135deg, #B8960C, #E8C84A, #C4A020)',
               WebkitBackgroundClip: 'text',
@@ -166,6 +193,7 @@ export default function StatusBar({
               fontSize: 11,
               fontWeight: 800,
               letterSpacing: '0.18em',
+              cursor: 'pointer',
             }}
           >
             OPENHOUSE
@@ -178,18 +206,50 @@ export default function StatusBar({
               display: 'inline-block',
             }}
           />
-          <span
-            onClick={() => setShowSwitcher(!showSwitcher)}
-            style={{
-              color: '#A0A8B0',
-              fontSize: 11,
-              fontWeight: 400,
-              letterSpacing: '0.04em',
-              cursor: 'pointer',
-            }}
-          >
-            {agentName} &#9662;
-          </span>
+          {hasWorkspaces ? (
+            <span
+              onClick={() => setShowWorkspaceSwitcher(true)}
+              role="button"
+              aria-label="Switch workspace"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                style={{
+                  color: '#0D0D12',
+                  fontSize: 11,
+                  fontWeight: 500,
+                  letterSpacing: '0.04em',
+                  maxWidth: 160,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {activeWorkspace!.displayName}
+              </span>
+              <ModeBadge mode={activeWorkspace!.mode} />
+              <span style={{ color: '#A0A8B0', fontSize: 11, lineHeight: 1 }}>&#9662;</span>
+            </span>
+          ) : (
+            // Empty-state grace: agents without seeded workspace rows see a
+            // plain non-tappable label. They can still reach the cross-product
+            // switcher via the OPENHOUSE wordmark above.
+            <span
+              style={{
+                color: '#A0A8B0',
+                fontSize: 11,
+                fontWeight: 400,
+                letterSpacing: '0.04em',
+              }}
+            >
+              {agentName}
+            </span>
+          )}
         </div>
 
         {/* Session 14.13.1 — right-side cluster: drafts chip + bell sit
@@ -509,6 +569,160 @@ export default function StatusBar({
         </div>
       )}
 
+      {/* Workspace switcher bottom sheet — sales <-> lettings within the
+          agent product. Uses the same visual language as the cross-product
+          sheet above (handle, slideUp, white card with rounded top). */}
+      {showWorkspaceSwitcher && hasWorkspaces && (
+        <div
+          onClick={() => setShowWorkspaceSwitcher(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            zIndex: 200,
+            display: 'flex',
+            alignItems: 'flex-end',
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%',
+              background: '#fff',
+              borderRadius: '28px 28px 0 0',
+              padding: '0 0 32px',
+              boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
+              animation: 'slideUp 300ms cubic-bezier(.2,.8,.2,1)',
+            }}
+          >
+            <div style={{ width: 40, height: 4, background: '#E0E0DC', borderRadius: 2, margin: '14px auto 20px' }} />
+
+            <div style={{ padding: '0 24px 16px', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+              <p style={{ color: '#9EA8B5', fontSize: 11, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', margin: '0 0 2px' }}>
+                Your workspaces
+              </p>
+              <p style={{ color: '#A0A8B0', fontSize: 13, margin: 0 }}>
+                Switch between sales and lettings
+              </p>
+            </div>
+
+            {workspaces.map((ws, i) => {
+              const isActive = ws.id === activeWorkspace?.id;
+              const iconColor = isActive ? '#C49B2A' : '#6B7280';
+              return (
+                <div
+                  key={ws.id}
+                  onClick={() => handleSwitchWorkspace(ws.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 14,
+                    padding: '15px 24px',
+                    borderBottom: i < workspaces.length - 1 ? '1px solid rgba(0,0,0,0.04)' : 'none',
+                    cursor: isActive ? 'default' : 'pointer',
+                    background: isActive ? 'rgba(212,175,55,0.04)' : '#fff',
+                  }}
+                >
+                  <div style={{
+                    width: 38, height: 38, borderRadius: 11,
+                    background: isActive ? 'rgba(212,175,55,0.12)' : '#F5F5F3',
+                    border: isActive ? '1px solid rgba(212,175,55,0.25)' : '0.5px solid rgba(0,0,0,0.06)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    {ws.mode === 'lettings' ? <KeyIcon color={iconColor} /> : <Building2Icon color={iconColor} />}
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{
+                      color: isActive ? '#C49B2A' : '#0D0D12',
+                      fontSize: 14, fontWeight: 600, margin: '0 0 2px',
+                      letterSpacing: '-0.01em', overflow: 'hidden',
+                      textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    }}>
+                      {ws.displayName}
+                    </p>
+                    <p style={{
+                      color: '#A0A8B0', fontSize: 11, margin: 0,
+                      letterSpacing: '0.06em', textTransform: 'uppercase', fontWeight: 600,
+                    }}>
+                      {ws.mode}
+                    </p>
+                  </div>
+
+                  {isActive ? (
+                    <span style={{
+                      padding: '3px 10px', borderRadius: 20,
+                      background: 'rgba(212,175,55,0.12)',
+                      border: '1px solid rgba(212,175,55,0.25)',
+                      color: '#C49B2A', fontSize: 10, fontWeight: 700,
+                      letterSpacing: '0.04em',
+                    }}>
+                      ACTIVE
+                    </span>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(0,0,0,0.2)" strokeWidth="2" strokeLinecap="round"><polyline points="9,18 15,12 9,6"/></svg>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Add workspace */}
+            <div
+              onClick={() => {
+                setShowWorkspaceSwitcher(false);
+                router.push('/agent/settings/workspaces/new');
+              }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                padding: '14px 24px',
+                borderTop: '1px solid rgba(0,0,0,0.04)',
+                cursor: 'pointer',
+              }}
+            >
+              <div style={{
+                width: 38, height: 38, borderRadius: 11,
+                background: '#F5F5F3', border: '0.5px solid rgba(0,0,0,0.06)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="1.8" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              </div>
+              <p style={{ color: '#9CA3AF', fontSize: 14, fontWeight: 500, margin: 0 }}>
+                Add workspace
+              </p>
+            </div>
+
+            {/* Sign out — preserved from existing pattern */}
+            <div style={{ padding: '16px 24px 0', borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+              <button
+                onClick={async () => {
+                  setShowWorkspaceSwitcher(false);
+                  const supabase = createClientComponentClient();
+                  await supabase.auth.signOut();
+                  router.push('/login/agent');
+                }}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: 14,
+                  background: '#fff', border: '0.5px solid rgba(0,0,0,0.08)',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+                  color: '#EF4444', fontSize: 14, fontWeight: 500,
+                  cursor: 'pointer', fontFamily: 'inherit',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                }}
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+                  <polyline points="16,17 21,12 16,7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
         @keyframes slideUp {
           from { transform: translateY(100%); }
@@ -525,5 +739,55 @@ export default function StatusBar({
         onMarkAllRead={handleMarkAllRead}
       />
     </>
+  );
+}
+
+function ModeBadge({ mode }: { mode: 'sales' | 'lettings' }) {
+  const isLettings = mode === 'lettings';
+  return (
+    <span
+      style={{
+        padding: '1px 6px',
+        borderRadius: 6,
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: '0.05em',
+        textTransform: 'uppercase',
+        lineHeight: 1.4,
+        background: isLettings ? 'rgba(212,175,55,0.12)' : 'rgba(0,0,0,0.04)',
+        color: isLettings ? '#C49B2A' : '#9EA8B5',
+        border: isLettings ? '0.5px solid rgba(212,175,55,0.25)' : '0.5px solid rgba(0,0,0,0.06)',
+      }}
+    >
+      {mode}
+    </span>
+  );
+}
+
+function Building2Icon({ color }: { color: string }) {
+  // Lucide Building2 — used for the Sales workspace row.
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+      <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+      <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+      <path d="M10 6h4" />
+      <path d="M10 10h4" />
+      <path d="M10 14h4" />
+      <path d="M10 18h4" />
+    </svg>
+  );
+}
+
+function KeyIcon({ color }: { color: string }) {
+  // Lucide Key — used for the Lettings workspace row.
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m21 2-9.6 9.6" />
+      <circle cx="7.5" cy="15.5" r="5.5" />
+      <path d="m21 2-2 2" />
+      <path d="m18 5 3 3" />
+      <path d="m15 8 3 3" />
+    </svg>
   );
 }

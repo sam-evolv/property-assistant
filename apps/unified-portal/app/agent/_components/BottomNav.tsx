@@ -5,10 +5,14 @@ import { usePathname, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
 import { useApplicantsCount } from '../_hooks/useApplicantsCount';
+import { useAgent } from '@/lib/agent/AgentContext';
 
-type TabId = 'home' | 'pipeline' | 'applicants' | 'viewings';
+// Tab ids cover both nav surfaces. Sales: home | pipeline | applicants |
+// viewings. Lettings: home | properties | viewings | maintenance. 'home' and
+// 'viewings' are shared ids whose hrefs differ between the two surfaces.
+type TabId = 'home' | 'pipeline' | 'applicants' | 'viewings' | 'properties' | 'maintenance';
 
-const TABS: { id: TabId; label: string; href: string }[] = [
+const SALES_TABS: { id: TabId; label: string; href: string }[] = [
   { id: 'home', label: 'Home', href: '/agent/home' },
   { id: 'pipeline', label: 'Pipeline', href: '/agent/pipeline' },
   // Intelligence FAB sits between the two clusters.
@@ -19,6 +23,14 @@ const TABS: { id: TabId; label: string; href: string }[] = [
   // tabs + centred FAB restores the symmetric two-and-two layout.
   { id: 'applicants', label: 'Applicants', href: '/agent/applicants' },
   { id: 'viewings', label: 'Viewings', href: '/agent/viewings' },
+];
+
+const LETTINGS_TABS: { id: TabId; label: string; href: string }[] = [
+  { id: 'home', label: 'Home', href: '/agent/lettings/home' },
+  { id: 'properties', label: 'Properties', href: '/agent/lettings/properties' },
+  // Intelligence FAB sits between the two clusters (unchanged routing).
+  { id: 'viewings', label: 'Viewings', href: '/agent/lettings/viewings' },
+  { id: 'maintenance', label: 'Maintenance', href: '/agent/lettings/maintenance' },
 ];
 
 function TabIcon({ id, active }: { id: TabId; active: boolean }) {
@@ -61,6 +73,26 @@ function TabIcon({ id, active }: { id: TabId; active: boolean }) {
           <line x1="3" y1="10" x2="21" y2="10" />
         </svg>
       );
+    case 'properties':
+      // Lucide Building2 — lettings property list tab.
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" />
+          <path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" />
+          <path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" />
+          <path d="M10 6h4" />
+          <path d="M10 10h4" />
+          <path d="M10 14h4" />
+          <path d="M10 18h4" />
+        </svg>
+      );
+    case 'maintenance':
+      // Lucide Wrench — lettings maintenance tickets tab.
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+        </svg>
+      );
   }
 }
 
@@ -69,11 +101,19 @@ export default function BottomNav() {
   const router = useRouter();
   const isActive = (href: string) => pathname.startsWith(href);
   const intelActive = pathname.startsWith('/agent/intelligence');
+  // These hooks must be called unconditionally — rules of hooks. The
+  // applicants badge is only rendered on the sales nav (where it has a tab)
+  // but the count query itself runs in both modes harmlessly.
   const { count: draftsCount } = useDraftsCount();
   const { count: applicantsCount } = useApplicantsCount();
 
-  const leftTabs = TABS.slice(0, 2);
-  const rightTabs = TABS.slice(2);
+  // Workspace-aware nav. Lettings mode swaps in the lettings tab set; every
+  // other state (sales mode, no-workspace legacy users) keeps the original
+  // sales tabs. The Intelligence FAB is shared and unchanged.
+  const { activeWorkspace } = useAgent();
+  const tabs = activeWorkspace?.mode === 'lettings' ? LETTINGS_TABS : SALES_TABS;
+  const leftTabs = tabs.slice(0, 2);
+  const rightTabs = tabs.slice(2);
 
   // Session 8 Bug 2 fix. On the installed PWA-Capacitor shell, iOS was
   // handing bottom-nav taps off to Mobile Safari after the mic permission

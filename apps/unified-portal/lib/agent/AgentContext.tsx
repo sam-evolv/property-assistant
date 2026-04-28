@@ -13,6 +13,7 @@ import {
   type Alert,
   type DevelopmentSummary,
 } from './agentPipelineService';
+import type { AgentWorkspace } from './workspaces';
 
 interface AgentContextValue {
   agent: AgentProfile | null;
@@ -20,6 +21,9 @@ interface AgentContextValue {
   alerts: Alert[];
   developments: DevelopmentSummary[];
   developmentIds: string[];
+  workspaces: AgentWorkspace[];
+  activeWorkspace: AgentWorkspace | null;
+  switchWorkspace: (workspaceId: string) => Promise<{ destinationUrl: string }>;
   loading: boolean;
   error: string | null;
   refreshPipeline: () => Promise<void>;
@@ -31,6 +35,9 @@ const AgentContext = createContext<AgentContextValue>({
   alerts: [],
   developments: [],
   developmentIds: [],
+  workspaces: [],
+  activeWorkspace: null,
+  switchWorkspace: async () => ({ destinationUrl: '/agent/home' }),
   loading: true,
   error: null,
   refreshPipeline: async () => {},
@@ -49,13 +56,38 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [developments, setDevelopments] = useState<DevelopmentSummary[]>([]);
   const [developmentIds, setDevelopmentIds] = useState<string[]>([]);
+  const [workspaces, setWorkspaces] = useState<AgentWorkspace[]>([]);
+  const [activeWorkspace, setActiveWorkspace] = useState<AgentWorkspace | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const res = await fetch('/api/agent/workspaces');
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        workspaces: AgentWorkspace[];
+        activeWorkspaceId: string | null;
+      };
+      const list = data.workspaces ?? [];
+      setWorkspaces(list);
+      const active = list.find((w) => w.id === data.activeWorkspaceId)
+        ?? list.find((w) => w.isDefault)
+        ?? list[0]
+        ?? null;
+      setActiveWorkspace(active);
+    } catch {
+      // Workspaces are not yet wired into prod auth; failure is non-fatal.
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
+
+      // Workspaces load independently of pipeline data.
+      void loadWorkspaces();
 
       // Try the server-side API route first (uses service role, no RLS issues)
       try {
@@ -130,7 +162,23 @@ export function AgentProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  }, [preview]);
+  }, [preview, loadWorkspaces]);
+
+  const switchWorkspace = useCallback(async (workspaceId: string) => {
+    const res = await fetch('/api/agent/workspaces/active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workspaceId }),
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody?.error || `Failed to switch workspace (${res.status})`);
+    }
+    const data = (await res.json()) as { destinationUrl: string };
+    const next = workspaces.find((w) => w.id === workspaceId) ?? null;
+    if (next) setActiveWorkspace(next);
+    return data;
+  }, [workspaces]);
 
   useEffect(() => {
     loadData();
@@ -176,6 +224,9 @@ export function AgentProvider({ children }: { children: ReactNode }) {
       alerts,
       developments,
       developmentIds,
+      workspaces,
+      activeWorkspace,
+      switchWorkspace,
       loading,
       error,
       refreshPipeline,
