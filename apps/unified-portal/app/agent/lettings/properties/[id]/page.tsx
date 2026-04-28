@@ -37,6 +37,35 @@ type Tenancy = {
   status: string;
 };
 
+type MaintenanceTicket = {
+  id: string;
+  title: string;
+  description: string | null;
+  category: string | null;
+  priority: string;
+  status: string;
+  reportedAt: string;
+  resolvedAt: string | null;
+};
+
+const CATEGORY_LABEL: Record<string, string> = {
+  plumbing: 'Plumbing', electrical: 'Electrical', heating: 'Heating', appliance: 'Appliance',
+  structural: 'Structural', pest: 'Pest', cleaning: 'Cleaning', safety: 'Safety',
+  compliance: 'Compliance', other: 'Other',
+};
+const CATEGORY_OPTIONS: Array<[string, string]> = Object.entries(CATEGORY_LABEL);
+
+const relativeTime = (iso: string | null) => {
+  if (!iso) return '';
+  const ms = Date.now() - new Date(iso).getTime();
+  const days = Math.floor(ms / 86400000);
+  if (days === 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return `${Math.floor(days / 30)}mo ago`;
+};
+
 type DocumentRow = {
   id: string;
   docType: string;
@@ -51,7 +80,7 @@ type Detail = {
   activeTenancy: Tenancy | null;
   tenancyHistory: Array<{ id: string; tenantName: string | null; leaseStart: string | null; leaseEnd: string | null; status: string; rentPcm: number | null }>;
   documents: DocumentRow[];
-  maintenance: Array<{ status: string }>;
+  maintenance: MaintenanceTicket[];
   provenance: Array<{ fieldName: string; source: FieldSource; confidence: number | null }>;
 };
 
@@ -145,6 +174,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [endingTenancy, setEndingTenancy] = useState(false);
   const [addingTenancy, setAddingTenancy] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [creatingTicket, setCreatingTicket] = useState(false);
 
   useEffect(() => {
     if (!openPopover) return;
@@ -327,7 +357,26 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         </div>
 
         <div className="px-4">
-          {tab === 'compliance' ? (
+          {tab === 'maintenance' ? (
+            <MaintenanceTab
+              tickets={data.maintenance}
+              onCreate={() => setCreatingTicket(true)}
+              onMarkResolved={async (ticketId) => {
+                const before = data.maintenance;
+                setData((prev) => prev ? { ...prev, maintenance: prev.maintenance.map((t) => t.id === ticketId ? { ...t, status: 'resolved', resolvedAt: new Date().toISOString() } : t) } : prev);
+                try {
+                  const res = await fetch(`/api/lettings/maintenance/${ticketId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'resolved' }) });
+                  const json = await res.json().catch(() => ({}));
+                  if (!res.ok) throw new Error(json?.error || `Failed (${res.status})`);
+                  await refetch();
+                } catch (e) {
+                  setData((prev) => prev ? { ...prev, maintenance: before } : prev);
+                  console.error('[maintenance/resolve] failed:', e);
+                  setError(e instanceof Error ? e.message : 'Failed to mark resolved');
+                }
+              }}
+            />
+          ) : tab === 'compliance' ? (
             <ComplianceTab property={p} activeTenancy={data.activeTenancy} documents={data.documents} />
           ) : tab === 'documents' ? (
             <DocumentsTab
@@ -377,6 +426,17 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             propertyId={params.id}
             onClose={() => setAddingTenancy(false)}
             onSuccess={async () => { setAddingTenancy(false); await refetch(); }}
+          />
+        )}
+        {creatingTicket && (
+          <NewTicketSheet
+            propertyId={params.id}
+            onClose={() => setCreatingTicket(false)}
+            onSuccess={(ticket) => {
+              setData((prev) => prev ? { ...prev, maintenance: [ticket, ...prev.maintenance] } : prev);
+              setCreatingTicket(false);
+              refetch();
+            }}
           />
         )}
         {uploadingDoc && (
@@ -659,6 +719,132 @@ function EditableField({
       </div>
       {errMsg && <div className="text-[11px] text-red-600 mt-1">{errMsg}</div>}
     </div>
+  );
+}
+
+function MaintenanceTab({ tickets, onCreate, onMarkResolved }: { tickets: MaintenanceTicket[]; onCreate: () => void; onMarkResolved: (id: string) => Promise<void> }) {
+  const sorted = [...tickets].sort((a, b) => new Date(b.reportedAt).getTime() - new Date(a.reportedAt).getTime());
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Maintenance ({tickets.length})</span>
+        <button type="button" onClick={onCreate} className="inline-flex items-center gap-1 text-xs font-semibold text-[#0D0D12] px-3 py-1.5 rounded-lg border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          New ticket
+        </button>
+      </div>
+      {tickets.length === 0 ? (
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 text-center">
+          <h3 className="text-base font-semibold text-[#0D0D12] m-0 mb-2">No maintenance tickets</h3>
+          <p className="text-[13px] text-[#6B7280] m-0 mb-4">Track repairs, callouts, and inspections here. They&rsquo;ll show up against the property and on the home dashboard.</p>
+          <button type="button" onClick={onCreate} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-[#0D0D12] border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            New ticket
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {sorted.map((t) => {
+            const isResolved = t.status === 'resolved';
+            const isCancelled = t.status === 'cancelled';
+            const statusStyle = isResolved ? { background: 'rgba(16,185,129,0.10)', color: '#047857' }
+              : isCancelled ? { background: '#F3F4F6', color: '#6B7280' }
+              : { background: 'rgba(245,158,11,0.12)', color: '#A16207' };
+            const statusLabel = isResolved ? 'Resolved' : isCancelled ? 'Cancelled' : 'Open';
+            return (
+              <div key={t.id} className="flex items-start gap-3 p-3 bg-white border border-[#E5E7EB] rounded-xl">
+                <div className="flex-shrink-0 mt-0.5">
+                  {t.priority === 'urgent' ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
+                  ) : t.priority === 'high' ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+                  ) : t.priority === 'low' ? (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><circle cx="12" cy="12" r="9" /></svg>
+                  ) : (
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-[#0D0D12] truncate">{t.title}</div>
+                  {t.description && <div className="text-xs text-[#6B7280] truncate mt-0.5">{t.description}</div>}
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={statusStyle}>{statusLabel}</span>
+                    <span className="text-[11px] text-[#A0A8B0]">· reported {relativeTime(t.reportedAt)}</span>
+                  </div>
+                </div>
+                {t.status === 'open' && (
+                  <button type="button" onClick={() => onMarkResolved(t.id)} className="flex-shrink-0 text-xs font-medium text-[#6B7280] bg-transparent border-0 cursor-pointer">Mark resolved</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NewTicketSheet({ propertyId, onClose, onSuccess }: { propertyId: string; onClose: () => void; onSuccess: (ticket: MaintenanceTicket) => void }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [category, setCategory] = useState('');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (!title.trim()) return;
+    setSubmitting(true); setErrMsg(null);
+    const body: Record<string, unknown> = { lettingPropertyId: propertyId, title: title.trim(), priority };
+    if (description.trim()) body.description = description.trim();
+    if (category) body.category = category;
+    try {
+      const res = await fetch('/api/lettings/maintenance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.ticket) throw new Error(json?.error || `Failed (${res.status})`);
+      onSuccess(json.ticket as MaintenanceTicket);
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Failed to create ticket');
+      setSubmitting(false);
+    }
+  };
+
+  const inputCls = "h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37]";
+  const priorities: Array<'low' | 'medium' | 'high' | 'urgent'> = ['low', 'medium', 'high', 'urgent'];
+  return (
+    <SheetShell title="New maintenance ticket" onClose={onClose}>
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Title <span className="text-red-500">*</span></label>
+      <input type="text" placeholder="e.g. Boiler not heating" value={title} onChange={(e) => setTitle(e.target.value)} className={`${inputCls} mb-3`} />
+
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Description</label>
+      <textarea rows={3} placeholder="Add any details — when it started, what you've checked" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37] mb-3" />
+
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Category</label>
+      <select value={category} onChange={(e) => setCategory(e.target.value)} className={`${inputCls} mb-3`}>
+        <option value="">—</option>
+        {CATEGORY_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Priority</label>
+      <div className="flex w-full bg-[#F3F4F6] rounded-lg p-1 gap-0 mb-4">
+        {priorities.map((p) => {
+          const sel = p === priority;
+          return (
+            <button key={p} type="button" onClick={() => setPriority(p)} className="flex-1 h-8 rounded-md text-xs font-medium border-0 cursor-pointer capitalize" style={sel ? { background: 'rgba(212,175,55,0.18)', color: '#0D0D12', boxShadow: '0 1px 2px rgba(0,0,0,0.05)' } : { background: 'transparent', color: '#6B7280' }}>
+              {p}
+            </button>
+          );
+        })}
+      </div>
+
+      {errMsg && <div className="text-xs text-red-600 mb-3">{errMsg}</div>}
+      <div className="flex gap-2">
+        <button type="button" onClick={onClose} className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#6B7280] cursor-pointer">Cancel</button>
+        <button type="button" onClick={submit} disabled={!title.trim() || submitting} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: !title.trim() || submitting ? 0.5 : 1, pointerEvents: !title.trim() || submitting ? 'none' : 'auto' }}>
+          {submitting ? 'Creating…' : 'Create ticket'}
+        </button>
+      </div>
+    </SheetShell>
   );
 }
 
