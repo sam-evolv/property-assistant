@@ -37,12 +37,43 @@ type Tenancy = {
   status: string;
 };
 
+type DocumentRow = {
+  id: string;
+  docType: string;
+  originalFilename: string | null;
+  fileSizeBytes: number | null;
+  uploadedAt: string;
+  aiExtractionStatus: string | null;
+};
+
 type Detail = {
   property: PropertyFields;
   activeTenancy: Tenancy | null;
   tenancyHistory: Array<{ id: string; tenantName: string | null; leaseStart: string | null; leaseEnd: string | null; status: string; rentPcm: number | null }>;
+  documents: DocumentRow[];
   maintenance: Array<{ status: string }>;
   provenance: Array<{ fieldName: string; source: FieldSource; confidence: number | null }>;
+};
+
+const DOC_TYPE_OPTIONS: Array<[string, string]> = [
+  ['lease', 'Lease'],
+  ['ber_cert', 'BER cert'],
+  ['gas_safety_cert', 'Gas safety cert'],
+  ['electrical_cert', 'Electrical cert'],
+  ['inventory', 'Inventory'],
+  ['rtb_confirmation', 'RTB confirmation'],
+  ['photo', 'Photo'],
+  ['floorplan', 'Floor plan'],
+  ['other', 'Other'],
+];
+const DOC_TYPE_LABEL: Record<string, string> = Object.fromEntries(DOC_TYPE_OPTIONS);
+const DOC_TYPE_GOLD = new Set(['lease', 'ber_cert']);
+
+const humanSize = (bytes: number | null) => {
+  if (bytes == null) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 };
 
 type EditableKey = 'propertyType' | 'bedrooms' | 'bathrooms' | 'floorAreaSqm' | 'yearBuilt' | 'berRating' | 'berCertNumber' | 'berExpiryDate';
@@ -113,6 +144,7 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
   const [openPopover, setOpenPopover] = useState<string | null>(null);
   const [endingTenancy, setEndingTenancy] = useState(false);
   const [addingTenancy, setAddingTenancy] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
 
   useEffect(() => {
     if (!openPopover) return;
@@ -295,7 +327,14 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
         </div>
 
         <div className="px-4">
-          {tab === 'tenancy' ? (
+          {tab === 'compliance' ? (
+            <ComplianceTab property={p} activeTenancy={data.activeTenancy} documents={data.documents} />
+          ) : tab === 'documents' ? (
+            <DocumentsTab
+              documents={data.documents}
+              onAdd={() => setUploadingDoc(true)}
+            />
+          ) : tab === 'tenancy' ? (
             <TenancyTab
               activeTenancy={data.activeTenancy}
               history={data.tenancyHistory}
@@ -338,6 +377,17 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
             propertyId={params.id}
             onClose={() => setAddingTenancy(false)}
             onSuccess={async () => { setAddingTenancy(false); await refetch(); }}
+          />
+        )}
+        {uploadingDoc && (
+          <AddDocumentSheet
+            propertyId={params.id}
+            onClose={() => setUploadingDoc(false)}
+            onSuccess={(doc) => {
+              setData((prev) => prev ? { ...prev, documents: [doc, ...prev.documents] } : prev);
+              setUploadingDoc(false);
+              refetch();
+            }}
           />
         )}
       </div>
@@ -609,6 +659,147 @@ function EditableField({
       </div>
       {errMsg && <div className="text-[11px] text-red-600 mt-1">{errMsg}</div>}
     </div>
+  );
+}
+
+function ComplianceTab({ property, activeTenancy, documents }: { property: PropertyFields; activeTenancy: Tenancy | null; documents: DocumentRow[] }) {
+  const hasDoc = (t: string) => documents.some((d) => d.docType === t);
+  const isVacant = !activeTenancy || activeTenancy.status !== 'active' || (property.status ?? '').toLowerCase() === 'vacant';
+  const berOk = !!property.berCertNumber || hasDoc('ber_cert');
+  const gasOk = hasDoc('gas_safety_cert');
+  const elecOk = hasDoc('electrical_cert');
+  const rtbOk = !isVacant && !!activeTenancy?.rtbRegistrationNumber;
+  const leaseOk = hasDoc('lease');
+  const anyAmber = !berOk || !gasOk || !elecOk || (!isVacant && !rtbOk) || !leaseOk;
+  const rows: Array<{ label: string; state: 'ok' | 'amber' | 'na'; status: string }> = [
+    { label: 'BER cert on record', state: berOk ? 'ok' : 'amber', status: berOk ? 'On record' : 'Outstanding' },
+    { label: 'Gas safety cert', state: gasOk ? 'ok' : 'amber', status: gasOk ? 'Uploaded' : 'Outstanding' },
+    { label: 'Electrical cert', state: elecOk ? 'ok' : 'amber', status: elecOk ? 'Uploaded' : 'Outstanding' },
+    { label: 'RTB registration', state: isVacant ? 'na' : rtbOk ? 'ok' : 'amber', status: isVacant ? 'Not applicable' : rtbOk ? 'Registered' : 'Outstanding' },
+    { label: 'Signed lease on file', state: leaseOk ? 'ok' : 'amber', status: leaseOk ? 'Uploaded' : 'Outstanding' },
+  ];
+  return (
+    <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Compliance status</span>
+        <span className="text-xs font-medium text-[#0D0D12]">{property.completenessScore}%</span>
+      </div>
+      {rows.map((r, i) => (
+        <div key={r.label} className="flex items-center justify-between py-2.5" style={{ borderTop: i === 0 ? 'none' : '0.5px solid #F3F4F6' }}>
+          <div className="flex items-center gap-2.5">
+            {r.state === 'ok' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></svg>
+            ) : r.state === 'na' ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D1D5DB" strokeWidth="2"><circle cx="12" cy="12" r="9" /></svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="#F59E0B" strokeWidth="2"><circle cx="12" cy="12" r="4" /></svg>
+            )}
+            <span className="text-sm text-[#0D0D12]">{r.label}</span>
+          </div>
+          <span className="text-xs text-[#A0A8B0]">{r.status}</span>
+        </div>
+      ))}
+      {anyAmber && (
+        <p className="text-xs text-[#6B7280] mt-3 mb-0">Outstanding items can be uploaded from the Documents tab.</p>
+      )}
+    </div>
+  );
+}
+
+function DocumentsTab({ documents, onAdd }: { documents: DocumentRow[]; onAdd: () => void }) {
+  return (
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Documents ({documents.length})</span>
+        <button type="button" onClick={onAdd} className="inline-flex items-center gap-1 text-xs font-semibold text-[#0D0D12] px-3 py-1.5 rounded-lg border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+          Add document
+        </button>
+      </div>
+      {documents.length === 0 ? (
+        <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 text-center">
+          <p className="text-sm text-[#6B7280] m-0 mb-3">No documents yet. Upload a lease, BER cert, or other document to keep records together.</p>
+          <button type="button" onClick={onAdd} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-[#0D0D12] border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add document
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {documents.map((d) => {
+            const isGold = DOC_TYPE_GOLD.has(d.docType);
+            const aiExtracted = d.aiExtractionStatus === 'success' || d.aiExtractionStatus === 'partial';
+            const uploaded = formatDate(d.uploadedAt);
+            return (
+              <div key={d.id} className="flex items-center gap-3 p-3 bg-white border border-[#E5E7EB] rounded-xl">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D4AF37" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[#0D0D12] truncate">{d.originalFilename ?? 'Untitled'}</div>
+                  <div className="text-xs text-[#6B7280] truncate">{[humanSize(d.fileSizeBytes), uploaded ? `uploaded ${uploaded}` : null].filter(Boolean).join(' · ')}</div>
+                </div>
+                <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                  <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={isGold ? { background: '#FAF3DD', color: '#A47E1B' } : { background: '#F3F4F6', color: '#6B7280' }}>
+                    {DOC_TYPE_LABEL[d.docType] ?? d.docType}
+                  </span>
+                  {aiExtracted && (
+                    <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={{ background: '#FAF3DD', color: '#A47E1B' }}>AI-extracted</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AddDocumentSheet({ propertyId, onClose, onSuccess }: { propertyId: string; onClose: () => void; onSuccess: (doc: DocumentRow) => void }) {
+  const [docType, setDocType] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const ready = docType && file;
+
+  const submit = async () => {
+    if (!file || !docType) return;
+    setSubmitting(true); setErrMsg(null);
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('docType', docType);
+    fd.append('lettingPropertyId', propertyId);
+    try {
+      const res = await fetch('/api/lettings/document-upload', { method: 'POST', body: fd });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.document) throw new Error(json?.error || `Upload failed (${res.status})`);
+      onSuccess(json.document as DocumentRow);
+    } catch (e) {
+      setErrMsg(e instanceof Error ? e.message : 'Upload failed');
+      setSubmitting(false);
+    }
+  };
+
+  const inputCls = "h-10 w-full border border-[#E5E7EB] rounded-lg px-3 text-sm text-[#0D0D12] bg-white focus:outline-none focus:border-[#D4AF37]";
+  return (
+    <SheetShell title="Add document" onClose={onClose}>
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">Document type <span className="text-red-500">*</span></label>
+      <select value={docType} onChange={(e) => setDocType(e.target.value)} className={`${inputCls} mb-3`}>
+        <option value="">Select…</option>
+        {DOC_TYPE_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+      </select>
+      <label className="block text-[12px] font-medium text-[#6B7280] mb-1">File <span className="text-red-500">*</span></label>
+      <input type="file" accept="application/pdf,image/*" onChange={(e) => setFile(e.target.files?.[0] ?? null)} className="text-sm w-full" />
+      <p className="text-[12px] text-[#6B7280] mt-2 mb-3">PDF or image, up to 10 MB.</p>
+      {errMsg && <div className="text-xs text-red-600 mb-3">{errMsg}</div>}
+      <div className="flex gap-2">
+        <button type="button" onClick={onClose} className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#6B7280] cursor-pointer">Cancel</button>
+        <button type="button" onClick={submit} disabled={!ready || submitting} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: !ready || submitting ? 0.5 : 1, pointerEvents: !ready || submitting ? 'none' : 'auto' }}>
+          {submitting ? 'Uploading…' : 'Upload'}
+        </button>
+      </div>
+    </SheetShell>
   );
 }
 
