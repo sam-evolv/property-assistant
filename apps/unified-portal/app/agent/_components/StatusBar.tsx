@@ -121,7 +121,10 @@ export default function StatusBar({
       try {
         const { destinationUrl } = await switchWorkspace(workspaceId);
         setShowWorkspaceSwitcher(false);
-        router.push(destinationUrl);
+        // Hard navigation: the new workspace mode has its own AgentProvider
+        // tree, so a soft router.push creates a state-desync race condition.
+        // window.location ensures a clean page rebuild.
+        window.location.href = destinationUrl;
       } catch (err) {
         console.error('[StatusBar] switchWorkspace failed', err);
         setShowWorkspaceSwitcher(false);
