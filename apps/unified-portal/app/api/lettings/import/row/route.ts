@@ -79,6 +79,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'No lettings workspace' }, { status: 500 });
     }
 
+    // Dedup: skip rows whose address_line_1 + eircode already exists for this
+    // agent, unless ?force=true is set. Match is case-insensitive via ilike;
+    // null/empty eircodes match each other.
+    const force = req.nextUrl.searchParams.get('force') === 'true';
+    if (!force) {
+      const inputEircode = target.eircode?.trim() || '';
+      let dupeQuery = admin
+        .from('agent_letting_properties')
+        .select('id, address')
+        .eq('agent_id', agentProfile.id)
+        .ilike('address_line_1', addressLine1);
+      dupeQuery = inputEircode
+        ? dupeQuery.ilike('eircode', inputEircode)
+        : dupeQuery.or('eircode.is.null,eircode.eq.');
+      const { data: dupes } = await dupeQuery.limit(1);
+      if (dupes && dupes.length > 0) {
+        console.log(`[lettings-import-row] duplicate skipped existing_id=${dupes[0].id}`);
+        return NextResponse.json(
+          { ok: false, error: 'duplicate', existingId: dupes[0].id, existingAddress: dupes[0].address },
+          { status: 200 },
+        );
+      }
+    }
+
     const tenantName = target.tenant_name || null;
     const rentPcm = parseFloatOrNull(target.monthly_rent_eur);
     const isTenanted = !!tenantName || rentPcm != null;

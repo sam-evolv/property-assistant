@@ -456,6 +456,16 @@ export default function ReviewPropertyPage() {
         source: src === 'lease_pdf' ? 'lease_pdf_extraction' : src,
       }));
 
+    // Address-component fields are auto-filled from lookupData (Google Places
+    // or Eircode) and locked in the UI — no form-state to compare against.
+    // Forward the lookup API's own provenance for those, normalising 'town'
+    // to the DB column name 'city'.
+    const ADDRESS_PROV_FIELDS = new Set(['address_line_1', 'town', 'county', 'eircode', 'latitude', 'longitude']);
+    for (const p of lookupData?.provenance ?? []) {
+      if (!ADDRESS_PROV_FIELDS.has(p.field)) continue;
+      provenance.push({ fieldName: p.field === 'town' ? 'city' : p.field, source: p.source });
+    }
+
     const body = {
       status: form.status,
       address: lookupData?.address ?? { line1: '' },

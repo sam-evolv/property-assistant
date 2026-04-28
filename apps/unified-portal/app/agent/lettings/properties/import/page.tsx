@@ -8,7 +8,7 @@ import AgentShell from '../../../_components/AgentShell';
 type Confidence = 'high' | 'medium' | 'low';
 type Mapping = { header: string; suggestedField: string; confidence: Confidence };
 type Phase = 'upload' | 'confirm' | 'preview' | 'importing' | 'done';
-type ImportResult = { row: number; ok: boolean; address: string; error?: string; propertyId?: string };
+type ImportResult = { row: number; ok: boolean; address: string; error?: string; propertyId?: string; existingId?: string; existingAddress?: string };
 
 const TARGET_OPTIONS: Array<[string, string]> = [
   ['_skip', 'Skip this column'],
@@ -157,7 +157,7 @@ export default function ImportPage() {
         if (data.ok) {
           setResults((prev) => [...prev, { row: i + 1, ok: true, address, propertyId: data.propertyId }]);
         } else {
-          setResults((prev) => [...prev, { row: i + 1, ok: false, address, error: data.error || `Failed (${res.status})` }]);
+          setResults((prev) => [...prev, { row: i + 1, ok: false, address, error: data.error || `Failed (${res.status})`, existingId: data.existingId, existingAddress: data.existingAddress }]);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : 'Network error';
@@ -169,7 +169,7 @@ export default function ImportPage() {
     setPhase('done');
   };
 
-  const retryRow = async (failed: ImportResult) => {
+  const retryRow = async (failed: ImportResult, opts?: { force?: boolean }) => {
     const idx = failed.row - 1;
     setRetryingRow(idx);
     const orig = rows[idx] ?? [];
@@ -187,7 +187,8 @@ export default function ImportPage() {
     const newAddress = addrHeader ? (rowObj[addrHeader] || '(no address)') : failed.address;
 
     try {
-      const res = await fetch('/api/lettings/import/row', {
+      const url = opts?.force ? '/api/lettings/import/row?force=true' : '/api/lettings/import/row';
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ row: rowObj, mapping: mappingObj }),
@@ -200,7 +201,7 @@ export default function ImportPage() {
         setEditedFailedRows((prev) => { const next = { ...prev }; delete next[idx]; return next; });
       } else {
         setResults((prev) => prev.map((r) => r.row === failed.row
-          ? { ...r, address: newAddress, error: data.error || `Failed (${res.status})` }
+          ? { ...r, address: newAddress, error: data.error || `Failed (${res.status})`, existingId: data.existingId, existingAddress: data.existingAddress }
           : r));
       }
     } catch (err) {
@@ -373,12 +374,23 @@ export default function ImportPage() {
                         const orig = rows[idx] ?? [];
                         const edited = editedFailedRows[idx] ?? {};
                         const isRetrying = retryingRow === idx;
+                        const isDupe = f.error === 'duplicate';
+                        const accent = isDupe ? '#FBBF24' : '#F87171';
                         return (
-                          <div key={f.row} className="bg-white rounded-xl p-3" style={{ border: '0.5px solid #E5E7EB', borderLeft: '3px solid #F87171' }}>
+                          <div key={f.row} className="bg-white rounded-xl p-3" style={{ border: '0.5px solid #E5E7EB', borderLeft: `3px solid ${accent}` }}>
                             <div className="flex items-baseline justify-between mb-1 gap-2">
                               <span className="text-sm font-semibold text-[#0D0D12] truncate">Row {f.row}: {f.address}</span>
                             </div>
-                            <div className="text-xs text-[#B91C1C] mb-3">{f.error || 'Failed'}</div>
+                            {isDupe ? (
+                              <div className="text-xs mb-3" style={{ color: '#A16207' }}>
+                                Already exists in your portfolio
+                                {f.existingId && (
+                                  <> · <a href={`/agent/lettings/properties/${f.existingId}`} target="_blank" rel="noopener" className="underline">View existing →</a></>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="text-xs text-[#B91C1C] mb-3">{f.error || 'Failed'}</div>
+                            )}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
                               {mappedHeaders.map((m) => {
                                 const colIdx = headers.indexOf(m.header);
@@ -397,8 +409,8 @@ export default function ImportPage() {
                               })}
                             </div>
                             <div className="flex justify-end">
-                              <button type="button" disabled={isRetrying} onClick={() => retryRow(f)} className="px-3 py-1.5 rounded-lg border-0 text-xs font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: isRetrying ? 0.5 : 1, pointerEvents: isRetrying ? 'none' : 'auto' }}>
-                                {isRetrying ? 'Retrying…' : 'Retry'}
+                              <button type="button" disabled={isRetrying} onClick={() => retryRow(f, isDupe ? { force: true } : undefined)} className="px-3 py-1.5 rounded-lg border-0 text-xs font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)', opacity: isRetrying ? 0.5 : 1, pointerEvents: isRetrying ? 'none' : 'auto' }}>
+                                {isRetrying ? 'Retrying…' : isDupe ? 'Create anyway' : 'Retry'}
                               </button>
                             </div>
                           </div>
