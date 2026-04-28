@@ -172,3 +172,136 @@ export async function GET(
     return NextResponse.json({ error: 'Failed to fetch property' }, { status: 500 });
   }
 }
+
+const PROPERTY_TYPE_VALUES = new Set([
+  'apartment', 'house_terraced', 'house_semi_detached', 'house_detached',
+  'house_end_of_terrace', 'duplex', 'studio', 'bungalow', 'other',
+]);
+const BER_RATING_VALUES = new Set([
+  'a1','a2','a3','b1','b2','b3','c1','c2','c3','d1','d2','e1','e2','f','g','exempt','pending',
+]);
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/**
+ * PATCH /api/lettings/properties/[id] — partial update of editable property
+ * fields. Each field is independently optional. The DB trigger recomputes
+ * completeness_score on UPDATE; we read it back from the returned row.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: { id: string } },
+) {
+  const started = Date.now();
+  const id = params.id;
+  try {
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookies() });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const admin = getSupabaseAdmin();
+    const { data: agentProfile } = await admin
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (!agentProfile) return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+
+    const body = await req.json().catch(() => null);
+    if (!body || typeof body !== 'object') {
+      return NextResponse.json({ error: 'Invalid body' }, { status: 400 });
+    }
+
+    const update: Record<string, unknown> = {};
+    const fields: string[] = [];
+
+    const setNullableNumber = (key: string, dbKey: string, opts?: { min?: number; max?: number; integer?: boolean }) => {
+      if (!(key in body)) return null;
+      const v = body[key];
+      if (v === null) { update[dbKey] = null; fields.push(key); return null; }
+      if (typeof v !== 'number' || !Number.isFinite(v)) return `Invalid ${key}`;
+      if (opts?.integer && !Number.isInteger(v)) return `${key} must be integer`;
+      if (opts?.min != null && v < opts.min) return `${key} below min`;
+      if (opts?.max != null && v > opts.max) return `${key} above max`;
+      update[dbKey] = v; fields.push(key); return null;
+    };
+
+    if ('propertyType' in body) {
+      const v = body.propertyType;
+      if (v !== null && (typeof v !== 'string' || !PROPERTY_TYPE_VALUES.has(v))) {
+        return NextResponse.json({ error: 'Invalid propertyType' }, { status: 400 });
+      }
+      update.property_type = v; fields.push('propertyType');
+    }
+    for (const err of [
+      setNullableNumber('bedrooms', 'bedrooms', { integer: true, min: 0 }),
+      setNullableNumber('bathrooms', 'bathrooms', { integer: true, min: 0 }),
+      setNullableNumber('floorAreaSqm', 'floor_area_sqm', { min: 0 }),
+      setNullableNumber('yearBuilt', 'year_built', { integer: true, min: 1700, max: 2030 }),
+    ]) if (err) return NextResponse.json({ error: err }, { status: 400 });
+
+    if ('berRating' in body) {
+      const v = body.berRating;
+      if (v === null) { update.ber_rating = null; fields.push('berRating'); }
+      else if (typeof v === 'string') {
+        const lower = v.toLowerCase();
+        if (!BER_RATING_VALUES.has(lower)) return NextResponse.json({ error: 'Invalid berRating' }, { status: 400 });
+        update.ber_rating = lower; fields.push('berRating');
+      } else return NextResponse.json({ error: 'Invalid berRating' }, { status: 400 });
+    }
+    if ('berCertNumber' in body) {
+      const v = body.berCertNumber;
+      if (v !== null && typeof v !== 'string') return NextResponse.json({ error: 'Invalid berCertNumber' }, { status: 400 });
+      update.ber_cert_number = v; fields.push('berCertNumber');
+    }
+    if ('berExpiryDate' in body) {
+      const v = body.berExpiryDate;
+      if (v !== null && (typeof v !== 'string' || !ISO_DATE.test(v))) {
+        return NextResponse.json({ error: 'Invalid berExpiryDate' }, { status: 400 });
+      }
+      update.ber_expiry_date = v; fields.push('berExpiryDate');
+    }
+
+    if (Object.keys(update).length === 0) {
+      return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+    }
+
+    console.log(`[lettings-property-detail] patch id=${id} fields=${fields.join(',')}`);
+
+    const { data: updated, error: updErr } = await admin
+      .from('agent_letting_properties')
+      .update(update)
+      .eq('id', id)
+      .eq('agent_id', agentProfile.id)
+      .select('id, property_type, bedrooms, bathrooms, floor_area_sqm, year_built, ber_rating, ber_cert_number, ber_expiry_date, completeness_score')
+      .maybeSingle();
+    if (updErr) {
+      console.error(`[lettings-property-detail] patch_failed id=${id} reason=${updErr.message}`);
+      return NextResponse.json({ error: updErr.message }, { status: 500 });
+    }
+    if (!updated) return NextResponse.json({ error: 'Property not found' }, { status: 404 });
+
+    console.log(`[lettings-property-detail] patch_ok id=${id} duration_ms=${Date.now() - started}`);
+    return NextResponse.json({
+      ok: true,
+      completenessScore: updated.completeness_score ?? 0,
+      updatedProperty: {
+        propertyType: updated.property_type,
+        bedrooms: updated.bedrooms,
+        bathrooms: updated.bathrooms,
+        floorAreaSqm: updated.floor_area_sqm,
+        yearBuilt: updated.year_built,
+        berRating: updated.ber_rating,
+        berCertNumber: updated.ber_cert_number,
+        berExpiryDate: updated.ber_expiry_date,
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    console.error(
+      `[lettings-property-detail] patch_error id=${id} duration_ms=${Date.now() - started} reason=${message}`,
+    );
+    return NextResponse.json({ error: 'Failed to update property' }, { status: 500 });
+  }
+}
