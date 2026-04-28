@@ -1,0 +1,4 @@
+Address,Town,County,Eircode,Property Type,Bedrooms,Bathrooms,Tenant,Monthly Rent,Lease Start
+"12 Main Street","Cork","County Cork","T12 ABCD","apartment",2,1,"John Murphy",1500,"2025-05-01"
+"7 Lapps Quay","Cork","County Cork","T12 W6F7","apartment",2,1,"Aisling Moran",1850,"2024-05-01"
+"24 Magazine Road","Cork","County Cork","T12 X9P2","house_terraced",3,2,"",,
