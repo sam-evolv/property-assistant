@@ -7,7 +7,8 @@ import AgentShell from '../../../_components/AgentShell';
 
 type Confidence = 'high' | 'medium' | 'low';
 type Mapping = { header: string; suggestedField: string; confidence: Confidence };
-type Phase = 'upload' | 'confirm' | 'preview';
+type Phase = 'upload' | 'confirm' | 'preview' | 'importing' | 'done';
+type ImportResult = { row: number; ok: boolean; address: string; error?: string; propertyId?: string };
 
 const TARGET_OPTIONS: Array<[string, string]> = [
   ['_skip', 'Skip this column'],
@@ -66,6 +67,11 @@ export default function ImportPage() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [currentAddress, setCurrentAddress] = useState('');
+  const [results, setResults] = useState<ImportResult[]>([]);
+  const [cancelled, setCancelled] = useState(false);
+  const cancelledRef = useRef(false);
 
   const handleFile = async (file: File | null) => {
     setError(null);
@@ -112,6 +118,53 @@ export default function ImportPage() {
   const fieldFor = (target: string) => {
     const idx = mappings.findIndex((m) => m.suggestedField === target);
     return idx >= 0 ? idx : -1;
+  };
+
+  const runImport = async () => {
+    cancelledRef.current = false;
+    setCancelled(false);
+    setResults([]);
+    setProgress({ current: 0, total: rows.length });
+    setPhase('importing');
+
+    // Build the {header → targetField} mapping object the API expects.
+    const mappingObj: Record<string, string> = {};
+    for (const m of mappings) {
+      if (m.suggestedField && m.suggestedField !== '_skip') mappingObj[m.header] = m.suggestedField;
+    }
+    const addrIdx = fieldFor('address_line_1');
+
+    for (let i = 0; i < rows.length; i++) {
+      if (cancelledRef.current) break;
+      const row = rows[i];
+      const address = (addrIdx >= 0 ? row[addrIdx] : '') || '(no address)';
+      setCurrentAddress(address);
+      setProgress({ current: i, total: rows.length });
+
+      // Build {header: value} object scoped to mapped headers only.
+      const rowObj: Record<string, string> = {};
+      headers.forEach((h, idx) => { if (mappingObj[h]) rowObj[h] = row[idx] ?? ''; });
+
+      try {
+        const res = await fetch('/api/lettings/import/row', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ row: rowObj, mapping: mappingObj }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data.ok) {
+          setResults((prev) => [...prev, { row: i + 1, ok: true, address, propertyId: data.propertyId }]);
+        } else {
+          setResults((prev) => [...prev, { row: i + 1, ok: false, address, error: data.error || `Failed (${res.status})` }]);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : 'Network error';
+        setResults((prev) => [...prev, { row: i + 1, ok: false, address, error: msg }]);
+      }
+    }
+
+    setProgress({ current: rows.length, total: rows.length });
+    setPhase('done');
   };
 
   return (
@@ -211,12 +264,59 @@ export default function ImportPage() {
               <p className="text-xs text-[#A0A8B0] mb-4 text-center">Estimated time: ~{Math.max(1, Math.round(rows.length * 0.5))}s</p>
               <div className="flex gap-2">
                 <button type="button" onClick={() => setPhase('confirm')} className="flex-1 h-11 rounded-lg border border-[#E5E7EB] bg-white text-sm font-medium text-[#6B7280] cursor-pointer">Back</button>
-                <button type="button" onClick={() => { console.log('TODO 12b: import', rows.length, 'rows'); window.alert(`Import flow stub — 12b will run the actual ${rows.length}-row import.`); }} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+                <button type="button" onClick={runImport} className="flex-1 h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
                   Import {rows.length} properties
                 </button>
               </div>
             </>
           )}
+
+          {(phase === 'importing' || phase === 'done') && (() => {
+            const successCount = results.filter((r) => r.ok).length;
+            const failedCount = results.filter((r) => !r.ok).length;
+            const total = progress.total || rows.length;
+            const pct = total > 0 ? Math.round((progress.current / total) * 100) : 0;
+            const offset = 2 * Math.PI * 40 * (1 - pct / 100);
+            return (
+              <>
+                <h2 className="text-lg font-semibold text-[#0D0D12] mb-5 text-center">
+                  {phase === 'done' ? 'Import complete' : 'Importing properties'}
+                </h2>
+                <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 flex flex-col items-center mb-4">
+                  <div className="relative w-24 h-24 mb-4">
+                    <svg width="96" height="96" viewBox="0 0 96 96" className="-rotate-90">
+                      <circle cx="48" cy="48" r="40" fill="none" stroke="#F3F4F6" strokeWidth="6" />
+                      <circle cx="48" cy="48" r="40" fill="none" stroke="#D4AF37" strokeWidth="6" strokeLinecap="round" strokeDasharray={2 * Math.PI * 40} strokeDashoffset={offset} style={{ transition: 'stroke-dashoffset 250ms cubic-bezier(0.16, 1, 0.3, 1)' }} />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center text-2xl font-semibold text-[#0D0D12]">{pct}</div>
+                  </div>
+                  <div className="text-base font-semibold text-[#0D0D12]">{progress.current} of {total}</div>
+                  {phase === 'importing' && (
+                    <div className="text-xs text-[#6B7280] mt-1 max-w-full truncate">Adding {currentAddress}…</div>
+                  )}
+                  {cancelled && (
+                    <div className="mt-3 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider rounded-full" style={{ background: 'rgba(245,158,11,0.12)', color: '#A16207' }}>
+                      Cancelled. Already-imported properties were kept.
+                    </div>
+                  )}
+                  <div className="mt-3 text-xs">
+                    <span style={{ color: '#A47E1B', fontWeight: 600 }}>{successCount} imported</span>
+                    <span className="text-[#A0A8B0]"> · </span>
+                    <span style={{ color: failedCount > 0 ? '#B91C1C' : '#A0A8B0', fontWeight: failedCount > 0 ? 600 : 400 }}>{failedCount} failed</span>
+                  </div>
+                </div>
+                {phase === 'importing' ? (
+                  <div className="text-center">
+                    <button type="button" onClick={() => { cancelledRef.current = true; setCancelled(true); }} className="text-sm font-medium text-[#6B7280] bg-transparent border-0 cursor-pointer">Cancel import</button>
+                  </div>
+                ) : (
+                  <button type="button" onClick={() => router.push('/agent/lettings/properties')} className="w-full h-11 rounded-lg border-0 text-sm font-semibold text-[#0D0D12] cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
+                    Back to properties
+                  </button>
+                )}
+              </>
+            );
+          })()}
         </div>
       </div>
     </AgentShell>
