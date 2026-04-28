@@ -107,7 +107,7 @@ export async function POST(req: NextRequest) {
         ber_rating: target.ber_rating ? target.ber_rating.toLowerCase() : null,
         rent_pcm: isTenanted ? rentPcm : null,
         status,
-        source: 'csv_import',
+        source: 'bulk_csv',
       })
       .select('id')
       .single();
@@ -133,7 +133,7 @@ export async function POST(req: NextRequest) {
           rtb_registration_number: target.rtb_registration_number || null,
           rtb_registered: !!target.rtb_registration_number,
           status: 'active',
-          source: 'csv_import',
+          source: 'bulk_csv',
         });
         if (tErr) throw new Error(tErr.message);
       } catch (err) {
