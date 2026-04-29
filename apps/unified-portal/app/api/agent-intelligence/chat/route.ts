@@ -19,7 +19,7 @@ import {
 } from '@/lib/agent-intelligence/context';
 import { resolveAgentContext } from '@/lib/agent-intelligence/agent-context';
 import { resolveAgentContextV2 } from '@/lib/agent-intelligence/resolve-agent-v2';
-import { buildAgentSystemPrompt, buildLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
+import { buildAgentSystemPrompt, buildLettingsAgentSystemPrompt, buildLiveContext, buildLettingsLiveContext, type LiveContextBlocks } from '@/lib/agent-intelligence/system-prompt';
 import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intelligence/tools/registry';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { message, history, sessionId, activeDevelopmentId } = body;
+    const { message, history, sessionId, activeDevelopmentId, mode } = body;
+    const resolvedMode: 'sales' | 'lettings' = mode === 'lettings' ? 'lettings' : 'sales';
 
     if (!message || typeof message !== 'string') {
       return new Response(JSON.stringify({ error: 'Message is required' }), {
@@ -164,7 +165,9 @@ export async function POST(request: NextRequest) {
       lettings,
       weekViewings,
     };
-    const liveContext = buildLiveContext(liveContextBlocks);
+    const liveContext = resolvedMode === 'lettings'
+      ? buildLettingsLiveContext(liveContextBlocks)
+      : buildLiveContext(liveContextBlocks);
 
     // 2b. Load independent agent context if applicable
     let independentContext = '';
@@ -173,8 +176,13 @@ export async function POST(request: NextRequest) {
       independentContext = await buildIndependentAgentContext(supabase, agentContext.agentProfileId);
     }
 
-    // 3. Build system prompt
-    const systemPrompt = buildAgentSystemPrompt(
+    // 3. Build system prompt — branch on workspace mode. Lettings mode swaps
+    // the sales TOOL-USE MANDATE / scheme/unit/buyer vocabulary for a
+    // tenant/property/lease one and reads from the LETTINGS PORTFOLIO block.
+    const promptBuilder = resolvedMode === 'lettings'
+      ? buildLettingsAgentSystemPrompt
+      : buildAgentSystemPrompt;
+    const systemPrompt = promptBuilder(
       agentContext,
       recentActivity,
       upcomingDeadlines,
@@ -611,7 +619,7 @@ export async function POST(request: NextRequest) {
           storeConversationMemory(supabase, agentContext, currentSessionId, message, fullContent, toolsCalled).catch(() => {});
           logInteraction(supabase, tenantId, authUserId, message, fullContent, toolsCalled, startTime, {
             hallucinatedDrafts: claimsDrafts && totalDraftsPersisted === 0,
-          }).catch(() => {});
+          }, resolvedMode).catch(() => {});
 
           // Generate follow-up suggestions (non-blocking, appended after main response)
           // Skip when we fired the Session 14 yes/no short-circuit — the
@@ -1036,9 +1044,11 @@ async function logInteraction(
   responseText: string,
   toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }>,
   startTime: number,
-  flags: { hallucinatedDrafts?: boolean } = {}
+  flags: { hallucinatedDrafts?: boolean } = {},
+  mode: 'sales' | 'lettings' = 'sales'
 ) {
   const latencyMs = Date.now() - startTime;
+  const skinTag = mode === 'lettings' ? 'agent_lettings' : 'agent';
 
   // Detect knowledge gaps (responses indicating missing data)
   const isKnowledgeGap = responseText.toLowerCase().includes('i don\'t have that data') ||
@@ -1057,7 +1067,7 @@ async function logInteraction(
     tenant_id: tenantId,
     user_id: userId,
     user_role: 'agent',
-    skin: 'agent',
+    skin: skinTag,
     query_text: queryText,
     tools_called: toolsCalled,
     response_text: responseText.slice(0, 10000),
@@ -1071,7 +1081,7 @@ async function logInteraction(
     await supabase.from('intelligence_knowledge_gaps').insert({
       tenant_id: tenantId,
       query_text: queryText,
-      skin: 'agent',
+      skin: skinTag,
       user_role: 'agent',
       context: { tools_called: toolsCalled.map(t => t.tool_name) },
     });

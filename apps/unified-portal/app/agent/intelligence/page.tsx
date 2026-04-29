@@ -108,7 +108,7 @@ export default function IntelligencePage() {
 }
 
 function IntelligencePageInner() {
-  const { agent, alerts, developmentIds } = useAgent();
+  const { agent, alerts, developmentIds, activeWorkspace } = useAgent();
   const { openApprovalDrawer } = useApprovalDrawer();
   const { count: pendingDraftsCount, ready: draftsReady } = useDraftsCount();
   const searchParams = useSearchParams();
@@ -187,6 +187,7 @@ function IntelligencePageInner() {
           history,
           sessionId,
           activeDevelopmentId: developmentIds?.[0] || null,
+          mode: activeWorkspace?.mode ?? 'sales',
         }),
       });
 

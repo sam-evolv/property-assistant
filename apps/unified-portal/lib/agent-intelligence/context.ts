@@ -41,6 +41,14 @@ export interface LettingsSummary {
     city: string | null;
     status: string;
     rent: number | null;
+    activeTenant: {
+      tenancyId: string;
+      name: string;
+      email: string | null;
+      phone: string | null;
+      leaseEnd: string | null;
+      rtbRegistered: boolean;
+    } | null;
   }>;
 }
 
@@ -428,7 +436,7 @@ export async function getLettingsSummary(
 
   const { data: tenancies } = await supabase
     .from('agent_tenancies')
-    .select('id, agent_id, letting_property_id, status, rent_pcm')
+    .select('id, agent_id, letting_property_id, status, rent_pcm, tenant_name, tenant_email, tenant_phone, lease_end, rtb_registered')
     .eq('agent_id', agentId)
     .eq('status', 'active');
 
@@ -437,6 +445,22 @@ export async function getLettingsSummary(
     const rent = Number(t.rent_pcm ?? 0);
     return sum + (Number.isFinite(rent) ? rent : 0);
   }, 0);
+
+  // Build a map keyed by letting_property_id so we can attach the active
+  // tenant inline without an N+1 query. There's at most one active tenancy
+  // per property (partial unique index on agent_tenancies).
+  const tenantByProperty = new Map<string, NonNullable<LettingsSummary['properties'][number]['activeTenant']>>();
+  for (const t of (tenancies ?? []) as any[]) {
+    if (!t.letting_property_id || !t.tenant_name) continue;
+    tenantByProperty.set(t.letting_property_id, {
+      tenancyId: t.id,
+      name: t.tenant_name,
+      email: t.tenant_email ?? null,
+      phone: t.tenant_phone ?? null,
+      leaseEnd: t.lease_end ?? null,
+      rtbRegistered: !!t.rtb_registered,
+    });
+  }
 
   return {
     total,
@@ -450,6 +474,7 @@ export async function getLettingsSummary(
       city: p.city ?? null,
       status: p.status ?? 'unknown',
       rent: Number(p.rent_pcm ?? 0) || null,
+      activeTenant: tenantByProperty.get(p.id) ?? null,
     })),
   };
 }
