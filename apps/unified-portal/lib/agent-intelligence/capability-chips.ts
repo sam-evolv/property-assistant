@@ -44,10 +44,18 @@ export function shuffleChips(input: readonly string[]): string[] {
 /**
  * Client-side fetch for the live capability chips. Falls back to the
  * static context-free set on any failure. Never throws.
+ *
+ * `mode` (optional) — when set to 'lettings', the server-side route
+ * branches to the lettings chip composer (real tenancies + vacancies +
+ * lettings-flavoured action phrases). Defaults to the sales composer
+ * when omitted, preserving existing call-site behaviour.
  */
-export async function fetchCapabilityChips(): Promise<string[]> {
+export async function fetchCapabilityChips(mode?: 'sales' | 'lettings'): Promise<string[]> {
   try {
-    const res = await fetch('/api/agent/intelligence/capability-chips', {
+    const url = mode === 'lettings'
+      ? '/api/agent/intelligence/capability-chips?mode=lettings'
+      : '/api/agent/intelligence/capability-chips';
+    const res = await fetch(url, {
       cache: 'no-store',
     });
     if (!res.ok) return [...FALLBACK_CAPABILITY_CHIPS];

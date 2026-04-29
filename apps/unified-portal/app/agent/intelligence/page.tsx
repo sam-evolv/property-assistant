@@ -56,6 +56,9 @@ interface Message {
   followups?: string[];
   toolsUsed?: Array<{ name: string; summary: string }>;
   voice?: VoiceActionsPayload;
+  // Session 14a — server-emitted progress narration. Set when a 'progress'
+  // SSE frame arrives, cleared on the first non-empty token/override.
+  progress?: { stage: string; label: string };
 }
 
 interface UndoBatch {
@@ -150,11 +153,11 @@ function IntelligencePageInner() {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const chips = await fetchCapabilityChips();
+      const chips = await fetchCapabilityChips(activeWorkspace?.mode);
       if (!cancelled) setLiveChips(chips);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [activeWorkspace?.mode]);
 
   // Handle prefilled prompt from URL
   useEffect(() => {
@@ -220,19 +223,52 @@ function IntelligencePageInner() {
             if (data.type === 'token') {
               fullContent += data.content;
 
-              // Add or update the streaming message in real time
+              // Add or update the streaming message in real time. The first
+              // token clears any progress narration via `progress: undefined`.
               if (!streamingStarted) {
                 streamingStarted = true;
-                setMessages(prev => [...prev, {
-                  id: streamingMsgId,
-                  role: 'assistant',
-                  content: fullContent,
-                }]);
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === streamingMsgId);
+                  if (existing) {
+                    return prev.map(m =>
+                      m.id === streamingMsgId
+                        ? { ...m, content: fullContent, progress: undefined }
+                        : m
+                    );
+                  }
+                  return [...prev, {
+                    id: streamingMsgId,
+                    role: 'assistant',
+                    content: fullContent,
+                  }];
+                });
               } else {
                 setMessages(prev => prev.map(m =>
                   m.id === streamingMsgId ? { ...m, content: fullContent } : m
                 ));
               }
+            } else if (data.type === 'progress') {
+              // Session 14a — server-emitted narration ("Reading your
+              // portfolio", "Drafting message", etc). Renders a
+              // ProgressCard until the first token arrives.
+              const stage = typeof data.stage === 'string' ? data.stage : 'thinking';
+              const label = typeof data.label === 'string' ? data.label : 'Working on it';
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, progress: { stage, label } }
+                      : m
+                  );
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  progress: { stage, label },
+                }];
+              });
             } else if (data.type === 'followups') {
               followups = data.questions || [];
             } else if (data.type === 'tools_used') {
@@ -245,19 +281,31 @@ function IntelligencePageInner() {
             } else if (data.type === 'override') {
               // Server detected the model hallucinated drafts. Replace
               // whatever tokens have streamed so far with the honest
-              // failure message.
+              // failure message. Also clears progress narration.
               fullContent = typeof data.content === 'string' ? data.content : fullContent;
               if (streamingStarted) {
                 setMessages(prev => prev.map(m =>
-                  m.id === streamingMsgId ? { ...m, content: fullContent } : m
+                  m.id === streamingMsgId
+                    ? { ...m, content: fullContent, progress: undefined }
+                    : m
                 ));
               } else {
                 streamingStarted = true;
-                setMessages(prev => [...prev, {
-                  id: streamingMsgId,
-                  role: 'assistant',
-                  content: fullContent,
-                }]);
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === streamingMsgId);
+                  if (existing) {
+                    return prev.map(m =>
+                      m.id === streamingMsgId
+                        ? { ...m, content: fullContent, progress: undefined }
+                        : m
+                    );
+                  }
+                  return [...prev, {
+                    id: streamingMsgId,
+                    role: 'assistant',
+                    content: fullContent,
+                  }];
+                });
               }
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
@@ -861,6 +909,13 @@ function IntelligencePageInner() {
                   />
                 );
               }
+              // Session 14a — render the ProgressCard while the server is
+              // still narrating. Once the first token arrives the route
+              // clears msg.progress, this branch falls through, and the
+              // normal AIResponseCard renders the streaming content.
+              if (msg.progress && !msg.content) {
+                return <ProgressCard key={msg.id} progress={msg.progress} />;
+              }
               return (
                 <AIResponseCard
                   key={msg.id}
@@ -1048,6 +1103,126 @@ function UserBubble({ text }: { text: string }) {
         </p>
       </div>
     </div>
+  );
+}
+
+// Session 14a — ProgressCard. Shown while the chat route is doing its
+// pre-stream work (loading context, executing tool calls, opening the
+// final OpenAI stream). The route emits {type:'progress', stage, label}
+// events at four milestones; this card renders the latest label with a
+// pulsing OH logo, gold-shimmer text, and a trailing dots animation.
+//
+// The card is replaced by AIResponseCard the moment the first token
+// arrives — the streaming reader clears `msg.progress`, so the render
+// branch in the messages map falls through naturally. No imperative
+// teardown / no race window: state-driven swap.
+function ProgressCard({ progress }: { progress: { stage: string; label: string } }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+      {/* Keyframes injected once with the card. Three named animations
+          (oh-shimmer, oh-dot, oh-progress-pulse) loop until the
+          ProgressCard is unmounted by the first-token state swap. */}
+      <style>{`
+        @keyframes oh-shimmer {
+          0% { background-position: 200% 50%; }
+          100% { background-position: -200% 50%; }
+        }
+        @keyframes oh-dot {
+          0%, 60%, 100% { opacity: 0.2; transform: translateY(0); }
+          30% { opacity: 1; transform: translateY(-2px); }
+        }
+        .oh-dot {
+          animation: oh-dot 1.4s ease-in-out infinite;
+          display: inline-block;
+        }
+        @keyframes oh-progress-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.6; }
+          50% { transform: scale(1.4); opacity: 0; }
+        }
+        .oh-progress-pulse {
+          animation: oh-progress-pulse 2s ease-in-out infinite;
+        }
+      `}</style>
+      <div
+        style={{
+          background: '#FFFFFF',
+          borderRadius: 18,
+          padding: '14px 16px',
+          boxShadow: '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.05), 0 0 0 0.5px rgba(0,0,0,0.04)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          minWidth: 200,
+        }}
+      >
+        {/* Pulsing OH logo — gold radial halo behind the mark */}
+        <div style={{ position: 'relative', width: 28, height: 28, flexShrink: 0 }}>
+          <Image
+            src="/oh-logo.png"
+            alt=""
+            width={28}
+            height={28}
+            style={{ objectFit: 'contain', mixBlendMode: 'multiply' }}
+          />
+          <div
+            className="oh-progress-pulse"
+            style={{
+              position: 'absolute',
+              inset: -4,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(212,175,55,0.25) 0%, rgba(212,175,55,0) 60%)',
+              pointerEvents: 'none',
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: '#9EA8B5', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+            Intelligence
+          </span>
+          <span
+            style={{
+              fontSize: 13.5,
+              fontWeight: 500,
+              letterSpacing: '-0.005em',
+              display: 'inline-flex',
+              alignItems: 'baseline',
+            }}
+          >
+            <ShimmerText>{progress.label}</ShimmerText>
+            <DotsTrail />
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DotsTrail() {
+  return (
+    <span style={{ display: 'inline-flex', gap: 2, marginLeft: 4, color: '#374151' }}>
+      <span className="oh-dot" style={{ animationDelay: '0ms' }}>.</span>
+      <span className="oh-dot" style={{ animationDelay: '150ms' }}>.</span>
+      <span className="oh-dot" style={{ animationDelay: '300ms' }}>.</span>
+    </span>
+  );
+}
+
+function ShimmerText({ children }: { children: string }) {
+  return (
+    <span
+      className="oh-shimmer"
+      style={{
+        background: 'linear-gradient(90deg, #374151 0%, #374151 40%, #C49B2A 50%, #374151 60%, #374151 100%)',
+        backgroundSize: '200% 100%',
+        WebkitBackgroundClip: 'text',
+        backgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+        animation: 'oh-shimmer 2.5s linear infinite',
+      }}
+    >
+      {children}
+    </span>
   );
 }
 

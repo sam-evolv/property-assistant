@@ -28,6 +28,32 @@ import { captureInferredAlias, suggestClosestScheme, normaliseSchemeName } from 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Map a tool name to a human-readable label for the streaming progress
+// indicator. New tools fall back to a generic "Looking up details" label.
+function labelForTool(toolName: string): string {
+  switch (toolName) {
+    case 'draft_message': return 'Drafting message';
+    case 'draft_buyer_followups': return 'Drafting messages';
+    case 'draft_lease_renewal': return 'Drafting renewal offer';
+    case 'draft_viewing_followup': return 'Drafting viewing follow-up';
+    case 'chase_aged_contracts': return 'Drafting chase emails';
+    case 'weekly_monday_briefing': return 'Building briefing';
+    case 'schedule_viewing_draft': return 'Drafting viewing schedule';
+    case 'natural_query': return 'Looking up details';
+    case 'get_unit_status':
+    case 'get_unit_details':
+    case 'get_scheme_overview':
+    case 'get_scheme_summary':
+    case 'get_buyer_details':
+    case 'get_outstanding_items':
+    case 'get_communication_history':
+    case 'get_candidate_units':
+      return 'Checking your records';
+    default:
+      return 'Looking up details';
+  }
+}
+
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
 
@@ -495,9 +521,25 @@ export async function POST(request: NextRequest) {
 
     const readable = new ReadableStream({
       async start(controller) {
+        // Session 14a — progress instrumentation. The chat route's heavy
+        // lifting (resolveAgentContextV2, live-context Promise.all, the
+        // first OpenAI call, tool execution) all completes BEFORE the
+        // ReadableStream opens. We emit progress events inside start() to
+        // narrate what's happening to the user, so a 5–15s wait feels
+        // intentional rather than dead. Order: context → (tool, if fired) →
+        // thinking → finalising. The first 'token' frame on the client
+        // clears the indicator.
+        const emitProgress = (stage: string, label: string) => {
+          controller.enqueue(
+            encoder.encode(JSON.stringify({ type: 'progress', stage, label }) + '\n')
+          );
+        };
+        emitProgress('context', 'Reading your portfolio');
+
         try {
           // Send tool call metadata first so the UI knows tools were used
           if (toolsCalled.length > 0) {
+            emitProgress('tool', labelForTool(toolsCalled[0].tool_name));
             controller.enqueue(
               encoder.encode(JSON.stringify({
                 type: 'tools_used',
@@ -558,6 +600,7 @@ export async function POST(request: NextRequest) {
             fullContent = `${promptText}\n${marker}`;
           } else {
             // Stream the final LLM response
+            emitProgress('thinking', 'Composing reply');
             const stream = await openai.chat.completions.create({
               model: 'gpt-4o-mini',
               messages,
@@ -566,6 +609,9 @@ export async function POST(request: NextRequest) {
               max_tokens: 4000,
               stream: true,
             });
+            // Connection established, model is generating — last narration
+            // beat before tokens start arriving.
+            emitProgress('finalising', 'Almost there');
 
             for await (const chunk of stream) {
               const delta = chunk.choices[0]?.delta?.content;

@@ -33,7 +33,7 @@ interface ChipResponse {
   chips: string[];
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = getSupabaseAdmin();
     const cookieStore = cookies();
@@ -45,11 +45,104 @@ export async function GET() {
       return NextResponse.json<ChipResponse>({ chips: [...FALLBACK_CAPABILITY_CHIPS] });
     }
 
-    const chips = await composeChips(supabase, profile.id);
+    const url = new URL(request.url);
+    const mode = url.searchParams.get('mode') === 'lettings' ? 'lettings' : 'sales';
+
+    const chips = mode === 'lettings'
+      ? await composeLettingsChips(supabase, profile.id)
+      : await composeChips(supabase, profile.id);
     return NextResponse.json<ChipResponse>({ chips });
   } catch {
     return NextResponse.json<ChipResponse>({ chips: [...FALLBACK_CAPABILITY_CHIPS] });
   }
+}
+
+// Lettings-mode chip composer. Sources a dynamic chip from the nearest
+// expiring active tenancy and another from a real vacant property, plus
+// four evergreen action phrases. Falls back to safe lettings phrases if
+// the dynamic queries return nothing.
+async function composeLettingsChips(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  agentId: string,
+): Promise<string[]> {
+  const today = new Date();
+  const fourteenDaysOut = new Date(today.getTime() + 14 * 86_400_000);
+
+  const [tenanciesRes, vacantRes] = await Promise.all([
+    supabase
+      .from('agent_tenancies')
+      .select('id, tenant_name, lease_end, letting_property_id')
+      .eq('agent_id', agentId)
+      .eq('status', 'active')
+      .not('lease_end', 'is', null)
+      .gte('lease_end', today.toISOString().split('T')[0])
+      .lte('lease_end', fourteenDaysOut.toISOString().split('T')[0])
+      .order('lease_end', { ascending: true })
+      .limit(1),
+    supabase
+      .from('agent_letting_properties')
+      .select('id, address_line_1, address')
+      .eq('agent_id', agentId)
+      .in('status', ['vacant', 'available', 'empty'])
+      .order('created_at', { ascending: false })
+      .limit(1),
+  ]);
+
+  const chips: string[] = [];
+
+  // Dynamic chip 1: nearest expiring tenancy ("Aisling: lease in 2d")
+  const tenancy = (tenanciesRes.data ?? [])[0] as
+    | { id: string; tenant_name: string | null; lease_end: string | null; letting_property_id: string | null }
+    | undefined;
+  if (tenancy?.tenant_name && tenancy.lease_end) {
+    const firstName = tenancy.tenant_name.split(/[ &]/)[0];
+    const days = Math.ceil((new Date(tenancy.lease_end).getTime() - today.getTime()) / 86_400_000);
+    if (firstName && days >= 0 && days <= 14) {
+      chips.push(`${firstName}: lease in ${days}d`);
+    }
+  }
+
+  // Dynamic chip 2: a real vacant property ("Re-let 1 Rose Hill")
+  const vacant = (vacantRes.data ?? [])[0] as
+    | { id: string; address_line_1: string | null; address: string | null }
+    | undefined;
+  if (vacant) {
+    const addr = vacant.address_line_1 || (vacant.address || '').split(',')[0];
+    if (addr) {
+      const truncated = addr.length > 14 ? addr.slice(0, 14) : addr;
+      chips.push(`Re-let ${truncated}`);
+    }
+  }
+
+  // Evergreen action chips — always present, lettings-flavoured.
+  chips.push('Renewals due');
+  chips.push('Rent reminders');
+  chips.push('Compliance gaps');
+  chips.push('Vacancies summary');
+
+  // Pad with safe lettings fallbacks if dynamic queries returned nothing.
+  if (chips.length < 4) {
+    for (const fb of [
+      'Draft a rent reminder',
+      "This week’s viewings",
+      'Tenant queries',
+      'Maintenance tickets',
+    ]) {
+      if (!chips.includes(fb)) chips.push(fb);
+      if (chips.length >= 8) break;
+    }
+  }
+
+  // Dedupe + cap (the carousel rotates 4 visible at a time).
+  const seen = new Set<string>();
+  const deduped: string[] = [];
+  for (const c of chips) {
+    if (!seen.has(c)) {
+      seen.add(c);
+      deduped.push(c);
+    }
+  }
+  return deduped;
 }
 
 async function composeChips(
