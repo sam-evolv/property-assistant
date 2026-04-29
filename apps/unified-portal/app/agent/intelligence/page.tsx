@@ -676,6 +676,9 @@ function IntelligencePageInner() {
           height: '100%',
           minHeight: 0,
           position: 'relative',
+          // Session 13c: clear the protruding Intelligence FAB on iPhone PWAs
+          // where the input pill was visually clipped by the FAB's notch.
+          paddingBottom: 112,
         }}
       >
         {!hasMessages ? (

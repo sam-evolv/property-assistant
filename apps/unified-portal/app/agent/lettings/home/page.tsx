@@ -98,7 +98,7 @@ export default function LettingsHomePage() {
               </h1>
               {s && (
                 <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>
-                  {s.totalProperties} {s.totalProperties === 1 ? 'property' : 'properties'} · €{s.monthlyRentRoll.toLocaleString()}/month rent roll
+                  {s.totalProperties} {s.totalProperties === 1 ? 'property' : 'properties'} · {s.tenantedCount} tenanted
                 </p>
               )}
             </>
@@ -115,10 +115,10 @@ export default function LettingsHomePage() {
           ) : (
             <>
               <Tile
-                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17" /><polyline points="16 7 22 7 22 13" /></svg>}
-                label="MONTHLY RENT ROLL"
-                value={`€${s.monthlyRentRoll.toLocaleString()}`}
-                subtext={`${s.tenantedCount} of ${s.totalProperties} tenanted`}
+                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>}
+                label="VACANCIES"
+                value={`${s.vacantCount} ${s.vacantCount === 1 ? 'vacancy' : 'vacancies'}`}
+                subtext={s.vacantCount === 0 ? 'All let — nice work' : s.vacantCount === 1 ? '1 to fill' : `${s.vacantCount} to fill`}
               />
               <Tile
                 icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" /><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" /><path d="M10 6h4" /><path d="M10 10h4" /><path d="M10 14h4" /></svg>}
