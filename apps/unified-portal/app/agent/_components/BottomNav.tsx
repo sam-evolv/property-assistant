@@ -246,7 +246,11 @@ export default function BottomNav() {
               priority
             />
           </div>
-          {draftsCount > 0 && <FabDraftsBadge count={draftsCount} />}
+          {/* Session 14d — FAB drafts badge removed. The StatusBar Drafts
+              chip already surfaces the same count, and the badge here was
+              adding visual clutter. FabDraftsBadge component left in
+              place for now (unreferenced) — not aggressively purging
+              during freeze. */}
         </Link>
 
         {/* Intelligence nav label */}

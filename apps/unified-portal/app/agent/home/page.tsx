@@ -79,6 +79,31 @@ function buildUrgentBuyers(pipeline: PipelineUnit[], alerts: Alert[]): UIBuyer[]
     });
 }
 
+// Session 14d — second slice of the alerts feed for the StatModal's
+// urgent drill-down. The home stat counts ALL alerts; previously only
+// overdue_contracts surfaced in the modal so the headline number and
+// the visible list disagreed. Mortgage approvals get their own section
+// with amber pills to differentiate from red contract overdue rows.
+export interface ExpiringMortgage {
+  id: string;
+  name: string;
+  unit: string;
+  schemeName: string;
+  daysUntilExpiry: number;
+}
+
+function buildExpiringMortgages(alerts: Alert[]): ExpiringMortgage[] {
+  return alerts
+    .filter(a => a.type === 'mortgage_expiry')
+    .map(a => ({
+      id: a.unitId,
+      name: a.purchaserName,
+      unit: `Unit ${a.unitNumber}`,
+      schemeName: a.developmentName,
+      daysUntilExpiry: a.daysUntilExpiry || 0,
+    }));
+}
+
 export default function AgentHomePage() {
   const { agent, pipeline, alerts, developments, loading } = useAgent();
   const router = useRouter();
@@ -109,6 +134,7 @@ export default function AgentHomePage() {
 
   const schemes = useMemo(() => buildSchemes(pipeline, developments), [pipeline, developments]);
   const urgentBuyers = useMemo(() => buildUrgentBuyers(pipeline, alerts), [pipeline, alerts]);
+  const expiringMortgages = useMemo(() => buildExpiringMortgages(alerts), [alerts]);
 
   if (loading) {
     return (
@@ -147,6 +173,7 @@ export default function AgentHomePage() {
           totalSold={stats.sold}
           totalActive={stats.active}
           urgentBuyers={urgentBuyers}
+          expiringMortgages={expiringMortgages}
         />
       ) : undefined}
     >
