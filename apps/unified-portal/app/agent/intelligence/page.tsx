@@ -874,20 +874,34 @@ function IntelligencePageInner() {
           </div>
         )}
 
-        <VoiceInputBar
-          ref={inputElRef}
-          input={input}
-          onInputChange={setInput}
-          onSend={() => handleSend(input)}
-          isTyping={isTyping}
-          voice={voice}
-          onStart={() => voice.start()}
-          onStop={() => voice.stop()}
-          isDesktop={isDesktop}
-          onOpenSettings={voice.openSettings}
-          onFocus={() => setInputFocused(true)}
-          onBlur={() => setInputFocused(false)}
-        />
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 88,
+            left: 0,
+            right: 0,
+            padding: '0 16px',
+            zIndex: 30,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ pointerEvents: 'auto' }}>
+            <VoiceInputBar
+              ref={inputElRef}
+              input={input}
+              onInputChange={setInput}
+              onSend={() => handleSend(input)}
+              isTyping={isTyping}
+              voice={voice}
+              onStart={() => voice.start()}
+              onStop={() => voice.stop()}
+              isDesktop={isDesktop}
+              onOpenSettings={voice.openSettings}
+              onFocus={() => setInputFocused(true)}
+              onBlur={() => setInputFocused(false)}
+            />
+          </div>
+        </div>
 
         {undoBatch && (
           <UndoPill
