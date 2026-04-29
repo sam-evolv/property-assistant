@@ -70,6 +70,10 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
   // frame without `.open` so the CSS transition can play. We render closed
   // first, then flip to open on the next animation frame.
   const pendingOpenRef = useRef<AgenticSkillEnvelope | null>(null);
+  // Session 14b — keep a ref of the latest drafts so approveDraft can read
+  // recipient info synchronously without closing over stale state.
+  const draftsRef = useRef<DrawerDraft[]>([]);
+  useEffect(() => { draftsRef.current = state.drafts; }, [state.drafts]);
 
   const openApprovalDrawer = useCallback((envelope: AgenticSkillEnvelope) => {
     if (!envelope?.drafts?.length) return;
@@ -136,6 +140,20 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
         }
         mutateDraft(draftId, { status: 'sent' });
         try { window.dispatchEvent(new CustomEvent('oh:drafts:changed')); } catch { /* noop */ }
+        // Session 14b — fire a sent-confirmation event the chat surface
+        // listens for. Only dispatched after a 2xx send response, never on
+        // failure or discard. Recipient name is read from the latest
+        // drafts ref, falling back to the persisted draft fields.
+        try {
+          const sentDraft = draftsRef.current.find((d) => d.id === draftId);
+          window.dispatchEvent(new CustomEvent('oh-draft-sent', {
+            detail: {
+              recipientName: sentDraft?.recipient?.name ?? 'recipient',
+              draftId,
+              sentAt: new Date().toISOString(),
+            },
+          }));
+        } catch { /* noop */ }
       } catch (err) {
         mutateDraft(draftId, {
           status: 'failed',

@@ -12,12 +12,12 @@ import CapabilityChipsCarousel from '../_components/CapabilityChipsCarousel';
 import { useVoiceCapture } from '../_hooks/useVoiceCapture';
 import { fetchCapabilityChips } from '@/lib/agent-intelligence/capability-chips';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { Mail, Copy, Check, ExternalLink } from 'lucide-react';
+import { Mail, Copy, Check, ExternalLink, Pencil, Wrench, Bell, RotateCcw, ArrowRight, FileText, Calendar } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
 import type { AutoSendUiState } from '../_components/VoiceConfirmationCard';
 import { notifyDraftsChanged, useDraftsCount } from '../_hooks/useDraftsCount';
 import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
-import { isAgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
+import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
@@ -59,6 +59,13 @@ interface Message {
   // Session 14a — server-emitted progress narration. Set when a 'progress'
   // SSE frame arrives, cleared on the first non-empty token/override.
   progress?: { stage: string; label: string };
+  // Session 14b — drawer recovery. The envelope is stashed on the
+  // assistant message that produced it so the AIResponseCard can render
+  // a "Reopen draft" affordance after the drawer is dismissed.
+  envelope?: AgenticSkillEnvelope;
+  // Session 14b — sent confirmation. Set on a fresh synthetic message
+  // appended in response to the 'oh-draft-sent' window event.
+  sent?: { recipientName: string; time: string };
 }
 
 interface UndoBatch {
@@ -158,6 +165,32 @@ function IntelligencePageInner() {
     })();
     return () => { cancelled = true; };
   }, [activeWorkspace?.mode]);
+
+  // Session 14b — listen for the drawer-store's sent confirmation event
+  // and append a synthetic assistant message to the chat thread. Each
+  // successful approve fires once per draftId; approve-all fires once
+  // per draft in the batch.
+  useEffect(() => {
+    function onDraftSent(e: Event) {
+      const detail = (e as CustomEvent).detail || {};
+      const recipientName = typeof detail.recipientName === 'string' && detail.recipientName.length > 0
+        ? detail.recipientName
+        : 'recipient';
+      const sentAt = typeof detail.sentAt === 'string' ? detail.sentAt : new Date().toISOString();
+      const time = new Date(sentAt).toLocaleTimeString('en-IE', {
+        hour: 'numeric',
+        minute: '2-digit',
+      });
+      setMessages(prev => [...prev, {
+        id: `sent_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        role: 'assistant',
+        content: '',
+        sent: { recipientName, time },
+      }]);
+    }
+    window.addEventListener('oh-draft-sent', onDraftSent);
+    return () => window.removeEventListener('oh-draft-sent', onDraftSent);
+  }, []);
 
   // Handle prefilled prompt from URL
   useEffect(() => {
@@ -275,8 +308,26 @@ function IntelligencePageInner() {
               toolsUsed = data.tools || [];
             } else if (data.type === 'envelope') {
               if (isAgenticSkillEnvelope(data.envelope)) {
-                openApprovalDrawer(data.envelope);
+                const env = data.envelope;
+                openApprovalDrawer(env);
                 notifyDraftsChanged();
+                // Session 14b — stash the envelope on the streaming
+                // assistant message so AIResponseCard can render a
+                // "Reopen draft" pill if the agent closes the drawer.
+                setMessages(prev => {
+                  const existing = prev.find(m => m.id === streamingMsgId);
+                  if (existing) {
+                    return prev.map(m =>
+                      m.id === streamingMsgId ? { ...m, envelope: env } : m
+                    );
+                  }
+                  return [...prev, {
+                    id: streamingMsgId,
+                    role: 'assistant',
+                    content: '',
+                    envelope: env,
+                  }];
+                });
               }
             } else if (data.type === 'override') {
               // Server detected the model hallucinated drafts. Replace
@@ -909,6 +960,18 @@ function IntelligencePageInner() {
                   />
                 );
               }
+              // Session 14b — sent-confirmation card. Synthetic messages
+              // appended by the 'oh-draft-sent' window listener carry only
+              // a `sent` payload; render the green-tinted success card.
+              if (msg.sent) {
+                return (
+                  <SentConfirmationCard
+                    key={msg.id}
+                    recipientName={msg.sent.recipientName}
+                    time={msg.sent.time}
+                  />
+                );
+              }
               // Session 14a — render the ProgressCard while the server is
               // still narrating. Once the first token arrives the route
               // clears msg.progress, this branch falls through, and the
@@ -923,6 +986,8 @@ function IntelligencePageInner() {
                   emails={msg.emails}
                   followups={msg.followups}
                   onFollowup={handleSend}
+                  envelope={msg.envelope}
+                  onReopen={(env) => openApprovalDrawer(env)}
                 />
               );
             })}
@@ -1106,6 +1171,75 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+// Session 14b — SentConfirmationCard. Synthetic chat message appended
+// by the 'oh-draft-sent' window listener after a successful drawer
+// approve. Green-tinted success card with a check icon, the recipient
+// name + send time, and a "View in Drafts" CTA that routes to the
+// Drafts inbox where the agent can see send history.
+function SentConfirmationCard({ recipientName, time }: { recipientName: string; time: string }) {
+  const router = useRouter();
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+      <div
+        style={{
+          background: 'linear-gradient(180deg, rgba(34,197,94,0.06) 0%, rgba(34,197,94,0.02) 100%)',
+          border: '0.5px solid rgba(34,197,94,0.25)',
+          borderRadius: 18,
+          padding: '12px 14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          fontSize: 13.5,
+          color: '#0D5132',
+          fontWeight: 500,
+        }}
+      >
+        <div
+          style={{
+            width: 22,
+            height: 22,
+            borderRadius: '50%',
+            background: '#22C55E',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <Check size={13} color="#FFFFFF" strokeWidth={3} />
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+          <span style={{ fontWeight: 600, color: '#0D5132' }}>
+            Sent to {recipientName}
+          </span>
+          <span style={{ fontSize: 11.5, color: '#0D5132', opacity: 0.7 }}>
+            {time}
+          </span>
+        </div>
+        <button
+          onClick={() => router.push('/agent/drafts')}
+          className="agent-tappable"
+          style={{
+            marginLeft: 'auto',
+            padding: '5px 10px',
+            background: 'transparent',
+            border: '0.5px solid rgba(13,81,50,0.2)',
+            borderRadius: 999,
+            fontSize: 11,
+            fontWeight: 600,
+            color: '#0D5132',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+          }}
+        >
+          View in Drafts
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // Session 14a — ProgressCard. Shown while the chat route is doing its
 // pre-stream work (loading context, executing tool calls, opening the
 // final OpenAI stream). The route emits {type:'progress', stage, label}
@@ -1226,16 +1360,35 @@ function ShimmerText({ children }: { children: string }) {
   );
 }
 
+// Session 14b — pick an intent-matching lucide icon for a follow-up chip
+// based on the chip text. Falls back to a generic ArrowRight when no
+// keyword matches. Order matters: more specific keywords win first.
+function iconForChip(text: string) {
+  const t = text.toLowerCase();
+  if (t.includes('send')) return Mail;
+  if (t.includes('edit')) return Pencil;
+  if (t.includes('maintenance') || t.includes('plumber') || t.includes('repair') || t.includes('callout')) return Wrench;
+  if (t.includes('reminder') || t.includes('chase') || t.includes('follow up') || t.includes('follow-up')) return Bell;
+  if (t.includes('renewal') || t.includes('lease')) return RotateCcw;
+  if (t.includes('viewing') || t.includes('schedule') || t.includes('book')) return Calendar;
+  if (t.includes('report') || t.includes('summary') || t.includes('brief') || t.includes('drafts')) return FileText;
+  return ArrowRight;
+}
+
 function AIResponseCard({
   text,
   emails,
   followups,
   onFollowup,
+  envelope,
+  onReopen,
 }: {
   text: string;
   emails?: DraftedEmail[];
   followups?: string[];
   onFollowup: (text: string) => void;
+  envelope?: AgenticSkillEnvelope;
+  onReopen?: (env: AgenticSkillEnvelope) => void;
 }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
@@ -1306,40 +1459,119 @@ function AIResponseCard({
           </div>
         )}
 
-        {/* Follow-up suggestion chips */}
+        {/* Session 14b — Reopen draft pill. Renders only when an envelope
+            with at least one draft is on the message. Tap re-opens the
+            same drawer (drawer-store rebuilds drafts from the envelope). */}
+        {envelope && envelope.drafts && envelope.drafts.length > 0 && onReopen && (
+          <button
+            type="button"
+            onClick={() => onReopen(envelope)}
+            className="agent-tappable"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 12px',
+              background: 'rgba(212, 175, 55, 0.08)',
+              border: '0.5px solid rgba(212, 175, 55, 0.32)',
+              borderRadius: 999,
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#B8960C',
+              letterSpacing: '-0.01em',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              marginTop: emails && emails.length > 0 ? 12 : 0,
+              width: 'fit-content',
+            }}
+          >
+            <Mail size={13} strokeWidth={2.25} />
+            <span>{envelope.drafts.length === 1 ? 'Reopen draft' : `Reopen ${envelope.drafts.length} drafts`}</span>
+          </button>
+        )}
+
+        {/* Session 14b — Follow-up suggestion chips, hierarchy rework.
+            First chip is the gold "primary" action with leading icon;
+            subsequent chips wrap below as lighter secondaries. iconForChip
+            picks an intent-matching glyph from the chip text. */}
         {followups && followups.length > 0 && (
           <div
             style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: 8,
               marginTop: 16,
               paddingTop: 12,
               borderTop: '1px solid rgba(0,0,0,0.05)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
             }}
           >
-            {followups.map((suggestion, i) => (
-              <button
-                key={i}
-                onClick={() => onFollowup(suggestion)}
-                className="agent-tappable"
-                style={{
-                  padding: '8px 14px',
-                  background: '#FAFAF8',
-                  border: '0.5px solid rgba(0,0,0,0.08)',
-                  borderRadius: 20,
-                  fontSize: 12.5,
-                  fontWeight: 500,
-                  color: '#6B7280',
-                  cursor: 'pointer',
-                  fontFamily: 'inherit',
-                  lineHeight: 1.3,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                {suggestion}
-              </button>
-            ))}
+            {(() => {
+              const PrimaryIcon = iconForChip(followups[0]);
+              return (
+                <button
+                  onClick={() => onFollowup(followups[0])}
+                  className="agent-tappable"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '11px 16px',
+                    background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+                    border: 'none',
+                    borderRadius: 999,
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: '#FFFFFF',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    lineHeight: 1.3,
+                    letterSpacing: '-0.01em',
+                    boxShadow: '0 1px 2px rgba(196, 155, 42, 0.25)',
+                    width: 'fit-content',
+                    maxWidth: '100%',
+                  }}
+                >
+                  <PrimaryIcon size={14} strokeWidth={2.25} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {followups[0]}
+                  </span>
+                </button>
+              );
+            })()}
+
+            {followups.length > 1 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {followups.slice(1).map((suggestion, i) => {
+                  const SecondaryIcon = iconForChip(suggestion);
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => onFollowup(suggestion)}
+                      className="agent-tappable"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        padding: '7px 12px',
+                        background: '#FFFFFF',
+                        border: '0.5px solid rgba(15,17,24,0.12)',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 500,
+                        color: '#374151',
+                        cursor: 'pointer',
+                        fontFamily: 'inherit',
+                        lineHeight: 1.3,
+                        letterSpacing: '-0.005em',
+                      }}
+                    >
+                      <SecondaryIcon size={12} strokeWidth={2} color="#9EA8B5" />
+                      <span>{suggestion}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
       </div>
