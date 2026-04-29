@@ -114,24 +114,31 @@ export default function LettingsHomePage() {
             </>
           ) : (
             <>
-              <Tile
-                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>}
-                label="VACANCIES"
-                value={`${s.vacantCount} ${s.vacantCount === 1 ? 'vacancy' : 'vacancies'}`}
-                subtext={s.vacantCount === 0 ? 'All let — nice work' : s.vacantCount === 1 ? '1 to fill' : `${s.vacantCount} to fill`}
-              />
-              <Tile
-                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" /><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" /><path d="M10 6h4" /><path d="M10 10h4" /><path d="M10 14h4" /></svg>}
-                label="PORTFOLIO"
-                value={`${s.totalProperties} ${s.totalProperties === 1 ? 'property' : 'properties'}`}
-                subtext={s.vacantCount === 0 ? 'All let' : `${s.vacantCount} ${s.vacantCount === 1 ? 'vacancy' : 'vacancies'}`}
-              />
-              <Tile
-                icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>}
-                label="COMPLETENESS"
-                value={`${s.avgCompleteness}%`}
-                subtext={completenessHint}
-              />
+              {/* Session 14c — tiles deep-link into Properties pre-filtered. */}
+              <Link href="/agent/lettings/properties?status=vacant" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                <Tile
+                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>}
+                  label="VACANCIES"
+                  value={`${s.vacantCount} ${s.vacantCount === 1 ? 'vacancy' : 'vacancies'}`}
+                  subtext={s.vacantCount === 0 ? 'All let — nice work' : s.vacantCount === 1 ? '1 to fill' : `${s.vacantCount} to fill`}
+                />
+              </Link>
+              <Link href="/agent/lettings/properties" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                <Tile
+                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z" /><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2" /><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2" /><path d="M10 6h4" /><path d="M10 10h4" /><path d="M10 14h4" /></svg>}
+                  label="PORTFOLIO"
+                  value={`${s.totalProperties} ${s.totalProperties === 1 ? 'property' : 'properties'}`}
+                  subtext={s.vacantCount === 0 ? 'All let' : `${s.vacantCount} ${s.vacantCount === 1 ? 'vacancy' : 'vacancies'}`}
+                />
+              </Link>
+              <Link href="/agent/lettings/properties?sort=completeness_asc" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
+                <Tile
+                  icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#C49B2A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></svg>}
+                  label="COMPLETENESS"
+                  value={`${s.avgCompleteness}%`}
+                  subtext={completenessHint}
+                />
+              </Link>
             </>
           )}
         </div>
@@ -199,7 +206,22 @@ export default function LettingsHomePage() {
 
 function Tile({ icon, label, value, subtext }: { icon: React.ReactNode; label: string; value: string; subtext: string }) {
   return (
-    <div style={{ background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+    <div style={{ position: 'relative', background: '#fff', border: '0.5px solid #E5E7EB', borderRadius: 12, padding: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
+      {/* Session 14c — soft chevron telegraphs that the tile is tappable. */}
+      <span
+        aria-hidden
+        style={{
+          position: 'absolute',
+          top: 12,
+          right: 12,
+          opacity: 0.35,
+          fontSize: 12,
+          color: '#6B7280',
+          pointerEvents: 'none',
+        }}
+      >
+        ›
+      </span>
       <div style={{ flexShrink: 0, width: 36, height: 36, borderRadius: 18, background: 'rgba(212,175,55,0.10)', border: '0.5px solid rgba(212,175,55,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         {icon}
       </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import AgentShell from '../../_components/AgentShell';
 
 type ActiveTenancy = { tenantName: string | null; rentPcm: number | null; leaseEnd: string | null };
@@ -25,6 +26,31 @@ type Category = 'all' | 'tenanted' | 'vacant' | 'off_market' | 'other';
 
 // Live DB status values come in many shapes (Sessions 5-8 introduced new ones
 // while older rows still use the originals). Collapse to four UI buckets.
+// Session 14c — pick the most readable label for a property row at iPhone
+// width. Prefers address_line_1 when it's a real street address (not an
+// apartment/unit prefix), appending city for context. Falls back to the
+// first one or two comma-separated segments of the full address, which
+// strips eircode + county tail so the row doesn't truncate mid-name.
+function bestRowLabel(p: Property): string {
+  const al1 = (p.addressLine1 ?? '').trim();
+  if (al1 && !/^apt\s/i.test(al1) && !/^unit\s/i.test(al1)) {
+    const city = (p.city ?? '').trim();
+    if (city && !al1.toLowerCase().includes(city.toLowerCase())) {
+      return `${al1}, ${city}`;
+    }
+    return al1;
+  }
+  const full = (p.address ?? '').trim();
+  if (full) {
+    const segments = full.split(',').map((s) => s.trim()).filter(Boolean);
+    if (segments.length >= 2 && segments[0].length > 2 && segments[1].length > 2) {
+      return `${segments[0]}, ${segments[1]}`;
+    }
+    return segments[0] || full;
+  }
+  return 'Untitled property';
+}
+
 function categorise(s: string): Exclude<Category, 'all'> {
   const v = (s ?? '').toLowerCase();
   if (v === 'let' || v === 'occupied' || v === 'tenanted') return 'tenanted';
@@ -35,12 +61,27 @@ function categorise(s: string): Exclude<Category, 'all'> {
 }
 
 export default function LettingsPropertiesPage() {
+  // Session 14c — deep-linkable filter + sort. Tiles on the lettings home
+  // can hand the user here pre-filtered (e.g. ?status=vacant from the
+  // VACANCIES tile) or pre-sorted (?sort=completeness_asc from the
+  // COMPLETENESS tile). Pill interactions still override these — once
+  // the user touches a pill, the URL param is no longer authoritative.
+  const searchParams = useSearchParams();
+  const initialFilter: Category = (() => {
+    const s = searchParams.get('status');
+    if (s === 'vacant' || s === 'tenanted' || s === 'off_market') return s as Category;
+    return 'all';
+  })();
+  const initialSort: 'default' | 'completeness_asc' =
+    searchParams.get('sort') === 'completeness_asc' ? 'completeness_asc' : 'default';
+
   const [data, setData] = useState<ListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<Category>('all');
+  const [filter, setFilter] = useState<Category>(initialFilter);
   const [city, setCity] = useState<string>('all');
+  const [sortMode, setSortMode] = useState<'default' | 'completeness_asc'>(initialSort);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +126,17 @@ export default function LettingsPropertiesPage() {
       return p.address.toLowerCase().includes(q) || tenant.includes(q);
     });
   }, [data, search, filter, city]);
+
+  // Session 14c — sort mode applied after filtering. The default keeps
+  // server order (created_at desc); 'completeness_asc' surfaces the most
+  // incomplete properties first so the agent can fill them in.
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+    if (sortMode === 'completeness_asc') {
+      list.sort((a, b) => a.completenessScore - b.completenessScore);
+    }
+    return list;
+  }, [filtered, sortMode]);
 
   const totalCount = data?.totalCount ?? 0;
   const tenantedCount = data?.tenantedCount ?? 0;
@@ -191,16 +243,16 @@ export default function LettingsPropertiesPage() {
                     </div>
                   ))}
                 </>
-              ) : filtered.length === 0 ? (
+              ) : sorted.length === 0 ? (
                 <p className="text-center text-sm text-[#A0A8B0] mt-8">No properties match these filters.</p>
               ) : (
-                filtered.map((p) => {
+                sorted.map((p) => {
                   const cat = categorise(p.status);
                   const ringPct = Math.max(0, Math.min(100, p.completenessScore));
                   const offset = 2 * Math.PI * 13 * (1 - ringPct / 100);
                   const pillStyle =
                     cat === 'tenanted' ? { background: '#FAF3DD', color: '#A47E1B' }
-                    : cat === 'vacant' ? { background: '#F3F4F6', color: '#6B7280' }
+                    : cat === 'vacant' ? { background: '#FEF2F2', color: '#B91C1C' }
                     : cat === 'off_market' ? { background: '#E5E7EB', color: '#4B5563' }
                     : { background: '#F3F4F6', color: '#6B7280' };
                   const pillLabel = cat === 'tenanted' ? 'Tenanted' : cat === 'vacant' ? 'Vacant' : cat === 'off_market' ? 'Off-market' : 'Other';
@@ -214,7 +266,7 @@ export default function LettingsPropertiesPage() {
                         <div className="absolute inset-0 flex items-center justify-center text-[9px] font-semibold text-[#0D0D12]">{ringPct}</div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-semibold text-[#0D0D12] truncate">{p.address || p.addressLine1 || 'Untitled property'}</div>
+                        <div className="text-sm font-semibold text-[#0D0D12] truncate">{bestRowLabel(p)}</div>
                         <div className="text-xs text-[#6B7280] truncate">{p.activeTenancy?.tenantName || (cat === 'tenanted' ? 'Tenanted' : 'Vacant')}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
