@@ -40,6 +40,7 @@ export default function LettingsPropertiesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState<Category>('all');
+  const [city, setCity] = useState<string>('all');
 
   useEffect(() => {
     let cancelled = false;
@@ -64,16 +65,26 @@ export default function LettingsPropertiesPage() {
     return c;
   }, [data]);
 
+  const cities = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of data?.properties ?? []) {
+      const c = (p.city ?? '').trim();
+      if (c) set.add(c);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [data]);
+
   const filtered = useMemo(() => {
     const list = data?.properties ?? [];
     const q = search.trim().toLowerCase();
     return list.filter((p) => {
       if (filter !== 'all' && categorise(p.status) !== filter) return false;
+      if (city !== 'all' && (p.city ?? '').trim() !== city) return false;
       if (!q) return true;
       const tenant = p.activeTenancy?.tenantName?.toLowerCase() ?? '';
       return p.address.toLowerCase().includes(q) || tenant.includes(q);
     });
-  }, [data, search, filter]);
+  }, [data, search, filter, city]);
 
   const totalCount = data?.totalCount ?? 0;
   const tenantedCount = data?.tenantedCount ?? 0;
@@ -120,9 +131,12 @@ export default function LettingsPropertiesPage() {
           ) : (
             <>
               {totalCount > 0 && (
-                <div className="bg-white rounded-xl p-3 mb-3 flex items-baseline gap-3 border border-[#E5E7EB]" style={{ borderLeft: '3px solid #D4AF37' }}>
-                  <div className="text-lg font-semibold text-[#0D0D12]">€{rentRoll.toLocaleString()}<span className="text-xs font-normal text-[#6B7280]">/month</span></div>
-                  <div className="text-xs text-[#6B7280] ml-auto">{tenantedCount} of {totalCount} tenanted</div>
+                <div className="bg-white rounded-xl p-3 mb-3 border border-[#E5E7EB]" style={{ borderLeft: '3px solid #D4AF37' }}>
+                  <div className="text-[10px] font-semibold tracking-wider uppercase text-[#9EA8B5] mb-0.5">Rent under management</div>
+                  <div className="flex items-baseline gap-3">
+                    <div className="text-base font-semibold text-[#0D0D12]">€{rentRoll.toLocaleString()}<span className="text-xs font-normal text-[#6B7280]">/month</span></div>
+                    <div className="text-xs text-[#6B7280] ml-auto">{tenantedCount} of {totalCount} tenanted</div>
+                  </div>
                 </div>
               )}
 
@@ -151,6 +165,18 @@ export default function LettingsPropertiesPage() {
                   );
                 })}
               </div>
+              {cities.length > 1 && (
+                <div className="flex gap-2 mb-3 overflow-x-auto -mx-4 px-4 pb-1 [&::-webkit-scrollbar]:hidden">
+                  {(['all', ...cities] as string[]).map((c) => {
+                    const selected = city === c;
+                    return (
+                      <button key={c} type="button" onClick={() => setCity(c)} className="flex-shrink-0 h-8 px-3 rounded-full text-[12px] font-medium border transition-colors" style={selected ? { background: '#D4AF37', color: '#0D0D12', borderColor: '#D4AF37' } : { background: '#fff', color: '#6B7280', borderColor: '#E5E7EB' }}>
+                        {c === 'all' ? 'All locations' : c}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
               {loading ? (
                 <>

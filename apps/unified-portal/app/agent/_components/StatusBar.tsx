@@ -183,12 +183,13 @@ export default function StatusBar({
             (homeowner / care / developer / agent). The wordmark used to be
             decorative; it became the trigger when the agent-name slot was
             taken over by the workspace switcher in Session 3. */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0, flex: '1 1 auto' }}>
           <span
             onClick={() => setShowSwitcher((prev) => !prev)}
             role="button"
             aria-label="Switch product"
             style={{
+              flexShrink: 0,
               background: 'linear-gradient(135deg, #B8960C, #E8C84A, #C4A020)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',
@@ -203,6 +204,7 @@ export default function StatusBar({
           </span>
           <span
             style={{
+              flexShrink: 0,
               width: 1,
               height: 8,
               background: 'rgba(0,0,0,0.12)',
@@ -219,6 +221,8 @@ export default function StatusBar({
                 alignItems: 'center',
                 gap: 6,
                 cursor: 'pointer',
+                minWidth: 0,
+                flex: '1 1 auto',
               }}
             >
               <span
@@ -227,16 +231,16 @@ export default function StatusBar({
                   fontSize: 11,
                   fontWeight: 500,
                   letterSpacing: '0.04em',
-                  maxWidth: 160,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                   whiteSpace: 'nowrap',
+                  minWidth: 0,
                 }}
               >
                 {activeWorkspace!.displayName}
               </span>
               <ModeBadge mode={activeWorkspace!.mode} />
-              <span style={{ color: '#A0A8B0', fontSize: 11, lineHeight: 1 }}>&#9662;</span>
+              <span style={{ color: '#A0A8B0', fontSize: 11, lineHeight: 1, flexShrink: 0 }}>&#9662;</span>
             </span>
           ) : (
             // Empty-state grace: agents without seeded workspace rows see a
@@ -260,7 +264,7 @@ export default function StatusBar({
             flex group fixes the off-centre chip seen in the wild
             (header was space-between with three children, which pushed
             the chip into the middle). */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
           {draftsReady && draftsCount > 0 ? (
             <button
               type="button"
