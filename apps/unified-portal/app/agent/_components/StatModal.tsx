@@ -5,6 +5,17 @@ import Link from 'next/link';
 import Image from 'next/image';
 import type { StatModalType, Scheme, Buyer } from './types';
 
+// Session 14d — second slice of the urgent drill-down. Mortgage-expiry
+// alerts now render in their own section so the modal count matches the
+// home stat. Shape mirrors the home page's `ExpiringMortgage` exactly.
+export interface ExpiringMortgage {
+  id: string;
+  name: string;
+  unit: string;
+  schemeName: string;
+  daysUntilExpiry: number;
+}
+
 interface StatModalProps {
   type: StatModalType;
   onClose: () => void;
@@ -12,6 +23,7 @@ interface StatModalProps {
   totalSold: number;
   totalActive: number;
   urgentBuyers: Buyer[];
+  expiringMortgages: ExpiringMortgage[];
 }
 
 export default function StatModal({
@@ -21,6 +33,7 @@ export default function StatModal({
   totalSold,
   totalActive,
   urgentBuyers,
+  expiringMortgages,
 }: StatModalProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -101,7 +114,7 @@ export default function StatModal({
             <ActiveContent schemes={schemes} totalActive={totalActive} />
           )}
           {type === 'urgent' && (
-            <UrgentContent urgentBuyers={urgentBuyers} />
+            <UrgentContent urgentBuyers={urgentBuyers} expiringMortgages={expiringMortgages} />
           )}
         </div>
       </div>
@@ -341,7 +354,51 @@ function ActiveContent({
 }
 
 /* ─── Urgent / needs attention drill-down ─── */
-function UrgentContent({ urgentBuyers }: { urgentBuyers: Buyer[] }) {
+
+// Session 14d — build a dynamic Intelligence prompt from the urgent
+// items. Sales-side draft tools (chase_aged_contracts, draft_message)
+// understand "Draft contract chase emails to: …" and "Draft mortgage
+// approval extension follow-ups to: …" intents per Session 14's
+// TOOL-USE MANDATE; the Intelligence page auto-fires on ?prompt=… so
+// the agent lands directly in the approval drawer.
+function buildChasePrompt(contracts: Buyer[], mortgages: ExpiringMortgage[]): string {
+  const parts: string[] = [];
+  if (contracts.length > 0) {
+    const list = contracts
+      .map((c) => `${c.name} at ${c.schemeName} ${c.unit} (${c.daysOverdue}d overdue)`)
+      .join('; ');
+    parts.push(`Draft contract chase emails to: ${list}.`);
+  }
+  if (mortgages.length > 0) {
+    const list = mortgages
+      .map((m) => `${m.name} at ${m.schemeName} ${m.unit} (mortgage approval expires in ${m.daysUntilExpiry}d)`)
+      .join('; ');
+    parts.push(`Draft mortgage approval extension follow-ups to: ${list}.`);
+  }
+  return parts.join(' ');
+}
+
+function UrgentContent({
+  urgentBuyers,
+  expiringMortgages,
+}: {
+  urgentBuyers: Buyer[];
+  expiringMortgages: ExpiringMortgage[];
+}) {
+  const total = urgentBuyers.length + expiringMortgages.length;
+  const subhead = urgentBuyers.length > 0 && expiringMortgages.length > 0
+    ? 'Contracts overdue · Mortgage approvals expiring'
+    : urgentBuyers.length > 0
+      ? 'Contracts overdue — solicitor follow-up needed'
+      : expiringMortgages.length > 0
+        ? 'Mortgage approvals expiring — extension needed'
+        : 'No urgent items';
+
+  const chasePrompt = buildChasePrompt(urgentBuyers, expiringMortgages);
+  const chaseHref = chasePrompt
+    ? `/agent/intelligence?prompt=${encodeURIComponent(chasePrompt)}`
+    : '/agent/intelligence';
+
   return (
     <>
       <SectionLabel>Requires action</SectionLabel>
@@ -354,7 +411,7 @@ function UrgentContent({ urgentBuyers }: { urgentBuyers: Buyer[] }) {
           margin: '4px 0 4px',
         }}
       >
-        {urgentBuyers.length} items flagged
+        {total} items flagged
       </h3>
       <p
         style={{
@@ -364,61 +421,30 @@ function UrgentContent({ urgentBuyers }: { urgentBuyers: Buyer[] }) {
           letterSpacing: '0.005em',
         }}
       >
-        Contracts overdue &mdash; solicitor follow-up needed
+        {subhead}
       </p>
 
-      {urgentBuyers.map((b) => (
-        <div
-          key={b.id}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12,
-            padding: '12px 0',
-            borderBottom: '1px solid rgba(0,0,0,0.04)',
-          }}
-        >
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: 13.5,
-                fontWeight: 500,
-                color: '#0D0D12',
-                letterSpacing: '-0.01em',
-              }}
-            >
-              {b.name}
-            </div>
-            <div
-              style={{
-                fontSize: 11.5,
-                color: '#A0A8B0',
-                marginTop: 2,
-              }}
-            >
-              {b.schemeName} &middot; {b.unit}
-            </div>
-          </div>
-          <span
-            style={{
-              background: '#FEF2F2',
-              border: '1px solid rgba(239,68,68,0.2)',
-              borderRadius: 20,
-              padding: '3px 8px',
-              fontSize: 10,
-              fontWeight: 700,
-              color: '#DC2626',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {b.daysOverdue}d
-          </span>
+      {urgentBuyers.length > 0 && (
+        <>
+          <SectionLabel>Contracts overdue</SectionLabel>
+          {urgentBuyers.map((b) => (
+            <UrgentRow key={b.id} name={b.name} subtitle={`${b.schemeName} · ${b.unit}`} pillText={`${b.daysOverdue}d`} pillTone="red" />
+          ))}
+        </>
+      )}
+
+      {expiringMortgages.length > 0 && (
+        <div style={{ marginTop: urgentBuyers.length > 0 ? 20 : 0 }}>
+          <SectionLabel>Mortgage approvals expiring</SectionLabel>
+          {expiringMortgages.map((m) => (
+            <UrgentRow key={m.id} name={m.name} subtitle={`${m.schemeName} · ${m.unit}`} pillText={`${m.daysUntilExpiry}d`} pillTone="amber" />
+          ))}
         </div>
-      ))}
+      )}
 
       {/* CTA button */}
       <Link
-        href="/agent/intelligence"
+        href={chaseHref}
         className="agent-tappable"
         style={{
           display: 'flex',
@@ -453,6 +479,50 @@ function UrgentContent({ urgentBuyers }: { urgentBuyers: Buyer[] }) {
         </span>
       </Link>
     </>
+  );
+}
+
+function UrgentRow({
+  name,
+  subtitle,
+  pillText,
+  pillTone,
+}: {
+  name: string;
+  subtitle: string;
+  pillText: string;
+  pillTone: 'red' | 'amber';
+}) {
+  const pillStyle = pillTone === 'red'
+    ? { background: '#FEF2F2', border: '1px solid rgba(239,68,68,0.2)', color: '#DC2626' }
+    : { background: '#FEF3C7', border: '1px solid rgba(217,119,6,0.25)', color: '#92400E' };
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '12px 0',
+        borderBottom: '1px solid rgba(0,0,0,0.04)',
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13.5, fontWeight: 500, color: '#0D0D12', letterSpacing: '-0.01em' }}>{name}</div>
+        <div style={{ fontSize: 11.5, color: '#A0A8B0', marginTop: 2 }}>{subtitle}</div>
+      </div>
+      <span
+        style={{
+          ...pillStyle,
+          borderRadius: 20,
+          padding: '3px 8px',
+          fontSize: 10,
+          fontWeight: 700,
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {pillText}
+      </span>
+    </div>
   );
 }
 

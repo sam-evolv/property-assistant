@@ -109,6 +109,18 @@ export default function UnitProfilePage() {
   const isMortgageUrgent =
     mortgageDays !== null && mortgageDays <= 45 && mortgageDays > 0;
 
+  // Session 14d — wire the dead "Follow up with Intelligence" surfaces
+  // to the existing Intelligence prefill rail. Builds a unit-specific
+  // prompt that auto-fires via /agent/intelligence?prompt=...
+  const unitContext = `${profile.unitNumber} ${profile.developmentName}`;
+  const purchaserName = profile.purchaserName || 'the buyer';
+  const followUpPrompt = isOverdue
+    ? `Draft a contract chase email to ${purchaserName}'s solicitor for ${unitContext} — contracts have been outstanding for ${contractDays} days.`
+    : isMortgageUrgent
+      ? `Draft a mortgage approval extension follow-up email to ${purchaserName} for ${unitContext} — their mortgage approval expires in ${mortgageDays} days.`
+      : `Draft a follow-up email to ${purchaserName} for ${unitContext}.`;
+  const followUpHref = `/agent/intelligence?prompt=${encodeURIComponent(followUpPrompt)}`;
+
   const statusLabel: Record<string, string> = {
     for_sale: 'For Sale',
     sale_agreed: 'Sale Agreed',
@@ -186,23 +198,32 @@ export default function UnitProfilePage() {
             <p className="text-sm text-amber-800">{summary}</p>
           </div>
 
-          {/* Alert banners */}
+          {/* Alert banners — Session 14d: now tappable, route to the
+              Intelligence page with a unit-specific draft prompt that
+              auto-fires. Chevron at the trailing edge signals tappability. */}
           {isOverdue && (
-            <div className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-center gap-2.5 mb-2">
+            <Link
+              href={followUpHref}
+              className="bg-red-50 border border-red-100 rounded-xl p-3 flex items-center gap-2.5 mb-2 no-underline agent-tappable hover:bg-red-100/50 transition-colors"
+            >
               <AlertTriangle size={16} className="text-red-500 flex-shrink-0" />
-              <span className="text-sm text-red-600">
-                Contracts {contractDays} days overdue: solicitor follow-up
-                needed
+              <span className="text-sm text-red-600 flex-1">
+                Contracts {contractDays} days overdue: solicitor follow-up needed
               </span>
-            </div>
+              <span className="text-red-400 text-sm" aria-hidden>›</span>
+            </Link>
           )}
           {isMortgageUrgent && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2.5 mb-2">
+            <Link
+              href={followUpHref}
+              className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2.5 mb-2 no-underline agent-tappable hover:bg-amber-100/50 transition-colors"
+            >
               <Clock size={16} className="text-amber-600 flex-shrink-0" />
-              <span className="text-sm text-amber-700">
+              <span className="text-sm text-amber-700 flex-1">
                 Mortgage approval expires in {mortgageDays} days
               </span>
-            </div>
+              <span className="text-amber-500 text-sm" aria-hidden>›</span>
+            </Link>
           )}
 
           {/* Intelligence Activity */}
@@ -453,11 +474,15 @@ export default function UnitProfilePage() {
         className="fixed bottom-[76px] left-0 right-0 bg-[#FAFAF8] border-t border-gray-100 px-5 py-3 z-40"
         style={{ paddingBottom: 'max(12px, env(safe-area-inset-bottom))' }}
       >
-        {/* Intelligence button */}
-        <button className="w-full py-3 rounded-full bg-gray-900 text-white text-sm font-medium flex items-center justify-center gap-2 mb-2 transition-all duration-150 active:scale-[0.98]">
+        {/* Intelligence button — Session 14d: real Link to a prefilled
+            Intelligence prompt that auto-fires the appropriate draft tool. */}
+        <Link
+          href={followUpHref}
+          className="w-full py-3 rounded-full bg-gray-900 text-white text-sm font-medium flex items-center justify-center gap-2 mb-2 transition-all duration-150 active:scale-[0.98] no-underline"
+        >
           <Zap size={16} className="text-[#D4AF37]" />
           Follow up with Intelligence
-        </button>
+        </Link>
         {/* Action row */}
         <div className="flex gap-2">
           {profile.purchaserPhone ? (
