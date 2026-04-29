@@ -1039,12 +1039,13 @@ export async function scheduleViewingDraft(
 // draft to the turn's envelope.
 
 interface DraftMessageSkillInput {
-  recipient_type: 'buyer' | 'solicitor' | 'developer' | string;
+  recipient_type: 'buyer' | 'solicitor' | 'developer' | 'tenant' | string;
   recipient_name: string;
   context: string;
   tone?: string;
   related_unit?: string;
   related_scheme?: string;
+  related_property?: string;
   recipient_email?: string;
 }
 
@@ -1059,12 +1060,155 @@ function toneSignOff(tone: string): string {
   return 'Thanks,';
 }
 
+// Lettings branch of draft_message. Resolves the recipient against
+// agent_tenancies + agent_letting_properties (active tenancy only) instead
+// of the sales scheme/unit/buyer chain. Triggered when recipient_type ===
+// 'tenant'. The agent can pass the tenant's name, the property address, or
+// both — at least one is required.
+async function draftTenantMessage(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: DraftMessageSkillInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'draft_message';
+  const recipientName = (inputs.recipient_name || '').trim();
+  const propertyHint = (inputs.related_property || '').trim();
+  const context = (inputs.context || '').trim();
+  const tone = (inputs.tone || 'warm').trim();
+  const query = `draft_message recipient_type=tenant recipient="${recipientName}" property="${propertyHint}"`;
+
+  if (!recipientName && !propertyHint) {
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: 'Tenant name or property address is required to draft a message.',
+      drafts: [],
+      meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+    };
+  }
+
+  try {
+    const { data: tenancies, error } = await supabase
+      .from('agent_tenancies')
+      .select('id, tenant_name, tenant_email, tenant_phone, lease_end, rent_pcm, letting_property_id, agent_letting_properties!inner(id, address, address_line_1, eircode, status)')
+      .eq('agent_id', agentContext.agentProfileId)
+      .eq('status', 'active');
+
+    if (error || !tenancies?.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'No active tenancies found for your portfolio.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const lowerName = recipientName.toLowerCase();
+    const lowerProp = propertyHint.toLowerCase();
+
+    const matches = (tenancies as any[]).filter((t) => {
+      const tName = (t.tenant_name || '').toLowerCase();
+      const prop = t.agent_letting_properties;
+      const addr1 = (prop?.address_line_1 || '').toLowerCase();
+      const fullAddr = (prop?.address || '').toLowerCase();
+      const propMatch = !lowerProp
+        || addr1.includes(lowerProp)
+        || fullAddr.includes(lowerProp)
+        || (addr1 && lowerProp.includes(addr1))
+        || (fullAddr && lowerProp.includes((fullAddr.split(',')[0] || '').trim()));
+      const nameMatch = !lowerName
+        || tName.includes(lowerName)
+        || (tName && lowerName.includes(tName));
+      return propMatch && nameMatch;
+    });
+
+    if (matches.length === 0) {
+      const candidates = (tenancies as any[]).slice(0, 5).map((t) => {
+        const prop = t.agent_letting_properties;
+        return `${t.tenant_name} (${prop?.address_line_1 || prop?.address || 'address tbc'})`;
+      }).join(', ');
+      const moreSuffix = tenancies.length > 5 ? ` and ${tenancies.length - 5} more` : '';
+      const queryDesc = recipientName && propertyHint
+        ? `"${recipientName}" at "${propertyHint}"`
+        : recipientName ? `"${recipientName}"`
+          : `"${propertyHint}"`;
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `I couldn't find an active tenancy matching ${queryDesc}. Active tenants you have on record: ${candidates}${moreSuffix}.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    if (matches.length > 1) {
+      const ambiguous = matches.slice(0, 5).map((t: any) => {
+        const prop = t.agent_letting_properties;
+        return `${t.tenant_name} at ${prop?.address_line_1 || prop?.address}`;
+      }).join(' or ');
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `Multiple matching tenancies — could you clarify? I see: ${ambiguous}.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const tenancy: any = matches[0];
+    const property: any = tenancy.agent_letting_properties;
+    const tenantFullName = tenancy.tenant_name || 'Tenant';
+    const tenantFirst = firstName(tenantFullName);
+    const propertyAddress = property?.address_line_1 || property?.address || 'your property';
+    const tenantEmail = tenancy.tenant_email || 'tenant@tbc.invalid';
+
+    const subject = context
+      ? `Re: ${context.slice(0, 60)}`
+      : `Quick note from ${agentContext.agencyName || 'your letting agent'}`;
+
+    const body = [
+      toneGreeting(tenantFirst),
+      '',
+      context || '[Message body — fill in the intent here.]',
+      '',
+      "Let me know what works for you and I'll come back to confirm.",
+      '',
+      toneSignOff(tone),
+      signature(agentContext),
+    ].filter((line) => line !== undefined).join('\n');
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Drafted a message to ${tenantFullName} at ${propertyAddress}.`,
+      drafts: [{
+        id: randomUUID(),
+        type: 'email' as const,
+        recipient: { name: tenantFullName, email: tenantEmail, role: 'tenant' },
+        subject,
+        body,
+        affected_record: { kind: 'tenancy', id: tenancy.id, label: `${propertyAddress} — ${tenantFullName}` },
+        reasoning: `Drafted per agent request (${tone} tone). ${tenancy.tenant_email ? '' : 'Tenant email was not on file; placeholder used — please fill in before approving.'}`.trim(),
+      }],
+      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
 export async function draftMessageSkill(
   supabase: SupabaseClient,
   agentContext: SkillAgentContext,
   inputs: DraftMessageSkillInput,
 ): Promise<AgenticSkillEnvelope> {
   const skill = 'draft_message';
+  // Lettings branch: when the model calls with recipient_type='tenant',
+  // route to the tenant resolver. The sales path below stays unchanged.
+  if (inputs.recipient_type === 'tenant') {
+    return draftTenantMessage(supabase, agentContext, inputs);
+  }
   // Session 14.10 — recipient_name is now optional. Many real instructions
   // refer to a buyer by unit only ("reach out to number 3, Árdan View" —
   // no name attached). The skill can derive the recipient name from the
