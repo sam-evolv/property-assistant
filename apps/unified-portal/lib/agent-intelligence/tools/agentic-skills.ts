@@ -672,8 +672,6 @@ export async function naturalQuery(
 
     const mode = agentContext.mode === 'lettings' ? 'lettings' : 'sales';
 
-    const mode = agentContext.mode === 'lettings' ? 'lettings' : 'sales';
-
     if (intent === 'rent_roll') {
       if (mode !== 'lettings') {
         answer = "That's a lettings-mode capability. Switch to your Lettings workspace to ask about rent roll.";
