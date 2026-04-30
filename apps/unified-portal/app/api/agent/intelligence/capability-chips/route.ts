@@ -3,30 +3,23 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { FALLBACK_CAPABILITY_CHIPS } from '@/lib/agent-intelligence/capability-chips';
-import { formatAgentAddress, truncateForChip } from '@/lib/agent/format-address';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
- * Session 11 — GET /api/agent/intelligence/capability-chips.
+ * GET /api/agent/intelligence/capability-chips.
  *
  * Returns an honest, live-data-sourced chip list for the Intelligence
- * landing carousel. Every phrase either references a real scheme the
- * agent is assigned to, a real letting-property address on their books,
- * or is context-free ("Generate developer weekly report").
+ * landing carousel. The route branches on `?mode=` — `lettings` runs
+ * `composeLettingsChips` (real tenancies + vacancies + lettings phrases),
+ * anything else runs `composeChips` (sales-only chips: schemes, chase,
+ * weekly report, drafts).
  *
- * Session 12 — address composition now goes through the shared
- * `formatAgentAddress` helper so structured
- * `address_line_1 / address_line_2 / city / eircode` fields are used
- * when available. No silent prefix stripping (goodbye "Apt 12 → 12
- * Grand Parade" bug).
- *
- * Chips are omitted when the underlying data doesn't exist:
- *   - no letting properties → no rental-viewing or letting chips
- *   - zero applicants → no "Show me applicants for X" chips
- *   - zero tenancies → no renewal chips
- *   - zero drafts → no "Review my drafts" chip
+ * Lettings-flavoured chips ("Renewals due", "Log a rental viewing",
+ * "Letting applicants", "Rental viewings") live exclusively in
+ * composeLettingsChips. Mixing them into the sales composer leaks BTR
+ * vocabulary into Sales workspaces.
  */
 
 interface ChipResponse {
@@ -151,10 +144,6 @@ async function composeChips(
 ): Promise<string[]> {
   const [
     assignmentsRes,
-    lettingsRes,
-    tenanciesCountRes,
-    applicantsCountRes,
-    rentalViewingsCountRes,
     draftsCountRes,
   ] = await Promise.all([
     supabase
@@ -162,29 +151,6 @@ async function composeChips(
       .select('development_id')
       .eq('agent_id', agentId)
       .eq('is_active', true),
-    // Session 12: pull the structured address fields alongside the
-    // legacy denormalised `address` column. The formatter picks
-    // structured fields when present and falls back verbatim otherwise.
-    supabase
-      .from('agent_letting_properties')
-      .select('id, address, address_line_1, address_line_2, city, eircode')
-      .eq('agent_id', agentId)
-      .order('created_at', { ascending: false })
-      .limit(3),
-    supabase
-      .from('agent_tenancies')
-      .select('id', { count: 'exact', head: true })
-      .eq('agent_id', agentId)
-      .eq('status', 'active'),
-    supabase
-      .from('agent_applicants')
-      .select('id', { count: 'exact', head: true })
-      .eq('agent_id', agentId),
-    supabase
-      .from('agent_viewings')
-      .select('id', { count: 'exact', head: true })
-      .eq('agent_id', agentId)
-      .not('letting_property_id', 'is', null),
     supabase
       .from('pending_drafts')
       .select('id', { count: 'exact', head: true })
@@ -207,21 +173,6 @@ async function composeChips(
     schemeNames = (devs ?? []).map((d: any) => d.name).filter(Boolean);
   }
 
-  const lettingProps = (lettingsRes.data ?? []) as Array<{
-    id: string;
-    address: string | null;
-    address_line_1: string | null;
-    address_line_2: string | null;
-    city: string | null;
-    eircode: string | null;
-  }>;
-  const lettingAddresses = lettingProps
-    .map((p) => truncateForChip(formatAgentAddress(p, 'short')))
-    .filter(Boolean) as string[];
-
-  const tenanciesCount = tenanciesCountRes.count ?? 0;
-  const applicantsCount = applicantsCountRes.count ?? 0;
-  const rentalViewingsCount = rentalViewingsCountRes.count ?? 0;
   const draftsCount = draftsCountRes.count ?? 0;
 
   // Session 14.12 — chip copy is short, action-oriented, and never
@@ -245,20 +196,6 @@ async function composeChips(
   chips.push('Chase aged contracts');
   chips.push('Show overdue chases');
   chips.push('Signed this week?');
-
-  // --- Lettings: only when real rows exist.
-  if (lettingAddresses.length) {
-    chips.push('Log a rental viewing');
-  }
-  if (tenanciesCount > 0) {
-    chips.push('Renewals due');
-  }
-  if (applicantsCount > 0 && lettingAddresses.length) {
-    chips.push('Letting applicants');
-  }
-  if (rentalViewingsCount > 0) {
-    chips.push('Rental viewings');
-  }
 
   // --- Reporting / scheduling / briefings: always safe.
   chips.push('Weekly report');

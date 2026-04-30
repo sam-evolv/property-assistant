@@ -22,6 +22,12 @@ export interface SkillAgentContext {
   displayName: string;
   agencyName: string;
   phone?: string;
+  /**
+   * Active workspace mode. Skills that have lettings-flavoured copy
+   * (rent_roll, lease_end, fallback help text) branch on this to keep
+   * BTR vocabulary out of Sales workspaces. Undefined is treated as 'sales'.
+   */
+  mode?: 'sales' | 'lettings';
 }
 
 function formatIrishDate(iso: string | null | undefined): string {
@@ -663,50 +669,60 @@ export async function naturalQuery(
     let patternName: string = intent;
     let recordIds: string[] = [];
 
+    const mode = agentContext.mode === 'lettings' ? 'lettings' : 'sales';
+
     if (intent === 'rent_roll') {
-      const { data } = await supabase
-        .from('agent_tenancies')
-        .select('id, rent_pcm')
-        .eq('agent_id', agentContext.agentProfileId)
-        .eq('status', 'active');
-      const rows = data || [];
-      const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
-      recordIds = rows.map((r: any) => r.id);
-      answer = `Your current monthly rent roll is €${total.toLocaleString('en-IE')} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
-    } else if (intent === 'lease_end') {
-      const name = extractTenantName(question);
-      if (!name) {
-        answer = "I couldn't pick up a tenant name from that question. Try something like: when does Priya Shah's lease end?";
+      if (mode !== 'lettings') {
+        answer = "That's a lettings-mode capability. Switch to your Lettings workspace to ask about rent roll.";
       } else {
         const { data } = await supabase
           .from('agent_tenancies')
-          .select('id, letting_property_id, tenant_name, lease_end, status')
+          .select('id, rent_pcm')
           .eq('agent_id', agentContext.agentProfileId)
-          .eq('status', 'active')
-          .ilike('tenant_name', `%${name}%`);
+          .eq('status', 'active');
         const rows = data || [];
-        if (!rows.length) {
-          answer = "I couldn't find an active tenancy matching that name.";
+        const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
+        recordIds = rows.map((r: any) => r.id);
+        answer = `Your current monthly rent roll is €${total.toLocaleString('en-IE')} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
+      }
+    } else if (intent === 'lease_end') {
+      if (mode !== 'lettings') {
+        answer = "That's a lettings-mode capability. Switch to your Lettings workspace to ask about lease end dates.";
+      } else {
+        const name = extractTenantName(question);
+        if (!name) {
+          answer = "I couldn't pick up a tenant name from that question. Try something like: when does Priya Shah's lease end?";
         } else {
-          const propertyIds = Array.from(new Set(rows.map((t: any) => t.letting_property_id).filter(Boolean)));
-          const { data: props } = await supabase
-            .from('agent_letting_properties')
-            .select('id, address')
-            .in('id', propertyIds);
-          const addressById = new Map<string, string>((props || []).map((p: any) => [p.id, p.address]));
-          if (rows.length === 1) {
-            const t = rows[0];
-            const address = addressById.get(t.letting_property_id) || 'Unknown property';
-            const days = Math.max(0, Math.round((new Date(t.lease_end).getTime() - Date.now()) / 86400000));
-            answer = `${t.tenant_name}'s lease at ${address} ends on ${formatIrishDate(t.lease_end)} (${days} days).`;
+          const { data } = await supabase
+            .from('agent_tenancies')
+            .select('id, letting_property_id, tenant_name, lease_end, status')
+            .eq('agent_id', agentContext.agentProfileId)
+            .eq('status', 'active')
+            .ilike('tenant_name', `%${name}%`);
+          const rows = data || [];
+          if (!rows.length) {
+            answer = "I couldn't find an active tenancy matching that name.";
           } else {
-            const top = rows.slice(0, 3).map((t: any) => {
+            const propertyIds = Array.from(new Set(rows.map((t: any) => t.letting_property_id).filter(Boolean)));
+            const { data: props } = await supabase
+              .from('agent_letting_properties')
+              .select('id, address')
+              .in('id', propertyIds);
+            const addressById = new Map<string, string>((props || []).map((p: any) => [p.id, p.address]));
+            if (rows.length === 1) {
+              const t = rows[0];
               const address = addressById.get(t.letting_property_id) || 'Unknown property';
-              return `- ${t.tenant_name} at ${address} — ${formatIrishDate(t.lease_end)}`;
-            });
-            answer = [`Found ${rows.length} matching tenancies:`, ...top].join('\n');
+              const days = Math.max(0, Math.round((new Date(t.lease_end).getTime() - Date.now()) / 86400000));
+              answer = `${t.tenant_name}'s lease at ${address} ends on ${formatIrishDate(t.lease_end)} (${days} days).`;
+            } else {
+              const top = rows.slice(0, 3).map((t: any) => {
+                const address = addressById.get(t.letting_property_id) || 'Unknown property';
+                return `- ${t.tenant_name} at ${address} — ${formatIrishDate(t.lease_end)}`;
+              });
+              answer = [`Found ${rows.length} matching tenancies:`, ...top].join('\n');
+            }
+            recordIds = rows.map((r: any) => r.id);
           }
-          recordIds = rows.map((r: any) => r.id);
         }
       }
     } else if (intent === 'aged_contracts') {
@@ -757,15 +773,22 @@ export async function naturalQuery(
         answer = `You have ${n} unit${n === 1 ? '' : 's'} currently for sale across your schemes.`;
       }
     } else if (intent === 'needs_attention') {
-      const [aged, arrears, renewals] = await Promise.all([
-        loadAgedForBriefing(supabase, agentContext.agentProfileId, 42).catch(() => []),
-        getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
-        getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
-      ]);
-      answer = `Items needing attention: ${aged.length} aged contracts, ${arrears.length} rent arrears, ${renewals.length} renewals due.`;
+      if (mode === 'lettings') {
+        const [aged, arrears, renewals] = await Promise.all([
+          loadAgedForBriefing(supabase, agentContext.agentProfileId, 42).catch(() => []),
+          getRentArrears(supabase, agentContext.agentProfileId).catch(() => []),
+          getRenewalWindow(supabase, agentContext.agentProfileId).catch(() => []),
+        ]);
+        answer = `Items needing attention: ${aged.length} aged contracts, ${arrears.length} rent arrears, ${renewals.length} renewals due.`;
+      } else {
+        const aged = await loadAgedForBriefing(supabase, agentContext.agentProfileId, 42).catch(() => []);
+        answer = `Items needing attention: ${aged.length} aged contracts (issued over 6 weeks ago with no signature).`;
+      }
     } else {
       patternName = 'fallback';
-      answer = 'I can answer questions about your pipeline, lettings, viewings, and tenancies. Try asking about: aged contracts, rent roll, lease end for [tenant], upcoming viewings, or what needs your attention.';
+      answer = mode === 'lettings'
+        ? 'I can answer questions about your pipeline, lettings, viewings, and tenancies. Try asking about: aged contracts, rent roll, lease end for [tenant], upcoming viewings, or what needs your attention.'
+        : 'I can answer questions about your pipeline, viewings, and what needs your attention. Try asking about: aged contracts, units sale-agreed but not signed, buyers awaiting kitchen finishes, or upcoming closings.';
     }
 
     const draftId = randomUUID();
