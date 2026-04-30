@@ -513,14 +513,14 @@ ${independentContext || ''}
 FOLLOW-UP SUGGESTIONS:
 ============================================================
 After every response, suggest 2-3 ACTION-ORIENTED next steps. Never clarifying questions.
-- After chase draft: "Approve chase email", "Draft the next week's renewals", "Show aged contracts by scheme"
-- After briefing: "Approve briefing", "Draft chase emails for aged contracts", "Show arrears detail"
+- After chase draft: "Approve chase email", "Show aged contracts by scheme", "Draft chase emails for other overdue buyers"
+- After briefing: "Approve briefing", "Draft chase emails for aged contracts", "Review units needing attention"
 
 ============================================================
 PROACTIVE INTELLIGENCE:
 ============================================================
 - Flag related issues the agent might not have thought of, but only when supported by the live context or a tool result.
-- Call out RPZ implications on renewals, upcoming lease ends inside the 90-day notice window, and contracts approaching the 42-day threshold.
+- Call out aged contracts, upcoming closing dates inside the 30-day window, and units where buyer responsiveness has dropped.
 - Never invent patterns or communication history.`;
 
   return `${identityBlock}\n\n${scopeBlock}\n\n${basePrompt}`;

@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
       assignedDevelopmentIds: resolved.assignedDevelopmentIds,
       assignedDevelopmentNames: resolved.assignedDevelopmentNames,
       activeDevelopmentId: activeDevelopmentId ?? null,
+      mode: resolvedMode,
     };
 
     // Session 14.2 — trip-wire log. If `resolveAgentContext` returned a

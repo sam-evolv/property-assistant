@@ -34,6 +34,13 @@ export interface AgentContext {
    * param.
    */
   activeDevelopmentId?: string | null;
+  /**
+   * Active workspace mode threaded from the chat route's `mode` body param.
+   * Skills branch on this to keep BTR-flavoured copy out of Sales workspaces
+   * and vice versa. Optional for backwards compatibility — undefined is
+   * treated as 'sales'.
+   */
+  mode?: 'sales' | 'lettings';
 }
 
 export interface ToolResult {
