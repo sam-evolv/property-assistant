@@ -266,7 +266,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['unit_identifier'],
           },
         },
-        topic: { type: 'string', description: 'Shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent. For congratulate_handover: a personal note (optional — there is a sensible default).' },
+        topic: { type: 'string', description: 'Shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         purpose: {
           type: 'string',
