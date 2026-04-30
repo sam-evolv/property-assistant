@@ -90,7 +90,7 @@ export async function getUnitStatus(
   // scheme doesn't resolve we return null with an honest reason. If the
   // unit doesn't exist we return null — NEVER a different unit's row.
   const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
-  if (!scope.ok) return { data: null, summary: scope.summary };
+  if (!scope.ok) return { data: null, summary: scope.summary, coverage: 'tool_not_applicable' };
 
   const devId = scope.developmentIds[0];
   const devName = scope.schemeNames[0];
@@ -103,6 +103,7 @@ export async function getUnitStatus(
     return {
       data: null,
       summary: `Unit ${params.unit_identifier} doesn't exist in ${devName}.`,
+      coverage: 'tool_not_applicable',
     };
   }
   if (unitRes.status === 'ambiguous') {
@@ -112,6 +113,7 @@ export async function getUnitStatus(
     return {
       data: null,
       summary: `"${params.unit_identifier}" matches multiple units: ${list}. Please be specific.`,
+      coverage: 'tool_not_applicable',
     };
   }
 
@@ -127,7 +129,7 @@ export async function getUnitStatus(
   if (!fullUnit) {
     // Shouldn't happen — resolveUnitIdentifier returned a row seconds ago
     // — but handle defensively rather than crash.
-    return { data: null, summary: `Unit ${params.unit_identifier} couldn't be loaded.` };
+    return { data: null, summary: `Unit ${params.unit_identifier} couldn't be loaded.`, coverage: 'tool_not_applicable' };
   }
 
   const unit = fullUnit;
@@ -200,7 +202,7 @@ export async function getUnitStatus(
     ? `Unit ${result.unit_number}, ${dev.name} — ${buyerName} (${statusLabel})`
     : `Unit ${result.unit_number}, ${dev.name} — ${statusLabel}`;
 
-  return { data: result, summary };
+  return { data: result, summary, coverage: 'ok' };
 }
 
 export async function getBuyerDetails(
@@ -225,7 +227,11 @@ export async function getBuyerDetails(
       .ilike('purchaser_name', `%${params.buyer_name}%`);
 
     if (!unitMatches?.length) {
-      return { data: { matches: [] }, summary: `No buyer found matching "${params.buyer_name}"` };
+      return {
+        data: null,
+        summary: `No buyer found matching "${params.buyer_name}".`,
+        coverage: 'tool_returned_zero',
+      };
     }
 
     // Get development names
@@ -247,6 +253,7 @@ export async function getBuyerDetails(
     return {
       data: { matches: results },
       summary: `Found ${results.length} buyer(s): ${nameList}`,
+      coverage: 'ok',
     };
   }
 
@@ -305,6 +312,7 @@ export async function getBuyerDetails(
   return {
     data: { matches: results },
     summary: `Found ${results.length} buyer(s): ${nameList}`,
+    coverage: 'ok',
   };
 }
 
@@ -332,7 +340,7 @@ export async function getSchemeOverview(
           : resolution.reason === 'ambiguous'
             ? `"${params.scheme_name}" matches multiple schemes (${resolution.candidates.join(', ')}). Please be specific.`
             : `"${params.scheme_name}" is not in your assigned schemes. Assigned: ${list}.`;
-      return { data: null, summary: reason };
+      return { data: null, summary: reason, coverage: 'tool_not_applicable' };
     }
   } else if (agentContext.assignedDevelopmentIds.length === 1) {
     dev = {
@@ -344,6 +352,7 @@ export async function getSchemeOverview(
     return {
       data: null,
       summary: `You have multiple assigned schemes (${names}). Which one should I summarise?`,
+      coverage: 'tool_not_applicable',
     };
   }
 
@@ -351,6 +360,7 @@ export async function getSchemeOverview(
     return {
       data: null,
       summary: 'No schemes assigned to this agent yet.',
+      coverage: 'tool_not_applicable',
     };
   }
 
@@ -422,7 +432,11 @@ export async function getSchemeOverview(
 
   const summary = `${dev.name} — ${totalUnits} units, ${breakdown.sold} sold, ${breakdown.for_sale} available`;
 
-  return { data: result, summary };
+  return {
+    data: result,
+    summary,
+    coverage: totalUnits === 0 && (pipeline?.length ?? 0) === 0 ? 'tool_returned_zero' : 'ok',
+  };
 }
 
 export async function getOutstandingItems(
@@ -442,7 +456,7 @@ export async function getOutstandingItems(
 
   if (params.scheme_name) {
     const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
-    if (!scope.ok) return { data: null, summary: scope.summary };
+    if (!scope.ok) return { data: null, summary: scope.summary, coverage: 'tool_not_applicable' };
     developmentId = scope.developmentIds[0];
   } else {
     // Scope to agent's assigned developments
@@ -568,12 +582,21 @@ export async function getOutstandingItems(
   const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
   items.sort((a, b) => (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3));
 
+  if (items.length === 0) {
+    return {
+      data: null,
+      summary: "No outstanding items found across the schemes you're assigned to.",
+      coverage: 'tool_returned_zero',
+    };
+  }
+
   const highPriority = items.filter(i => i.priority === 'critical' || i.priority === 'high').length;
   return {
     data: { items, total: items.length },
     summary: highPriority > 0
       ? `${items.length} outstanding items, ${highPriority} high priority`
       : `${items.length} outstanding items`,
+    coverage: 'ok',
   };
 }
 
@@ -593,7 +616,7 @@ export async function getCommunicationHistory(
   // return every comm row in the scheme.
   if (params.unit_identifier && params.scheme_name) {
     const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
-    if (!scope.ok) return { data: null, summary: scope.summary };
+    if (!scope.ok) return { data: null, summary: scope.summary, coverage: 'tool_not_applicable' };
 
     const unitRes = await resolveUnitIdentifier(supabase, params.unit_identifier, {
       developmentIds: scope.developmentIds,
@@ -603,6 +626,7 @@ export async function getCommunicationHistory(
       return {
         data: null,
         summary: `Unit ${params.unit_identifier} doesn't exist in ${scope.schemeNames[0]}.`,
+        coverage: 'tool_not_applicable',
       };
     }
     if (unitRes.status === 'ambiguous') {
@@ -612,6 +636,7 @@ export async function getCommunicationHistory(
       return {
         data: null,
         summary: `"${params.unit_identifier}" matches multiple units: ${list}. Please be specific.`,
+        coverage: 'tool_not_applicable',
       };
     }
     unitId = unitRes.unit.id;
@@ -631,7 +656,11 @@ export async function getCommunicationHistory(
   const { data: comms } = await query;
 
   if (!comms?.length) {
-    return { data: { communications: [] }, summary: 'No contact logged in the system' };
+    return {
+      data: null,
+      summary: 'No contact logged in the system for that buyer or unit.',
+      coverage: 'tool_returned_zero',
+    };
   }
 
   const communications = comms.map((c: any) => ({
@@ -651,6 +680,7 @@ export async function getCommunicationHistory(
   return {
     data: { communications },
     summary: `${communications.length} contact(s) — last: ${mostRecent.type} on ${recentDate}`,
+    coverage: 'ok',
   };
 }
 
@@ -662,7 +692,7 @@ export async function getViewings(
 ): Promise<ToolResult> {
   // Agent identity is threaded from the chat route — no re-resolve.
   if (!agentContext.agentProfileId) {
-    return { data: { viewings: [] }, summary: 'No agent profile found' };
+    return { data: null, summary: 'No agent profile found.', coverage: 'tool_not_applicable' };
   }
 
   let query = supabase
@@ -684,7 +714,11 @@ export async function getViewings(
   const { data: viewings, error } = await query.limit(20);
 
   if (error || !viewings?.length) {
-    return { data: { viewings: [] }, summary: 'No viewings scheduled' };
+    return {
+      data: null,
+      summary: 'No viewings scheduled in that window.',
+      coverage: 'tool_returned_zero',
+    };
   }
 
   const formatted = viewings.map((v: any) => ({
@@ -707,7 +741,7 @@ export async function getViewings(
     ? `${formatted.length} viewing(s) found, ${todayCount} today`
     : `${formatted.length} upcoming viewing(s)`;
 
-  return { data: { viewings: formatted }, summary };
+  return { data: { viewings: formatted }, summary, coverage: 'ok' };
 }
 
 export async function searchKnowledgeBase(
@@ -738,7 +772,11 @@ export async function searchKnowledgeBase(
   });
 
   if (error || !chunks?.length) {
-    return { data: { results: [] }, summary: 'No matching documents found' };
+    return {
+      data: null,
+      summary: 'No matching documents found in the knowledge base.',
+      coverage: 'tool_returned_zero',
+    };
   }
 
   const results = chunks.map((c: any) => ({
@@ -750,6 +788,7 @@ export async function searchKnowledgeBase(
   return {
     data: { results },
     summary: `${results.length} results from ${results[0].source}`,
+    coverage: 'ok',
   };
 }
 
@@ -772,7 +811,7 @@ export async function getSchemeSummary(
   // "Árdan View" silently without going through the alias table, which
   // skipped the phonetic signal that Session 13 put in place.
   const scope = await resolveReadScope(supabase, agentContext, params.scheme_name);
-  if (!scope.ok) return { data: null, summary: scope.summary };
+  if (!scope.ok) return { data: null, summary: scope.summary, coverage: 'tool_not_applicable' };
   const developmentIds = scope.developmentIds;
   const schemeNames = scope.schemeNames;
 
@@ -791,6 +830,18 @@ export async function getSchemeSummary(
   const pipeline = pipelineResult.data ?? [];
 
   const totalUnits = units.length;
+
+  // Empty-pipeline guard: when units exist but no pipeline rows back them, the
+  // pre-coverage code returned a fully-populated all-zeros breakdown that read
+  // like a real answer. Refuse cleanly instead so the model can quote the
+  // summary verbatim.
+  if (pipeline.length === 0) {
+    const label = schemeNames.length === 1 ? schemeNames[0] : schemeNames.join(', ');
+    const summary = totalUnits > 0
+      ? `${label} has ${totalUnits} units but no active sales pipeline data. I can't break down stage counts.`
+      : `${label} has no units or sales pipeline data on file.`;
+    return { data: null, summary, coverage: 'tool_returned_zero' };
+  }
   const breakdown = {
     for_sale: 0,
     reserved: 0,
@@ -879,6 +930,7 @@ export async function getSchemeSummary(
       next_actions: nextActions,
     },
     summary,
+    coverage: 'ok',
   };
 }
 
