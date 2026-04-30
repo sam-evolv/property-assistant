@@ -668,6 +668,7 @@ export async function naturalQuery(
     let answer = '';
     let patternName: string = intent;
     let recordIds: string[] = [];
+    let coverage: 'ok' | 'tool_returned_zero' | 'tool_not_applicable' = 'ok';
 
     const mode = agentContext.mode === 'lettings' ? 'lettings' : 'sales';
 
@@ -763,6 +764,7 @@ export async function naturalQuery(
       const devIds = Array.from(new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)));
       if (!devIds.length) {
         answer = 'You have 0 units currently for sale across your schemes.';
+        coverage = 'tool_not_applicable';
       } else {
         const { data, count } = await supabase
           .from('unit_sales_pipeline')
@@ -771,6 +773,7 @@ export async function naturalQuery(
           .eq('status', 'for_sale');
         const n = count ?? (data?.length || 0);
         answer = `You have ${n} unit${n === 1 ? '' : 's'} currently for sale across your schemes.`;
+        coverage = n === 0 ? 'tool_returned_zero' : 'ok';
       }
     } else if (intent === 'needs_attention') {
       if (mode === 'lettings') {
@@ -815,6 +818,7 @@ export async function naturalQuery(
       summary: firstLine.slice(0, 120),
       drafts: [draft],
       meta: { record_count: 1, generated_at: new Date().toISOString(), query },
+      coverage,
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);

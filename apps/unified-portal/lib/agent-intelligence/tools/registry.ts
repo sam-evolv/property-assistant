@@ -73,7 +73,7 @@ async function runAgenticSkill<I extends Record<string, any>>(
   };
   const raw = await fn(supabase, skillCtx, params);
   const envelope = await persistSkillEnvelope(supabase, raw, agentContext);
-  return { data: envelope, summary: envelope.summary };
+  return { data: envelope, summary: envelope.summary, coverage: envelope.coverage };
 }
 
 export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [

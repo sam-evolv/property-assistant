@@ -43,9 +43,24 @@ export interface AgentContext {
   mode?: 'sales' | 'lettings';
 }
 
+/**
+ * Coverage tag — lets the model distinguish three states the wire format
+ * used to conflate:
+ *   - 'ok'                     tool ran, returned data, answer is grounded
+ *   - 'tool_returned_zero'     tool ran, query returned no rows
+ *   - 'tool_not_applicable'    scope failure (no schemes assigned, unit
+ *                              doesn't exist, scheme not in agent's list)
+ *
+ * The system prompt instructs the model to refuse cleanly on the latter
+ * two and emit the summary verbatim. Optional for backwards compatibility;
+ * unset is interpreted as 'ok' (the legacy success path).
+ */
+export type ToolResultCoverage = 'ok' | 'tool_returned_zero' | 'tool_not_applicable';
+
 export interface ToolResult {
   data: any;
   summary: string;
+  coverage?: ToolResultCoverage;
 }
 
 export type ToolFunction = (

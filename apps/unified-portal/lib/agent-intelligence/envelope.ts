@@ -33,6 +33,14 @@ export interface AgenticSkillEnvelope {
   summary: string;
   drafts: AgenticSkillDraft[];
   meta: { record_count: number; generated_at: string; query: string };
+  /**
+   * Optional coverage tag, mirrors the field on ToolResult. The
+   * `runAgenticSkill` adapter copies it onto the ToolResult so the system
+   * prompt's TOOL RESULT INTERPRETATION rules apply uniformly to read tools
+   * and agentic skills. Unset is interpreted as 'ok' for backwards
+   * compatibility.
+   */
+  coverage?: 'ok' | 'tool_returned_zero' | 'tool_not_applicable';
 }
 
 export function isAgenticSkillEnvelope(value: unknown): value is AgenticSkillEnvelope {
