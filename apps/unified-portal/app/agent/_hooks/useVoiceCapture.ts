@@ -5,6 +5,7 @@ import {
   requestMicrophonePermission,
   openNativeSettings,
 } from '@/lib/capacitor-native';
+import { lightImpact } from '@/lib/agent/haptics';
 
 const OFFLINE_QUEUE_KEY = 'oh.agent.voice.offlineQueue.v1';
 const SILENCE_THRESHOLD = 0.012;
@@ -260,6 +261,9 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
       }
 
       setStatus('recording');
+      // BUG-15 — confirm mic-on with a light haptic so the agent
+      // doesn't have to read the screen to know recording started.
+      void lightImpact();
     } catch (err: any) {
       // iOS `NotAllowedError` (permission revoked mid-session) and
       // `NotFoundError` (no mic hardware) surface here. Mark as
@@ -278,6 +282,10 @@ export function useVoiceCapture({ onTranscriptReady }: UseVoiceCaptureArgs = {})
 
   const stop = useCallback(async (): Promise<string | null> => {
     if (status !== 'recording') return null;
+    // BUG-15 — confirm mic-off with a matching light haptic. Fired
+    // immediately so the cue lands on the user's tap, not after the
+    // transcription roundtrip.
+    void lightImpact();
 
     return new Promise<string | null>((resolve) => {
       stopResolveRef.current = resolve;

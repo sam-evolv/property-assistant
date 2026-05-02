@@ -97,6 +97,7 @@ export interface AgentProfile {
   bio: string | null;
   location: string | null;
   specialisations: string[] | null;
+  demoMode: boolean;
 }
 
 export interface DevelopmentSummary {
@@ -179,6 +180,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
       bio: null,
       location: null,
       specialisations: null,
+      demoMode: false,
     };
   }
 
@@ -188,7 +190,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
     if (user) {
       const { data } = await supabase
         .from('agent_profiles')
-        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
+        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations, demo_mode')
         .eq('user_id', user.id)
         .order('created_at', { ascending: true })
         .limit(1)
@@ -206,6 +208,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
           bio: data.bio || null,
           location: data.location || null,
           specialisations: data.specialisations || null,
+          demoMode: Boolean(data.demo_mode),
         };
       }
     }
@@ -216,7 +219,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
   // Fallback: load first agent profile (Sam Donworth for demo/preview)
   const { data } = await supabase
     .from('agent_profiles')
-    .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
+    .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations, demo_mode')
     .order('created_at', { ascending: true })
     .limit(1)
     .single();
@@ -233,6 +236,7 @@ export async function getAgentProfile(preview?: string): Promise<AgentProfile | 
     bio: data.bio || null,
     location: data.location || null,
     specialisations: data.specialisations || null,
+    demoMode: Boolean(data.demo_mode),
   };
 }
 

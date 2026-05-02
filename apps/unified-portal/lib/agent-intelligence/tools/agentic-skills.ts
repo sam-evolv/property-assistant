@@ -121,6 +121,177 @@ function errorEnvelope(skill: string, query: string, err: unknown): AgenticSkill
 }
 
 // =====================================================================
+// BUG-14 — Per-recipient "Why drafted" reasoning.
+// =====================================================================
+//
+// The draft envelopes used to carry a static `Drafted per agent request
+// (warm tone)` string for every recipient in a batch. The drawer surfaces
+// the reasoning chip prominently, so identical text across 10 drafts read
+// as canned. This helper builds a one-line, data-driven reason per
+// recipient using inputs already in scope when the batch is built:
+//   - daysSinceContact: from communication_events
+//   - pipelineStage: derived from unit_status / pipeline dates
+//   - mortgageExpiryDays: from unit_sales_pipeline.mortgage_expiry_date
+//   - viewingCount: from agent_viewings
+//
+// Priority (highest first; we pick exactly one signal):
+//   1. expiring mortgage approval (≤ 30 days) — urgent action signal
+//   2. stale contact (≥ 14 days since last logged interaction)
+//   3. pipeline stage (signed > sale_agreed > contracts_issued)
+//   4. viewing count (strong vs lukewarm interest)
+// Falls back to a generic line only when no signal applies.
+
+export interface PerRecipientReasonInput {
+  daysSinceContact: number | null;
+  pipelineStage: string | null;
+  mortgageExpiryDays: number | null;
+  viewingCount: number;
+  emailMissing: boolean;
+}
+
+export function buildPerRecipientReason(input: PerRecipientReasonInput): string {
+  const {
+    daysSinceContact,
+    pipelineStage,
+    mortgageExpiryDays,
+    viewingCount,
+    emailMissing,
+  } = input;
+
+  // 1. Expiring mortgage approval
+  if (mortgageExpiryDays !== null && mortgageExpiryDays <= 30) {
+    if (mortgageExpiryDays <= 0) {
+      return 'Mortgage approval expired — chase before contracts move.';
+    }
+    return `Mortgage approval expires in ${mortgageExpiryDays} day${mortgageExpiryDays === 1 ? '' : 's'}.`;
+  }
+
+  // 2. Stale contact
+  if (daysSinceContact !== null && daysSinceContact >= 14) {
+    const viewingPart =
+      viewingCount === 0
+        ? 'no viewings logged'
+        : viewingCount === 1
+          ? 'one viewing on record'
+          : `${viewingCount} viewings on record`;
+    return `No contact for ${daysSinceContact} days, ${viewingPart}.`;
+  }
+
+  // 3. Pipeline stage
+  if (pipelineStage === 'signed' || pipelineStage === 'counter_signed') {
+    return emailMissing
+      ? 'At signed stage but missing recipient email on file.'
+      : 'At signed stage, awaiting next milestone.';
+  }
+  if (pipelineStage === 'contracts_issued') {
+    return 'Contracts issued, awaiting signed return.';
+  }
+  if (pipelineStage === 'sale_agreed' || pipelineStage === 'agreed') {
+    return 'Sale agreed, contracts not yet issued.';
+  }
+  if (pipelineStage === 'deposit_received') {
+    return 'Deposit received, contracts pending.';
+  }
+  if (pipelineStage === 'reserved') {
+    return 'Unit reserved, no deposit logged yet.';
+  }
+
+  // 4. Viewing count
+  if (viewingCount >= 2) {
+    return `Strong interest, ${viewingCount} viewings logged.`;
+  }
+  if (viewingCount === 1) {
+    return 'One viewing logged, no follow-up yet.';
+  }
+
+  // Fallback — only when no signal applies (genuinely cold lead).
+  return 'No prior contact or viewings logged.';
+}
+
+/**
+ * Bulk enrichment loader for draftBuyerFollowups + draftMessageSkill.
+ * Pulls communication_events, agent_viewings, and pipeline mortgage
+ * expiry rows for every unit_id in `unitIds` in three batched queries —
+ * far cheaper than per-draft round-trips.
+ */
+export async function loadPerRecipientEnrichment(
+  supabase: SupabaseClient,
+  unitIds: string[],
+): Promise<{
+  daysSinceContactByUnit: Map<string, number>;
+  viewingCountByUnit: Map<string, number>;
+  mortgageExpiryDaysByUnit: Map<string, number>;
+}> {
+  const daysSinceContactByUnit = new Map<string, number>();
+  const viewingCountByUnit = new Map<string, number>();
+  const mortgageExpiryDaysByUnit = new Map<string, number>();
+  if (!unitIds.length) {
+    return { daysSinceContactByUnit, viewingCountByUnit, mortgageExpiryDaysByUnit };
+  }
+
+  const now = Date.now();
+
+  const [{ data: comms }, { data: viewings }, { data: pipeRows }] = await Promise.all([
+    supabase
+      .from('communication_events')
+      .select('unit_id, created_at')
+      .in('unit_id', unitIds)
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('agent_viewings')
+      .select('unit_id')
+      .in('unit_id', unitIds),
+    supabase
+      .from('unit_sales_pipeline')
+      .select('unit_id, mortgage_expiry_date')
+      .in('unit_id', unitIds),
+  ]);
+
+  for (const c of (comms || []) as any[]) {
+    if (!c.unit_id || daysSinceContactByUnit.has(c.unit_id)) continue;
+    const ts = new Date(c.created_at).getTime();
+    if (Number.isNaN(ts)) continue;
+    daysSinceContactByUnit.set(c.unit_id, Math.max(0, Math.floor((now - ts) / 86_400_000)));
+  }
+
+  for (const v of (viewings || []) as any[]) {
+    if (!v.unit_id) continue;
+    viewingCountByUnit.set(v.unit_id, (viewingCountByUnit.get(v.unit_id) || 0) + 1);
+  }
+
+  for (const p of (pipeRows || []) as any[]) {
+    if (!p.unit_id || !p.mortgage_expiry_date) continue;
+    const ts = new Date(p.mortgage_expiry_date).getTime();
+    if (Number.isNaN(ts)) continue;
+    mortgageExpiryDaysByUnit.set(
+      p.unit_id,
+      Math.floor((ts - now) / 86_400_000),
+    );
+  }
+
+  return { daysSinceContactByUnit, viewingCountByUnit, mortgageExpiryDaysByUnit };
+}
+
+/**
+ * Map raw pipeline / unit-status signals onto the stage labels the reason
+ * helper switches on. Pipeline dates take priority — a unit may be
+ * `available` in `units.unit_status` while the pipeline row carries a
+ * deposit_date.
+ */
+export function classifyPipelineStage(unitStatus: string | null, pipe: any | null): string | null {
+  if (pipe?.handover_date) return 'handed_over';
+  if (pipe?.counter_signed_date) return 'counter_signed';
+  if (pipe?.signed_contracts_date) return 'signed';
+  if (pipe?.contracts_issued_date) return 'contracts_issued';
+  if (pipe?.deposit_date) return 'deposit_received';
+  if (pipe?.sale_agreed_date) return 'sale_agreed';
+  if (unitStatus === 'sale_agreed') return 'sale_agreed';
+  if (unitStatus === 'reserved') return 'reserved';
+  if (unitStatus === 'available') return null; // no signal yet
+  return unitStatus || null;
+}
+
+// =====================================================================
 // Skill 1 — chase_aged_contracts
 // =====================================================================
 export async function chaseAgedContracts(
@@ -1258,6 +1429,13 @@ async function draftTenantMessage(
       signature(agentContext),
     ].filter((line) => line !== undefined).join('\n');
 
+    // BUG-14 — per-recipient reason for tenant drafts. Lettings doesn't
+    // have the sales pipeline / mortgage signals; we surface lease-end
+    // proximity instead, which is the primary action signal in lettings.
+    const tenantReason = buildTenantRecipientReason({
+      tenancy,
+      tenantEmailOnFile: !!tenancy.tenant_email,
+    });
     return {
       skill,
       status: 'awaiting_approval',
@@ -1269,13 +1447,44 @@ async function draftTenantMessage(
         subject,
         body,
         affected_record: { kind: 'tenancy', id: tenancy.id, label: `${propertyAddress} — ${tenantFullName}` },
-        reasoning: `Drafted per agent request (${tone} tone). ${tenancy.tenant_email ? '' : 'Tenant email was not on file; placeholder used — please fill in before approving.'}`.trim(),
+        reasoning: tenantReason,
       }],
       meta: { record_count: 1, generated_at: new Date().toISOString(), query },
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);
   }
+}
+
+/**
+ * BUG-14 — lettings recipient reason. Lease-end proximity, RTB
+ * registration gap, and email-on-file are the actionable signals here;
+ * we lift them out of the active tenancy row rather than reaching into
+ * communication_events / agent_viewings (lettings doesn't log either).
+ */
+function buildTenantRecipientReason(opts: {
+  tenancy: any;
+  tenantEmailOnFile: boolean;
+}): string {
+  const t = opts.tenancy;
+  const leaseEndIso = t?.lease_end as string | null | undefined;
+  if (leaseEndIso) {
+    const ms = new Date(leaseEndIso).getTime();
+    if (!Number.isNaN(ms)) {
+      const days = Math.floor((ms - Date.now()) / 86_400_000);
+      if (days < 0) return `Lease ended ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago.`;
+      if (days === 0) return 'Lease ends today.';
+      if (days <= 30) return `Lease ends in ${days} day${days === 1 ? '' : 's'}.`;
+      if (days <= 90) return `Lease ends in ${days} days, inside the 90-day notice window.`;
+    }
+  }
+  if (t?.rtb_registered === false) {
+    return 'RTB registration not on file for this tenancy.';
+  }
+  if (!opts.tenantEmailOnFile) {
+    return 'Tenant email not on file; please fill in before approving.';
+  }
+  return 'Routine tenant follow-up.';
 }
 
 export async function draftMessageSkill(
@@ -1542,6 +1751,43 @@ export async function draftMessageSkill(
     // the placeholder path here.
     const placeholderEmail = 'buyer@tbc.invalid';
     const finalEmail = resolvedEmail || placeholderEmail;
+
+    // BUG-14 — per-recipient reason. For the single-recipient path we
+    // do one targeted enrichment query; for cold contact rows (no
+    // affectedUnitId) we skip the lookup entirely and fall back to a
+    // generic line.
+    let perRecipientReason = 'Drafted per agent request.';
+    if (affectedUnitId) {
+      const enrichment = await loadPerRecipientEnrichment(supabase, [affectedUnitId]);
+      let pipelineRow: any = null;
+      let unitStatusVal: string | null = null;
+      try {
+        const { data: pipe } = await supabase
+          .from('unit_sales_pipeline')
+          .select('handover_date, counter_signed_date, signed_contracts_date, contracts_issued_date, deposit_date, sale_agreed_date')
+          .eq('unit_id', affectedUnitId)
+          .maybeSingle();
+        pipelineRow = pipe;
+        const { data: u } = await supabase
+          .from('units')
+          .select('unit_status')
+          .eq('id', affectedUnitId)
+          .maybeSingle();
+        unitStatusVal = u?.unit_status ?? null;
+      } catch {
+        /* enrichment is additive — fall back to default reason on failure */
+      }
+      perRecipientReason = buildPerRecipientReason({
+        daysSinceContact: enrichment.daysSinceContactByUnit.get(affectedUnitId) ?? null,
+        pipelineStage: classifyPipelineStage(unitStatusVal, pipelineRow),
+        mortgageExpiryDays: enrichment.mortgageExpiryDaysByUnit.get(affectedUnitId) ?? null,
+        viewingCount: enrichment.viewingCountByUnit.get(affectedUnitId) || 0,
+        emailMissing: !resolvedEmail,
+      });
+    }
+    const placeholderNote = resolvedEmail
+      ? ''
+      : ' Recipient email was not on file; placeholder used — please fill in before approving.';
     const draft = {
       id: randomUUID(),
       type: 'email' as const,
@@ -1555,7 +1801,7 @@ export async function draftMessageSkill(
       affected_record: affectedUnitId
         ? { kind: 'sales_unit', id: affectedUnitId, label: unitLabel || recipientName }
         : { kind: 'contact', id: recipientName, label: recipientName },
-      reasoning: `Drafted per agent request (${tone} tone). ${resolvedEmail ? '' : 'Recipient email was not on file; placeholder used — please fill in before approving.'}`.trim(),
+      reasoning: `${perRecipientReason}${placeholderNote}`.trim(),
     };
 
     return {
@@ -1870,6 +2116,17 @@ export async function draftBuyerFollowups(
 
   try {
     const drafts: AgenticSkillEnvelope['drafts'] = [];
+    // BUG-14 — collect resolved targets, defer draft creation until the
+    // bulk enrichment query has run.
+    const pending: Array<{
+      unit: any;
+      pipeline: any | null;
+      unitLabel: string;
+      parsed: ReturnType<typeof parseJointPurchaserNames>;
+      resolvedEmail: string;
+      subject: string;
+      body: string;
+    }> = [];
     const skipped: Array<{ ref: string; reason: string }> = [];
     const seenUnitIds = new Set<string>();
     // Session 13 — track which developments actually resolved this
@@ -2004,16 +2261,48 @@ export async function draftBuyerFollowups(
         ctx: agentContext,
       });
 
+      // BUG-14 — defer draft assembly so we can attach a per-recipient
+      // reason after the bulk enrichment query below.
+      pending.push({
+        unit,
+        pipeline,
+        unitLabel,
+        parsed,
+        resolvedEmail,
+        subject,
+        body,
+      });
+      if (unit.development_id) resolvedDevIds.add(unit.development_id);
+    }
+
+    // BUG-14 — single bulk enrichment for the whole batch. Pulls
+    // communication recency, viewing count, and mortgage expiry days for
+    // every resolved unit in three parallel batched queries. Cheaper
+    // than per-target round-trips and keeps the per-draft loop pure.
+    const enrichmentUnitIds = pending.map((p) => p.unit.id);
+    const enrichment = await loadPerRecipientEnrichment(supabase, enrichmentUnitIds);
+
+    for (const p of pending) {
+      const reason = buildPerRecipientReason({
+        daysSinceContact: enrichment.daysSinceContactByUnit.get(p.unit.id) ?? null,
+        pipelineStage: classifyPipelineStage(p.unit.unit_status, p.pipeline),
+        mortgageExpiryDays: enrichment.mortgageExpiryDaysByUnit.get(p.unit.id) ?? null,
+        viewingCount: enrichment.viewingCountByUnit.get(p.unit.id) || 0,
+        emailMissing: p.resolvedEmail === 'buyer@tbc.invalid',
+      });
+      const placeholderNote =
+        p.resolvedEmail === 'buyer@tbc.invalid'
+          ? ' Recipient email missing — placeholder used, please fill in before approving.'
+          : '';
       drafts.push({
         id: randomUUID(),
         type: 'email' as const,
-        recipient: { name: parsed.fullName, email: resolvedEmail, role: 'buyer' },
-        subject,
-        body,
-        affected_record: { kind: 'sales_unit', id: unit.id, label: unitLabel },
-        reasoning: `${purpose} email to ${parsed.fullName} at ${unitLabel}. Tone: ${tone}.${resolvedEmail === 'buyer@tbc.invalid' ? ' Recipient email missing — placeholder used, please fill in before approving.' : ''}`,
+        recipient: { name: p.parsed.fullName, email: p.resolvedEmail, role: 'buyer' },
+        subject: p.subject,
+        body: p.body,
+        affected_record: { kind: 'sales_unit', id: p.unit.id, label: p.unitLabel },
+        reasoning: `${reason}${placeholderNote}`,
       });
-      if (unit.development_id) resolvedDevIds.add(unit.development_id);
     }
 
     const summaryParts: string[] = [];

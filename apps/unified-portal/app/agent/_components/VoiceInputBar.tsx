@@ -121,7 +121,24 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
         </button>
 
         {recording ? (
-          <WaveformDisplay samples={voice.waveform} />
+          <>
+            {/* BUG-15 — persistent live-recording dot. Pulses on its own
+                rhythm independent of the waveform so the recording state
+                is unambiguous even in a quiet environment. */}
+            <span
+              data-testid="voice-recording-dot"
+              aria-label="Recording"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: 999,
+                background: '#DC2626',
+                flexShrink: 0,
+                animation: 'oh-voice-rec-dot 1.1s ease-in-out infinite',
+              }}
+            />
+            <WaveformDisplay samples={voice.waveform} />
+          </>
         ) : (
           <input
             ref={inputRef}
@@ -282,6 +299,10 @@ const VoiceInputBar = forwardRef<HTMLInputElement, VoiceInputBarProps>(function 
         @keyframes oh-voice-pulse {
           0%, 100% { box-shadow: 0 0 0 3px rgba(196,155,42,0.10), 0 1px 2px rgba(0,0,0,0.04) inset; }
           50% { box-shadow: 0 0 0 5px rgba(196,155,42,0.18), 0 1px 2px rgba(0,0,0,0.04) inset; }
+        }
+        @keyframes oh-voice-rec-dot {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.45; transform: scale(0.8); }
         }
       `}</style>
     </div>

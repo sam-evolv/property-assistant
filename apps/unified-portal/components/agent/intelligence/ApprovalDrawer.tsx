@@ -16,6 +16,7 @@ import {
   Pencil,
   Send,
   Trash2,
+  Wand2,
   X,
   Loader2,
 } from 'lucide-react';
@@ -27,6 +28,9 @@ export default function ApprovalDrawer() {
   const [editing, setEditing] = useState(false);
   const [draftSubject, setDraftSubject] = useState('');
   const [draftBody, setDraftBody] = useState('');
+  // BUG-13 — inline tweak input.
+  const [tweakOpen, setTweakOpen] = useState(false);
+  const [tweakInstruction, setTweakInstruction] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -66,6 +70,8 @@ export default function ApprovalDrawer() {
     () => drawer.drafts.filter((d) => d.status === 'sent').length,
     [drawer.drafts],
   );
+  const selectedCount = drawer.selectedIds.length;
+  const isMultiDraft = drawer.drafts.length > 1;
 
   if (!drawer.envelope || !drawer.drafts.length) return null;
 
@@ -183,6 +189,172 @@ export default function ApprovalDrawer() {
               );
             })}
           </div>
+
+          {/* BUG-13 — batch operations row. Tweak all is always visible
+              when there are multiple drafts; the selection action bar
+              appears only when at least one draft is ticked. */}
+          {isMultiDraft && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setTweakOpen((v) => !v)}
+                  data-testid="drawer-tweak-all-toggle"
+                  disabled={drawer.tweaking}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 12px',
+                    background: tweakOpen ? '#FFF6D9' : '#FFFFFF',
+                    border: '0.5px solid rgba(196,155,42,0.35)',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#8A6E1F',
+                    cursor: drawer.tweaking ? 'wait' : 'pointer',
+                    fontFamily: 'inherit',
+                    opacity: drawer.tweaking ? 0.6 : 1,
+                  }}
+                >
+                  {drawer.tweaking ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                  <span>Tweak all</span>
+                </button>
+                {selectedCount > 0 && (
+                  <span style={{ fontSize: 11.5, color: '#6B7280' }}>
+                    {selectedCount} selected
+                  </span>
+                )}
+              </div>
+
+              {tweakOpen && (
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input
+                    value={tweakInstruction}
+                    onChange={(e) => setTweakInstruction(e.target.value)}
+                    placeholder='e.g. "make these warmer", "add a viewing offer"'
+                    data-testid="drawer-tweak-input"
+                    disabled={drawer.tweaking}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && tweakInstruction.trim().length >= 2 && !drawer.tweaking) {
+                        drawer.tweakAll(tweakInstruction);
+                        setTweakOpen(false);
+                        setTweakInstruction('');
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      border: '1px solid rgba(196,155,42,0.35)',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      fontSize: 13,
+                      fontFamily: 'inherit',
+                      background: '#FFFFFF',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      drawer.tweakAll(tweakInstruction);
+                      setTweakOpen(false);
+                      setTweakInstruction('');
+                    }}
+                    data-testid="drawer-tweak-submit"
+                    disabled={drawer.tweaking || tweakInstruction.trim().length < 2}
+                    style={{
+                      padding: '8px 12px',
+                      background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                      border: 'none',
+                      borderRadius: 10,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#FFFFFF',
+                      cursor: drawer.tweaking ? 'wait' : 'pointer',
+                      fontFamily: 'inherit',
+                      opacity: drawer.tweaking || tweakInstruction.trim().length < 2 ? 0.6 : 1,
+                    }}
+                  >
+                    Apply
+                  </button>
+                </div>
+              )}
+
+              {selectedCount > 0 && (
+                <div
+                  data-testid="drawer-selection-bar"
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    padding: '8px 10px',
+                    background: 'rgba(15,17,24,0.04)',
+                    borderRadius: 10,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => drawer.discardSelected()}
+                    data-testid="drawer-discard-selected"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '7px 12px',
+                      background: '#FFFFFF',
+                      border: '0.5px solid rgba(220,38,38,0.35)',
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#991B1B',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <Trash2 size={12} />
+                    <span>Discard selected</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => drawer.approveSelected()}
+                    data-testid="drawer-approve-selected"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      padding: '7px 12px',
+                      background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+                      border: 'none',
+                      borderRadius: 999,
+                      fontSize: 12,
+                      fontWeight: 600,
+                      color: '#FFFFFF',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    <Check size={12} />
+                    <span>Approve selected</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => drawer.clearSelected()}
+                    data-testid="drawer-selection-clear"
+                    style={{
+                      marginLeft: 'auto',
+                      padding: '7px 8px',
+                      background: 'transparent',
+                      border: 'none',
+                      fontSize: 11.5,
+                      color: '#6B7280',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Body */}
@@ -194,6 +366,9 @@ export default function ApprovalDrawer() {
             body={draftBody}
             onSubjectChange={setDraftSubject}
             onBodyChange={setDraftBody}
+            selectable={isMultiDraft}
+            selected={drawer.selectedIds.includes(current.id)}
+            onToggleSelected={() => drawer.toggleSelected(current.id)}
           />}
         </div>
 
@@ -312,6 +487,9 @@ function DraftCard({
   body,
   onSubjectChange,
   onBodyChange,
+  selectable,
+  selected,
+  onToggleSelected,
 }: {
   draft: ReturnType<typeof useApprovalDrawer>['drafts'][number];
   editing: boolean;
@@ -319,6 +497,9 @@ function DraftCard({
   body: string;
   onSubjectChange: (v: string) => void;
   onBodyChange: (v: string) => void;
+  selectable: boolean;
+  selected: boolean;
+  onToggleSelected: () => void;
 }) {
   const statusChip =
     draft.status === 'sent'
@@ -334,6 +515,33 @@ function DraftCard({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+        {selectable && (
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              cursor: 'pointer',
+              userSelect: 'none',
+              padding: '3px 8px',
+              borderRadius: 999,
+              background: selected ? 'rgba(196,155,42,0.12)' : 'transparent',
+              border: '0.5px solid rgba(15,17,24,0.12)',
+              fontSize: 11,
+              fontWeight: 600,
+              color: selected ? '#8A6E1F' : '#6B7280',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelected}
+              data-testid={`drawer-select-${draft.id}`}
+              style={{ margin: 0, accentColor: '#C49B2A' }}
+            />
+            <span>{selected ? 'Selected' : 'Select'}</span>
+          </label>
+        )}
         <span
           style={{
             fontSize: 10.5,
