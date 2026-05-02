@@ -98,54 +98,48 @@ export async function POST(
     }
 
     const uploadToUnit = async (targetUnitId: string) => {
-      const { data: existing } = await supabaseAdmin
+      // Read the prior row (if any) to bump the version counter.
+      // .maybeSingle() returns data:null on no rows rather than emitting
+      // a PostgREST PGRST116 error the way .single() does.
+      const { data: priorRow, error: priorErr } = await supabaseAdmin
         .from('compliance_documents')
         .select('id, version')
         .eq('unit_id', targetUnitId)
         .eq('document_type_id', documentTypeId)
-        .single();
+        .maybeSingle();
 
-      let documentId: string;
-      let version = 1;
+      if (priorErr) throw priorErr;
 
-      if (existing) {
-        version = (existing.version || 0) + 1;
-        const { data: updatedDoc, error: updateError } = await supabaseAdmin
-          .from('compliance_documents')
-          .update({
-            status: 'uploaded',
-            uploaded_by: session.email,
-            version,
-            expiry_date: expiryDate || null,
-            notes: notes || null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', existing.id)
-          .select()
-          .single();
+      const nextVersion = (priorRow?.version ?? 0) + 1;
 
-        if (updateError) throw updateError;
-        documentId = existing.id;
-      } else {
-        const { data: newDoc, error: insertError } = await supabaseAdmin
-          .from('compliance_documents')
-          .insert({
+      // Atomic upsert keyed on the (unit_id, document_type_id) unique
+      // constraint. Replaces in place when a row exists, inserts
+      // otherwise. Closes the race window the previous two-step
+      // select-then-insert pattern carried (two concurrent uploads
+      // could both see "no row" and both INSERT, hitting the constraint).
+      const { data: upsertedDoc, error: upsertError } = await supabaseAdmin
+        .from('compliance_documents')
+        .upsert(
+          {
             tenant_id: tenantId,
             development_id: actualDevelopmentId,
             unit_id: targetUnitId,
             document_type_id: documentTypeId,
             status: 'uploaded',
             uploaded_by: session.email,
-            version: 1,
+            version: nextVersion,
             expiry_date: expiryDate || null,
             notes: notes || null,
-          })
-          .select()
-          .single();
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'unit_id,document_type_id' },
+        )
+        .select('id')
+        .single();
 
-        if (insertError) throw insertError;
-        documentId = newDoc.id;
-      }
+      if (upsertError) throw upsertError;
+      const documentId = upsertedDoc.id;
+      const version = nextVersion;
 
       const { error: fileError } = await supabaseAdmin
         .from('compliance_files')
@@ -161,6 +155,12 @@ export async function POST(
         });
 
       if (fileError) {
+        console.error('[compliance_upload] failed to insert compliance_files row', {
+          documentId,
+          targetUnitId,
+          version,
+          message: fileError.message,
+        });
       }
 
       return documentId;
