@@ -11,20 +11,51 @@ import {
 } from 'lucide-react';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
-/* ── SE Systems Logo ── */
-function SESystemsLogo({ dark = true }: { dark?: boolean }) {
+/* ── Installer brand (logo + name) — resolved per logged-in tenant ──
+   Falls back to the SE Systems wordmark / "SE Systems Cork" badge when
+   the tenant has no logo or name configured, so the SE Systems demo is
+   unchanged while other installers (e.g. Solas Renewables) show their
+   own branding. Mirrors the fallback pattern used at
+   apps/unified-portal/app/care/[installationId]/page.tsx:71.
+*/
+function InstallerBrand({
+  dark = true,
+  logoUrl,
+  name,
+}: {
+  dark?: boolean;
+  logoUrl: string | null;
+  name: string | null;
+}) {
+  const displayName = name ?? 'SE Systems';
+  const subtitle = name ? '' : 'Cork';
+
   if (dark) {
     return (
       <Image
-        src="/branding/se-systems-logo.png"
-        alt="SE Systems"
+        src={logoUrl ?? '/branding/se-systems-logo.png'}
+        alt={displayName}
         width={160}
         height={42}
         className="h-[38px] w-auto object-contain"
       />
     );
   }
-  // Light background: amber badge + text
+  // Light background: tenant logo if available, otherwise SE Systems amber badge.
+  if (logoUrl) {
+    return (
+      <div className="flex items-center gap-2.5">
+        <Image
+          src={logoUrl}
+          alt={displayName}
+          width={32}
+          height={32}
+          className="w-8 h-8 rounded-lg object-contain flex-shrink-0"
+        />
+        <p className="font-bold text-sm leading-tight text-gray-900 truncate">{displayName}</p>
+      </div>
+    );
+  }
   return (
     <div className="flex items-center gap-2.5">
       <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-amber-600 flex items-center justify-center flex-shrink-0 shadow-md">
@@ -32,7 +63,7 @@ function SESystemsLogo({ dark = true }: { dark?: boolean }) {
       </div>
       <div>
         <p className="font-bold text-sm leading-tight text-gray-900">SE Systems</p>
-        <p className="text-xs leading-tight text-gray-500">Cork</p>
+        {subtitle && <p className="text-xs leading-tight text-gray-500">{subtitle}</p>}
       </div>
     </div>
   );
@@ -72,10 +103,33 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [pendingUploads, setPendingUploads] = useState(0);
+  const [brand, setBrand] = useState<{ name: string | null; logoUrl: string | null }>({
+    name: null,
+    logoUrl: null,
+  });
+
+  // Resolve installer branding from the logged-in user's tenant. Until this
+  // returns we fall back to the SE Systems wordmark in InstallerBrand, so the
+  // dashboard chrome looks unchanged for SE Systems and pre-fetch state.
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/care-dashboard/brand')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { name?: string | null; logoUrl?: string | null } | null) => {
+        if (cancelled || !d) return;
+        setBrand({ name: d.name ?? null, logoUrl: d.logoUrl ?? null });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
-    document.title = 'SE Systems Cork - OpenHouse Care';
-  }, []);
+    document.title = brand.name
+      ? `${brand.name} - OpenHouse Care`
+      : 'SE Systems Cork - OpenHouse Care';
+  }, [brand.name]);
 
   useEffect(() => {
     let cancelled = false;
@@ -108,9 +162,9 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
     <div className="flex h-screen bg-white">
       {/* Desktop Sidebar */}
       <div className="hidden md:flex flex-col w-64 bg-black border-r border-gold-900/20">
-        {/* SE Systems Logo — white label */}
+        {/* Installer logo — white label */}
         <div style={{ padding: '24px 20px 20px' }} className="border-b border-gold-900/20 flex items-center justify-center">
-          <SESystemsLogo />
+          <InstallerBrand logoUrl={brand.logoUrl} name={brand.name} />
         </div>
 
         {/* Installer Context Switcher */}
@@ -119,7 +173,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
             Current Installer
           </p>
           <button className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10 transition-colors">
-            <span className="text-sm font-medium text-white truncate">SE Systems Cork</span>
+            <span className="text-sm font-medium text-white truncate">{brand.name ?? 'SE Systems Cork'}</span>
             <ChevronDown className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
           </button>
         </div>
@@ -175,7 +229,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
               disabled:opacity-50 disabled:pointer-events-none"
           >
             <div className="flex-1 min-w-0 text-left">
-              <p className="text-sm font-medium text-white truncate">SE Systems Cork</p>
+              <p className="text-sm font-medium text-white truncate">{brand.name ?? 'SE Systems Cork'}</p>
               <p className="text-xs truncate" style={{ color: '#9CA3AF' }}>Installer account</p>
             </div>
             <LogOut className="w-4 h-4 flex-shrink-0 text-gray-500 group-hover:text-white transition-colors" />
@@ -194,7 +248,7 @@ export default function CareDashboardLayout({ children }: { children: React.Reac
         {/* Mobile Header */}
         <div className="md:hidden border-b border-gold-200/30 px-4 py-4 flex items-center justify-between bg-white/50 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <SESystemsLogo dark={false} />
+            <InstallerBrand dark={false} logoUrl={brand.logoUrl} name={brand.name} />
           </div>
           <button
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}

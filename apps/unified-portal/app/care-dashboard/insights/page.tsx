@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   MessageSquare, Sparkles, AlertTriangle, Clock, Smile,
   Thermometer, Sun, FileText, Battery, HelpCircle, ChevronRight,
@@ -90,10 +91,27 @@ const KNOWLEDGE_GAPS: KnowledgeGap[] = [
   },
 ];
 
-const WEEKLY_BRIEFING =
-  'This week, SE Systems handled 42 customer queries across 12 active installations. The assistant resolved 32 of these without human involvement, estimated saving 6 technician callouts. Three customers flagged satisfaction concerns — all three were followed up by your team and resolved. Pattern detection surfaced one new trend worth reviewing: defrost cycle queries are rising on Mitsubishi Ecodan systems, suggesting a possible commissioning checklist gap.';
+function buildWeeklyBriefing(installerName: string): string {
+  return `This week, ${installerName} handled 42 customer queries across 12 active installations. The assistant resolved 32 of these without human involvement, estimated saving 6 technician callouts. Three customers flagged satisfaction concerns — all three were followed up by your team and resolved. Pattern detection surfaced one new trend worth reviewing: defrost cycle queries are rising on Mitsubishi Ecodan systems, suggesting a possible commissioning checklist gap.`;
+}
 
 export default function CareInsightsPage() {
+  const [installerName, setInstallerName] = useState<string>('SE Systems');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/care-dashboard/brand')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { name?: string | null } | null) => {
+        if (cancelled || !d?.name) return;
+        setInstallerName(d.name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const weeklyBriefing = buildWeeklyBriefing(installerName);
   return (
     <div className="min-h-full bg-gray-50">
       <div className="p-6 lg:p-8">
@@ -294,7 +312,7 @@ export default function CareInsightsPage() {
                   </h3>
                 </div>
               </div>
-              <p className="text-sm text-gray-700 leading-relaxed">{WEEKLY_BRIEFING}</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{weeklyBriefing}</p>
             </div>
           </div>
         </div>
