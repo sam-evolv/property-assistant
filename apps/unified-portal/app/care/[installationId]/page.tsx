@@ -123,6 +123,9 @@ export default function CareInstallationPage() {
             height={36}
             priority
             style={{
+              height: 36,
+              width: 'auto',
+              maxWidth: 120,
               objectFit: 'contain',
               // Only blacken the SE Systems wordmark fallback; render tenant logos in their natural colours.
               filter: tenantLogoUrl ? undefined : 'brightness(0)',
