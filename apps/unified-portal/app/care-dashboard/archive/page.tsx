@@ -28,6 +28,20 @@ export default function CareArchivePage() {
   const [systemFilter, setSystemFilter] = useState<SystemFilterValue>('all');
   const [uploadOpen, setUploadOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [tenantSlug, setTenantSlug] = useState<string>('se-systems-cork');
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/care-dashboard/brand')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { slug?: string | null } | null) => {
+        if (cancelled || !d?.slug) return;
+        setTenantSlug(d.slug);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -53,7 +67,7 @@ export default function CareArchivePage() {
   const handleShare = async () => {
     try {
       await navigator.clipboard.writeText(
-        'portal.openhouseai.ie/upload/se-systems-cork'
+        `portal.openhouseai.ie/upload/${tenantSlug}`
       );
       setToast('Share link copied');
     } catch {
