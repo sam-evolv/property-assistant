@@ -63,22 +63,24 @@ export interface SkillPersistContext {
 }
 
 /**
- * Session 13.2 — defence-in-depth guard.
+ * Defence-in-depth guard.
  *
- * Refuse to insert a draft whose recipient is the specific placeholder
- * `recipient@tbc.invalid`. That placeholder only appears on the
- * `draftMessageSkill` unresolved-scheme fall-through path — a pattern
- * that Session 13.2 also fixes at the skill level. If a future skill
- * regresses and produces a placeholder draft, this guard catches it
- * before it lands in `pending_drafts`.
+ * The catch-all "recipient" sentinel previously used by draftMessageSkill
+ * has been removed; the skill now returns a structured `needs_recipient`
+ * envelope instead of a placeholder draft, and the contact resolver fills
+ * in the email when it's on file. This set stays in place as a defensive
+ * net so any future regression that re-introduces the sentinel cannot
+ * land in `pending_drafts`.
  *
- * NOTE: `buyer@tbc.invalid` and `solicitor@tbc.invalid` are NOT blocked.
- * Those come from flows where the unit / solicitor is resolved but the
- * email isn't on file yet — legitimate "fill in before approving"
- * drafts. Only the catch-all `recipient@tbc.invalid` is the signal
- * that the whole target is a hallucination.
+ * NOTE: `buyer@tbc.invalid`, `tenant@tbc.invalid`, and
+ * `solicitor@tbc.invalid` are NOT blocked. Those come from flows where
+ * the unit / tenancy / solicitor is resolved but the email isn't on
+ * file yet — legitimate "fill in before approving" drafts.
  */
-const BLOCKED_PLACEHOLDER_EMAILS = new Set(['recipient@tbc.invalid']);
+const BLOCKED_PLACEHOLDER_EMAILS = new Set([
+  'recipient@tbc.invalid',
+  'placeholder@tbc.invalid',
+]);
 
 function shouldBlockDraft(draft: AgenticSkillDraft): { block: boolean; reason: string } {
   const email = draft.recipient?.email ?? '';

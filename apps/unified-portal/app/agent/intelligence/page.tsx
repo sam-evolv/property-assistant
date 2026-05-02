@@ -12,7 +12,7 @@ import CapabilityChipsCarousel from '../_components/CapabilityChipsCarousel';
 import { useVoiceCapture } from '../_hooks/useVoiceCapture';
 import { fetchCapabilityChips } from '@/lib/agent-intelligence/capability-chips';
 import { useAgent } from '@/lib/agent/AgentContext';
-import { Mail, Copy, Check, ExternalLink, Pencil, Wrench, Bell, RotateCcw, ArrowRight, FileText, Calendar } from 'lucide-react';
+import { Mail, Copy, Check, ExternalLink, Pencil, Wrench, Bell, RotateCcw, ArrowRight, FileText, Calendar, AlertCircle, RefreshCw } from 'lucide-react';
 import type { ExecutedAction, ExtractedAction } from '@/lib/agent-intelligence/voice-actions';
 import type { AutoSendUiState } from '../_components/VoiceConfirmationCard';
 import { notifyDraftsChanged, useDraftsCount } from '../_hooks/useDraftsCount';
@@ -48,6 +48,13 @@ interface VoiceActionsPayload {
   retryingActionIds?: string[];
 }
 
+interface FailurePayload {
+  kind: 'hallucinated_drafts' | 'needs_recipient' | 'draft_blocked' | 'stream_failed';
+  correlationId: string | null;
+  retryable: boolean;
+  retryMessage: string | null;
+}
+
 interface Message {
   id: string;
   role: 'user' | 'assistant';
@@ -66,6 +73,10 @@ interface Message {
   // Session 14b — sent confirmation. Set on a fresh synthetic message
   // appended in response to the 'oh-draft-sent' window event.
   sent?: { recipientName: string; time: string };
+  // Tool-failure card. Set when the chat route emits an `error` SSE
+  // frame; renders as a red-bordered card with AlertCircle, the failure
+  // copy, an "error ref: <id>" footer, and a Retry button.
+  failure?: FailurePayload;
 }
 
 interface UndoBatch {
@@ -365,6 +376,36 @@ function IntelligencePageInner() {
                   }];
                 });
               }
+            } else if (data.type === 'error') {
+              // Structured tool-failure frame. Carries the failure kind,
+              // a correlation id surfaced to the user, the original
+              // user message for retry, and the user-visible content.
+              const failure: FailurePayload = {
+                kind: typeof data.kind === 'string' ? data.kind : 'stream_failed',
+                correlationId: typeof data.correlationId === 'string' ? data.correlationId : null,
+                retryable: data.retryable !== false,
+                retryMessage: typeof data.retryMessage === 'string' ? data.retryMessage : text.trim(),
+              };
+              if (typeof data.content === 'string' && data.content.length > 0) {
+                fullContent = data.content;
+              }
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, content: fullContent, progress: undefined, failure }
+                      : m,
+                  );
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: fullContent,
+                  failure,
+                }];
+              });
+              streamingStarted = true;
             } else if (data.type === 'done') {
               newSessionId = data.sessionId || sessionId;
             }
@@ -389,10 +430,20 @@ function IntelligencePageInner() {
         } : m
       ));
     } catch {
+      // Network or parser failure — render a Retry card so the agent can
+      // re-fire the same message with one tap rather than retyping it.
+      const correlationId = Math.random().toString(16).slice(2, 10);
       const errorMsg: Message = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: 'Something went wrong connecting to Intelligence. Check your connection and try again.',
+        content:
+          "We couldn't complete this — the connection to Intelligence dropped before we got an answer. Tap Retry to try again.",
+        failure: {
+          kind: 'stream_failed',
+          correlationId,
+          retryable: true,
+          retryMessage: text.trim(),
+        },
       };
       setMessages(prev => [...prev, errorMsg]);
     } finally {
@@ -986,6 +1037,22 @@ function IntelligencePageInner() {
               if (msg.progress && !msg.content) {
                 return <ProgressCard key={msg.id} progress={msg.progress} />;
               }
+              // Tool-failure card (BUG-08). Distinct red-bordered styling,
+              // alert icon, optional Retry button. Surfaces the
+              // correlation id so support can trace the original error
+              // log line.
+              if (msg.failure) {
+                return (
+                  <FailureCard
+                    key={msg.id}
+                    text={msg.content}
+                    failure={msg.failure}
+                    onRetry={msg.failure.retryMessage
+                      ? () => handleSend(msg.failure!.retryMessage!)
+                      : undefined}
+                  />
+                );
+              }
               return (
                 <AIResponseCard
                   key={msg.id}
@@ -1249,6 +1316,127 @@ function MarkdownText({ source }: { source: string }) {
   flushNumbered('end');
 
   return <>{blocks}</>;
+}
+
+// Tool-failure card. Renders when the server emitted a structured
+// `error` SSE frame — distinct visual treatment so the agent can tell at
+// a glance that something didn't complete, plus a Retry button that
+// re-fires the original user message verbatim. The correlation id is
+// surfaced so support can trace it back to the server-side error log.
+function FailureCard({
+  text,
+  failure,
+  onRetry,
+}: {
+  text: string;
+  failure: FailurePayload;
+  onRetry?: () => void;
+}) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
+      <div
+        style={{
+          background: '#FFFFFF',
+          borderRadius: 14,
+          padding: '12px 14px 12px 16px',
+          maxWidth: '92%',
+          width: '100%',
+          borderLeft: '3px solid #DC2626',
+          boxShadow:
+            '0 1px 2px rgba(220,38,38,0.08), 0 4px 12px rgba(220,38,38,0.05), 0 0 0 0.5px rgba(220,38,38,0.18)',
+        }}
+      >
+        <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+          <div
+            style={{
+              width: 22,
+              height: 22,
+              borderRadius: '50%',
+              background: 'rgba(220,38,38,0.10)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              marginTop: 1,
+            }}
+          >
+            <AlertCircle size={14} color="#DC2626" strokeWidth={2.25} />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                color: '#991B1B',
+                letterSpacing: '0.02em',
+                marginBottom: 4,
+                textTransform: 'uppercase',
+              }}
+            >
+              We couldn&rsquo;t complete this
+            </div>
+            <div
+              style={{
+                fontSize: 13.5,
+                lineHeight: 1.55,
+                color: '#374151',
+                letterSpacing: '-0.005em',
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {text || 'The action didn’t go through.'}
+            </div>
+            <div
+              style={{
+                marginTop: 12,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                flexWrap: 'wrap',
+              }}
+            >
+              {onRetry && failure.retryable && (
+                <button
+                  type="button"
+                  onClick={onRetry}
+                  className="agent-tappable"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '7px 12px',
+                    background: '#FFFFFF',
+                    border: '0.5px solid rgba(220,38,38,0.35)',
+                    borderRadius: 999,
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#991B1B',
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                  }}
+                >
+                  <RefreshCw size={12} strokeWidth={2.25} />
+                  <span>Retry</span>
+                </button>
+              )}
+              {failure.correlationId && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: '#9CA3AF',
+                    fontVariantNumeric: 'tabular-nums',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  Error ref: {failure.correlationId}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function UserBubble({ text }: { text: string }) {

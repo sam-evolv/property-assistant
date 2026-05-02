@@ -9,6 +9,12 @@ import {
   type CandidateIntent,
 } from '../unit-resolver';
 import { resolveSchemeName } from '../scheme-resolver';
+import {
+  resolveAgentContact,
+  detectRoleKeyword,
+  type ContactResolution,
+  type ResolvedContact,
+} from '../contact-resolver';
 
 // Envelope returned by every agentic skill. Draft ids generated here are
 // temporary — the registry adapter funnels the envelope through
@@ -1309,13 +1315,9 @@ export async function draftMessageSkill(
   }
 
   try {
-    // Session 13.2 — strict scheme/unit resolution when the caller
-    // specified a unit context. Pre-13.2 the skill ran a naive ilike
-    // against developments.name; if the scheme didn't match it fell
-    // through to a placeholder-everything draft that got persisted
-    // into pending_drafts with recipient@tbc.invalid. Now: if
-    // related_scheme or related_unit is provided and either fails to
-    // resolve, return an envelope with zero drafts + a skipped reason,
+    // Strict scheme/unit resolution when the caller specified a unit
+    // context. If related_scheme or related_unit fails to resolve, we
+    // return an envelope with zero drafts plus a skipped reason —
     // matching the draftBuyerFollowups contract.
     let resolvedEmail: string | null = inputs.recipient_email || null;
     let resolvedUnitNumber: string | null = null;
@@ -1486,6 +1488,39 @@ export async function draftMessageSkill(
         ? `Unit ${resolvedUnitNumber}`
         : resolvedSchemeName || '';
 
+    // Contact resolution. If the model didn't pass recipient_email and the
+    // unit-resolution stage didn't pull one off the purchaser record, run
+    // the contact resolver against the recipient_name (or the role keyword
+    // it implies). Falls into one of three branches:
+    //   - one match: use that email
+    //   - multiple: return a structured needs_recipient envelope so the
+    //     chat route can surface an inline "which one?" prompt
+    //   - none: return needs_recipient with no candidates so the chat
+    //     route can ask the user to paste an address
+    if (!resolvedEmail && !affectedUnitId) {
+      const role = detectRoleKeyword(recipientName);
+      const resolution = await resolveAgentContact(
+        supabase,
+        { agentProfileId: agentContext.agentProfileId },
+        {
+          name: recipientName,
+          role: role,
+          schemeHint: inputs.related_scheme || resolvedSchemeName,
+        },
+      );
+      const ndsEnvelope = needsRecipientEnvelope(skill, query, recipientName, resolution);
+      if (ndsEnvelope) return ndsEnvelope;
+      if (resolution.status === 'one') {
+        resolvedEmail = resolution.contact.email;
+        // If the resolver disambiguated from a role keyword, use the
+        // resolved name as the recipient label too — "Developer (Lakeside
+        // Manor)" reads better than "the developer" on a draft card.
+        if (!recipientName || detectRoleKeyword(recipientName)) {
+          recipientName = resolution.contact.name;
+        }
+      }
+    }
+
     const subject = unitLabel
       ? `Following up — ${unitLabel}`
       : `Following up — ${context.slice(0, 60)}`;
@@ -1499,22 +1534,20 @@ export async function draftMessageSkill(
       signature(agentContext),
     ].filter((line) => line !== undefined).join('\n');
 
-    // Session 14.10 — placeholder semantics. The persistence-layer guard
-    // (draft-store.ts) refuses recipient@tbc.invalid because that
-    // placeholder originally signaled "the WHOLE target is a hallucination —
-    // we never resolved a unit, scheme, or buyer." But on this code path
-    // we DID resolve a real unit (affectedUnitId is set), we just don't
-    // have an email on file. That's the legitimate "fill-in-before-send"
-    // case — use buyer@tbc.invalid (which the guard explicitly allows)
-    // when we have an affected unit, falling back to the catch-all only
-    // when no unit was resolved.
-    const placeholderEmail = affectedUnitId ? 'buyer@tbc.invalid' : 'recipient@tbc.invalid';
+    // After resolver: when a unit is resolved but no email is on file we
+    // still produce a draft using the buyer@tbc.invalid sentinel (the
+    // persistence guard explicitly allows this — agent fills it in before
+    // approving). When no unit AND no resolved email, the resolver
+    // already returned a needs_recipient envelope above; we never reach
+    // the placeholder path here.
+    const placeholderEmail = 'buyer@tbc.invalid';
+    const finalEmail = resolvedEmail || placeholderEmail;
     const draft = {
       id: randomUUID(),
       type: 'email' as const,
       recipient: {
         name: recipientName,
-        email: resolvedEmail || placeholderEmail,
+        email: finalEmail,
         role: inputs.recipient_type || 'recipient',
       },
       subject,
@@ -1541,6 +1574,86 @@ export async function draftMessageSkill(
   } catch (err) {
     return errorEnvelope(skill, query, err);
   }
+}
+
+/**
+ * Build a structured "needs recipient" envelope when contact resolution
+ * comes back empty or ambiguous. Carries the candidate list (if any) on
+ * meta.needs_recipient so the chat route can render a disambiguation
+ * prompt that names each candidate plus the option to paste an address.
+ *
+ * Returns null when the resolution succeeded with exactly one match —
+ * the caller proceeds with the resolved email.
+ */
+function needsRecipientEnvelope(
+  skill: string,
+  query: string,
+  recipientQuery: string,
+  resolution: ContactResolution,
+): AgenticSkillEnvelope | null {
+  if (resolution.status === 'one') return null;
+  const correlationId = randomUUID().slice(0, 8);
+  const niceQuery = recipientQuery?.trim() || 'that recipient';
+  if (resolution.status === 'multiple') {
+    const lines = resolution.candidates.slice(0, 6).map((c, i) => {
+      const where = c.schemeName
+        ? c.unitLabel
+          ? ` — ${c.unitLabel}, ${c.schemeName}`
+          : ` — ${c.schemeName}`
+        : c.unitLabel
+          ? ` — ${c.unitLabel}`
+          : '';
+      return `${i + 1}. ${c.name}${where} (${c.email})`;
+    });
+    const summary = [
+      `I found ${resolution.candidates.length} contacts that match "${niceQuery}". Which one did you mean?`,
+      ...lines,
+      'Or paste an email address.',
+    ].join('\n');
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary,
+      drafts: [],
+      meta: {
+        record_count: 0,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — chat route surfaces this
+        needs_recipient: {
+          correlationId,
+          recipient_query: niceQuery,
+          candidates: resolution.candidates.map((c) => ({
+            name: c.name,
+            email: c.email,
+            role: c.role,
+            scheme_name: c.schemeName ?? null,
+            unit_label: c.unitLabel ?? null,
+          })),
+        },
+      } as any,
+    };
+  }
+  // status === 'none'
+  const summary = `I couldn't find an email on file for "${niceQuery}". Reply with the address and I'll draft the email.`;
+  return {
+    skill,
+    status: 'awaiting_approval',
+    summary,
+    drafts: [],
+    meta: {
+      record_count: 0,
+      generated_at: new Date().toISOString(),
+      query,
+      // @ts-ignore
+      needs_recipient: {
+        correlationId,
+        recipient_query: niceQuery,
+        candidates: [],
+        searched: resolution.searched,
+      },
+    } as any,
+  };
 }
 
 // =====================================================================
