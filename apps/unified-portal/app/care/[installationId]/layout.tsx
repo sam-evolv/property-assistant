@@ -21,41 +21,32 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { installationId } = await params;
 
-  // Pull installer branding so the PWA install (manifest icon, iOS apple-touch-icon,
-  // home-screen title) matches the tenant whose installation the homeowner is on.
-  let tenantName: string | null = null;
+  // Resolve the tenant logo so iOS "Add to Home Screen" picks it up via the
+  // apple-touch-icon link (Android Chrome uses the manifest icons separately).
   let tenantLogo: string | null = null;
   try {
     const supabase = getSupabaseAdmin();
     const { data } = await supabase
       .from('installations')
-      .select('tenants(name, logo_url)')
+      .select('tenants(logo_url)')
       .eq('id', installationId)
       .single();
-    const tenant = (data as any)?.tenants ?? null;
-    tenantName = tenant?.name ?? null;
-    tenantLogo = tenant?.logo_url ?? null;
+    tenantLogo = (data as any)?.tenants?.logo_url ?? null;
   } catch {
-    // Fall through to defaults.
+    // Fall through to default icon.
   }
 
-  const title = tenantName ? `${tenantName} Care` : 'OpenHouse Care';
-  // iOS uses the apple-touch-icon link for "Add to Home Screen". Point it at
-  // the tenant logo when set so the recorded PWA install shows tenant branding.
-  const appleIconUrl = tenantLogo ?? '/icon-512.png';
-
   return {
-    title,
+    title: 'OpenHouse Care',
     description: 'Your home system care portal',
     manifest: `/api/care/manifest/${installationId}`,
-    icons: {
-      icon: tenantLogo ? [{ url: tenantLogo }] : undefined,
-      apple: [{ url: appleIconUrl }],
-    },
+    icons: tenantLogo
+      ? { icon: [{ url: tenantLogo }], apple: [{ url: tenantLogo }] }
+      : undefined,
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
-      title,
+      title: 'OpenHouse Care',
     },
   };
 }
