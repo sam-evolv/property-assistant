@@ -42,6 +42,10 @@ export interface DrawerState {
   cursor: number;
   /** Approve-all progress — null when not active. */
   bulkProgress: { total: number; done: number; failed: number } | null;
+  /** BUG-13 batch ops: ids of drafts the agent has ticked. */
+  selectedIds: string[];
+  /** BUG-13: true while a tweak-all LLM pass is in flight. */
+  tweaking: boolean;
 }
 
 interface DrawerContextValue extends DrawerState {
@@ -52,6 +56,12 @@ interface DrawerContextValue extends DrawerState {
   discardDraft: (draftId: string) => Promise<void>;
   editDraft: (draftId: string, patch: { subject?: string; body?: string }) => Promise<void>;
   approveAll: () => Promise<void>;
+  // BUG-13 batch operations.
+  toggleSelected: (draftId: string) => void;
+  clearSelected: () => void;
+  approveSelected: () => Promise<void>;
+  discardSelected: () => Promise<void>;
+  tweakAll: (instruction: string) => Promise<void>;
 }
 
 const DrawerContext = createContext<DrawerContextValue | null>(null);
@@ -62,6 +72,8 @@ const INITIAL_STATE: DrawerState = {
   drafts: [],
   cursor: 0,
   bulkProgress: null,
+  selectedIds: [],
+  tweaking: false,
 };
 
 export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
@@ -86,6 +98,8 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
       drafts,
       cursor: 0,
       bulkProgress: null,
+      selectedIds: [],
+      tweaking: false,
     });
   }, []);
 
@@ -222,6 +236,100 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
     setState((s) => ({ ...s, bulkProgress: null }));
   }, [approveDraft]);
 
+  // BUG-13 — batch selection.
+  const toggleSelected = useCallback((draftId: string) => {
+    setState((s) => {
+      const has = s.selectedIds.includes(draftId);
+      return {
+        ...s,
+        selectedIds: has ? s.selectedIds.filter((id) => id !== draftId) : [...s.selectedIds, draftId],
+      };
+    });
+  }, []);
+
+  const clearSelected = useCallback(() => {
+    setState((s) => ({ ...s, selectedIds: [] }));
+  }, []);
+
+  const approveSelected = useCallback(async () => {
+    let queue: string[] = [];
+    setState((s) => {
+      const sendable = new Set(
+        s.drafts
+          .filter((d) => d.status === 'pending' || d.status === 'approved')
+          .map((d) => d.id),
+      );
+      queue = s.selectedIds.filter((id) => sendable.has(id));
+      return queue.length
+        ? { ...s, bulkProgress: { total: queue.length, done: 0, failed: 0 } }
+        : s;
+    });
+    if (!queue.length) return;
+    for (const id of queue) {
+      await approveDraft(id);
+      setState((s) => {
+        if (!s.bulkProgress) return s;
+        const draft = s.drafts.find((d) => d.id === id);
+        const done = s.bulkProgress.done + 1;
+        const failed = s.bulkProgress.failed + (draft?.status === 'failed' ? 1 : 0);
+        return { ...s, bulkProgress: { ...s.bulkProgress, done, failed } };
+      });
+    }
+    setState((s) => ({ ...s, bulkProgress: null, selectedIds: [] }));
+  }, [approveDraft]);
+
+  const discardSelected = useCallback(async () => {
+    let queue: string[] = [];
+    setState((s) => {
+      const discardable = new Set(
+        s.drafts
+          .filter((d) => d.status === 'pending' || d.status === 'approved' || d.status === 'failed')
+          .map((d) => d.id),
+      );
+      queue = s.selectedIds.filter((id) => discardable.has(id));
+      return s;
+    });
+    for (const id of queue) {
+      await discardDraft(id);
+    }
+    setState((s) => ({ ...s, selectedIds: [] }));
+  }, [discardDraft]);
+
+  const tweakAll = useCallback(async (instruction: string) => {
+    const trimmed = (instruction || '').trim();
+    if (!trimmed) return;
+    let draftIds: string[] = [];
+    setState((s) => {
+      draftIds = s.drafts
+        .filter((d) => d.status === 'pending' || d.status === 'approved')
+        .map((d) => d.id);
+      return draftIds.length ? { ...s, tweaking: true } : s;
+    });
+    if (!draftIds.length) return;
+    try {
+      const res = await fetch('/api/agent/intelligence/drafts/tweak-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftIds, instruction: trimmed }),
+      });
+      if (!res.ok) throw new Error(`tweak-all failed (${res.status})`);
+      const data = (await res.json()) as { rewrites: Array<{ id: string; subject: string; body: string }> };
+      const byId = new Map(data.rewrites.map((r) => [r.id, r]));
+      setState((s) => ({
+        ...s,
+        drafts: s.drafts.map((d) => {
+          const r = byId.get(d.id);
+          if (!r) return d;
+          return { ...d, subject: r.subject, body: r.body };
+        }),
+        tweaking: false,
+      }));
+    } catch (err) {
+      console.error('[drawer-store] tweakAll failed', err);
+      setState((s) => ({ ...s, tweaking: false }));
+    }
+  }, []);
+
   const value = useMemo<DrawerContextValue>(
     () => ({
       ...state,
@@ -232,8 +340,27 @@ export function ApprovalDrawerProvider({ children }: { children: ReactNode }) {
       discardDraft,
       editDraft,
       approveAll,
+      toggleSelected,
+      clearSelected,
+      approveSelected,
+      discardSelected,
+      tweakAll,
     }),
-    [state, openApprovalDrawer, close, setCursor, approveDraft, discardDraft, editDraft, approveAll],
+    [
+      state,
+      openApprovalDrawer,
+      close,
+      setCursor,
+      approveDraft,
+      discardDraft,
+      editDraft,
+      approveAll,
+      toggleSelected,
+      clearSelected,
+      approveSelected,
+      discardSelected,
+      tweakAll,
+    ],
   );
 
   return <DrawerContext.Provider value={value}>{children}</DrawerContext.Provider>;
