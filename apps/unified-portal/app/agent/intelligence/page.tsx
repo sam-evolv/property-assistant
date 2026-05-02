@@ -303,7 +303,14 @@ function IntelligencePageInner() {
                 }];
               });
             } else if (data.type === 'followups') {
-              followups = data.questions || [];
+              // Defensive: strip wrapping quote characters and leading bullet
+              // glyphs the upstream model may emit despite the prompt.
+              const raw: string[] = Array.isArray(data.questions) ? data.questions : [];
+              followups = raw
+                .map((q) => typeof q === 'string' ? q : '')
+                .map((q) => q.trim().replace(/^[-*•]\s+/, ''))
+                .map((q) => q.replace(/^["“”'](.*)["“”']$/, '$1').trim())
+                .filter(Boolean);
             } else if (data.type === 'tools_used') {
               toolsUsed = data.tools || [];
             } else if (data.type === 'envelope') {
@@ -1140,6 +1147,110 @@ function formatReminder(iso: string): string {
 
 /* ---- Sub-components ---- */
 
+// Minimal markdown renderer for assistant chat bubbles. Handles the patterns
+// the LLM actually emits today: `**bold**`, `*italic*`, bullet lines (`- `,
+// `* `), and numbered lines (`1. `). Anything else is rendered verbatim and
+// preserves line breaks like the previous pre-wrap span. Kept inline so the
+// component avoids pulling in react-markdown (not in package.json) for what
+// is effectively three regex patterns.
+function MarkdownText({ source }: { source: string }) {
+  // Strip surrounding straight or curly double quotes when an entire line is
+  // wrapped in them — older system-prompt examples encouraged the model to
+  // emit `"..."` for suggestions, which would otherwise survive verbatim.
+  function stripWrappingQuotes(s: string): string {
+    const trimmed = s.trim();
+    if (trimmed.length >= 2) {
+      const first = trimmed.charAt(0);
+      const last = trimmed.charAt(trimmed.length - 1);
+      const isQuote = (c: string) => c === '"' || c === '“' || c === '”' || c === '“' || c === '”';
+      if (isQuote(first) && isQuote(last)) return trimmed.slice(1, -1).trim();
+    }
+    return s;
+  }
+
+  function renderInline(text: string): React.ReactNode[] {
+    // Bold (**...**) wins over italic (*...*). Parse by splitting on ** then
+    // walk each segment for single-asterisk italics. Plenty of edge cases
+    // (escaped asterisks, intra-word emphasis) are not handled — chat copy
+    // doesn't need them.
+    const out: React.ReactNode[] = [];
+    const boldParts = text.split(/(\*\*[^*]+\*\*)/g);
+    boldParts.forEach((part, i) => {
+      if (/^\*\*[^*]+\*\*$/.test(part)) {
+        out.push(<strong key={`b${i}`}>{part.slice(2, -2)}</strong>);
+        return;
+      }
+      const italicParts = part.split(/(\*[^*]+\*)/g);
+      italicParts.forEach((sub, j) => {
+        if (/^\*[^*]+\*$/.test(sub)) {
+          out.push(<em key={`i${i}-${j}`}>{sub.slice(1, -1)}</em>);
+        } else if (sub) {
+          out.push(<span key={`t${i}-${j}`}>{sub}</span>);
+        }
+      });
+    });
+    return out;
+  }
+
+  const lines = source.split('\n');
+  const blocks: React.ReactNode[] = [];
+  let bulletBuffer: string[] = [];
+  let numberedBuffer: string[] = [];
+
+  function flushBullets(key: string) {
+    if (!bulletBuffer.length) return;
+    blocks.push(
+      <ul key={`ul-${key}`} style={{ margin: '4px 0', paddingLeft: 20 }}>
+        {bulletBuffer.map((item, i) => (
+          <li key={i} style={{ marginBottom: 2 }}>{renderInline(stripWrappingQuotes(item))}</li>
+        ))}
+      </ul>,
+    );
+    bulletBuffer = [];
+  }
+
+  function flushNumbered(key: string) {
+    if (!numberedBuffer.length) return;
+    blocks.push(
+      <ol key={`ol-${key}`} style={{ margin: '4px 0', paddingLeft: 22 }}>
+        {numberedBuffer.map((item, i) => (
+          <li key={i} style={{ marginBottom: 2 }}>{renderInline(stripWrappingQuotes(item))}</li>
+        ))}
+      </ol>,
+    );
+    numberedBuffer = [];
+  }
+
+  lines.forEach((rawLine, idx) => {
+    const line = rawLine;
+    const bulletMatch = line.match(/^\s*[-*]\s+(.*)$/);
+    const numberedMatch = line.match(/^\s*\d+\.\s+(.*)$/);
+
+    if (bulletMatch) {
+      flushNumbered(`n${idx}`);
+      bulletBuffer.push(bulletMatch[1]);
+      return;
+    }
+    if (numberedMatch) {
+      flushBullets(`b${idx}`);
+      numberedBuffer.push(numberedMatch[1]);
+      return;
+    }
+    flushBullets(`b${idx}`);
+    flushNumbered(`n${idx}`);
+    if (line.trim() === '') {
+      blocks.push(<div key={`sp${idx}`} style={{ height: 8 }} />);
+    } else {
+      blocks.push(<div key={`p${idx}`}>{renderInline(line)}</div>);
+    }
+  });
+
+  flushBullets('end');
+  flushNumbered('end');
+
+  return <>{blocks}</>;
+}
+
 function UserBubble({ text }: { text: string }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -1443,10 +1554,9 @@ function AIResponseCard({
               lineHeight: 1.6,
               color: '#374151',
               letterSpacing: '-0.005em',
-              whiteSpace: 'pre-wrap',
             }}
           >
-            {text}
+            <MarkdownText source={text} />
           </div>
         )}
 

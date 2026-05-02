@@ -229,7 +229,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       properties: {
         recipient_type: { type: 'string', description: 'Type of recipient', enum: ['buyer', 'developer', 'solicitor', 'tenant'] },
         recipient_name: { type: 'string', description: 'Name of the recipient. OPTIONAL when related_unit (sales) or related_property (lettings) is supplied — the skill resolves the buyer or tenant from the record on file.' },
-        context: { type: 'string', description: 'What the message should cover, in the agent\'s own words — this becomes the body.' },
+        context: { type: 'string', description: 'Body content only — what the message should cover, in the agent\'s own words. DO NOT include a greeting (no "Hi X,", "Hello,", "Dear X,") and DO NOT include a sign-off, signature, or company name. The skill template adds the greeting and the agent\'s own sign-off block automatically; passing them here causes duplicates in the final email.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         related_unit: { type: 'string', description: 'Related unit number (sales mode)' },
         related_scheme: { type: 'string', description: 'Related scheme name (sales mode)' },
@@ -267,7 +267,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['unit_identifier'],
           },
         },
-        topic: { type: 'string', description: 'Shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent.' },
+        topic: { type: 'string', description: 'Body content only — the shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent. DO NOT include a greeting (no "Hi X,", "Hello,", "Dear X,") and DO NOT include a sign-off, signature, or company name. The skill template adds the greeting and the agent\'s own sign-off block automatically; passing them here causes duplicates in the final email.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         purpose: {
           type: 'string',

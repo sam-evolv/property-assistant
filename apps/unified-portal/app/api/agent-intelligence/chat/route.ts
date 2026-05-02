@@ -690,10 +690,11 @@ export async function POST(request: NextRequest) {
 
 RULES:
 - Every suggestion must be an ACTION the agent can take, not a question back to the agent.
-- Start each suggestion with a verb: "Draft...", "Check...", "Show...", "Create...", "Generate...", "Log..."
+- Start each suggestion with a verb: Draft, Check, Show, Create, Generate, Log.
 - Never ask the agent a clarifying question. Never use "Would you like..." or "Should I..."
 - Keep each suggestion under 8 words.
 - Make suggestions contextual to what was just discussed.
+- Each string is a clean suggestion. Do NOT wrap suggestions in quote characters, do not start them with a hyphen or bullet, do not add markdown.
 - Return ONLY a JSON array of strings, no explanation.`,
                 },
                 {

@@ -91,6 +91,62 @@ function shouldBlockDraft(draft: AgenticSkillDraft): { block: boolean; reason: s
   return { block: false, reason: '' };
 }
 
+// Defence-in-depth scrub for assembled email bodies. The skill template is
+// the single source of truth for greeting + sign-off, so a body should
+// carry exactly one of each. If a regression slips greeting/sign-off into
+// the free-text fields the skill template wraps, we end up with two of
+// each. Strip a duplicated leading greeting and any duplicated trailing
+// sign-off block before persisting. Conservative — only fires when the
+// duplication is unambiguous (two adjacent greeting lines, or two sign-off
+// lines within four lines of the tail).
+const GREETING_LINE = /^\s*(hi|hello|hey|dear|good\s+(morning|afternoon|evening))\b[^\n]{0,60}[,!.]?\s*$/i;
+const SIGNOFF_LINE = /^\s*(thanks|thank you|thanks so much|many thanks|best|best regards|kind regards|warm regards|warmest regards|regards|sincerely|sincerely yours|yours|yours sincerely|yours faithfully|cheers|talk soon|speak soon)\b[^\n]{0,30}[,!.]?\s*$/i;
+
+export function dedupeBoilerplate(body: string | null | undefined): string {
+  if (!body) return '';
+  const lines = String(body).replace(/\r\n/g, '\n').split('\n');
+
+  // Leading: drop consecutive duplicate greeting lines, keep one.
+  let firstGreetingIdx = -1;
+  for (let i = 0; i < Math.min(lines.length, 5); i++) {
+    if (lines[i].trim() === '') continue;
+    if (GREETING_LINE.test(lines[i])) firstGreetingIdx = i;
+    break;
+  }
+  if (firstGreetingIdx >= 0) {
+    let j = firstGreetingIdx + 1;
+    // Skip blank lines after the first greeting.
+    while (j < lines.length && lines[j].trim() === '') j++;
+    while (j < lines.length && GREETING_LINE.test(lines[j])) {
+      // Remove this duplicated greeting line.
+      lines.splice(j, 1);
+      while (j < lines.length && lines[j].trim() === '') {
+        lines.splice(j, 1);
+      }
+    }
+  }
+
+  // Trailing: detect repeated sign-off blocks within the last 8 lines.
+  // A "sign-off block" is a sign-off line plus the 0–3 short lines that
+  // follow it (name, optional title, optional company). If we find two
+  // sign-off lines in the tail, drop the EARLIER one and the lines
+  // between it and the later sign-off (those are the duplicate signature
+  // tail of the first block).
+  const tailStart = Math.max(0, lines.length - 8);
+  const signoffIndices: number[] = [];
+  for (let i = tailStart; i < lines.length; i++) {
+    if (SIGNOFF_LINE.test(lines[i])) signoffIndices.push(i);
+  }
+  if (signoffIndices.length >= 2) {
+    const firstSignoff = signoffIndices[0];
+    const lastSignoff = signoffIndices[signoffIndices.length - 1];
+    // Remove from firstSignoff up to (but not including) lastSignoff.
+    lines.splice(firstSignoff, lastSignoff - firstSignoff);
+  }
+
+  return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+}
+
 export async function persistDraftsForEnvelope(
   supabase: SupabaseClient,
   envelope: AgenticSkillEnvelope,
@@ -116,9 +172,12 @@ export async function persistDraftsForEnvelope(
     }
 
     const draftType = resolveDraftType(ctx.skill, draft);
+    // Final-mile dedupe: strips duplicate greeting / sign-off blocks if the
+    // template ever ends up wrapping a body that already had them.
+    const cleanBody = draft.type === 'email' ? dedupeBoilerplate(draft.body) : draft.body;
     const contentJson: Record<string, any> = {
       subject: draft.subject ?? null,
-      body: draft.body,
+      body: cleanBody,
       skill: ctx.skill,
       affected_record: draft.affected_record,
       reasoning: draft.reasoning,
@@ -149,11 +208,11 @@ export async function persistDraftsForEnvelope(
       // Log but preserve the original id so the drawer still opens. The
       // draft simply won't be send/discard-able via the inbox endpoints.
       console.error('[persistDraftsForEnvelope] insert failed', { skill: ctx.skill, error: error?.message });
-      rewritten.push(draft);
+      rewritten.push({ ...draft, body: cleanBody });
       continue;
     }
 
-    rewritten.push({ ...draft, id: data.id });
+    rewritten.push({ ...draft, id: data.id, body: cleanBody });
   }
 
   // Thread the blocked list through meta so the chat route can force
