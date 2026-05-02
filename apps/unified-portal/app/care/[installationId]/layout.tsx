@@ -20,10 +20,29 @@ export async function generateMetadata({
   params: Promise<{ installationId: string }>;
 }): Promise<Metadata> {
   const { installationId } = await params;
+
+  // Resolve the tenant logo so iOS "Add to Home Screen" picks it up via the
+  // apple-touch-icon link (Android Chrome uses the manifest icons separately).
+  let tenantLogo: string | null = null;
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data } = await supabase
+      .from('installations')
+      .select('tenants(logo_url)')
+      .eq('id', installationId)
+      .single();
+    tenantLogo = (data as any)?.tenants?.logo_url ?? null;
+  } catch {
+    // Fall through to default icon.
+  }
+
   return {
     title: 'OpenHouse Care',
     description: 'Your home system care portal',
     manifest: `/api/care/manifest/${installationId}`,
+    icons: tenantLogo
+      ? { icon: [{ url: tenantLogo }], apple: [{ url: tenantLogo }] }
+      : undefined,
     appleWebApp: {
       capable: true,
       statusBarStyle: 'black-translucent',
@@ -52,7 +71,7 @@ export default async function CareAppLayout({
 
   const { data: installation, error } = await supabase
     .from('installations')
-    .select('*, tenants(name, contact)')
+    .select('*, tenants(name, contact, logo_url)')
     .eq('id', installationId)
     .single();
 

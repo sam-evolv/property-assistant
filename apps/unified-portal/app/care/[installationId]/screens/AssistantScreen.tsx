@@ -348,26 +348,49 @@ export default function AssistantScreen({ installationId }: { installationId: st
         /* ═══ WELCOME STATE — matches Property PurchaserChatTab layout ═══ */
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto pb-4 welcome-container">
 
-          {/* SE Systems logo in a refined container */}
-          <div
-            className="logo-container flex items-center justify-center"
-            style={{
-              width: 180,
-              background: '#FAFAF8',
-              borderRadius: 16,
-              padding: 24,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-            }}
-          >
-            <Image
-              src="/branding/se-systems-logo.png"
-              alt="SE Systems"
-              width={140}
-              height={42}
-              priority
-              style={{ width: 140, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
-            />
-          </div>
+          {(() => {
+            const tenantLogo = installation.tenants?.logo_url ?? null;
+            const logoSrc = tenantLogo ?? '/branding/se-systems-logo.png';
+            const logoAlt = installation.tenants?.name ?? installation.installer_name ?? 'Installer';
+            // SE Systems wordmark falls back into a card to give the thin black
+            // logo some weight; full-colour tenant logos render bare so the
+            // brand artwork breathes.
+            if (tenantLogo) {
+              return (
+                <div className="logo-container flex items-center justify-center" style={{ width: 200 }}>
+                  <Image
+                    src={logoSrc}
+                    alt={logoAlt}
+                    width={180}
+                    height={180}
+                    priority
+                    style={{ width: 180, height: 'auto', objectFit: 'contain' }}
+                  />
+                </div>
+              );
+            }
+            return (
+              <div
+                className="logo-container flex items-center justify-center"
+                style={{
+                  width: 180,
+                  background: '#FAFAF8',
+                  borderRadius: 16,
+                  padding: 24,
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+                }}
+              >
+                <Image
+                  src={logoSrc}
+                  alt={logoAlt}
+                  width={140}
+                  height={42}
+                  priority
+                  style={{ width: 140, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
+                />
+              </div>
+            );
+          })()}
 
           {/* Headline — same text-[17px] font-semibold as Property */}
           <h1 className="mt-3 text-center text-[17px] font-semibold leading-tight text-slate-900 sm:text-lg md:text-xl">

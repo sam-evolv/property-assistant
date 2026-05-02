@@ -69,12 +69,28 @@ function CareLoginInner() {
       return;
     }
 
-    // Find any installation to use as demo context
-    const { data: installation } = await supabase
-      .from('installations')
-      .select('id, address_line_1, system_type')
-      .limit(1)
-      .single();
+    // Find an installation that belongs to the admin's own tenant so the demo
+    // context lines up with their branding. Falls back to any installation if
+    // their tenant has none yet.
+    const adminTenantId: string | null = meData.tenantId ?? null;
+    let installation: { id: string; address_line_1: string | null; system_type: string | null } | null = null;
+    if (adminTenantId) {
+      const { data } = await supabase
+        .from('installations')
+        .select('id, address_line_1, system_type')
+        .eq('tenant_id', adminTenantId)
+        .limit(1)
+        .maybeSingle();
+      installation = data ?? null;
+    }
+    if (!installation) {
+      const { data } = await supabase
+        .from('installations')
+        .select('id, address_line_1, system_type')
+        .limit(1)
+        .maybeSingle();
+      installation = data ?? null;
+    }
 
     if (installation) {
       await supabase.from('user_contexts').upsert({

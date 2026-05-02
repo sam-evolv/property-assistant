@@ -61,6 +61,11 @@ export interface InstallationData {
   co2_saved_today_grams?: number | null;
   monthly_running_cost_cents?: number | null;
   monthly_budget_cents?: number | null;
+  tenants?: {
+    name?: string | null;
+    contact?: Record<string, unknown> | null;
+    logo_url?: string | null;
+  } | null;
 }
 
 export interface CareAppContextType {
