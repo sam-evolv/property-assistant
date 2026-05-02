@@ -424,6 +424,57 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // Contact-resolver fallouts (BUG-03). When the email skill couldn't
+    // resolve the recipient name to a contact on file, the envelope
+    // carries `meta.needs_recipient` with either a candidate list or an
+    // empty list. Surface that to the model so the streamed reply names
+    // the candidates instead of asserting drafts went through.
+    type NeedsRecipientPayload = {
+      correlationId: string;
+      recipient_query: string;
+      candidates: Array<{
+        name: string;
+        email: string;
+        role: string;
+        scheme_name: string | null;
+        unit_label: string | null;
+      }>;
+      searched?: string[];
+    };
+    const needsRecipientPayloads: NeedsRecipientPayload[] = [];
+    for (const env of envelopes) {
+      const meta: any = env.meta || {};
+      if (meta.needs_recipient) {
+        needsRecipientPayloads.push(meta.needs_recipient as NeedsRecipientPayload);
+      }
+    }
+    if (needsRecipientPayloads.length > 0) {
+      const reasonsBlock = needsRecipientPayloads
+        .map((p) => {
+          if (p.candidates.length > 0) {
+            const lines = p.candidates.slice(0, 6).map((c, i) => {
+              const where = c.scheme_name
+                ? c.unit_label
+                  ? ` — ${c.unit_label}, ${c.scheme_name}`
+                  : ` — ${c.scheme_name}`
+                : c.unit_label
+                  ? ` — ${c.unit_label}`
+                  : '';
+              return `${i + 1}. ${c.name}${where} (${c.email})`;
+            });
+            return `Multiple matches for "${p.recipient_query}":\n${lines.join('\n')}\nAsk which one and offer to accept a pasted address.`;
+          }
+          return `No contact on file for "${p.recipient_query}". Ask the user to paste the email address.`;
+        })
+        .join('\n\n');
+      messages.push({
+        role: 'system',
+        content:
+          'IMPORTANT: The email tool needs a recipient that the system could not resolve. Tell the user we could not find an email on file and either ask them to choose from the candidate list verbatim or paste an address. Do NOT claim a draft was created. Do NOT invent an email address.\n\n' +
+          reasonsBlock,
+      });
+    }
+
     // Session 14 — yes/no disambiguation hook. Pick a single top_candidate
     // surfaced on any envelope's meta this turn. If two envelopes name
     // DIFFERENT candidates the prompt would be ambiguous — skip entirely.
@@ -642,30 +693,89 @@ export async function POST(request: NextRequest) {
           const HALLUCINATION_REGEX =
             /drafted|drafts?\s+(?:are|is)\s+ready|ready\s+for\s+your\s+review|in\s+the\s+drafts?\s+inbox|prepared\s+\d+\s+draft|i['’]ll\s+draft|i\s+(?:have\s+)?drafted/i;
           const claimsDrafts = HALLUCINATION_REGEX.test(fullContent);
-          if (claimsDrafts && totalDraftsPersisted === 0) {
-            const honestMessage = "I tried to draft those emails but the action didn’t actually go through — nothing landed in your inbox. Could you try asking again, or rephrase with the specific unit numbers / buyer names?";
+          // Decide whether this turn should render as a failure card.
+          //   - hallucinated_drafts: model claimed drafts but none persisted
+          //   - needs_recipient: contact resolver couldn't pin a recipient
+          //   - draft_blocked: persistence blocked every produced draft
+          // Each case carries a correlation id so support can trace.
+          let failureKind: 'hallucinated_drafts' | 'needs_recipient' | 'draft_blocked' | null = null;
+          let failureMessage: string | null = null;
+          let failureCorrelationId: string | null = null;
+          if (needsRecipientPayloads.length > 0) {
+            failureKind = 'needs_recipient';
+            failureCorrelationId = needsRecipientPayloads[0].correlationId;
+            const p = needsRecipientPayloads[0];
+            if (p.candidates.length > 0) {
+              const lines = p.candidates.slice(0, 6).map((c, i) => {
+                const where = c.scheme_name
+                  ? c.unit_label
+                    ? ` — ${c.unit_label}, ${c.scheme_name}`
+                    : ` — ${c.scheme_name}`
+                  : c.unit_label
+                    ? ` — ${c.unit_label}`
+                    : '';
+                return `${i + 1}. ${c.name}${where} (${c.email})`;
+              });
+              failureMessage = [
+                `We couldn't complete this — multiple contacts match "${p.recipient_query}".`,
+                ...lines,
+                'Reply with the number, the full name, or paste an email address.',
+              ].join('\n');
+            } else {
+              failureMessage = `We couldn't complete this — no email is on file for "${p.recipient_query}". Paste the address and I'll draft it.`;
+            }
+          } else if (claimsDrafts && totalDraftsPersisted === 0) {
+            failureKind = 'hallucinated_drafts';
+            failureCorrelationId = randomCorrelationId();
+            failureMessage =
+              "We couldn't complete this — the email action didn't go through and nothing landed in the drafts inbox. Tap Retry, or tell me the specific unit numbers / buyer names you meant.";
+          }
+
+          if (failureKind && failureMessage) {
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'override', content: honestMessage }) + '\n')
+              encoder.encode(
+                JSON.stringify({ type: 'override', content: failureMessage }) + '\n',
+              ),
             );
-            // Replace the recorded response so memory + analytics store the
-            // honest text, not the lie.
-            fullContent = honestMessage;
-            console.error('[hallucinated_drafts] overrode assistant response', {
-              kind: 'hallucinated_drafts',
+            controller.enqueue(
+              encoder.encode(
+                JSON.stringify({
+                  type: 'error',
+                  kind: failureKind,
+                  correlationId: failureCorrelationId,
+                  retryable: true,
+                  retryMessage: message,
+                  content: failureMessage,
+                }) + '\n',
+              ),
+            );
+            console.error('[intelligence_failure] surfaced to user', {
+              kind: failureKind,
+              correlationId: failureCorrelationId,
               user: agentContext.displayName,
               userId: agentContext.authUserId,
               originalMessage: message,
-              assistantClaimed: fullContent,
               toolsCalled: toolsCalled.map((t) => t.tool_name),
               draftToolCalled,
               totalDraftsPersisted,
+              needsRecipientPayloads: needsRecipientPayloads.map((p) => ({
+                correlationId: p.correlationId,
+                recipient_query: p.recipient_query,
+                candidate_count: p.candidates.length,
+                searched: p.searched,
+              })),
             });
+            // Replace the recorded response so memory + analytics store the
+            // honest text, not the lie.
+            fullContent = failureMessage;
           }
 
           // Store memory and log interaction (async, non-blocking)
           storeConversationMemory(supabase, agentContext, currentSessionId, message, fullContent, toolsCalled).catch(() => {});
           logInteraction(supabase, tenantId, authUserId, message, fullContent, toolsCalled, startTime, {
             hallucinatedDrafts: claimsDrafts && totalDraftsPersisted === 0,
+            failureKind: failureKind ?? undefined,
+            correlationId: failureCorrelationId ?? undefined,
           }, resolvedMode).catch(() => {});
 
           // Generate follow-up suggestions (non-blocking, appended after main response)
@@ -724,8 +834,29 @@ RULES:
           );
           controller.close();
         } catch (err) {
+          const correlationId = randomCorrelationId();
+          const errMessage = err instanceof Error ? err.message : 'Unknown error';
+          console.error('[intelligence_failure] stream crashed', {
+            kind: 'stream_failed',
+            correlationId,
+            user: agentContext.displayName,
+            userId: agentContext.authUserId,
+            originalMessage: message,
+            error: errMessage,
+          });
+          const userMessage =
+            "We couldn't complete this — the connection to Intelligence dropped before we got an answer. Tap Retry to try again.";
           controller.enqueue(
-            encoder.encode(JSON.stringify({ type: 'error', message: 'Stream failed' }) + '\n')
+            encoder.encode(
+              JSON.stringify({
+                type: 'error',
+                kind: 'stream_failed',
+                correlationId,
+                retryable: true,
+                retryMessage: message,
+                content: userMessage,
+              }) + '\n',
+            ),
           );
           controller.close();
         }
@@ -1084,6 +1215,16 @@ async function storeConversationMemory(
 /**
  * Log the intelligence interaction for analytics, audit, and learning.
  */
+/**
+ * Generate a short correlation id surfaced to the user as "error ref:
+ * abc12345" and logged with the same id on the server side. 8 hex chars
+ * is enough collision space for live debugging without being a UUID-
+ * sized string the user has to read out loud.
+ */
+function randomCorrelationId(): string {
+  return Math.random().toString(16).slice(2, 10);
+}
+
 async function logInteraction(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   tenantId: string,
@@ -1092,7 +1233,7 @@ async function logInteraction(
   responseText: string,
   toolsCalled: Array<{ tool_name: string; params: any; result_summary: string }>,
   startTime: number,
-  flags: { hallucinatedDrafts?: boolean } = {},
+  flags: { hallucinatedDrafts?: boolean; failureKind?: string; correlationId?: string } = {},
   mode: 'sales' | 'lettings' = 'sales'
 ) {
   const latencyMs = Date.now() - startTime;
@@ -1103,13 +1244,15 @@ async function logInteraction(
     responseText.toLowerCase().includes('not in the system') ||
     responseText.toLowerCase().includes('no data available');
 
-  const responseType = flags.hallucinatedDrafts
-    ? 'hallucinated_drafts'
-    : toolsCalled.some(t => t.tool_name === 'draft_message' || t.tool_name === 'draft_buyer_followups')
-      ? 'draft'
-      : toolsCalled.some(t => t.tool_name === 'generate_developer_report') ? 'report'
-        : toolsCalled.some(t => t.tool_name === 'create_task') ? 'task_created'
-          : 'answer';
+  const responseType = flags.failureKind
+    ? flags.failureKind
+    : flags.hallucinatedDrafts
+      ? 'hallucinated_drafts'
+      : toolsCalled.some(t => t.tool_name === 'draft_message' || t.tool_name === 'draft_buyer_followups')
+        ? 'draft'
+        : toolsCalled.some(t => t.tool_name === 'generate_developer_report') ? 'report'
+          : toolsCalled.some(t => t.tool_name === 'create_task') ? 'task_created'
+            : 'answer';
 
   await supabase.from('intelligence_interactions').insert({
     tenant_id: tenantId,

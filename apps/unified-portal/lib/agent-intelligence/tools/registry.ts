@@ -35,6 +35,8 @@ import {
   draftMessageSkill,
   draftBuyerFollowups,
   getCandidateUnitsSkill,
+  rankPipelineBuyers,
+  createViewingSchedule,
   SkillAgentContext,
 } from './agentic-skills';
 import type { AgenticSkillEnvelope } from '../envelope';
@@ -299,6 +301,51 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(getCandidateUnitsSkill, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'rank_pipeline_buyers',
+    description: [
+      "Rank the buyers in the agent's sales pipeline at a given scheme by likelihood to convert.",
+      'Use this for "who is most likely to convert", "which buyers should I chase first", "top 10 active buyers" style questions, and as the input source when scheduling group viewings.',
+      'The score is deterministic: stage progress (sale_agreed > deposit_received > released > available), recency of last logged contact, days in pipeline, and viewing count.',
+      'Returns a list of ranked buyers with score and a one-line `reason` per buyer ("contacted 3 days ago, sale agreed, viewed twice").',
+      'Either development_id or scheme_name must be provided; scheme_name is resolved against the agent\'s assigned schemes.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known (avoids alias lookup).' },
+        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes.' },
+        limit: { type: 'number', description: 'Max buyers to return (default 10, max 50).' },
+      },
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(rankPipelineBuyers, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'create_viewing_schedule',
+    description: [
+      'Build a viewing schedule for a scheme on a given date and propose specific timeslots to the top-ranked buyers in one batch.',
+      'Use this for "draft a viewing schedule for X this Saturday, 10 slots from 9–2, propose them to 10 active buyers" style requests.',
+      'Behaviour: builds N timeslots between start_time and end_time at slot_duration_minutes spacing, calls rank_pipeline_buyers internally to pick the buyers, then drafts one personalised email + one viewing_record per buyer. All drafts land in the approval drawer for review — nothing is sent or written to agent_viewings until the agent approves.',
+      'Each email opens with a one-line buyer-specific reasoning ("contacted 3 days ago, sale agreed, viewed twice — wanted to put a slot in front of you") and offers the assigned slot plus 2 alternatives.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known.' },
+        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes.' },
+        date: { type: 'string', description: 'Viewing date as ISO YYYY-MM-DD (e.g. "2026-05-09" for Saturday).' },
+        start_time: { type: 'string', description: 'Schedule start time in 24-h or 12-h ("09:00", "9am").' },
+        end_time: { type: 'string', description: 'Schedule end time in 24-h or 12-h ("14:00", "2pm").' },
+        slot_duration_minutes: { type: 'number', description: 'Length of each slot in minutes (default 30, min 15, max 120).' },
+        target_count: { type: 'number', description: 'Number of buyers to invite / slots to fill (default 10, max 20).' },
+      },
+      required: ['date', 'start_time', 'end_time'],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(createViewingSchedule, supabase, agentContext, params as any)) as ToolFunction,
   },
   {
     name: 'generate_developer_report',
