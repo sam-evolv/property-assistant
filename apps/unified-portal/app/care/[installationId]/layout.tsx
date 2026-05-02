@@ -52,7 +52,7 @@ export default async function CareAppLayout({
 
   const { data: installation, error } = await supabase
     .from('installations')
-    .select('*, tenants(name, contact)')
+    .select('*, tenants(name, contact, logo_url)')
     .eq('id', installationId)
     .single();
 

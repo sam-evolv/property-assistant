@@ -67,6 +67,9 @@ export default function CareInstallationPage() {
   const params = useParams();
   const installationId = params.installationId as string;
   const { installation } = useCareApp();
+  const tenantLogoUrl = installation.tenants?.logo_url ?? null;
+  const headerLogoSrc = tenantLogoUrl ?? '/branding/se-systems-logo.png';
+  const headerLogoAlt = installation.tenants?.name ?? installation.installer_name ?? 'Installer';
   const [activeTab, setActiveTab] = useState<TabType>('assistant');
   const navRef = useRef<HTMLDivElement>(null);
   const [navWidth, setNavWidth] = useState(0);
@@ -114,12 +117,16 @@ export default function CareInstallationPage() {
       >
         <div className="flex items-center max-w-4xl mx-auto">
           <Image
-            src="/branding/se-systems-logo.png"
-            alt="SE Systems"
+            src={headerLogoSrc}
+            alt={headerLogoAlt}
             width={120}
             height={36}
             priority
-            style={{ objectFit: 'contain', filter: 'brightness(0)' }}
+            style={{
+              objectFit: 'contain',
+              // Only blacken the SE Systems wordmark fallback; render tenant logos in their natural colours.
+              filter: tenantLogoUrl ? undefined : 'brightness(0)',
+            }}
           />
         </div>
       </header>

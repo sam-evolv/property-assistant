@@ -348,7 +348,7 @@ export default function AssistantScreen({ installationId }: { installationId: st
         /* ═══ WELCOME STATE — matches Property PurchaserChatTab layout ═══ */
         <div className="flex-1 min-h-0 flex flex-col items-center justify-center px-4 overflow-y-auto pb-4 welcome-container">
 
-          {/* SE Systems logo in a refined container */}
+          {/* Installer logo in a refined container */}
           <div
             className="logo-container flex items-center justify-center"
             style={{
@@ -360,12 +360,18 @@ export default function AssistantScreen({ installationId }: { installationId: st
             }}
           >
             <Image
-              src="/branding/se-systems-logo.png"
-              alt="SE Systems"
+              src={installation.tenants?.logo_url ?? '/branding/se-systems-logo.png'}
+              alt={installation.tenants?.name ?? installation.installer_name ?? 'Installer'}
               width={140}
               height={42}
               priority
-              style={{ width: 140, height: 'auto', objectFit: 'contain', filter: 'brightness(0)' }}
+              style={{
+                width: 140,
+                height: 'auto',
+                objectFit: 'contain',
+                // Only blacken the SE Systems wordmark fallback; render tenant logos in their natural colours.
+                filter: installation.tenants?.logo_url ? undefined : 'brightness(0)',
+              }}
             />
           </div>
 
