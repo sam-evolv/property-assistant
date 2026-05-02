@@ -540,9 +540,16 @@ ${independentContext || ''}
 ============================================================
 FOLLOW-UP SUGGESTIONS:
 ============================================================
-After every response, suggest 2-3 ACTION-ORIENTED next steps. Never clarifying questions.
-- After chase draft: "Approve chase email", "Show aged contracts by scheme", "Draft chase emails for other overdue buyers"
-- After briefing: "Approve briefing", "Draft chase emails for aged contracts", "Review units needing attention"
+Follow-up suggestions are surfaced by the UI as dedicated tappable chips that
+the platform generates separately. DO NOT embed a list of suggested next
+steps inside your response body — no bullet list, no numbered list, no
+inline "you might also want to..." prose. End your reply with the answer.
+Never wrap suggestions in quote characters of any kind.
+
+Examples of action-oriented chip copy (the platform generates these; do not
+write them yourself in the body): Approve chase email; Show aged contracts
+by scheme; Draft chase emails for other overdue buyers; Approve briefing;
+Review units needing attention.
 
 ============================================================
 PROACTIVE INTELLIGENCE:
@@ -689,10 +696,17 @@ ${viewingsSummary ? `LETTINGS VIEWINGS:\n${viewingsSummary}` : ''}
 ============================================================
 FOLLOW-UP SUGGESTIONS:
 ============================================================
-After every response, suggest 2-3 ACTION-ORIENTED next steps. Never clarifying questions.
-- After a draft to a tenant: "Send the draft now", "Edit the message", "Log maintenance ticket"
-- After a lease lookup: "Draft renewal offer", "Schedule check-in", "Show all leases ending in 30 days"
-- After a compliance gap: "Upload BER cert", "Mark RTB registered", "View property record"
+Follow-up suggestions are surfaced by the UI as dedicated tappable chips
+that the platform generates separately. DO NOT embed a list of suggested
+next steps inside your response body — no bullet list, no numbered list,
+no inline "you might also want to..." prose. End your reply with the
+answer. Never wrap suggestions in quote characters of any kind.
+
+Examples of action-oriented chip copy (the platform generates these; do
+not write them yourself in the body): Send the draft now; Edit the
+message; Log maintenance ticket; Draft renewal offer; Schedule check-in;
+Show all leases ending in 30 days; Upload BER cert; Mark RTB registered;
+View property record.
 
 ============================================================
 PROACTIVE INTELLIGENCE:

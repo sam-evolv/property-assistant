@@ -54,6 +54,51 @@ function firstName(fullName: string | null | undefined): string {
   return fullName.trim().split(/\s+/)[0] ?? 'there';
 }
 
+// Defensive scrubber for the free-text body content the model passes via
+// `topic` / `context` / `custom_instruction`. The skill template already
+// supplies the greeting and the sign-off + signature block, so any greeting
+// or sign-off the model wrote into the body produces a duplicate. Strip a
+// leading greeting line (Hi/Hello/Dear/Hey ...,) and a trailing sign-off
+// block (Thanks/Best/Best regards/Kind regards/Sincerely/Yours/Cheers/
+// Warm regards/Many thanks ... followed by name(s) and an optional company
+// line) before assembly. Conservative on purpose — only strips when the
+// pattern clearly matches a salutation or closing block.
+export function stripGreetingAndSignoff(input: string | null | undefined): string {
+  if (!input) return '';
+  let text = String(input).replace(/\r\n/g, '\n').trim();
+  if (!text) return '';
+
+  const lines = text.split('\n');
+
+  // Leading greeting: Hi X,  /  Hello there,  /  Dear Eoin,  /  Hey,
+  const greetingRe = /^\s*(hi|hello|hey|dear|good\s+(morning|afternoon|evening))\b[^\n]{0,60}[,!.]?\s*$/i;
+  while (lines.length && greetingRe.test(lines[0])) {
+    lines.shift();
+    while (lines.length && lines[0].trim() === '') lines.shift();
+  }
+
+  // Trailing sign-off block. Sign-off line is something like "Thanks,",
+  // "Best regards,", "Kind regards,", "Sincerely,", "Yours,", "Cheers,",
+  // "Warm regards,", "Many thanks,". Followed by 0–3 short non-empty
+  // lines (the agent's name, optional title, optional company) before EOF.
+  const signoffRe = /^\s*(thanks|thank you|thanks so much|many thanks|best|best regards|kind regards|warm regards|warmest regards|regards|sincerely|sincerely yours|yours|yours sincerely|yours faithfully|cheers|talk soon|speak soon)\b[^\n]{0,30}[,!.]?\s*$/i;
+  // Walk backwards skipping trailing blanks.
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  // Find a sign-off line within the last 5 lines.
+  for (let i = lines.length - 1; i >= Math.max(0, lines.length - 5); i--) {
+    if (signoffRe.test(lines[i])) {
+      // Drop everything from this index onward (sign-off + name/company tail).
+      lines.length = i;
+      break;
+    }
+  }
+
+  // Trim trailing blanks one more time in case the pop loop above didn't.
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+
+  return lines.join('\n').trim();
+}
+
 function errorEnvelope(skill: string, query: string, err: unknown): AgenticSkillEnvelope {
   const message = err instanceof Error ? err.message : String(err);
   return {
@@ -1100,7 +1145,9 @@ async function draftTenantMessage(
   const skill = 'draft_message';
   const recipientName = (inputs.recipient_name || '').trim();
   const propertyHint = (inputs.related_property || '').trim();
-  const context = (inputs.context || '').trim();
+  // Scrub greeting/sign-off the model may have included — the template
+  // below adds them once, which is the single source of truth.
+  const context = stripGreetingAndSignoff(inputs.context);
   const tone = (inputs.tone || 'warm').trim();
   const query = `draft_message recipient_type=tenant recipient="${recipientName}" property="${propertyHint}"`;
 
@@ -1242,7 +1289,9 @@ export async function draftMessageSkill(
   // resolved unit's purchaser_name. We carry recipientName as a let so the
   // unit-resolution stage below can fill it in when empty.
   let recipientName = (inputs.recipient_name || '').trim();
-  const context = (inputs.context || '').trim();
+  // Scrub greeting/sign-off the model may have included — the template
+  // below adds them once, which is the single source of truth.
+  const context = stripGreetingAndSignoff(inputs.context);
   const tone = (inputs.tone || (inputs.recipient_type === 'solicitor' ? 'formal' : 'warm')).trim();
   const query = `draft_message recipient="${recipientName}" unit="${inputs.related_unit || ''}" scheme="${inputs.related_scheme || ''}"`;
 
@@ -1599,9 +1648,13 @@ function buildFollowupContent(opts: {
   tone: string;
   ctx: SkillAgentContext;
 }): { subject: string; body: string } {
-  const { purpose, topic, customInstruction, unitLabel, greeting, tone, ctx } = opts;
+  const { purpose, topic: rawTopic, customInstruction: rawCustom, unitLabel, greeting, tone, ctx } = opts;
   const sign = toneSignOff(tone);
   const sig = signature(ctx);
+  // Defensive: scrub any greeting / sign-off the model may have included in
+  // the free-text fields, since the template already supplies both.
+  const topic = stripGreetingAndSignoff(rawTopic);
+  const customInstruction = stripGreetingAndSignoff(rawCustom);
 
   if (purpose === 'congratulate_handover') {
     return {
@@ -1645,7 +1698,7 @@ function buildFollowupContent(opts: {
   }
 
   if (purpose === 'custom') {
-    const instruction = customInstruction?.trim() || topic;
+    const instruction = customInstruction || topic;
     return {
       subject: unitLabel,
       body: [greeting, '', instruction, '', sign, sig].join('\n'),
