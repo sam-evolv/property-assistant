@@ -368,10 +368,14 @@ export async function POST(request: NextRequest) {
     const totalDraftsPersisted = envelopesWithDrafts.reduce((n, e) => n + e.drafts.length, 0);
 
     if (draftToolCalled && totalDraftsPersisted === 0) {
+      // Minimal note: tell the model not to claim success. The actual
+      // user-facing reply is replaced post-stream with the envelope's
+      // own summary string (see the empty_draft_result branch below),
+      // so the model's text here is essentially a placeholder.
       messages.push({
         role: 'system',
         content:
-          'IMPORTANT: The draft tool(s) you just called returned zero drafts. Do NOT tell the user their drafts are ready, or that anything is in the drafts inbox, or that you prepared anything to review. Tell them the action did not go through, and ask them to rephrase or try a more specific request.',
+          'IMPORTANT: The draft tool(s) returned zero drafts. Do NOT claim a draft was created. Keep your reply short — the platform will surface the reason to the user.',
       });
     }
 
@@ -694,13 +698,24 @@ export async function POST(request: NextRequest) {
             /drafted|drafts?\s+(?:are|is)\s+ready|ready\s+for\s+your\s+review|in\s+the\s+drafts?\s+inbox|prepared\s+\d+\s+draft|i['’]ll\s+draft|i\s+(?:have\s+)?drafted/i;
           const claimsDrafts = HALLUCINATION_REGEX.test(fullContent);
           // Decide whether this turn should render as a failure card.
-          //   - hallucinated_drafts: model claimed drafts but none persisted
           //   - needs_recipient: contact resolver couldn't pin a recipient
+          //   - empty_draft_result: a draft tool fired but produced zero
+          //     drafts (BUG-05). Causes converge — wrong tenancy_id,
+          //     no rows in window, RLS error, etc. The skill itself
+          //     writes a user-readable summary; we trust it.
+          //   - hallucinated_drafts: model claimed drafts but no tool
+          //     fired and nothing persisted. Catches text-only lies.
           //   - draft_blocked: persistence blocked every produced draft
           // Each case carries a correlation id so support can trace.
-          let failureKind: 'hallucinated_drafts' | 'needs_recipient' | 'draft_blocked' | null = null;
+          let failureKind:
+            | 'hallucinated_drafts'
+            | 'needs_recipient'
+            | 'draft_blocked'
+            | 'empty_draft_result'
+            | null = null;
           let failureMessage: string | null = null;
           let failureCorrelationId: string | null = null;
+          let failureQuery: unknown = null;
           if (needsRecipientPayloads.length > 0) {
             failureKind = 'needs_recipient';
             failureCorrelationId = needsRecipientPayloads[0].correlationId;
@@ -724,6 +739,23 @@ export async function POST(request: NextRequest) {
             } else {
               failureMessage = `We couldn't complete this — no email is on file for "${p.recipient_query}". Paste the address and I'll draft it.`;
             }
+          } else if (draftToolCalled && totalDraftsPersisted === 0) {
+            // BUG-05. Pick the first envelope with empty drafts and
+            // surface its summary verbatim. Skills already write
+            // user-readable summaries ("No matching active tenancy
+            // found in the 90-day renewal window.", "I couldn't find
+            // a scheme matching X.", "Tenant name or property address
+            // is required.", etc) — far more useful than the generic
+            // "rephrase your request" copy that used to be emitted.
+            const emptyEnv = envelopes.find((e) => e.drafts.length === 0) || envelopes[0] || null;
+            const summary =
+              (emptyEnv?.summary && emptyEnv.summary.trim().length > 0)
+                ? emptyEnv.summary.trim()
+                : "The draft action didn't go through.";
+            failureKind = 'empty_draft_result';
+            failureCorrelationId = randomCorrelationId();
+            failureMessage = summary;
+            failureQuery = emptyEnv?.meta?.query ?? null;
           } else if (claimsDrafts && totalDraftsPersisted === 0) {
             failureKind = 'hallucinated_drafts';
             failureCorrelationId = randomCorrelationId();
@@ -746,6 +778,7 @@ export async function POST(request: NextRequest) {
                   retryable: true,
                   retryMessage: message,
                   content: failureMessage,
+                  ...(failureQuery !== null ? { query: failureQuery } : {}),
                 }) + '\n',
               ),
             );
@@ -758,6 +791,7 @@ export async function POST(request: NextRequest) {
               toolsCalled: toolsCalled.map((t) => t.tool_name),
               draftToolCalled,
               totalDraftsPersisted,
+              query: failureQuery,
               needsRecipientPayloads: needsRecipientPayloads.map((p) => ({
                 correlationId: p.correlationId,
                 recipient_query: p.recipient_query,
