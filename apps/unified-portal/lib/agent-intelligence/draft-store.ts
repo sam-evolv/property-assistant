@@ -26,6 +26,7 @@ const AGENTIC_DRAFT_TYPE_BY_SKILL: Record<string, string> = {
   schedule_viewing_draft: 'schedule_viewing',
   draft_message: 'buyer_followup',
   draft_buyer_followups: 'buyer_followup',
+  create_viewing_schedule: 'viewing_proposal',
 };
 
 function resolveDraftType(skill: string, draft: AgenticSkillDraft): string {

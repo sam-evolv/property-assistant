@@ -2155,3 +2155,611 @@ export async function getCandidateUnitsSkill(
   }
 }
 
+// =====================================================================
+// Skill 10 — rank_pipeline_buyers (deterministic SQL ranking)
+// =====================================================================
+//
+// Phase 1 ranking helper for "who is most likely to convert" / "give me
+// the top N buyers" style asks, plus the input to create_viewing_schedule.
+// No LLM scoring layer — a transparent SQL rubric the agent can argue
+// with. Each ranked row carries a numeric score (0..100) and a short
+// `reason` string naming the top contributor ("contacted 3 days ago,
+// sale agreed, viewed twice").
+
+export interface RankedPipelineBuyer {
+  unit_id: string;
+  development_id: string;
+  unit_number: string;
+  scheme_name: string;
+  buyer_name: string;
+  buyer_email: string | null;
+  stage: string;
+  score: number;
+  reason: string;
+  last_contact_days: number | null;
+  pipeline_age_days: number | null;
+  viewing_count: number;
+}
+
+interface RankPipelineBuyersInput {
+  development_id?: string;
+  scheme_name?: string;
+  limit?: number;
+}
+
+function classifyStage(unitStatus: string | null, pipe: any | null): {
+  stage: string;
+  stagePoints: number;
+} {
+  // Pipeline-date-derived stage takes priority: a unit can be 'available'
+  // in `units.unit_status` while the pipeline row carries a deposit_date,
+  // because the column drift between the two tables is not always tight.
+  // We prefer the more progressed signal.
+  if (pipe?.handover_date) return { stage: 'handed_over', stagePoints: 100 };
+  if (pipe?.counter_signed_date) return { stage: 'counter_signed', stagePoints: 95 };
+  if (pipe?.signed_contracts_date) return { stage: 'signed', stagePoints: 90 };
+  if (pipe?.contracts_issued_date) return { stage: 'contracts_issued', stagePoints: 80 };
+  if (pipe?.deposit_date) return { stage: 'deposit_received', stagePoints: 70 };
+  if (pipe?.sale_agreed_date) return { stage: 'sale_agreed', stagePoints: 65 };
+  if (unitStatus === 'sale_agreed') return { stage: 'sale_agreed', stagePoints: 65 };
+  if (unitStatus === 'reserved') return { stage: 'reserved', stagePoints: 55 };
+  if (pipe?.release_date) return { stage: 'in_progress', stagePoints: 35 };
+  if (unitStatus === 'available') return { stage: 'for_sale', stagePoints: 15 };
+  return { stage: unitStatus || 'unknown', stagePoints: 10 };
+}
+
+function recencyPoints(daysSinceContact: number | null): number {
+  if (daysSinceContact === null) return 0;
+  if (daysSinceContact <= 3) return 100;
+  if (daysSinceContact <= 7) return 80;
+  if (daysSinceContact <= 14) return 50;
+  if (daysSinceContact <= 30) return 25;
+  return 5;
+}
+
+function agingPoints(daysInPipeline: number | null): number {
+  if (daysInPipeline === null) return 50; // unknown — neutral
+  if (daysInPipeline <= 14) return 100;
+  if (daysInPipeline <= 30) return 70;
+  if (daysInPipeline <= 60) return 40;
+  if (daysInPipeline <= 120) return 20;
+  return 5;
+}
+
+function viewingPoints(count: number): number {
+  if (count >= 2) return 100;
+  if (count === 1) return 70;
+  return 25;
+}
+
+function buildRankReason(
+  stage: string,
+  daysSinceContact: number | null,
+  daysInPipeline: number | null,
+  viewingCount: number,
+): string {
+  const parts: string[] = [];
+  // Always lead with the strongest signal.
+  if (daysSinceContact !== null && daysSinceContact <= 7) {
+    parts.push(`contacted ${daysSinceContact === 0 ? 'today' : `${daysSinceContact} day${daysSinceContact === 1 ? '' : 's'} ago`}`);
+  } else if (daysSinceContact !== null && daysSinceContact <= 30) {
+    parts.push(`last contact ${daysSinceContact} days ago`);
+  } else if (daysSinceContact === null) {
+    parts.push('no contact logged yet');
+  } else {
+    parts.push(`gone quiet (${daysSinceContact} days since contact)`);
+  }
+  if (stage && stage !== 'for_sale' && stage !== 'unknown') {
+    parts.push(stage.replace(/_/g, ' '));
+  }
+  if (viewingCount >= 1) {
+    parts.push(`viewed ${viewingCount === 1 ? 'once' : `${viewingCount} times`}`);
+  } else {
+    parts.push('no viewings yet');
+  }
+  if (daysInPipeline !== null && daysInPipeline > 60) {
+    parts.push(`in pipeline ${daysInPipeline} days`);
+  }
+  return parts.slice(0, 3).join(', ');
+}
+
+async function resolveRankingScope(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: RankPipelineBuyersInput,
+): Promise<
+  | { ok: true; developmentId: string; schemeName: string }
+  | { ok: false; reason: string }
+> {
+  const { data: asgs } = await supabase
+    .from('agent_scheme_assignments')
+    .select('development_id')
+    .eq('agent_id', agentContext.agentProfileId)
+    .eq('is_active', true);
+  const devIds = Array.from(
+    new Set((asgs || []).map((a: any) => a.development_id).filter(Boolean)),
+  );
+  if (!devIds.length) {
+    return { ok: false, reason: 'No assigned schemes for this agent.' };
+  }
+
+  if (inputs.development_id) {
+    if (!devIds.includes(inputs.development_id)) {
+      return { ok: false, reason: 'That development is not in your assigned schemes.' };
+    }
+    const { data: dev } = await supabase
+      .from('developments')
+      .select('id, name')
+      .eq('id', inputs.development_id)
+      .maybeSingle();
+    if (!dev) return { ok: false, reason: 'Development not found.' };
+    return { ok: true, developmentId: dev.id, schemeName: dev.name };
+  }
+
+  if (inputs.scheme_name) {
+    const { data: devs } = await supabase
+      .from('developments')
+      .select('id, name')
+      .in('id', devIds);
+    const devList = (devs || []) as Array<{ id: string; name: string }>;
+    const resolution = await resolveSchemeName(supabase, inputs.scheme_name, {
+      assignedDevelopmentIds: devList.map((d) => d.id),
+      assignedDevelopmentNames: devList.map((d) => d.name),
+    });
+    if (!resolution.ok) {
+      return {
+        ok: false,
+        reason:
+          resolution.reason === 'not_found'
+            ? `I couldn't find a scheme matching "${inputs.scheme_name}". Your assigned schemes are: ${resolution.candidates.join(', ')}.`
+            : resolution.reason === 'ambiguous'
+              ? `"${inputs.scheme_name}" matches multiple schemes (${resolution.candidates.join(', ')}). Please be specific.`
+              : `Scheme "${inputs.scheme_name}" is not in your assigned list.`,
+      };
+    }
+    return { ok: true, developmentId: resolution.developmentId, schemeName: resolution.canonicalName };
+  }
+
+  return {
+    ok: false,
+    reason: 'Provide either development_id or scheme_name.',
+  };
+}
+
+async function rankBuyersForDevelopment(
+  supabase: SupabaseClient,
+  developmentId: string,
+  schemeName: string,
+  limit: number,
+): Promise<RankedPipelineBuyer[]> {
+  // 1. Pipeline rows with stage dates + buyer contact info.
+  const { data: pipelineRows } = await supabase
+    .from('unit_sales_pipeline')
+    .select(
+      'unit_id, development_id, purchaser_name, purchaser_email, ' +
+        'release_date, sale_agreed_date, deposit_date, contracts_issued_date, ' +
+        'signed_contracts_date, counter_signed_date, handover_date, created_at',
+    )
+    .eq('development_id', developmentId);
+
+  const pipeRows = (pipelineRows || []) as any[];
+  if (!pipeRows.length) return [];
+
+  // 2. Unit rows for fallback purchaser name + status.
+  const unitIds = pipeRows.map((p) => p.unit_id).filter(Boolean);
+  const { data: unitRows } = await supabase
+    .from('units')
+    .select('id, unit_number, unit_uid, unit_status, purchaser_name, purchaser_email')
+    .in('id', unitIds);
+  const unitById = new Map<string, any>((unitRows || []).map((u: any) => [u.id, u]));
+
+  // 3. Communication recency per unit.
+  const { data: commsRows } = await supabase
+    .from('communication_events')
+    .select('unit_id, created_at')
+    .in('unit_id', unitIds)
+    .order('created_at', { ascending: false });
+  const lastCommByUnit = new Map<string, string>();
+  for (const c of (commsRows || []) as any[]) {
+    if (!c.unit_id) continue;
+    if (!lastCommByUnit.has(c.unit_id)) lastCommByUnit.set(c.unit_id, c.created_at);
+  }
+
+  // 4. Viewing counts. agent_viewings keys off a free-text unit_ref + a
+  //    nullable unit_id; we count by unit_id where available, and fall
+  //    back to unit_number string match for legacy rows.
+  const { data: viewingRows } = await supabase
+    .from('agent_viewings')
+    .select('unit_id, unit_ref, scheme_name, buyer_name')
+    .eq('scheme_name', schemeName);
+  const viewingsByUnitId = new Map<string, number>();
+  const viewingsByUnitRef = new Map<string, number>();
+  for (const v of (viewingRows || []) as any[]) {
+    if (v.unit_id) {
+      viewingsByUnitId.set(v.unit_id, (viewingsByUnitId.get(v.unit_id) || 0) + 1);
+    } else if (v.unit_ref) {
+      const k = String(v.unit_ref).toLowerCase();
+      viewingsByUnitRef.set(k, (viewingsByUnitRef.get(k) || 0) + 1);
+    }
+  }
+
+  const now = Date.now();
+  const ranked: RankedPipelineBuyer[] = [];
+
+  for (const p of pipeRows) {
+    const unit = unitById.get(p.unit_id);
+    const buyerName = (p.purchaser_name || unit?.purchaser_name || '').trim();
+    const buyerEmail = (p.purchaser_email || unit?.purchaser_email || null) as string | null;
+    if (!buyerName) continue; // No buyer in pipeline yet — skip, this is "who would convert", not "who could".
+
+    const unitNumber = unit?.unit_number || unit?.unit_uid || 'unknown';
+    const { stage, stagePoints } = classifyStage(unit?.unit_status || null, p);
+
+    const lastCommIso = lastCommByUnit.get(p.unit_id) || null;
+    const daysSinceContact = lastCommIso
+      ? Math.max(0, Math.floor((now - new Date(lastCommIso).getTime()) / 86400000))
+      : null;
+
+    const pipelineStartIso: string | null =
+      p.release_date || p.created_at || null;
+    const daysInPipeline = pipelineStartIso
+      ? Math.max(0, Math.floor((now - new Date(pipelineStartIso).getTime()) / 86400000))
+      : null;
+
+    let viewingCount = viewingsByUnitId.get(p.unit_id) || 0;
+    if (!viewingCount && unitNumber) {
+      viewingCount = viewingsByUnitRef.get(String(unitNumber).toLowerCase()) || 0;
+    }
+
+    const score =
+      0.4 * stagePoints +
+      0.3 * recencyPoints(daysSinceContact) +
+      0.2 * agingPoints(daysInPipeline) +
+      0.1 * viewingPoints(viewingCount);
+
+    ranked.push({
+      unit_id: p.unit_id,
+      development_id: p.development_id,
+      unit_number: String(unitNumber),
+      scheme_name: schemeName,
+      buyer_name: buyerName,
+      buyer_email: buyerEmail,
+      stage,
+      score: Math.round(score * 10) / 10,
+      reason: buildRankReason(stage, daysSinceContact, daysInPipeline, viewingCount),
+      last_contact_days: daysSinceContact,
+      pipeline_age_days: daysInPipeline,
+      viewing_count: viewingCount,
+    });
+  }
+
+  ranked.sort((a, b) => b.score - a.score);
+  return ranked.slice(0, limit);
+}
+
+export async function rankPipelineBuyers(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: RankPipelineBuyersInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'rank_pipeline_buyers';
+  const limit = Math.max(1, Math.min(50, inputs.limit ?? 10));
+  const query = `rank_pipeline_buyers development=${inputs.development_id ?? inputs.scheme_name ?? ''} limit=${limit}`;
+
+  try {
+    const scope = await resolveRankingScope(supabase, agentContext, inputs);
+    if (!scope.ok) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: scope.reason,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const ranked = await rankBuyersForDevelopment(
+      supabase,
+      scope.developmentId,
+      scope.schemeName,
+      limit,
+    );
+
+    if (!ranked.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `No active buyers in the pipeline at ${scope.schemeName} yet.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const summaryLines = [
+      `Top ${ranked.length} buyer${ranked.length === 1 ? '' : 's'} most likely to convert at ${scope.schemeName}:`,
+      ...ranked.map(
+        (r, i) =>
+          `${i + 1}. ${r.buyer_name} — Unit ${r.unit_number} (score ${r.score}) — ${r.reason}`,
+      ),
+    ];
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: summaryLines.join('\n'),
+      drafts: [],
+      meta: {
+        record_count: ranked.length,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — diagnostic + consumed by create_viewing_schedule
+        ranked_buyers: ranked,
+        // @ts-ignore
+        development_id: scope.developmentId,
+        // @ts-ignore
+        scheme_name: scope.schemeName,
+      } as any,
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 11 — create_viewing_schedule (timeslots + per-buyer proposals)
+// =====================================================================
+//
+// Phase 1 viewing scheduler. Builds N timeslots between start_time and
+// end_time at slot_duration_minutes spacing, ranks N buyers via the
+// existing rank_pipeline_buyers helper, and emits one viewing_record
+// draft and one email draft per buyer. The drafts go through the same
+// persistence / drawer pipeline every other agentic skill uses — no new
+// email pipeline.
+
+interface CreateViewingScheduleInput {
+  development_id?: string;
+  scheme_name?: string;
+  date: string; // ISO date "2026-05-09"
+  start_time: string; // "09:00"
+  end_time: string; // "14:00"
+  slot_duration_minutes?: number;
+  target_count?: number;
+}
+
+function parseClockTime(value: string): { hour: number; minute: number } | null {
+  if (!value) return null;
+  const trimmed = value.trim().toLowerCase();
+  // Accept "9", "9am", "9:00", "9:00am", "14:30", "2pm", "2:30pm".
+  const ampmMatch = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/);
+  if (!ampmMatch) return null;
+  let hour = Number(ampmMatch[1]);
+  const minute = ampmMatch[2] ? Number(ampmMatch[2]) : 0;
+  const meridiem = ampmMatch[3];
+  if (meridiem === 'pm' && hour < 12) hour += 12;
+  if (meridiem === 'am' && hour === 12) hour = 0;
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+  return { hour, minute };
+}
+
+function buildSlots(
+  date: string,
+  startTime: string,
+  endTime: string,
+  slotMinutes: number,
+  targetCount: number,
+): Array<{ start: string; end: string; iso: string }> | null {
+  const start = parseClockTime(startTime);
+  const end = parseClockTime(endTime);
+  if (!start || !end) return null;
+  const startMinutes = start.hour * 60 + start.minute;
+  const endMinutes = end.hour * 60 + end.minute;
+  if (endMinutes <= startMinutes) return null;
+  const slots: Array<{ start: string; end: string; iso: string }> = [];
+  let cursor = startMinutes;
+  while (cursor + slotMinutes <= endMinutes && slots.length < targetCount) {
+    const sH = Math.floor(cursor / 60);
+    const sM = cursor % 60;
+    const eMins = cursor + slotMinutes;
+    const eH = Math.floor(eMins / 60);
+    const eM = eMins % 60;
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const startLabel = `${pad(sH)}:${pad(sM)}`;
+    const endLabel = `${pad(eH)}:${pad(eM)}`;
+    const iso = `${date}T${startLabel}:00`;
+    slots.push({ start: startLabel, end: endLabel, iso });
+    cursor += slotMinutes;
+  }
+  return slots;
+}
+
+function formatSlotForCopy(date: string, slotStart: string): string {
+  const d = new Date(`${date}T${slotStart}:00`);
+  if (Number.isNaN(d.getTime())) return `${date} ${slotStart}`;
+  const dayLabel = d.toLocaleDateString('en-IE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+  return `${dayLabel} at ${slotStart}`;
+}
+
+export async function createViewingSchedule(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: CreateViewingScheduleInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'create_viewing_schedule';
+  const slotMinutes = Math.max(15, Math.min(120, inputs.slot_duration_minutes ?? 30));
+  const targetCount = Math.max(1, Math.min(20, inputs.target_count ?? 10));
+  const query = `create_viewing_schedule date=${inputs.date} ${inputs.start_time}-${inputs.end_time} slots=${targetCount}@${slotMinutes}m`;
+
+  try {
+    if (!inputs.date || !/^\d{4}-\d{2}-\d{2}$/.test(inputs.date)) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'Provide date as ISO YYYY-MM-DD (e.g. 2026-05-09).',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const scope = await resolveRankingScope(supabase, agentContext, inputs);
+    if (!scope.ok) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: scope.reason,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const slots = buildSlots(
+      inputs.date,
+      inputs.start_time,
+      inputs.end_time,
+      slotMinutes,
+      targetCount,
+    );
+    if (!slots || slots.length === 0) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary:
+          'Could not build slots from the time range. Check start_time / end_time / slot_duration_minutes.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    // Use the same ranker the agent would call directly. We fetch one
+    // extra so we have headroom if a top-ranked buyer is missing an
+    // email and we need to skip them.
+    const ranked = await rankBuyersForDevelopment(
+      supabase,
+      scope.developmentId,
+      scope.schemeName,
+      targetCount + 5,
+    );
+
+    const eligible = ranked.filter((r) => r.buyer_email && r.buyer_name);
+    if (eligible.length === 0) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `No buyers with email on file at ${scope.schemeName}. Update purchaser emails on the units before scheduling.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    const drafts: AgenticSkillEnvelope['drafts'] = [];
+    const usedSlots = Math.min(slots.length, eligible.length);
+
+    for (let i = 0; i < usedSlots; i++) {
+      const buyer = eligible[i];
+      const primarySlot = slots[i];
+      // Offer 2-3 specific slots: the primary plus the next two on either
+      // side, deduped, capped at the schedule's bounds. Phase 1 keeps it
+      // simple — let the agent edit later if needed.
+      const altSlots: typeof slots = [];
+      for (const offset of [1, -1, 2, -2]) {
+        const idx = i + offset;
+        if (idx >= 0 && idx < slots.length && altSlots.length < 2) {
+          altSlots.push(slots[idx]);
+        }
+      }
+      const slotLines = [primarySlot, ...altSlots]
+        .map((s) => `- ${formatSlotForCopy(inputs.date, s.start)}`)
+        .join('\n');
+
+      const buyerFirst = firstName(buyer.buyer_name);
+      const opener = `${buyer.reason}, so I wanted to put a slot in front of you.`;
+
+      const subject = `Viewing slot for Unit ${buyer.unit_number}, ${scope.schemeName}`;
+      const body = [
+        `Hi ${buyerFirst},`,
+        '',
+        opener,
+        '',
+        `I'm running viewings at ${scope.schemeName} on ${formatSlotForCopy(inputs.date, primarySlot.start).replace(' at ' + primarySlot.start, '')}. I've held a slot for you — pick whichever works:`,
+        slotLines,
+        '',
+        `Reply with the time and I'll lock it in. Happy to suggest another day if none of those land.`,
+        '',
+        'Thanks,',
+        signature(agentContext),
+      ].join('\n');
+
+      // Email draft.
+      drafts.push({
+        id: randomUUID(),
+        type: 'email' as const,
+        recipient: {
+          name: buyer.buyer_name,
+          email: buyer.buyer_email!,
+          role: 'buyer',
+        },
+        subject,
+        body,
+        affected_record: {
+          kind: 'sales_unit',
+          id: buyer.unit_id,
+          label: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+        },
+        reasoning: `Ranked #${i + 1} (score ${buyer.score}). ${buyer.reason}.`,
+      });
+
+      // Viewing-record draft. Mirrors scheduleViewingDraft so the same
+      // approval drawer creates a real agent_viewings row when the agent
+      // hits Approve.
+      const recordRow: Record<string, any> = {
+        agent_id: agentContext.agentProfileId,
+        buyer_name: buyer.buyer_name,
+        buyer_email: buyer.buyer_email,
+        viewing_date: inputs.date,
+        viewing_time: `${primarySlot.start}:00`,
+        status: 'pending',
+        source: 'intelligence',
+        unit_ref: buyer.unit_number,
+        development_id: scope.developmentId,
+        unit_id: buyer.unit_id,
+        scheme_name: scope.schemeName,
+      };
+      drafts.push({
+        id: randomUUID(),
+        type: 'viewing_record' as const,
+        body: JSON.stringify(recordRow, null, 2),
+        affected_record: {
+          kind: 'sales_unit',
+          id: buyer.unit_id,
+          label: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+        },
+        reasoning: `Holds ${formatSlotForCopy(inputs.date, primarySlot.start)} for ${buyer.buyer_name}. Created on approval.`,
+      });
+    }
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.schemeName} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). Each buyer has an email proposal and a held slot in the drawer for review.`,
+      drafts,
+      meta: {
+        record_count: drafts.length,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — surfaced for diagnostics + analytics
+        development_id: scope.developmentId,
+        // @ts-ignore
+        scheme_name: scope.schemeName,
+        // @ts-ignore
+        slot_count: usedSlots,
+        // @ts-ignore
+        ranked_buyers: eligible.slice(0, usedSlots),
+      } as any,
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
