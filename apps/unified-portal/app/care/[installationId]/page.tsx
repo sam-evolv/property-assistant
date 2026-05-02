@@ -109,29 +109,29 @@ export default function CareInstallationPage() {
         className="flex-shrink-0 bg-white z-50"
         style={{
           borderBottom: '1px solid #EEEEEE',
-          // Tenant logos are usually square brand marks, so we render them at
-          // 52px tall and tighten the vertical padding to keep the overall
-          // toolbar the same height as the SE Systems wordmark layout
-          // (8 + 52 + 8 = 68px ≡ 16 + 36 + 16).
+          // For tenant logos, push padding to zero so the brand mark can be
+          // ~75% larger than the SE Systems wordmark while keeping toolbar
+          // chrome to a minimum.
           paddingTop: tenantLogoUrl
-            ? 'calc(8px + env(safe-area-inset-top, 0px))'
+            ? 'calc(2px + env(safe-area-inset-top, 0px))'
             : 'calc(16px + env(safe-area-inset-top, 0px))',
-          paddingBottom: tenantLogoUrl ? 8 : 16,
+          paddingBottom: tenantLogoUrl ? 2 : 16,
           paddingLeft: 'calc(20px + env(safe-area-inset-left, 0px))',
           paddingRight: 'calc(20px + env(safe-area-inset-right, 0px))',
+          overflow: 'hidden',
         }}
       >
         <div className="flex items-center max-w-4xl mx-auto">
           <Image
             src={headerLogoSrc}
             alt={headerLogoAlt}
-            width={tenantLogoUrl ? 52 : 120}
-            height={tenantLogoUrl ? 52 : 36}
+            width={tenantLogoUrl ? 91 : 120}
+            height={tenantLogoUrl ? 91 : 36}
             priority
             style={{
-              height: tenantLogoUrl ? 52 : 36,
+              height: tenantLogoUrl ? 91 : 36,
               width: 'auto',
-              maxWidth: tenantLogoUrl ? 200 : 120,
+              maxWidth: tenantLogoUrl ? 360 : 120,
               objectFit: 'contain',
               // Only blacken the SE Systems wordmark fallback; render tenant logos in their natural colours.
               filter: tenantLogoUrl ? undefined : 'brightness(0)',
