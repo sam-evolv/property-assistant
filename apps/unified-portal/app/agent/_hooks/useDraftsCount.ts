@@ -1,6 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { useAgent } from '@/lib/agent/AgentContext';
+import { deriveEffectiveMode } from '@/lib/agent/effective-mode';
 
 const REFRESH_EVENT = 'oh.agent.drafts.refresh';
 const POLL_INTERVAL_MS = 30_000;
@@ -11,6 +14,11 @@ const POLL_INTERVAL_MS = 30_000;
  * the endpoint themselves. Other parts of the app (review screen, approve
  * action, send flow) can dispatch `oh.agent.drafts.refresh` to force an
  * immediate refresh instead of waiting for the next poll tick.
+ *
+ * The count is workspace-scoped: lettings drafts don't inflate the sales
+ * inbox badge and vice versa. The effective mode is derived from the URL
+ * (sales/lettings page → that workspace; mode-neutral page → fall back to
+ * the persisted active workspace).
  */
 export function useDraftsCount(): {
   count: number;
@@ -21,10 +29,13 @@ export function useDraftsCount(): {
 } {
   const [count, setCount] = useState(0);
   const [ready, setReady] = useState(false);
+  const pathname = usePathname();
+  const { activeWorkspace } = useAgent();
+  const mode = deriveEffectiveMode(pathname, activeWorkspace?.mode);
 
   const refresh = useCallback(async () => {
     try {
-      const res = await fetch('/api/agent/intelligence/drafts', { cache: 'no-store' });
+      const res = await fetch(`/api/agent/intelligence/drafts?mode=${mode}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       if (typeof data.count === 'number') setCount(data.count);
@@ -33,7 +44,7 @@ export function useDraftsCount(): {
     } finally {
       setReady(true);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => {
     refresh();

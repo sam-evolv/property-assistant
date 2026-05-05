@@ -73,6 +73,45 @@ const BUYER_DRAFT_TYPES: readonly string[] = [
   'chain_update_to_buyer',
 ];
 
+// Workspace-mode partition for the drafts list filter. `buyer_followup` is
+// produced by both `draft_message` and `draft_buyer_followups`, both of
+// which are reachable from sales AND lettings flows (the lettings system
+// prompt at system-prompt.ts:645 and the registry's lettings recipient_type
+// branch). Keep it visible in BOTH modes — the alternative is hiding real
+// lettings drafts from the lettings inbox, which is worse than minor
+// cross-pollination.
+export const SALES_DRAFT_TYPES: readonly string[] = [
+  'solicitor_chase',
+  'viewing_followup',
+  'viewing_proposal',
+  'viewing_record',
+  'weekly_briefing',
+  'intelligence_report',
+  'intelligence_answer',
+  'intelligence_draft',
+  'schedule_viewing',
+  'vendor_update',
+  'offer_response',
+  'price_reduction_notice',
+  'chain_update_to_buyer',
+];
+
+export const LETTINGS_DRAFT_TYPES: readonly string[] = [
+  'lease_renewal',
+  'application_invitation',
+  'landlord_statement',
+];
+
+export const SHARED_DRAFT_TYPES: readonly string[] = [
+  'buyer_followup',
+];
+
+export function draftTypesForMode(mode: 'sales' | 'lettings'): string[] {
+  return mode === 'lettings'
+    ? [...LETTINGS_DRAFT_TYPES, ...SHARED_DRAFT_TYPES]
+    : [...SALES_DRAFT_TYPES, ...SHARED_DRAFT_TYPES];
+}
+
 export async function resolveRecipient(
   supabase: SupabaseClient,
   draftType: string,

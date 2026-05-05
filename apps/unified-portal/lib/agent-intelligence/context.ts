@@ -27,6 +27,12 @@ export interface SalesPipelineSummary {
   totalContractsIssued: number;
   totalSaleAgreed: number;
   totalAvailable: number;
+  overdueClosings: Array<{
+    schemeName: string;
+    purchaserName: string | null;
+    estimatedCloseDate: string;
+    daysOverdue: number;
+  }>;
 }
 
 export interface LettingsSummary {
@@ -367,12 +373,12 @@ export async function getSalesPipelineSummary(
 ): Promise<SalesPipelineSummary> {
   const devIds = agentContext.assignedSchemes.map(s => s.developmentId);
   if (!devIds.length) {
-    return { perScheme: [], totalUnits: 0, totalSold: 0, totalContractsIssued: 0, totalSaleAgreed: 0, totalAvailable: 0 };
+    return { perScheme: [], totalUnits: 0, totalSold: 0, totalContractsIssued: 0, totalSaleAgreed: 0, totalAvailable: 0, overdueClosings: [] };
   }
 
   const { data: pipeline } = await supabase
     .from('unit_sales_pipeline')
-    .select('development_id, status, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date')
+    .select('development_id, status, sale_agreed_date, contracts_issued_date, signed_contracts_date, counter_signed_date, handover_date, estimated_close_date, purchaser_name')
     .eq('tenant_id', tenantId)
     .in('development_id', devIds);
 
@@ -412,7 +418,32 @@ export async function getSalesPipelineSummary(
   const totalSaleAgreed = perScheme.reduce((a, s) => a + s.counts.sale_agreed, 0);
   const totalAvailable = perScheme.reduce((a, s) => a + s.counts.available, 0);
 
-  return { perScheme, totalUnits, totalSold, totalContractsIssued, totalSaleAgreed, totalAvailable };
+  // Surface units whose estimated_close_date is already in the past and that
+  // haven't been handed over yet. The model otherwise sees "Est. Closing 1 Feb"
+  // alongside no urgency signal and treats it as a future date.
+  const schemeNameById = new Map<string, string>(
+    agentContext.assignedSchemes.map(s => [s.developmentId, s.schemeName]),
+  );
+  const overdueClosings = (pipeline || [])
+    .map((p: any) => {
+      if (!p.estimated_close_date) return null;
+      if (p.handover_date) return null;
+      const ms = new Date(p.estimated_close_date).getTime();
+      if (!Number.isFinite(ms)) return null;
+      const daysOverdue = Math.floor((Date.now() - ms) / 86400000);
+      if (daysOverdue <= 0) return null;
+      return {
+        schemeName: schemeNameById.get(p.development_id) || 'Unknown scheme',
+        purchaserName: p.purchaser_name || null,
+        estimatedCloseDate: p.estimated_close_date,
+        daysOverdue,
+      };
+    })
+    .filter((x): x is NonNullable<typeof x> => x !== null)
+    .sort((a, b) => b.daysOverdue - a.daysOverdue)
+    .slice(0, 12);
+
+  return { perScheme, totalUnits, totalSold, totalContractsIssued, totalSaleAgreed, totalAvailable, overdueClosings };
 }
 
 export async function getLettingsSummary(
@@ -484,7 +515,10 @@ export async function getRenewalWindow(
   agentId: string
 ): Promise<RenewalWindowTenancy[]> {
   const today = new Date();
-  const todayIso = today.toISOString().split('T')[0];
+  // Widen backwards by 14 days so recently-expired-and-unrenewed leases surface
+  // as urgent next to upcoming renewals — without them the prose layer was
+  // blind to expired tenancies and the model invented "lease ends tomorrow".
+  const fourteenAgoIso = new Date(today.getTime() - 14 * 86400000).toISOString().split('T')[0];
   const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
 
   const { data, error } = await supabase
@@ -492,7 +526,7 @@ export async function getRenewalWindow(
     .select('id, agent_id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm, notes')
     .eq('agent_id', agentId)
     .eq('status', 'active')
-    .gte('lease_end', todayIso)
+    .gte('lease_end', fourteenAgoIso)
     .lte('lease_end', ninetyIso);
 
   if (error || !data?.length) return [];
@@ -510,7 +544,9 @@ export async function getRenewalWindow(
   return data
     .map((t: any) => {
       const leaseEnd = new Date(t.lease_end);
-      const daysOut = Math.ceil((leaseEnd.getTime() - today.getTime()) / 86400000);
+      // Match the per-recipient helper exactly: floor against wall-clock so
+      // both layers agree at the day boundary.
+      const daysOut = Math.floor((leaseEnd.getTime() - Date.now()) / 86400000);
       const prop = propertyById.get(t.letting_property_id);
       return {
         tenancyId: t.id,

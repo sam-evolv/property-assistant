@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
 import { useApplicantsCount } from '../_hooks/useApplicantsCount';
 import { useAgent } from '@/lib/agent/AgentContext';
+import { deriveEffectiveMode } from '@/lib/agent/effective-mode';
 
 // Tab ids cover both nav surfaces. Sales: home | pipeline | applicants |
 // viewings. Lettings: home | properties | viewings | maintenance. 'home' and
@@ -107,11 +108,14 @@ export default function BottomNav() {
   const { count: draftsCount } = useDraftsCount();
   const { count: applicantsCount } = useApplicantsCount();
 
-  // Workspace-aware nav. Lettings mode swaps in the lettings tab set; every
-  // other state (sales mode, no-workspace legacy users) keeps the original
-  // sales tabs. The Intelligence FAB is shared and unchanged.
+  // Workspace-aware nav. The displayed tab set is derived from the URL when
+  // it unambiguously belongs to one workspace; otherwise we fall back to the
+  // persisted active workspace. Without this, pipeline pages (sales URLs)
+  // showed lettings tabs whenever the persisted workspace was lettings, and
+  // vice versa.
   const { activeWorkspace } = useAgent();
-  const tabs = activeWorkspace?.mode === 'lettings' ? LETTINGS_TABS : SALES_TABS;
+  const effectiveMode = deriveEffectiveMode(pathname, activeWorkspace?.mode);
+  const tabs = effectiveMode === 'lettings' ? LETTINGS_TABS : SALES_TABS;
   const leftTabs = tabs.slice(0, 2);
   const rightTabs = tabs.slice(2);
 

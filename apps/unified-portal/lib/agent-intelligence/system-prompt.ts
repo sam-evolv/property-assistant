@@ -100,13 +100,20 @@ function renderAgedContracts(rows: AgedContract[]): string {
 }
 
 function renderRenewalWindow(rows: RenewalWindowTenancy[]): string {
-  if (!rows.length) return 'RENEWAL WINDOW (next 90 days):\n- None.';
+  if (!rows.length) return 'RENEWAL WINDOW (expired ≤14d or upcoming ≤90d):\n- None.';
   const lines = rows.map(r => {
     const rpz = r.isRpz ? 'RPZ' : 'non-RPZ';
     const rent = r.currentRent ? ` @ ${fmtEuro(r.currentRent)}/mo` : '';
+    if (r.daysOut < 0) {
+      const n = Math.abs(r.daysOut);
+      return `- ${r.tenantName} — ${r.propertyAddress}${rent} — lease ENDED ${fmtDate(r.leaseEnd)} — ${n} day${n === 1 ? '' : 's'} ago, EXPIRED (${rpz})`;
+    }
+    if (r.daysOut === 0) {
+      return `- ${r.tenantName} — ${r.propertyAddress}${rent} — lease ends TODAY (${fmtDate(r.leaseEnd)}, ${rpz})`;
+    }
     return `- ${r.tenantName} — ${r.propertyAddress}${rent} — lease ends ${fmtDate(r.leaseEnd)} (${r.daysOut}d out, ${rpz})`;
   });
-  return `RENEWAL WINDOW (next 90 days):\n${lines.join('\n')}`;
+  return `RENEWAL WINDOW (expired ≤14d or upcoming ≤90d):\n${lines.join('\n')}`;
 }
 
 function renderRentArrears(rows: RentArrearsRecord[]): string {
@@ -122,7 +129,16 @@ function renderSalesPipeline(s: SalesPipelineSummary | null): string {
     return `- ${p.schemeName}: ${p.total} units — sold ${c.sold}, signed ${c.signed}, contracts issued ${c.contracts_issued}, sale agreed ${c.sale_agreed}, available ${c.available}`;
   });
   const totals = `  TOTALS: ${s.totalUnits} units — sold ${s.totalSold}, contracts issued ${s.totalContractsIssued}, sale agreed ${s.totalSaleAgreed}, available ${s.totalAvailable}`;
-  return `SALES PIPELINE (per scheme):\n${lines.join('\n')}\n${totals}`;
+  // Mirror the lettings expired-lease wording: capitalised "OVERDUE Nd" so the
+  // model treats past-due closing dates as urgent rather than future.
+  const overdueLines = (s.overdueClosings || []).map(o => {
+    const buyer = o.purchaserName ? ` — ${o.purchaserName}` : '';
+    return `- ${o.schemeName}${buyer} — Est. Closing ${fmtDate(o.estimatedCloseDate)} — OVERDUE ${o.daysOverdue}d`;
+  });
+  const overdueBlock = overdueLines.length
+    ? `\n\nOVERDUE CLOSINGS (estimated_close_date in the past, not yet handed over):\n${overdueLines.join('\n')}`
+    : '';
+  return `SALES PIPELINE (per scheme):\n${lines.join('\n')}\n${totals}${overdueBlock}`;
 }
 
 function renderLettingsSummary(l: LettingsSummary | null): string {
@@ -137,8 +153,6 @@ function renderLettingsSummary(l: LettingsSummary | null): string {
 // when a tenancy is active; "VACANT" otherwise. Capped at 30 lines.
 function renderLettingsPortfolio(l: LettingsSummary | null): string {
   if (!l || !l.total) return 'LETTINGS PORTFOLIO:\n- (no properties yet)';
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   const lines = l.properties.slice(0, 30).map((p) => {
     const cityPart = p.city ? `, ${p.city}` : '';
     if (p.activeTenant) {
@@ -147,11 +161,23 @@ function renderLettingsPortfolio(l: LettingsSummary | null): string {
       let leasePart = '';
       if (t.leaseEnd) {
         const end = new Date(t.leaseEnd);
-        const days = Math.round((end.getTime() - today.getTime()) / 86_400_000);
-        const daysPart = Number.isFinite(days)
-          ? days < 0 ? `${Math.abs(days)}d ago` : days === 0 ? 'today' : `${days}d`
-          : '';
-        leasePart = `, lease ends ${fmtDate(t.leaseEnd)}${daysPart ? ` (${daysPart})` : ''}`;
+        // Floor against wall-clock time, identical to the per-recipient
+        // reasoning helper. Capitalised tense ("ENDED ... EXPIRED") gives the
+        // model an unambiguous past-tense anchor so it stops generating
+        // "lease ends tomorrow" prose for already-expired tenancies.
+        const days = Math.floor((end.getTime() - Date.now()) / 86_400_000);
+        if (Number.isFinite(days)) {
+          if (days < 0) {
+            const n = Math.abs(days);
+            leasePart = `, lease ENDED ${fmtDate(t.leaseEnd)} — ${n} day${n === 1 ? '' : 's'} ago, EXPIRED`;
+          } else if (days === 0) {
+            leasePart = `, lease ends TODAY (${fmtDate(t.leaseEnd)})`;
+          } else {
+            leasePart = `, lease ends ${fmtDate(t.leaseEnd)} (${days}d)`;
+          }
+        } else {
+          leasePart = `, lease ends ${fmtDate(t.leaseEnd)}`;
+        }
       }
       return `- ${p.address}${cityPart} — ${t.name} (${rentPart}${leasePart})`;
     }

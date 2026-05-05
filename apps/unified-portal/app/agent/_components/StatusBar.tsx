@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import NotificationPanel from './NotificationPanel';
 import type { Notification } from './NotificationPanel';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { type Alert, type PipelineUnit, getInitials } from '@/lib/agent/agentPipelineService';
 import { useDraftsCount } from '../_hooks/useDraftsCount';
+import { deriveEffectiveMode } from '@/lib/agent/effective-mode';
 
 interface UserContext {
   id: string;
@@ -110,8 +111,20 @@ export default function StatusBar({
   const [showSwitcher, setShowSwitcher] = useState(false);
   const [showWorkspaceSwitcher, setShowWorkspaceSwitcher] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
-  const hasWorkspaces = workspaces.length > 0 && activeWorkspace !== null;
+  // Header pill follows the URL when it unambiguously belongs to one
+  // workspace, falling back to the persisted active workspace on
+  // mode-neutral routes (intelligence, drafts, settings). Prevents the
+  // pill / badge from displaying lettings on a sales URL and vice versa.
+  const effectiveMode = deriveEffectiveMode(pathname, activeWorkspace?.mode);
+  const displayedWorkspace = (() => {
+    if (!activeWorkspace) return null;
+    if (activeWorkspace.mode === effectiveMode) return activeWorkspace;
+    return workspaces.find((w) => w.mode === effectiveMode) ?? activeWorkspace;
+  })();
+
+  const hasWorkspaces = workspaces.length > 0 && displayedWorkspace !== null;
 
   const handleSwitchWorkspace = useCallback(
     async (workspaceId: string) => {
@@ -238,9 +251,9 @@ export default function StatusBar({
                   minWidth: 0,
                 }}
               >
-                {activeWorkspace!.displayName}
+                {displayedWorkspace!.displayName}
               </span>
-              <ModeBadge mode={activeWorkspace!.mode} />
+              <ModeBadge mode={displayedWorkspace!.mode} />
               {/* TODO: restore chevron once agent_profile scheme resolver is fixed
                   (returns empty for Orla despite 5 active assignments). Hidden
                   for the promo build to avoid suggesting a working dropdown. */}
