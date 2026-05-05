@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { MailCheck, Trash2, Send as SendIcon } from 'lucide-react';
+import { Check, MailCheck, Trash2, Send as SendIcon } from 'lucide-react';
 import {
   draftTypeLabel,
   relativeTimestamp,
@@ -16,6 +16,8 @@ interface DraftsListRowProps {
   onOpen: (draft: DraftRecord) => void;
   onDiscard: (draft: DraftRecord) => Promise<void> | void;
   onQuickSend: (draft: DraftRecord) => Promise<void> | void;
+  isSelected?: boolean;
+  onToggleSelect?: (draft: DraftRecord) => void;
 }
 
 /**
@@ -30,6 +32,8 @@ export default function DraftsListRow({
   onOpen,
   onDiscard,
   onQuickSend,
+  isSelected = false,
+  onToggleSelect,
 }: DraftsListRowProps) {
   const [dragX, setDragX] = useState(0);
   const startX = useRef<number | null>(null);
@@ -169,7 +173,9 @@ export default function DraftsListRow({
         className="agent-tappable"
         style={{
           position: 'relative',
-          display: 'block',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: 12,
           width: '100%',
           textAlign: 'left',
           background: '#FFFFFF',
@@ -182,6 +188,39 @@ export default function DraftsListRow({
           opacity: busy ? 0.6 : 1,
         }}
       >
+        {onToggleSelect ? (
+          <span
+            data-testid="drafts-row-checkbox"
+            role="checkbox"
+            aria-checked={isSelected}
+            tabIndex={-1}
+            onClick={(e) => {
+              // Stop the tap from bubbling to the row's open handler. The
+              // selection state must persist independently of opening the
+              // draft for review — selecting then opening must NOT clear
+              // the checkbox.
+              e.stopPropagation();
+              onToggleSelect(draft);
+            }}
+            style={{
+              flexShrink: 0,
+              marginTop: 2,
+              width: 22,
+              height: 22,
+              borderRadius: 11,
+              border: isSelected ? '1.5px solid #C49B2A' : '1.5px solid rgba(0,0,0,0.18)',
+              background: isSelected ? '#C49B2A' : '#FFFFFF',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#FFFFFF',
+              transition: 'background 120ms ease, border-color 120ms ease',
+            }}
+          >
+            {isSelected ? <Check size={14} strokeWidth={3} /> : null}
+          </span>
+        ) : null}
+        <div style={{ flex: 1, minWidth: 0 }}>
         <div
           style={{
             display: 'flex',
@@ -274,6 +313,7 @@ export default function DraftsListRow({
         >
           {preview || 'No preview'}
         </p>
+        </div>
       </button>
     </div>
   );

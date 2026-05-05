@@ -29,9 +29,26 @@ const AGENTIC_DRAFT_TYPE_BY_SKILL: Record<string, string> = {
   create_viewing_schedule: 'viewing_proposal',
 };
 
+// Lettings-context renewal language. Used by the resolveDraftType backstop
+// below to reclassify draft_message → lease_renewal when the model picked
+// the wrong skill for "remind X about their renewal" / "lease end reminder".
+// Strict guard: requires `affected_record.kind === 'tenancy'` AS WELL AS a
+// renewal keyword in the body — neither alone is sufficient. This prevents
+// the backstop from misfiring on sales buyer_followups that happen to
+// mention mortgage renewal.
+const RENEWAL_LANGUAGE = /renewal|lease[\s-]?end|renew/i;
+
 function resolveDraftType(skill: string, draft: AgenticSkillDraft): string {
   if (draft.type === 'viewing_record') return 'viewing_record';
   if (draft.type === 'report') return AGENTIC_DRAFT_TYPE_BY_SKILL[skill] || 'intelligence_report';
+  if (
+    skill === 'draft_message' &&
+    draft.affected_record?.kind === 'tenancy' &&
+    typeof draft.body === 'string' &&
+    RENEWAL_LANGUAGE.test(draft.body)
+  ) {
+    return 'lease_renewal';
+  }
   return AGENTIC_DRAFT_TYPE_BY_SKILL[skill] || 'intelligence_draft';
 }
 
@@ -66,21 +83,25 @@ export interface SkillPersistContext {
 /**
  * Defence-in-depth guard.
  *
- * The catch-all "recipient" sentinel previously used by draftMessageSkill
- * has been removed; the skill now returns a structured `needs_recipient`
- * envelope instead of a placeholder draft, and the contact resolver fills
- * in the email when it's on file. This set stays in place as a defensive
- * net so any future regression that re-introduces the sentinel cannot
- * land in `pending_drafts`.
+ * Skills that can't resolve a recipient should return a `needs_recipient`
+ * envelope (handled by the chat route's FailureCard) rather than a draft
+ * with a placeholder email. This set is the persistence-layer net for
+ * regressions that re-introduce a placeholder.
  *
- * NOTE: `buyer@tbc.invalid`, `tenant@tbc.invalid`, and
- * `solicitor@tbc.invalid` are NOT blocked. Those come from flows where
- * the unit / tenancy / solicitor is resolved but the email isn't on
- * file yet — legitimate "fill in before approving" drafts.
+ * `solicitor@tbc.invalid` was added after the audit found 45 ghost
+ * solicitor_chase drafts in production — chaseAgedContracts now surfaces
+ * the aged contracts via a needs_recipient envelope and never produces a
+ * placeholder draft. Blocking the literal closes the regression class.
+ *
+ * `buyer@tbc.invalid` and `tenant@tbc.invalid` remain ALLOWED: those come
+ * from flows where the unit / tenancy is resolved but the email isn't on
+ * file yet — legitimate "fill in before approving" drafts that the agent
+ * can complete in the review drawer.
  */
 const BLOCKED_PLACEHOLDER_EMAILS = new Set([
   'recipient@tbc.invalid',
   'placeholder@tbc.invalid',
+  'solicitor@tbc.invalid',
 ]);
 
 function shouldBlockDraft(draft: AgenticSkillDraft): { block: boolean; reason: string } {
