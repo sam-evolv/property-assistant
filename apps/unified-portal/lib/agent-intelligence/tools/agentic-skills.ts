@@ -368,46 +368,48 @@ export async function chaseAgedContracts(
       new Date(a.contracts_issued_date).getTime() - new Date(b.contracts_issued_date).getTime(),
     );
 
-    const drafts = filtered.map((r: any) => {
+    // BUG-A symmetry with draftMessageSkill: there is no schema-level solicitor
+    // email on unit_sales_pipeline / units, and no contact-resolver path for
+    // role='solicitor' against the developer-portal sales tables. Producing a
+    // draft with the `solicitor@tbc.invalid` placeholder leaves a permanent
+    // ghost in pending_drafts (45 of them in production at the time of the
+    // audit). Instead, surface the aged contracts via a needs_recipient
+    // envelope so the agent sees what's stale and can paste the right
+    // address — same UX contract the buyer flow uses.
+    const correlationId = randomUUID().slice(0, 8);
+    const lines = filtered.slice(0, 10).map((r: any) => {
       const schemeName = devNameById.get(r.development_id) || 'Unknown scheme';
       const unit = unitById.get(r.unit_id);
       const unitNumber = unit?.unit_number || unit?.unit_uid || 'unknown';
-      const purchaser = r.purchaser_name || 'the purchaser';
+      const purchaser = r.purchaser_name || 'unknown buyer';
       const issuedLabel = formatIrishDate(r.contracts_issued_date);
       const daysAged = daysBetween(r.contracts_issued_date);
-
-      const body = [
-        `Hi,`,
-        ``,
-        `Following up on Unit ${unitNumber} at ${schemeName}. Contracts were issued on ${issuedLabel} to ${purchaser}, and we still haven't had signed contracts back. That's now ${daysAged} days out.`,
-        ``,
-        `Could you let me know where we stand on signing? Happy to talk through anything that's holding things up.`,
-        ``,
-        `Thanks,`,
-        signature(agentContext),
-      ].join('\n');
-
-      return {
-        id: randomUUID(),
-        type: 'email' as const,
-        recipient: { name: 'Solicitor (TBC)', email: 'solicitor@tbc.invalid', role: 'solicitor' },
-        subject: `Contracts issued ${issuedLabel} — following up on Unit ${unitNumber}, ${schemeName}`,
-        body,
-        affected_record: {
-          kind: 'sales_unit',
-          id: r.unit_id || '',
-          label: `${schemeName} Unit ${unitNumber}`,
-        },
-        reasoning: `Contract was issued ${daysAged} days ago (${issuedLabel}) and remains unsigned. Solicitor follow-up suggested. Note: solicitor email is a placeholder pending data capture — the agent should replace it before approving.`,
-      };
+      return `- ${schemeName} Unit ${unitNumber} — ${purchaser}, contracts issued ${issuedLabel} (${daysAged}d aged)`;
     });
+    const more = filtered.length > 10 ? `\n- (+${filtered.length - 10} more)` : '';
+    const summary = [
+      `I can't draft solicitor chases yet — there's no solicitor email on file for any of these ${filtered.length} aged contract${filtered.length === 1 ? '' : 's'}.`,
+      lines.join('\n') + more,
+      'Reply with the solicitor address (or addresses) and I\'ll draft the chases.',
+    ].join('\n\n');
 
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted ${drafts.length} chase email${drafts.length === 1 ? '' : 's'} for contracts aged over ${thresholdDays} days.`,
-      drafts,
-      meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
+      summary,
+      drafts: [],
+      meta: {
+        record_count: filtered.length,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — chat route surfaces this via FailureCard
+        needs_recipient: {
+          correlationId,
+          recipient_query: 'solicitor for aged contracts',
+          candidates: [],
+          searched: ['unit_sales_pipeline', 'units'],
+        },
+      } as any,
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);

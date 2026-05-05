@@ -41,6 +41,12 @@ export default function AgentDraftsPage() {
   const [autoSendOffer, setAutoSendOffer] = useState<AutoSendOffer | null>(null);
   const [undoBatch, setUndoBatch] = useState<UndoBatch | null>(null);
   const [isDesktop, setIsDesktop] = useState(false);
+  // Batch selection state. Lives on the page, never on the row, so opening
+  // a draft for review does not deselect it. The set is cleared whenever
+  // the visible draft list changes shape (after a batch action or an
+  // explicit "Clear" tap).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
+  const [batchBusy, setBatchBusy] = useState<'send' | 'discard' | 'tweak' | null>(null);
 
   const pullStartY = useRef<number | null>(null);
   const [pullOffset, setPullOffset] = useState(0);
@@ -272,6 +278,139 @@ export default function AgentDraftsPage() {
     await handleDiscard(activeDraft);
   }, [activeDraft, handleDiscard]);
 
+  // Batch selection handlers. `toggleSelect` is the row's checkbox callback.
+  // `selectAll`/`clearSelection` drive the header toggle. The action handlers
+  // (`batchSend`, `batchDiscard`, `batchTweak`) loop over the existing
+  // single-draft endpoints — same wiring, just iterated — so we never have
+  // two code paths to maintain.
+  const toggleSelect = useCallback((draft: DraftRecord) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(draft.id)) next.delete(draft.id);
+      else next.add(draft.id);
+      return next;
+    });
+  }, []);
+
+  const selectedDrafts = useMemo(
+    () => drafts.filter((d) => selectedIds.has(d.id)),
+    [drafts, selectedIds],
+  );
+
+  const allSelected = drafts.length > 0 && selectedDrafts.length === drafts.length;
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === drafts.length) return new Set();
+      return new Set(drafts.map((d) => d.id));
+    });
+  }, [drafts]);
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
+
+  const batchSend = useCallback(async () => {
+    if (!selectedDrafts.length) return;
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`Send ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'} now?`)
+      : true;
+    if (!confirmed) return;
+    setBatchBusy('send');
+    try {
+      const sentIds: string[] = [];
+      for (const draft of selectedDrafts) {
+        try {
+          const res = await fetch('/api/agent/intelligence/send-draft', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ draftId: draft.id, wasEdited: false }),
+          });
+          if (res.ok) sentIds.push(draft.id);
+        } catch { /* keep iterating */ }
+      }
+      if (sentIds.length) {
+        setDrafts((prev) => prev.filter((d) => !sentIds.includes(d.id)));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of sentIds) next.delete(id);
+          return next;
+        });
+        notifyDraftsChanged();
+      }
+    } finally {
+      setBatchBusy(null);
+    }
+  }, [selectedDrafts]);
+
+  const batchDiscard = useCallback(async () => {
+    if (!selectedDrafts.length) return;
+    const confirmed = typeof window !== 'undefined'
+      ? window.confirm(`Discard ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'}? This can't be undone.`)
+      : true;
+    if (!confirmed) return;
+    setBatchBusy('discard');
+    try {
+      const deletedIds: string[] = [];
+      for (const draft of selectedDrafts) {
+        try {
+          const res = await fetch(`/api/agent/intelligence/drafts/${draft.id}`, { method: 'DELETE' });
+          if (res.ok) deletedIds.push(draft.id);
+        } catch { /* keep iterating */ }
+      }
+      if (deletedIds.length) {
+        setDrafts((prev) => prev.filter((d) => !deletedIds.includes(d.id)));
+        setSelectedIds((prev) => {
+          const next = new Set(prev);
+          for (const id of deletedIds) next.delete(id);
+          return next;
+        });
+        if (activeDraft && deletedIds.includes(activeDraft.id)) {
+          setActiveDraft(null);
+          setSentState(null);
+        }
+        notifyDraftsChanged();
+      }
+    } finally {
+      setBatchBusy(null);
+    }
+  }, [selectedDrafts, activeDraft]);
+
+  const batchTweak = useCallback(async () => {
+    if (!selectedDrafts.length) return;
+    const instruction = typeof window !== 'undefined'
+      ? window.prompt(`Tweak instruction for ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'} (e.g. "make these warmer", "add a viewing offer"):`)
+      : null;
+    if (!instruction || instruction.trim().length < 2) return;
+    setBatchBusy('tweak');
+    try {
+      const res = await fetch('/api/agent/intelligence/drafts/tweak-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          draftIds: selectedDrafts.map((d) => d.id),
+          instruction: instruction.trim(),
+        }),
+      });
+      if (!res.ok) {
+        alert('Could not tweak those drafts.');
+        return;
+      }
+      const data = await res.json();
+      const byId = new Map<string, { id: string; subject: string; body: string }>(
+        (data.rewrites || []).map((r: any) => [r.id, r]),
+      );
+      setDrafts((prev) => prev.map((d) => {
+        const r = byId.get(d.id);
+        if (!r) return d;
+        return { ...d, subject: r.subject, body: r.body };
+      }));
+      // Selection persists after a tweak — the same drafts are still in the
+      // list, just with rewritten content, so the agent can immediately
+      // batch-send if happy with the new copy.
+    } finally {
+      setBatchBusy(null);
+    }
+  }, [selectedDrafts]);
+
   const handleUndoSend = useCallback(async () => {
     if (!undoBatch) return;
     const batch = undoBatch;
@@ -389,11 +528,116 @@ export default function AgentDraftsPage() {
             onOpen={handleOpen}
             onDiscard={handleDiscard}
             onQuickSend={handleQuickSend}
+            isSelected={selectedIds.has(draft.id)}
+            onToggleSelect={toggleSelect}
           />
         ))}
       </div>
     );
-  }, [loading, drafts, handleDiscard, handleQuickSend]);
+  }, [loading, drafts, handleDiscard, handleQuickSend, selectedIds, toggleSelect]);
+
+  const selectionBar = selectedDrafts.length > 0 ? (
+    <div
+      data-testid="drafts-batch-bar"
+      style={{
+        position: 'sticky',
+        bottom: 0,
+        background: 'rgba(13,13,18,0.96)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
+        borderTop: '0.5px solid rgba(255,255,255,0.08)',
+        color: '#FFFFFF',
+        padding: '12px 16px max(12px, env(safe-area-inset-bottom))',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        zIndex: 30,
+      }}
+    >
+      <span style={{ fontSize: 13, fontWeight: 600, marginRight: 'auto' }}>
+        {selectedDrafts.length} selected
+      </span>
+      <button
+        type="button"
+        onClick={clearSelection}
+        disabled={!!batchBusy}
+        className="agent-tappable"
+        style={{
+          background: 'transparent',
+          border: '0.5px solid rgba(255,255,255,0.18)',
+          color: '#E5E7EB',
+          borderRadius: 999,
+          padding: '7px 12px',
+          fontSize: 12,
+          fontWeight: 500,
+          cursor: batchBusy ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        Clear
+      </button>
+      <button
+        type="button"
+        onClick={batchTweak}
+        disabled={!!batchBusy}
+        className="agent-tappable"
+        style={{
+          background: 'rgba(255,255,255,0.08)',
+          border: '0.5px solid rgba(255,255,255,0.18)',
+          color: '#FFFFFF',
+          borderRadius: 999,
+          padding: '7px 14px',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: batchBusy ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          opacity: batchBusy && batchBusy !== 'tweak' ? 0.5 : 1,
+        }}
+      >
+        {batchBusy === 'tweak' ? 'Tweaking…' : `Tweak ${selectedDrafts.length}`}
+      </button>
+      <button
+        type="button"
+        onClick={batchDiscard}
+        disabled={!!batchBusy}
+        className="agent-tappable"
+        style={{
+          background: 'rgba(220,38,38,0.92)',
+          border: 'none',
+          color: '#FFFFFF',
+          borderRadius: 999,
+          padding: '7px 14px',
+          fontSize: 12.5,
+          fontWeight: 600,
+          cursor: batchBusy ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          opacity: batchBusy && batchBusy !== 'discard' ? 0.5 : 1,
+        }}
+      >
+        {batchBusy === 'discard' ? 'Discarding…' : `Discard ${selectedDrafts.length}`}
+      </button>
+      <button
+        type="button"
+        onClick={batchSend}
+        disabled={!!batchBusy}
+        className="agent-tappable"
+        style={{
+          background: 'linear-gradient(135deg, #C49B2A, #E8C84A)',
+          border: 'none',
+          color: '#0D0D12',
+          borderRadius: 999,
+          padding: '7px 14px',
+          fontSize: 12.5,
+          fontWeight: 700,
+          cursor: batchBusy ? 'default' : 'pointer',
+          fontFamily: 'inherit',
+          opacity: batchBusy && batchBusy !== 'send' ? 0.5 : 1,
+        }}
+      >
+        {batchBusy === 'send' ? 'Sending…' : `Send ${selectedDrafts.length}`}
+      </button>
+    </div>
+  ) : null;
 
   return (
     <AgentShell agentName={agent?.displayName?.split(' ')[0] || 'Agent'} urgentCount={alerts?.length || 0}>
@@ -440,26 +684,48 @@ export default function AgentDraftsPage() {
               Review what Intelligence wrote for you. Nothing sends until you say so.
             </p>
           </div>
-          <Link
-            href="/agent/settings/autonomy"
-            aria-label="Autonomy settings"
-            data-testid="drafts-autonomy-link"
-            className="agent-tappable"
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 18,
-              background: 'rgba(0,0,0,0.04)',
-              border: '0.5px solid rgba(0,0,0,0.06)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#6B7280',
-              flexShrink: 0,
-            }}
-          >
-            <Settings2 size={16} />
-          </Link>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            {drafts.length > 0 ? (
+              <button
+                type="button"
+                onClick={toggleSelectAll}
+                data-testid="drafts-select-all"
+                className="agent-tappable"
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#6B7280',
+                  fontSize: 12,
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                  padding: '8px 4px',
+                }}
+              >
+                {allSelected ? 'Clear all' : 'Select all'}
+              </button>
+            ) : null}
+            <Link
+              href="/agent/settings/autonomy"
+              aria-label="Autonomy settings"
+              data-testid="drafts-autonomy-link"
+              className="agent-tappable"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                background: 'rgba(0,0,0,0.04)',
+                border: '0.5px solid rgba(0,0,0,0.06)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#6B7280',
+                flexShrink: 0,
+              }}
+            >
+              <Settings2 size={16} />
+            </Link>
+          </div>
         </header>
 
         <div
@@ -491,6 +757,8 @@ export default function AgentDraftsPage() {
           )}
           {content}
         </div>
+
+        {selectionBar}
 
         {activeDraft && (
           <DraftReviewPanel

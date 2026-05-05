@@ -20,6 +20,14 @@ export const dynamic = 'force-dynamic';
  *
  * Single OpenAI call by design — iterating per-draft would multiply cost
  * with little benefit when the instruction applies to the batch.
+ *
+ * TODO(BUG-04): The audit reported the drafts counter going 78 → 83 after
+ * a 3-draft tweak — i.e. originals appear alongside the rewritten copies.
+ * Reading this route, the loop only does .update() in place, so the row
+ * count cannot grow from this code path. The mechanism behind the symptom
+ * is not yet understood. The structured logs below give us the diagnostic
+ * surface to figure it out the next time it reproduces — log the inputs,
+ * the per-row update outcomes, and the totals at exit.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -40,6 +48,13 @@ export async function POST(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.log('[tweak-all] entry', {
+      userId: user.id,
+      draftIdCount: draftIds.length,
+      draftIds,
+      instructionLength: instruction.length,
+    });
 
     const supabase = getSupabaseAdmin();
     const { data: rows, error: fetchErr } = await supabase
@@ -95,27 +110,41 @@ export async function POST(request: NextRequest) {
     const rewrites = Array.isArray(parsed?.rewrites) ? parsed.rewrites : [];
 
     const out: Array<{ id: string; subject: string; body: string }> = [];
+    const failures: Array<{ id: string; reason: string }> = [];
     for (const r of rewrites) {
       const idx = typeof r?.index === 'number' ? r.index : -1;
-      if (idx < 0 || idx >= drafts.length) continue;
+      if (idx < 0 || idx >= drafts.length) {
+        failures.push({ id: 'unknown', reason: `bad-index:${idx}` });
+        continue;
+      }
       const draft = drafts[idx];
       const subject = typeof r?.subject === 'string' ? r.subject : (draft.content_json?.subject ?? '');
       const draftBody = typeof r?.body === 'string' ? r.body : (draft.content_json?.body ?? '');
       const nextContent = { ...(draft.content_json || {}), subject, body: draftBody };
-      const { error: updErr } = await supabase
+      const { error: updErr, count: updCount } = await supabase
         .from('pending_drafts')
         .update({
           content_json: nextContent,
           updated_at: new Date().toISOString(),
-        })
+        }, { count: 'exact' })
         .eq('id', draft.id)
         .eq('user_id', user.id);
       if (updErr) {
         console.error('[tweak-all] update failed', { id: draft.id, message: updErr.message });
+        failures.push({ id: draft.id, reason: updErr.message });
         continue;
       }
+      console.log('[tweak-all] update', { id: draft.id, rowCount: updCount ?? null });
       out.push({ id: draft.id, subject, body: draftBody });
     }
+
+    console.log('[tweak-all] exit', {
+      userId: user.id,
+      requested: draftIds.length,
+      updated: out.length,
+      failed: failures.length,
+      failures: failures.length ? failures : undefined,
+    });
 
     return NextResponse.json({ rewrites: out });
   } catch (error: any) {
