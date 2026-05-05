@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { MailCheck, Settings2 } from 'lucide-react';
 import AgentShell from '../_components/AgentShell';
 import DraftsListRow from '../_components/DraftsListRow';
@@ -12,6 +13,7 @@ import {
 } from '@/lib/agent-intelligence/autonomy';
 import UndoPill from '../_components/UndoPill';
 import { useAgent } from '@/lib/agent/AgentContext';
+import { deriveEffectiveMode } from '@/lib/agent/effective-mode';
 import { notifyDraftsChanged } from '../_hooks/useDraftsCount';
 import type { DraftRecord } from '@/lib/agent-intelligence/drafts';
 
@@ -24,7 +26,12 @@ interface UndoBatch {
 }
 
 export default function AgentDraftsPage() {
-  const { agent, alerts } = useAgent();
+  const { agent, alerts, activeWorkspace } = useAgent();
+  const pathname = usePathname();
+  // /agent/drafts is mode-neutral, so this falls back to the persisted
+  // active workspace and shows the inbox for whichever side the agent has
+  // currently selected via the header switcher.
+  const mode = deriveEffectiveMode(pathname, activeWorkspace?.mode);
   const [drafts, setDrafts] = useState<DraftRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -51,7 +58,7 @@ export default function AgentDraftsPage() {
 
   const loadDrafts = useCallback(async () => {
     try {
-      const res = await fetch('/api/agent/intelligence/drafts', { cache: 'no-store' });
+      const res = await fetch(`/api/agent/intelligence/drafts?mode=${mode}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
       setDrafts(data.drafts || []);
@@ -59,7 +66,7 @@ export default function AgentDraftsPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [mode]);
 
   useEffect(() => { loadDrafts(); }, [loadDrafts]);
 

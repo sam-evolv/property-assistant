@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import {
   resolveRecipient,
   toDraftRecord,
+  draftTypesForMode,
   type DraftRecord,
 } from '@/lib/agent-intelligence/drafts';
 
@@ -17,7 +18,7 @@ export const dynamic = 'force-dynamic';
  * Also returns a `count` field so the bottom nav / sidebar badge can stay
  * live without a second round trip.
  */
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseAdmin();
     const cookieStore = cookies();
@@ -29,12 +30,26 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ drafts: [], count: 0 }, { status: 200 });
     }
 
-    const { data: rows, error } = await supabase
+    // Workspace partition. `?mode=sales|lettings` restricts the list to draft
+    // types belonging to that workspace plus the shared `buyer_followup`
+    // type (used by both sales and lettings flows). Without `mode`, return
+    // every draft so legacy / non-workspace consumers behave as before.
+    const modeParam = request.nextUrl.searchParams.get('mode');
+    const mode: 'sales' | 'lettings' | null =
+      modeParam === 'sales' || modeParam === 'lettings' ? modeParam : null;
+
+    let query = supabase
       .from('pending_drafts')
       .select('*')
       .eq('user_id', userId)
       .eq('status', 'pending_review')
       .order('created_at', { ascending: false });
+
+    if (mode) {
+      query = query.in('draft_type', draftTypesForMode(mode));
+    }
+
+    const { data: rows, error } = await query;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

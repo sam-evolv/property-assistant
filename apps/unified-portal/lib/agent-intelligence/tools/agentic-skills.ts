@@ -696,10 +696,12 @@ export async function draftLeaseRenewal(
 ): Promise<AgenticSkillEnvelope> {
   const skill = 'draft_lease_renewal';
   const today = new Date();
-  const todayIso = today.toISOString().split('T')[0];
+  // Mirror getRenewalWindow: include leases that ended in the last 14 days so
+  // expired-but-unrenewed tenancies still get a renewal draft generated.
+  const fourteenAgoIso = new Date(today.getTime() - 14 * 86400000).toISOString().split('T')[0];
   const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
   const tenancyFilter = inputs.tenancy_id ? ` AND id = '${inputs.tenancy_id}'` : '';
-  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${todayIso} AND ${ninetyIso}${tenancyFilter}`;
+  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${fourteenAgoIso} AND ${ninetyIso}${tenancyFilter}`;
 
   try {
     let tenancyQ = supabase
@@ -707,7 +709,7 @@ export async function draftLeaseRenewal(
       .select('id, letting_property_id, tenant_name, tenant_email, lease_end, status, rent_pcm')
       .eq('agent_id', agentContext.agentProfileId)
       .eq('status', 'active')
-      .gte('lease_end', todayIso)
+      .gte('lease_end', fourteenAgoIso)
       .lte('lease_end', ninetyIso);
 
     if (inputs.tenancy_id) tenancyQ = tenancyQ.eq('id', inputs.tenancy_id);
@@ -721,8 +723,8 @@ export async function draftLeaseRenewal(
         skill,
         status: 'awaiting_approval',
         summary: inputs.tenancy_id
-          ? 'No matching active tenancy found in the 90-day renewal window.'
-          : 'No tenancies in the 90-day renewal window — nothing to draft.',
+          ? 'No matching active tenancy found in the renewal window (14 days expired through 90 days ahead).'
+          : 'No tenancies in the renewal window (14 days expired through 90 days ahead) — nothing to draft.',
         drafts: [],
         meta: { record_count: 0, generated_at: new Date().toISOString(), query },
       };
@@ -750,14 +752,21 @@ export async function draftLeaseRenewal(
         : 'Outside RPZ — rent held at current level for this renewal. Open to discussion.';
 
       const leaseEnd = new Date(t.lease_end);
-      const daysToLeaseEnd = Math.max(0, Math.round((leaseEnd.getTime() - today.getTime()) / 86400000));
+      const daysToLeaseEnd = Math.floor((leaseEnd.getTime() - Date.now()) / 86400000);
       const { firstName: tenantFirst } = parseTenantName(t.tenant_name);
       const leaseEndLabel = formatIrishDate(t.lease_end);
+      const expired = daysToLeaseEnd < 0;
+      const daysAbs = Math.abs(daysToLeaseEnd);
+      const leaseLine = expired
+        ? `Your lease at ${prop.address} ended on ${leaseEndLabel} (${daysAbs} day${daysAbs === 1 ? '' : 's'} ago) and hasn't been renewed yet.`
+        : daysToLeaseEnd === 0
+          ? `Your current lease at ${prop.address} ends today (${leaseEndLabel}).`
+          : `Your current lease at ${prop.address} is due to end on ${leaseEndLabel} (in ${daysToLeaseEnd} day${daysToLeaseEnd === 1 ? '' : 's'}).`;
 
       const body = [
         `Hi ${tenantFirst},`,
         ``,
-        `Your current lease at ${prop.address} is due to end on ${leaseEndLabel} (in ${daysToLeaseEnd} days).`,
+        leaseLine,
         ``,
         `We'd like to offer a renewal on the following terms:`,
         ``,
@@ -790,7 +799,7 @@ export async function draftLeaseRenewal(
           id: t.id,
           label: `${prop.address} — ${t.tenant_name || 'Tenant'}`,
         },
-        reasoning: `Lease ends ${leaseEndLabel}. Property is ${inRPZ ? 'in RPZ' : 'outside RPZ'}. Proposed rent: €${proposedRent} (current €${currentRent}, ${inRPZ ? 'within RPZ cap' : 'no statutory cap'}).${t.tenant_email ? '' : ' Tenant email is missing on the tenancy record; recipient set to placeholder pending capture.'}`,
+        reasoning: `${expired ? `Lease ended ${leaseEndLabel} (${daysAbs} day${daysAbs === 1 ? '' : 's'} ago, unrenewed).` : `Lease ends ${leaseEndLabel}.`} Property is ${inRPZ ? 'in RPZ' : 'outside RPZ'}. Proposed rent: €${proposedRent} (current €${currentRent}, ${inRPZ ? 'within RPZ cap' : 'no statutory cap'}).${t.tenant_email ? '' : ' Tenant email is missing on the tenancy record; recipient set to placeholder pending capture.'}`,
       };
     });
 
