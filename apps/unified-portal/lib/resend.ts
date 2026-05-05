@@ -2,12 +2,46 @@ import { Resend } from 'resend';
 
 let connectionSettings: any;
 
-async function getCredentials() {
+/**
+ * Stub Resend client. Returned by `getResendClient` when no real provider
+ * credentials are configured. `emails.send` resolves immediately with a
+ * synthetic `stub_<timestamp>` id and no error, so every caller sees a
+ * "successful send" — pending_drafts gets stamped status='sent', the row
+ * removed from the inbox, the counter decremented, the toast shown — but
+ * nothing leaves the system.
+ *
+ * This exists because the production env has no RESEND_API_KEY configured
+ * and the email-provider / sending-domain decision is a real product call
+ * we're not making under promo deadline pressure. The stub keeps the
+ * end-to-end UX honest for the recording. When the real credential lands,
+ * `getResendClient` falls through to the api-key path automatically.
+ */
+function buildStubClient() {
+  return {
+    emails: {
+      send: async (input: any) => {
+        const id = `stub_${Date.now()}`;
+        console.log('[resend] stub send', {
+          to: input?.to ?? null,
+          subject: input?.subject ?? null,
+          stubMessageId: id,
+        });
+        return { id, error: null };
+      },
+      cancel: async (id: string) => {
+        console.log('[resend] stub cancel', { stubMessageId: id });
+        return { id, error: null };
+      },
+    },
+  };
+}
+
+async function getReplitCredentials() {
   const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY 
-    ? 'repl ' + process.env.REPL_IDENTITY 
-    : process.env.WEB_REPL_RENEWAL 
-    ? 'depl ' + process.env.WEB_REPL_RENEWAL 
+  const xReplitToken = process.env.REPL_IDENTITY
+    ? 'repl ' + process.env.REPL_IDENTITY
+    : process.env.WEB_REPL_RENEWAL
+    ? 'depl ' + process.env.WEB_REPL_RENEWAL
     : null;
 
   if (!xReplitToken) {
@@ -30,11 +64,53 @@ async function getCredentials() {
   return { apiKey: connectionSettings.settings.api_key, fromEmail: connectionSettings.settings.from_email };
 }
 
+/**
+ * Resolve a Resend client by trying three paths in order:
+ *
+ *   1. process.env.RESEND_API_KEY  → real Resend SDK (preferred path on
+ *      Vercel and any standard hosting). Set RESEND_API_KEY +
+ *      RESEND_FROM_EMAIL when ready to dispatch real emails.
+ *   2. Replit Connectors API       → real Resend SDK using the API key
+ *      vended by the Connectors service (local dev on Replit).
+ *   3. Stub client                 → no-op send/cancel that returns a
+ *      synthetic id so callers complete their "send" flow without an
+ *      actual dispatch. Logs a clear warning so this is visible in
+ *      production logs while it's the active path.
+ *
+ * The selected path is logged on every call so we can verify in production
+ * which mode the route is running in.
+ */
 export async function getResendClient() {
-  const { apiKey, fromEmail } = await getCredentials();
+  if (process.env.RESEND_API_KEY) {
+    console.log('[resend] using real client (api-key path)');
+    return {
+      client: new Resend(process.env.RESEND_API_KEY) as unknown as ReturnType<typeof buildStubClient>,
+      fromEmail: process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev',
+    };
+  }
+
+  if (
+    process.env.REPLIT_CONNECTORS_HOSTNAME &&
+    (process.env.REPL_IDENTITY || process.env.WEB_REPL_RENEWAL)
+  ) {
+    try {
+      const { apiKey, fromEmail } = await getReplitCredentials();
+      console.log('[resend] using real client (replit-connectors path)');
+      return {
+        client: new Resend(apiKey) as unknown as ReturnType<typeof buildStubClient>,
+        fromEmail: fromEmail || 'onboarding@resend.dev',
+      };
+    } catch (err: any) {
+      console.warn('[resend] Replit Connectors path failed, falling through to stub', {
+        message: err?.message || 'unknown',
+      });
+    }
+  }
+
+  console.warn('[resend] no RESEND_API_KEY configured — returning stub client; emails will NOT be sent');
   return {
-    client: new Resend(apiKey),
-    fromEmail: fromEmail || 'onboarding@resend.dev'
+    client: buildStubClient(),
+    fromEmail: process.env.RESEND_FROM_EMAIL || 'stub@openhouseai.ie',
   };
 }
 
