@@ -310,8 +310,9 @@ export default function AgentDraftsPage() {
 
   const batchSend = useCallback(async () => {
     if (!selectedDrafts.length) return;
+    const total = selectedDrafts.length;
     const confirmed = typeof window !== 'undefined'
-      ? window.confirm(`Send ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'} now?`)
+      ? window.confirm(`Send ${total} draft${total === 1 ? '' : 's'} now?`)
       : true;
     if (!confirmed) return;
     setBatchBusy('send');
@@ -336,6 +337,16 @@ export default function AgentDraftsPage() {
         });
         notifyDraftsChanged();
       }
+      const failed = total - sentIds.length;
+      if (typeof window !== 'undefined') {
+        if (sentIds.length === 0) {
+          window.alert(`None of the ${total} drafts could be sent — check the list for failures.`);
+        } else if (failed > 0) {
+          window.alert(`Sent ${sentIds.length} of ${total} drafts. The remaining ${failed} could not be sent — check the list for failures.`);
+        } else {
+          window.alert(`Sent ${sentIds.length} of ${total} drafts.`);
+        }
+      }
     } finally {
       setBatchBusy(null);
     }
@@ -343,8 +354,9 @@ export default function AgentDraftsPage() {
 
   const batchDiscard = useCallback(async () => {
     if (!selectedDrafts.length) return;
+    const total = selectedDrafts.length;
     const confirmed = typeof window !== 'undefined'
-      ? window.confirm(`Discard ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'}? This can't be undone.`)
+      ? window.confirm(`Discard ${total} draft${total === 1 ? '' : 's'}? This can't be undone.`)
       : true;
     if (!confirmed) return;
     setBatchBusy('discard');
@@ -369,6 +381,14 @@ export default function AgentDraftsPage() {
         }
         notifyDraftsChanged();
       }
+      const failed = total - deletedIds.length;
+      if (failed > 0 && typeof window !== 'undefined') {
+        window.alert(
+          deletedIds.length === 0
+            ? `None of the ${total} drafts could be discarded — check the list for failures.`
+            : `Discarded ${deletedIds.length} of ${total} drafts. The remaining ${failed} could not be discarded — check the list for failures.`,
+        );
+      }
     } finally {
       setBatchBusy(null);
     }
@@ -380,6 +400,7 @@ export default function AgentDraftsPage() {
       ? window.prompt(`Tweak instruction for ${selectedDrafts.length} draft${selectedDrafts.length === 1 ? '' : 's'} (e.g. "make these warmer", "add a viewing offer"):`)
       : null;
     if (!instruction || instruction.trim().length < 2) return;
+    const total = selectedDrafts.length;
     setBatchBusy('tweak');
     try {
       const res = await fetch('/api/agent/intelligence/drafts/tweak-all', {
@@ -391,12 +412,15 @@ export default function AgentDraftsPage() {
         }),
       });
       if (!res.ok) {
-        alert('Could not tweak those drafts.');
+        if (typeof window !== 'undefined') {
+          window.alert(`Could not tweak those drafts. None of the ${total} were rewritten.`);
+        }
         return;
       }
       const data = await res.json();
+      const rewrites = (data.rewrites || []) as Array<{ id: string; subject: string; body: string }>;
       const byId = new Map<string, { id: string; subject: string; body: string }>(
-        (data.rewrites || []).map((r: any) => [r.id, r]),
+        rewrites.map((r) => [r.id, r]),
       );
       setDrafts((prev) => prev.map((d) => {
         const r = byId.get(d.id);
@@ -406,6 +430,11 @@ export default function AgentDraftsPage() {
       // Selection persists after a tweak — the same drafts are still in the
       // list, just with rewritten content, so the agent can immediately
       // batch-send if happy with the new copy.
+      const tweaked = rewrites.length;
+      const failed = total - tweaked;
+      if (failed > 0 && typeof window !== 'undefined') {
+        window.alert(`Tweaked ${tweaked} of ${total} drafts. The remaining ${failed} could not be rewritten — check the list for failures.`);
+      }
     } finally {
       setBatchBusy(null);
     }

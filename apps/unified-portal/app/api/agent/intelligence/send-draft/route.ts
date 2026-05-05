@@ -57,7 +57,16 @@ export async function POST(request: NextRequest) {
     if (user && draft.user_id !== user.id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
+    console.log('[send-draft] entry', {
+      draftId,
+      userId: draft.user_id,
+      draftType: draft.draft_type,
+      status: draft.status,
+      sendMode,
+    });
+
     if (draft.status !== 'pending_review' && draft.status !== 'auto_sending') {
+      console.warn('[send-draft] rejected: wrong status', { draftId, status: draft.status });
       return NextResponse.json(
         { error: `Draft is already in status "${draft.status}"` },
         { status: 409 }
@@ -81,6 +90,13 @@ export async function POST(request: NextRequest) {
     }
 
     const recipient = await resolveRecipient(supabase, draft.draft_type, draft.recipient_id);
+    console.log('[send-draft] recipient resolved', {
+      draftId,
+      draftType: draft.draft_type,
+      source: recipient.source,
+      hasEmail: !!recipient.email,
+      hasPhone: !!recipient.phone,
+    });
     const sendMethod = draft.send_method || 'email';
     const batchId = randomUUID();
     const sentAt = new Date().toISOString();
@@ -97,6 +113,13 @@ export async function POST(request: NextRequest) {
 
     if (sendMethod === 'email') {
       if (!recipient.email) {
+        console.warn('[send-draft] rejected: no recipient email', {
+          draftId,
+          draftType: draft.draft_type,
+          recipientIdShape: typeof draft.recipient_id === 'string'
+            ? (draft.recipient_id.includes('@') ? 'email-like' : 'non-email')
+            : 'null',
+        });
         return NextResponse.json(
           {
             error:
@@ -116,7 +139,16 @@ export async function POST(request: NextRequest) {
         });
         provider = 'resend';
         providerMessageId = (result as any)?.data?.id ?? (result as any)?.id ?? null;
+        console.log('[send-draft] email sent', {
+          draftId,
+          provider,
+          providerMessageId,
+        });
       } catch (err: any) {
+        console.error('[send-draft] resend rejected', {
+          draftId,
+          message: err?.message || 'unknown',
+        });
         return NextResponse.json(
           {
             error: 'Email provider rejected the send',

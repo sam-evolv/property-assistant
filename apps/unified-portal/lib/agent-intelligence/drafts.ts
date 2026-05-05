@@ -163,11 +163,21 @@ export async function resolveRecipient(
     }
   }
 
-  // Fallback — display the raw reference so the user sees what the voice heard.
+  // Fallback. Agentic-skill drafts (lease_renewal, viewing_proposal,
+  // weekly_briefing, intelligence_*, etc.) are persisted by draft-store.ts
+  // with `recipient_id` set to the literal email string — see
+  // draft-store.ts:212-214. resolveRecipient never had a handler for those
+  // draft types, so it always returned email=null and the send-draft route
+  // bailed at "No email on file" for every agentic-skill-typed draft. Detect
+  // the email-shaped recipient_id here and surface it as the email so single
+  // and batch send work for those drafts. recipient.name still falls back to
+  // the email string itself; the drafts list typically renders subject /
+  // body rather than recipient.name as the primary identifier.
+  const isEmailShaped = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientId);
   return {
     id: recipientId,
     name: recipientId,
-    email: null,
+    email: isEmailShaped ? recipientId : null,
     phone: null,
     source: 'unknown',
   };
