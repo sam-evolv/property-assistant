@@ -100,8 +100,25 @@ function renderAgedContracts(rows: AgedContract[]): string {
 }
 
 function renderRenewalWindow(rows: RenewalWindowTenancy[]): string {
-  if (!rows.length) return 'RENEWAL WINDOW (expired ≤14d or upcoming ≤90d):\n- None.';
-  const lines = rows.map(r => {
+  if (!rows.length) return 'RENEWAL ATTENTION (recently expired OR ending within 90 days — both are urgent):\n- None.';
+
+  // Structural split. EXPIRED entries live in their own section so the model
+  // can't filter them out by question phrasing ("expiring in 90 days" reads
+  // forward-tense; before this split the model treated the EXPIRED rows as
+  // out-of-scope). The two sections are sorted independently:
+  //   - RECENTLY EXPIRED: most-recent expiry first (smallest |daysOut|).
+  //   - UPCOMING RENEWALS: nearest lease-end first (smallest daysOut).
+  // Empty sections are omitted entirely so the prompt stays compact.
+  const expired = rows
+    .filter((r) => r.daysOut < 0)
+    .slice()
+    .sort((a, b) => Math.abs(a.daysOut) - Math.abs(b.daysOut));
+  const upcoming = rows
+    .filter((r) => r.daysOut >= 0)
+    .slice()
+    .sort((a, b) => a.daysOut - b.daysOut);
+
+  const renderRow = (r: RenewalWindowTenancy): string => {
     const rpz = r.isRpz ? 'RPZ' : 'non-RPZ';
     const rent = r.currentRent ? ` @ ${fmtEuro(r.currentRent)}/mo` : '';
     if (r.daysOut < 0) {
@@ -112,8 +129,16 @@ function renderRenewalWindow(rows: RenewalWindowTenancy[]): string {
       return `- ${r.tenantName} — ${r.propertyAddress}${rent} — lease ends TODAY (${fmtDate(r.leaseEnd)}, ${rpz})`;
     }
     return `- ${r.tenantName} — ${r.propertyAddress}${rent} — lease ends ${fmtDate(r.leaseEnd)} (${r.daysOut}d out, ${rpz})`;
-  });
-  return `RENEWAL WINDOW (expired ≤14d or upcoming ≤90d):\n${lines.join('\n')}`;
+  };
+
+  const sections: string[] = [];
+  if (expired.length) {
+    sections.push(`RECENTLY EXPIRED (urgent — already overdue, action required):\n${expired.map(renderRow).join('\n')}`);
+  }
+  if (upcoming.length) {
+    sections.push(`UPCOMING RENEWALS (ending within 90 days):\n${upcoming.map(renderRow).join('\n')}`);
+  }
+  return sections.join('\n\n');
 }
 
 function renderRentArrears(rows: RentArrearsRecord[]): string {
@@ -757,7 +782,21 @@ PROACTIVE INTELLIGENCE:
 ============================================================
 - Flag related issues the agent might not have thought of, but only when supported by the live context.
 - Call out RPZ implications on renewals (2% cap), upcoming lease ends inside the 90-day notice window, and missing RTB registrations on active tenancies.
-- Never invent patterns or communication history.`;
+- Never invent patterns or communication history.
+
+============================================================
+RENEWAL ATTENTION — HOW TO ANSWER "WHICH LEASES ARE EXPIRING":
+============================================================
+The live context above splits renewal-attention tenancies into TWO blocks:
+
+  RECENTLY EXPIRED (urgent — already overdue, action required)
+  UPCOMING RENEWALS (ending within 90 days)
+
+When the user asks about leases "expiring", "ending", "due", "in the next N days", "in the renewal window", or anything that touches lease end timing, the response MUST surface the RECENTLY EXPIRED section FIRST as the most urgent items, then the UPCOMING RENEWALS section. Recently expired leases require MORE urgent action than upcoming ones — the tenancy is already past its end date and the agent is overdue on the renewal conversation.
+
+Do NOT filter out the RECENTLY EXPIRED block based on the user's question phrasing. "Expiring in the next 90 days" is forward-tense English but the agent's operational concern is the renewal window — past-due tenancies are the most pressing items in that window, not out-of-scope.
+
+If RECENTLY EXPIRED is empty, omit it from the response and answer with the UPCOMING RENEWALS list. If both blocks are empty, say "No tenancies in the renewal window — nothing pending."`;
 
   return `${identityBlock}\n\n${scopeBlock}\n\n${basePrompt}`;
 }

@@ -611,10 +611,22 @@ export async function weeklyMondayBriefing(
     if (!renewals.length) {
       lettingsLines.push('No renewals due in the window.');
     } else {
-      lettingsLines.push(`Renewal windows opening: ${renewals.length} tenanc${renewals.length === 1 ? 'y' : 'ies'} in next 90 days.`);
+      const expiredCount = renewals.filter((r) => r.daysOut < 0).length;
+      const upcomingCount = renewals.length - expiredCount;
+      const summary = expiredCount && upcomingCount
+        ? `${expiredCount} recently expired, ${upcomingCount} ending within 90 days.`
+        : expiredCount
+          ? `${expiredCount} recently expired (urgent — already overdue).`
+          : `${upcomingCount} ending within 90 days.`;
+      lettingsLines.push(`Renewal attention: ${renewals.length} tenanc${renewals.length === 1 ? 'y' : 'ies'} — ${summary}`);
       lettingsLines.push('');
       for (const r of renewals) {
-        lettingsLines.push(`- ${r.propertyAddress} — ${r.tenantName} — ${r.daysOut} days to lease end`);
+        if (r.daysOut < 0) {
+          const n = Math.abs(r.daysOut);
+          lettingsLines.push(`- ${r.propertyAddress} — ${r.tenantName} — EXPIRED ${n} day${n === 1 ? '' : 's'} ago`);
+        } else {
+          lettingsLines.push(`- ${r.propertyAddress} — ${r.tenantName} — ${r.daysOut} days to lease end`);
+        }
       }
     }
 
