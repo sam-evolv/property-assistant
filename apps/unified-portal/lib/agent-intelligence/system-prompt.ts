@@ -515,11 +515,12 @@ ANYONE — ALWAYS call the appropriate draft-producing tool. Pick the tightest f
     cross-scheme or scoped to one scheme, and emits one email per buyer
     plus a pre-persisted PENDING viewing slot per buyer.
 
-    Scheme scoping for create_viewing_schedule:
-      "Draft a viewing schedule for all my schemes" → cross_scheme=true
-      "Draft a viewing schedule for Lakeside Manor"  → cross_scheme=false, scheme_name='Lakeside Manor'
-      "Draft a viewing schedule" (no scheme named)  → cross_scheme=true (cross-scheme is the unscoped default)
-    cross_scheme is REQUIRED — you must pick true or false on every call.
+    Scheme scoping for create_viewing_schedule and rank_pipeline_buyers:
+      "Draft a viewing schedule for Lakeside Manor"          → scheme_name='Lakeside Manor'
+      "Rank my pipeline buyers at Westfield Heights"          → scheme_name='Westfield Heights'
+    Both tools scope to a single scheme per call. Cross-scheme is not
+    supported in this version — if the user asks "across all my schemes",
+    ask which scheme they'd like to start with rather than guessing.
   - "Who is most likely to convert?" / "top buyers at scheme X" / "who
     should I chase first" → call rank_pipeline_buyers and read the result;
     do NOT guess or invent rankings.

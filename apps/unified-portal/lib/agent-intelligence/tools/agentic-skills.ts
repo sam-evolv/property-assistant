@@ -2647,13 +2647,6 @@ export interface RankedPipelineBuyer {
 interface RankPipelineBuyersInput {
   development_id?: string;
   scheme_name?: string;
-  // Explicit scope signal. create_viewing_schedule requires the model to set
-  // this so omit-scheme-by-accident can never happen (PR #93's first live
-  // re-test failed because the model kept passing scheme_name='Lakeside
-  // Manor' despite "across all my schemes" phrasing). rank_pipeline_buyers
-  // continues to accept it as optional; if undefined, the resolver falls
-  // back to "no scheme params = cross-scheme" for backwards compatibility.
-  cross_scheme?: boolean;
   limit?: number;
 }
 
@@ -2837,6 +2830,19 @@ async function resolveRankingScope(
   | { ok: true; developmentIds: string[]; schemeNamesById: Map<string, string>; multi: boolean; primaryLabel: string }
   | { ok: false; reason: string }
 > {
+  // Cross-scheme reverted from PR #93. Three rounds of fixes (PR #93's
+  // initial cross-scheme branch, a5c58e1's "Active scheme:" prompt removal,
+  // 763dcdc's required cross_scheme parameter) all failed live tests — the
+  // model defaulted to a single scheme regardless of phrasing or schema
+  // contract. Cross-scheme support is parked on the post-promo backlog;
+  // this function now requires either development_id or scheme_name and
+  // returns a clear error otherwise.
+  //
+  // The plural `developmentIds` / `schemeNamesById` shape is retained
+  // because the callers and rankBuyersForDevelopments were refactored
+  // around it in PR #93 and reverting that shape would be a much bigger
+  // change. Single-scheme calls return a one-element array, which the
+  // ranker handles correctly.
   const { data: asgs } = await supabase
     .from('agent_scheme_assignments')
     .select('development_id')
@@ -2848,30 +2854,6 @@ async function resolveRankingScope(
   if (!devIds.length) {
     return { ok: false, reason: 'No assigned schemes for this agent.' };
   }
-
-  // Helper: load the agent's full assigned-scheme map (id → name) for the
-  // cross-scheme path. Defined inline so it's visible in every branch.
-  const loadAllSchemes = async (): Promise<Map<string, string>> => {
-    const { data: devs } = await supabase
-      .from('developments')
-      .select('id, name')
-      .in('id', devIds);
-    const map = new Map<string, string>();
-    for (const d of (devs || []) as Array<{ id: string; name: string }>) {
-      map.set(d.id, d.name);
-    }
-    return map;
-  };
-
-  // Precedence:
-  //   1. development_id (UUID is unambiguous, always wins)
-  //   2. cross_scheme === true (explicit cross-scheme request)
-  //   3. scheme_name (fuzzy-resolved single scheme)
-  //   4. cross_scheme === false with no scheme_name (model violated the
-  //      parameter contract — refuse rather than guess)
-  //   5. cross_scheme undefined with no scheme params (legacy
-  //      backwards-compat for rank_pipeline_buyers callers that don't pass
-  //      cross_scheme; falls through to cross-scheme default)
 
   if (inputs.development_id) {
     if (!devIds.includes(inputs.development_id)) {
@@ -2889,17 +2871,6 @@ async function resolveRankingScope(
       schemeNamesById: new Map([[dev.id, dev.name]]),
       multi: false,
       primaryLabel: dev.name,
-    };
-  }
-
-  if (inputs.cross_scheme === true) {
-    const map = await loadAllSchemes();
-    return {
-      ok: true,
-      developmentIds: devIds,
-      schemeNamesById: map,
-      multi: true,
-      primaryLabel: 'all assigned schemes',
     };
   }
 
@@ -2933,26 +2904,9 @@ async function resolveRankingScope(
     };
   }
 
-  if (inputs.cross_scheme === false) {
-    // Model explicitly said "not cross-scheme" but didn't name a scheme.
-    // Refuse rather than guess; the registry parameter contract forbids
-    // this combination.
-    return {
-      ok: false,
-      reason: 'Either cross_scheme must be true, or scheme_name must be set.',
-    };
-  }
-
-  // cross_scheme is undefined and no scheme params: legacy cross-scheme
-  // default for rank_pipeline_buyers callers that don't carry the new
-  // contract.
-  const map = await loadAllSchemes();
   return {
-    ok: true,
-    developmentIds: devIds,
-    schemeNamesById: map,
-    multi: true,
-    primaryLabel: 'all assigned schemes',
+    ok: false,
+    reason: 'Provide either development_id or scheme_name.',
   };
 }
 
@@ -3190,12 +3144,6 @@ export async function rankPipelineBuyers(
 interface CreateViewingScheduleInput {
   development_id?: string;
   scheme_name?: string;
-  // Required at the registry layer — see registry.ts. The model MUST set
-  // this so the omit-scheme-by-accident failure mode (PR #93's first live
-  // re-test) can never happen. Optional in the TS interface so legacy
-  // callers don't break the build; the registry's required: [...] list is
-  // the contract surface the model sees.
-  cross_scheme?: boolean;
   date: string; // ISO date "2026-05-09"
   start_time: string; // "09:00"
   end_time: string; // "14:00"
@@ -3292,7 +3240,6 @@ export async function createViewingSchedule(
       agentProfileId: agentContext.agentProfileId,
       inputs_scheme_name: inputs.scheme_name ?? null,
       inputs_development_id: inputs.development_id ?? null,
-      inputs_cross_scheme: inputs.cross_scheme ?? null,
       scope_ok: scope.ok,
       scope_developmentIds: scope.ok ? scope.developmentIds : null,
       scope_multi: scope.ok ? scope.multi : null,
