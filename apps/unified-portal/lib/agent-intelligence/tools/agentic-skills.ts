@@ -43,6 +43,34 @@ function formatIrishDate(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+// Weekday + day + month, no year. Used by viewing-proposal openers so
+// "Saturday, 9 May" reads like a colleague's invite. Same locale options as
+// `formatSlotForCopy` so the email body's date format stays consistent.
+function formatScheduleDayLabel(date: string): string {
+  const d = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return date;
+  return d.toLocaleDateString('en-IE', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  });
+}
+
+// Look up tenant_id by agent_profile_id. agent_viewings has tenant_id
+// NOT NULL but SkillAgentContext doesn't carry it; one quick read keeps
+// the skill self-contained without widening the context shape.
+async function lookupTenantIdForAgent(
+  supabase: SupabaseClient,
+  agentProfileId: string,
+): Promise<string | null> {
+  const { data } = await supabase
+    .from('agent_profiles')
+    .select('tenant_id')
+    .eq('id', agentProfileId)
+    .maybeSingle();
+  return (data as any)?.tenant_id ?? null;
+}
+
 function daysBetween(fromIso: string, to: Date = new Date()): number {
   const from = new Date(fromIso);
   if (Number.isNaN(from.getTime())) return 0;
@@ -1219,38 +1247,69 @@ export async function scheduleViewingDraft(
       ? ` Conflict: existing viewing with ${conflicts[0].buyer_name || 'unknown buyer'} at ${conflicts[0].viewing_time} on ${viewingDate}.`
       : '';
 
-    // --- Step D: build two drafts ---
+    // --- Step D: pre-persist the viewing row + build the email draft ---
+    // BUG-A fix: the viewing slot lands in agent_viewings server-side here
+    // with status='confirmed' (the agent explicitly named the buyer + time
+    // in this single-viewing flow). The legacy raw-JSON viewing_record
+    // draft was never wired to actually create the row on approve, so
+    // this just makes the side-effect honest. agent_viewings has no
+    // letting_property_id column — for the lettings flow we record the
+    // address in unit_ref and leave unit_id null.
     const schemeName = resolved.kind === 'sales_unit' ? resolved.schemeName : null;
     const unitRef = resolved.kind === 'sales_unit' ? resolved.unitNumber : resolved.address;
-    const recordRow: Record<string, any> = {
-      agent_id: agentContext.agentProfileId,
-      buyer_name: inputs.buyer_name,
-      buyer_email: inputs.buyer_email || null,
-      buyer_phone: inputs.buyer_phone || null,
-      viewing_date: viewingDate,
-      viewing_time: viewingTime,
-      status: 'confirmed',
-      source: 'intelligence',
-      unit_ref: unitRef,
-    };
-    if (resolved.kind === 'sales_unit') {
-      recordRow.development_id = resolved.developmentId;
-      recordRow.unit_id = resolved.unitId;
-      recordRow.scheme_name = schemeName;
-    } else {
-      recordRow.letting_property_id = resolved.lettingPropertyId;
-    }
-
-    const recordDraftId = randomUUID();
     const affectedId = resolved.kind === 'sales_unit' ? resolved.unitId : resolved.lettingPropertyId;
 
-    const recordDraft = {
-      id: recordDraftId,
-      type: 'viewing_record' as const,
-      body: JSON.stringify(recordRow, null, 2),
-      affected_record: { kind: resolved.kind, id: affectedId, label: resolved.label },
-      reasoning: `Will create new viewing record on approval.${conflictNote}`,
-    };
+    const tenantId = await lookupTenantIdForAgent(supabase, agentContext.agentProfileId);
+    if (tenantId) {
+      const insertRow: Record<string, any> = {
+        agent_id: agentContext.agentProfileId,
+        tenant_id: tenantId,
+        buyer_name: inputs.buyer_name,
+        buyer_email: inputs.buyer_email || null,
+        buyer_phone: inputs.buyer_phone || null,
+        viewing_date: viewingDate,
+        viewing_time: viewingTime,
+        status: 'confirmed',
+        source: 'intelligence',
+        unit_ref: unitRef,
+      };
+      if (resolved.kind === 'sales_unit') {
+        insertRow.development_id = resolved.developmentId;
+        insertRow.unit_id = resolved.unitId;
+        insertRow.scheme_name = schemeName;
+      }
+      const { data: vRow, error: vErr } = await supabase
+        .from('agent_viewings')
+        .insert(insertRow)
+        .select('id')
+        .single();
+      if (vErr) {
+        console.error('[schedule_viewing_draft] agent_viewings insert failed', {
+          agentProfileId: agentContext.agentProfileId,
+          buyer: inputs.buyer_name,
+          unit: resolved.label,
+          date: viewingDate,
+          time: viewingTime,
+          message: vErr.message,
+        });
+      } else {
+        console.log('[schedule_viewing_draft] agent_viewings inserted', {
+          id: vRow?.id ?? null,
+          agentProfileId: agentContext.agentProfileId,
+          buyer: inputs.buyer_name,
+          unit: resolved.label,
+          date: viewingDate,
+          time: viewingTime,
+          status: 'confirmed',
+        });
+      }
+    } else {
+      console.warn('[schedule_viewing_draft] no tenant_id resolved — skipping agent_viewings insert', {
+        agentProfileId: agentContext.agentProfileId,
+        buyer: inputs.buyer_name,
+        unit: resolved.label,
+      });
+    }
 
     const dateLabel = formatIrishDate(viewingDate);
     const timeLabel = formatClockTime(viewingTime);
@@ -1282,15 +1341,15 @@ export async function scheduleViewingDraft(
       subject: `Viewing confirmed — ${resolved.label} on ${dateLabel}`,
       body: emailBody,
       affected_record: { kind: resolved.kind, id: affectedId, label: resolved.label },
-      reasoning: 'Confirmation email to buyer.',
+      reasoning: `Confirmation email to buyer.${conflictNote}`,
     };
 
     return {
       skill,
       status: 'awaiting_approval',
       summary: `Prepared viewing for ${inputs.buyer_name} at ${resolved.label} on ${dateLabel} at ${timeLabel}.`,
-      drafts: [recordDraft, emailDraft],
-      meta: { record_count: 2, generated_at: new Date().toISOString(), query },
+      drafts: [emailDraft],
+      meta: { record_count: 1, generated_at: new Date().toISOString(), query },
     };
   } catch (err) {
     return errorEnvelope(skill, query, err);
@@ -2544,6 +2603,82 @@ function viewingPoints(count: number): number {
   return 25;
 }
 
+// Agent-facing humanization of a ranked buyer's signals. Used by
+// `createViewingSchedule` to populate the drawer's "Why drafted" chip on
+// every viewing-proposal card so it reads like a colleague's note rather
+// than a comma-joined database dump. Composes from the typed signals on
+// the ranked-buyer object without touching `buildRankReason` (which is
+// the ranker's source of truth and stays untouched per the prompt-11
+// scope guardrail).
+//
+// Example output:
+//   "Contracts signed but no follow-up logged yet, and no viewings yet."
+//   "Sale agreed, last contact 5d ago, and viewed twice."
+//   "No follow-up logged yet, and no viewings yet."
+function stagePhrase(stage: string | null | undefined): string | null {
+  switch (stage) {
+    case 'counter_signed':
+    case 'signed': return 'Contracts signed';
+    case 'contracts_issued': return 'Contracts out, awaiting signature';
+    case 'sale_agreed': return 'Sale agreed';
+    case 'reserved': return 'Reserved';
+    default: return null;
+  }
+}
+
+function contactPhrase(daysSinceContact: number | null): string | null {
+  if (daysSinceContact === null) return 'no follow-up logged yet';
+  if (daysSinceContact === 0) return 'last contact today';
+  if (daysSinceContact <= 7) return `last contact ${daysSinceContact}d ago`;
+  if (daysSinceContact <= 30) return `last contact ${daysSinceContact} days ago`;
+  return `gone quiet (${daysSinceContact}d since contact)`;
+}
+
+function viewingPhrase(viewingCount: number): string | null {
+  if (viewingCount === 0) return 'no viewings yet';
+  if (viewingCount === 1) return 'viewed once';
+  return `viewed ${viewingCount} times`;
+}
+
+function joinAnd(parts: string[]): string {
+  if (parts.length === 0) return '';
+  if (parts.length === 1) return parts[0];
+  if (parts.length === 2) return `${parts[0]}, and ${parts[1]}`;
+  return `${parts.slice(0, -1).join(', ')}, and ${parts[parts.length - 1]}`;
+}
+
+function humanizeRankSignals(b: {
+  stage: string;
+  last_contact_days: number | null;
+  viewing_count: number;
+}): string {
+  const stage = stagePhrase(b.stage);
+  const contact = contactPhrase(b.last_contact_days);
+  const viewing = viewingPhrase(b.viewing_count);
+
+  if (stage) {
+    const tail: string[] = [];
+    if (contact) tail.push(contact);
+    if (viewing) tail.push(viewing);
+    if (!tail.length) return `${stage}.`;
+    // "but" connects a positive stage to a stagnation signal so the agent
+    // reads the contrast at a glance. Plain comma-join when everything
+    // points the same direction.
+    const hasCold = tail.some((p) => p.startsWith('no ') || p.startsWith('gone '));
+    const connector = hasCold ? ' but ' : ', ';
+    return `${stage}${connector}${joinAnd(tail)}.`;
+  }
+
+  const both: string[] = [];
+  if (contact) both.push(contact);
+  if (viewing) both.push(viewing);
+  if (!both.length) return 'No notable signals.';
+  // No stage signal — capitalise the first phrase so the sentence reads
+  // naturally on its own.
+  both[0] = both[0].charAt(0).toUpperCase() + both[0].slice(1);
+  return `${joinAnd(both)}.`;
+}
+
 function buildRankReason(
   stage: string,
   daysSinceContact: number | null,
@@ -2966,6 +3101,15 @@ export async function createViewingSchedule(
       };
     }
 
+    // BUG-A fix: agent_viewings rows are pre-persisted server-side at
+    // skill-run time with status='pending' instead of being shipped as
+    // raw-JSON drafts that previously cluttered the inbox and had no
+    // working approve-side wiring. Tenant_id is required by the schema;
+    // if we can't resolve it the email proposals still go out, the slot
+    // just doesn't pre-persist (logged so it's discoverable).
+    const tenantId = await lookupTenantIdForAgent(supabase, agentContext.agentProfileId);
+    const dayLabel = formatScheduleDayLabel(inputs.date);
+
     const drafts: AgenticSkillEnvelope['drafts'] = [];
     const usedSlots = Math.min(slots.length, eligible.length);
 
@@ -2987,15 +3131,18 @@ export async function createViewingSchedule(
         .join('\n');
 
       const buyerFirst = firstName(buyer.buyer_name);
-      const opener = `${buyer.reason}, so I wanted to put a slot in front of you.`;
-
       const subject = `Viewing slot for Unit ${buyer.unit_number}, ${scope.schemeName}`;
+
+      // BUG-B fix: opener now leads with the viewing context (unit + date)
+      // instead of the comma-joined system phrases ("no contact logged
+      // yet, counter signed, no viewings yet") that the audit caught
+      // leaking into recipient-facing prose.
       const body = [
         `Hi ${buyerFirst},`,
         '',
-        opener,
+        `I'd like to invite you to view Unit ${buyer.unit_number} at ${scope.schemeName} on ${dayLabel}.`,
         '',
-        `I'm running viewings at ${scope.schemeName} on ${formatSlotForCopy(inputs.date, primarySlot.start).replace(' at ' + primarySlot.start, '')}. I've held a slot for you — pick whichever works:`,
+        `I've held a slot for you — pick whichever works:`,
         slotLines,
         '',
         `Reply with the time and I'll lock it in. Happy to suggest another day if none of those land.`,
@@ -3004,7 +3151,11 @@ export async function createViewingSchedule(
         signature(agentContext),
       ].join('\n');
 
-      // Email draft.
+      // Email draft. BUG-C fix: agent-facing reasoning now uses the
+      // humanizeRankSignals helper so the drawer's "Why drafted" chip
+      // reads like a colleague's note ("Contracts signed but no follow-up
+      // logged yet, and no viewings yet.") rather than a comma-joined
+      // signals dump. buildRankReason itself is untouched.
       drafts.push({
         id: randomUUID(),
         type: 'email' as const,
@@ -3020,42 +3171,66 @@ export async function createViewingSchedule(
           id: buyer.unit_id,
           label: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
         },
-        reasoning: `Ranked #${i + 1} (score ${buyer.score}). ${buyer.reason}.`,
+        reasoning: `Ranked #${i + 1} (score ${buyer.score}). ${humanizeRankSignals(buyer)}`,
       });
 
-      // Viewing-record draft. Mirrors scheduleViewingDraft so the same
-      // approval drawer creates a real agent_viewings row when the agent
-      // hits Approve.
-      const recordRow: Record<string, any> = {
-        agent_id: agentContext.agentProfileId,
-        buyer_name: buyer.buyer_name,
-        buyer_email: buyer.buyer_email,
-        viewing_date: inputs.date,
-        viewing_time: `${primarySlot.start}:00`,
-        status: 'pending',
-        source: 'intelligence',
-        unit_ref: buyer.unit_number,
-        development_id: scope.developmentId,
-        unit_id: buyer.unit_id,
-        scheme_name: scope.schemeName,
-      };
-      drafts.push({
-        id: randomUUID(),
-        type: 'viewing_record' as const,
-        body: JSON.stringify(recordRow, null, 2),
-        affected_record: {
-          kind: 'sales_unit',
-          id: buyer.unit_id,
-          label: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
-        },
-        reasoning: `Holds ${formatSlotForCopy(inputs.date, primarySlot.start)} for ${buyer.buyer_name}. Created on approval.`,
-      });
+      // BUG-A fix: pre-persist the agent_viewings row with status='pending'.
+      // No more raw-JSON viewing_record draft in the inbox. Discarding the
+      // proposal email leaves an orphan pending viewing — accepted for
+      // now, see TODO in app/api/agent/intelligence/drafts/[id]/route.ts.
+      if (tenantId) {
+        const viewingTime = `${primarySlot.start}:00`;
+        const { data: vRow, error: vErr } = await supabase
+          .from('agent_viewings')
+          .insert({
+            agent_id: agentContext.agentProfileId,
+            tenant_id: tenantId,
+            development_id: scope.developmentId,
+            unit_id: buyer.unit_id,
+            buyer_name: buyer.buyer_name,
+            buyer_email: buyer.buyer_email,
+            scheme_name: scope.schemeName,
+            unit_ref: String(buyer.unit_number),
+            viewing_date: inputs.date,
+            viewing_time: viewingTime,
+            status: 'pending',
+            source: 'intelligence',
+          })
+          .select('id')
+          .single();
+        if (vErr) {
+          console.error('[create_viewing_schedule] agent_viewings insert failed', {
+            agentProfileId: agentContext.agentProfileId,
+            buyer: buyer.buyer_name,
+            unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+            date: inputs.date,
+            time: viewingTime,
+            message: vErr.message,
+          });
+        } else {
+          console.log('[create_viewing_schedule] agent_viewings inserted', {
+            id: vRow?.id ?? null,
+            agentProfileId: agentContext.agentProfileId,
+            buyer: buyer.buyer_name,
+            unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+            date: inputs.date,
+            time: viewingTime,
+            status: 'pending',
+          });
+        }
+      } else {
+        console.warn('[create_viewing_schedule] no tenant_id resolved — skipping agent_viewings insert', {
+          agentProfileId: agentContext.agentProfileId,
+          buyer: buyer.buyer_name,
+          unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+        });
+      }
     }
 
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.schemeName} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). Each buyer has an email proposal and a held slot in the drawer for review.`,
+      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.schemeName} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). ${usedSlots} proposal email${usedSlots === 1 ? '' : 's'} ready for review; matching slots pre-held in your viewings list as PENDING until each buyer confirms.`,
       drafts,
       meta: {
         record_count: drafts.length,
