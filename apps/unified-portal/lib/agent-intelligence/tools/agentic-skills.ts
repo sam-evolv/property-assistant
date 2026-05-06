@@ -3429,7 +3429,7 @@ export async function createViewingSchedule(
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.primaryLabel} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). ${usedSlots} proposal email${usedSlots === 1 ? '' : 's'} ready for review; matching slots pre-held in your viewings list as PENDING until each buyer confirms.`,
+      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.primaryLabel} on ${new Date(`${inputs.date}T00:00:00`).toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} (${inputs.start_time}–${inputs.end_time}). ${usedSlots} proposal email${usedSlots === 1 ? '' : 's'} ready for review; matching slots pre-held in your viewings list as PENDING until each buyer confirms.`,
       drafts,
       meta: {
         record_count: drafts.length,
