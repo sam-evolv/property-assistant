@@ -92,6 +92,13 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
  * Hard-deletes — drafts are disposable by design. The recent_actions row from
  * Session 1 is removed too so the Session 1 undo pill can't resurrect a draft
  * the user explicitly discarded.
+ *
+ * TODO: when discarding a viewing_proposal draft, also delete the matching
+ * pending agent_viewings row by (unit_id, viewing_date, viewing_time). The
+ * viewing-scheduler audit accepted orphan PENDING viewings as agent-facing-
+ * only for the promo recording; once the join key shape is decided, wire
+ * this DELETE to clean up the matching slot so the agent's viewings list
+ * doesn't accumulate stale "PENDING" entries from discarded proposals.
  */
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
