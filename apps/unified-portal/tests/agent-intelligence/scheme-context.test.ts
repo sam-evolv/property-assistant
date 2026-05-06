@@ -230,7 +230,13 @@ describe('buildAgentSystemPrompt scope block', () => {
     expect(prompt).toContain('Current agent context:');
     expect(prompt).toContain('Name: Orla Hennessy');
     expect(prompt).toContain(`Assigned developments: ${ARDAN_VIEW_NAME}`);
-    expect(prompt).toContain(`Active scheme: ${ARDAN_VIEW_NAME}`);
+    // The "Active scheme: <X>" line was deliberately removed — it leaked
+    // the UI's currently-focused scheme into the model's framing and
+    // biased tool calls toward that scheme. The field
+    // agentContext.activeDevelopmentId is still read by other consumers
+    // (contact-resolver, voice-capture extract-actions) but no longer
+    // appears in the chat sales prompt's scope block.
+    expect(prompt).not.toContain('Active scheme:');
     expect(prompt).not.toMatch(/Assigned developments:\s*\(none\)/);
   });
 });

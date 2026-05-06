@@ -3231,6 +3231,21 @@ export async function createViewingSchedule(
     }
 
     const scope = await resolveRankingScope(supabase, agentContext, inputs);
+    // Diagnostic entry log — captures whether the model passed scheme_name
+    // (which scopes to one scheme) or omitted it (which triggers the
+    // cross-scheme branch and ranks across every assigned scheme). After
+    // PR #93's first live test came back all-Lakeside-Manor for cross-
+    // scheme requests, this log lets us prove from production whether the
+    // model is honouring the omit-scheme-for-cross-scheme contract.
+    console.log('[create_viewing_schedule] entry', {
+      agentProfileId: agentContext.agentProfileId,
+      inputs_scheme_name: inputs.scheme_name ?? null,
+      inputs_development_id: inputs.development_id ?? null,
+      scope_ok: scope.ok,
+      scope_developmentIds: scope.ok ? scope.developmentIds : null,
+      scope_multi: scope.ok ? scope.multi : null,
+      scope_primaryLabel: scope.ok ? scope.primaryLabel : null,
+    });
     if (!scope.ok) {
       return {
         skill,

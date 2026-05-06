@@ -341,17 +341,19 @@ export function buildAgentSystemPrompt(
   // Scope block — rendered at the very top of the prompt so the model sees
   // the agent's assigned developments before anything else. Prevents the
   // "no schemes assigned" hallucination when downstream tools aren't in use.
-  const activeDevName = agentContext.activeDevelopmentId
-    ? (agentContext.assignedSchemes.find(s => s.developmentId === agentContext.activeDevelopmentId)?.schemeName
-      ?? 'a scheme outside your assigned list')
-    : 'All Schemes';
+  // The "Active scheme: <X>" line was REMOVED — it was leaking the UI's
+  // currently-focused scheme into the model's framing, which biased tool
+  // calls (e.g. create_viewing_schedule defaulting to scheme_name=<active>
+  // even when the user asked "across all my schemes"). The field
+  // agentContext.activeDevelopmentId is still read by other consumers
+  // (contact-resolver, agent-context fallback, voice-capture extract-
+  // actions) — only the sales prompt's directive surface drops it.
   const assignedNamesJoined = agentContext.assignedDevelopmentNames.length
     ? agentContext.assignedDevelopmentNames.join(', ')
     : '(none)';
   const scopeBlock = `Current agent context:
 - Name: ${agentContext.displayName}
 - Assigned developments: ${assignedNamesJoined}
-- Active scheme: ${activeDevName}
 
 When the user asks about "my schemes" or "my pipeline" without naming a specific one, scope to the assigned developments above. When they name a specific scheme, confirm it's in their assigned list before answering. If the assigned list is "(none)", say so plainly — do not invent a scheme name.`;
 

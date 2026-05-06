@@ -336,6 +336,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       '  - User says "for all my schemes" / "across the portfolio" / "across all my pipelines" → omit scheme_name. The skill ranks cross-scheme over every assigned development.',
       '  - User asks for a viewing schedule without naming a scheme ("draft a viewing schedule for Saturday, propose to my top 10 buyers") → omit scheme_name. The skill ranks cross-scheme.',
       'There is no magic "all" string — omitting the scheme_name parameter is the only way to request cross-scheme.',
+      'OVERRIDE: When the user says "across all my schemes", "my whole pipeline", or doesn\'t name a specific scheme, omit scheme_name. Cross-scheme is the correct default for unscoped requests. Do not infer a default scheme from any other context.',
       'Each email opens with the unit + scheme + date, then a stage-aware second sentence acknowledging the recipient\'s pipeline situation, then 2-3 specific slot options.',
     ].join(' '),
     parameters: {
