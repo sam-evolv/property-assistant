@@ -306,17 +306,18 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'rank_pipeline_buyers',
     description: [
-      "Rank the buyers in the agent's sales pipeline at a given scheme by likelihood to convert.",
+      "Rank the buyers in the agent's sales pipeline by likelihood to convert.",
       'Use this for "who is most likely to convert", "which buyers should I chase first", "top 10 active buyers" style questions, and as the input source when scheduling group viewings.',
-      'The score is deterministic: stage progress (sale_agreed > deposit_received > released > available), recency of last logged contact, days in pipeline, and viewing count.',
-      'Returns a list of ranked buyers with score and a one-line `reason` per buyer ("contacted 3 days ago, sale agreed, viewed twice").',
-      'Either development_id or scheme_name must be provided; scheme_name is resolved against the agent\'s assigned schemes.',
+      'The score is deterministic: stage progress, recency of last logged contact, days in pipeline, and viewing count. Tied scores fall back to last-contact-days desc → pipeline-age-days desc → buyer name asc for stable ordering.',
+      'Terminal stages (handed_over, social_housing) are excluded from the eligible pool — these buyers are out of scope for further sales activity.',
+      'Scheme scoping: pass scheme_name to scope to a single scheme, or omit to rank cross-scheme across every assigned scheme. Omitting is the only way to request cross-scheme — there is no magic "all" string.',
+      'Returns a list of ranked buyers with score and a one-line reason per buyer ("contacted 3 days ago, sale agreed, viewed twice").',
     ].join(' '),
     parameters: {
       type: 'object',
       properties: {
-        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known (avoids alias lookup).' },
-        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes.' },
+        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known (avoids alias lookup). Omit for cross-scheme ranking.' },
+        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes. Omit for cross-scheme ranking.' },
         limit: { type: 'number', description: 'Max buyers to return (default 10, max 50).' },
       },
       required: [],
@@ -327,16 +328,21 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'create_viewing_schedule',
     description: [
-      'Build a viewing schedule for a scheme on a given date and propose specific timeslots to the top-ranked buyers in one batch.',
+      'Build a viewing schedule on a given date and propose specific timeslots to the top-ranked buyers in one batch.',
       'Use this for "draft a viewing schedule for X this Saturday, 10 slots from 9–2, propose them to 10 active buyers" style requests.',
-      'Behaviour: builds N timeslots between start_time and end_time at slot_duration_minutes spacing, calls rank_pipeline_buyers internally to pick the buyers, then drafts one personalised email + one viewing_record per buyer. All drafts land in the approval drawer for review — nothing is sent or written to agent_viewings until the agent approves.',
-      'Each email opens with a one-line buyer-specific reasoning ("contacted 3 days ago, sale agreed, viewed twice — wanted to put a slot in front of you") and offers the assigned slot plus 2 alternatives.',
+      'Behaviour: builds N timeslots between start_time and end_time at slot_duration_minutes spacing, ranks buyers internally (terminal stages excluded — handed_over and social_housing units never receive proposals), drafts one personalised email per buyer, and pre-persists matching agent_viewings rows as PENDING.',
+      'Scheme scoping — IMPORTANT:',
+      '  - User names a specific scheme ("for Lakeside Manor") → pass scheme_name="Lakeside Manor". The skill scopes to that one scheme.',
+      '  - User says "for all my schemes" / "across the portfolio" / "across all my pipelines" → omit scheme_name. The skill ranks cross-scheme over every assigned development.',
+      '  - User asks for a viewing schedule without naming a scheme ("draft a viewing schedule for Saturday, propose to my top 10 buyers") → omit scheme_name. The skill ranks cross-scheme.',
+      'There is no magic "all" string — omitting the scheme_name parameter is the only way to request cross-scheme.',
+      'Each email opens with the unit + scheme + date, then a stage-aware second sentence acknowledging the recipient\'s pipeline situation, then 2-3 specific slot options.',
     ].join(' '),
     parameters: {
       type: 'object',
       properties: {
-        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known.' },
-        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes.' },
+        development_id: { type: 'string', description: 'UUID of the scheme. Preferred when known. Omit for cross-scheme ranking.' },
+        scheme_name: { type: 'string', description: 'Scheme name (e.g. "Lakeside Manor"). Resolved against the agent\'s assigned schemes. Omit for cross-scheme ranking.' },
         date: { type: 'string', description: 'Viewing date as ISO YYYY-MM-DD (e.g. "2026-05-09" for Saturday).' },
         start_time: { type: 'string', description: 'Schedule start time in 24-h or 12-h ("09:00", "9am").' },
         end_time: { type: 'string', description: 'Schedule end time in 24-h or 12-h ("14:00", "2pm").' },

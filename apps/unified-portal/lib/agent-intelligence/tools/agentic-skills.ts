@@ -2732,6 +2732,26 @@ function viewingPhrase(viewingCount: number): string | null {
   return `viewed ${viewingCount} times`;
 }
 
+// BUG-D fix: stage-aware second sentence for the viewing-proposal email
+// body. Inserted between the opener (which names the unit + date) and the
+// slot list. Returns an empty string when the recipient's stage doesn't
+// match a known case — body remains coherent for cold prospects.
+function stageAwareLine(stage: string, viewingCount: number): string {
+  if (stage === 'counter_signed' || stage === 'signed') {
+    return "Your contracts are signed, so this is more of a check-in than anything urgent.";
+  }
+  if (stage === 'contracts_issued') {
+    return "I noticed your contracts are out — happy to walk through anything before you sign.";
+  }
+  if (stage === 'sale_agreed' || stage === 'reserved') {
+    return "Now that we have your offer agreed, I want to make sure you've seen the unit firsthand.";
+  }
+  if (viewingCount >= 1) {
+    return "I know you've already had a look, but with the schedule firming up I wanted to offer another time if useful.";
+  }
+  return '';
+}
+
 function joinAnd(parts: string[]): string {
   if (parts.length === 0) return '';
   if (parts.length === 1) return parts[0];
@@ -2807,7 +2827,7 @@ async function resolveRankingScope(
   agentContext: SkillAgentContext,
   inputs: RankPipelineBuyersInput,
 ): Promise<
-  | { ok: true; developmentId: string; schemeName: string }
+  | { ok: true; developmentIds: string[]; schemeNamesById: Map<string, string>; multi: boolean; primaryLabel: string }
   | { ok: false; reason: string }
 > {
   const { data: asgs } = await supabase
@@ -2832,7 +2852,13 @@ async function resolveRankingScope(
       .eq('id', inputs.development_id)
       .maybeSingle();
     if (!dev) return { ok: false, reason: 'Development not found.' };
-    return { ok: true, developmentId: dev.id, schemeName: dev.name };
+    return {
+      ok: true,
+      developmentIds: [dev.id],
+      schemeNamesById: new Map([[dev.id, dev.name]]),
+      multi: false,
+      primaryLabel: dev.name,
+    };
   }
 
   if (inputs.scheme_name) {
@@ -2856,22 +2882,48 @@ async function resolveRankingScope(
               : `Scheme "${inputs.scheme_name}" is not in your assigned list.`,
       };
     }
-    return { ok: true, developmentId: resolution.developmentId, schemeName: resolution.canonicalName };
+    return {
+      ok: true,
+      developmentIds: [resolution.developmentId],
+      schemeNamesById: new Map([[resolution.developmentId, resolution.canonicalName]]),
+      multi: false,
+      primaryLabel: resolution.canonicalName,
+    };
   }
 
+  // Cross-scheme: neither development_id nor scheme_name passed → rank
+  // across every assigned scheme. The omitted-parameter shape is the only
+  // way the model can request cross-scheme; there is no magic 'all' string.
+  const { data: devs } = await supabase
+    .from('developments')
+    .select('id, name')
+    .in('id', devIds);
+  const map = new Map<string, string>();
+  for (const d of (devs || []) as Array<{ id: string; name: string }>) {
+    map.set(d.id, d.name);
+  }
   return {
-    ok: false,
-    reason: 'Provide either development_id or scheme_name.',
+    ok: true,
+    developmentIds: devIds,
+    schemeNamesById: map,
+    multi: true,
+    primaryLabel: 'all assigned schemes',
   };
 }
 
-async function rankBuyersForDevelopment(
+async function rankBuyersForDevelopments(
   supabase: SupabaseClient,
-  developmentId: string,
-  schemeName: string,
+  developmentIds: string[],
+  schemeNamesById: Map<string, string>,
   limit: number,
 ): Promise<RankedPipelineBuyer[]> {
+  if (!developmentIds.length) return [];
+
   // 1. Pipeline rows with stage dates + buyer contact info.
+  // BUG-C fix: SQL-level optimisation — drop rows with handover_date set
+  // before they hit the JS filter. JS filter remains the source of truth
+  // (it also excludes social_housing units and unit_status='handed_over'
+  // rows where handover_date may be null due to column drift).
   const { data: pipelineRows } = await supabase
     .from('unit_sales_pipeline')
     .select(
@@ -2879,7 +2931,8 @@ async function rankBuyersForDevelopment(
         'release_date, sale_agreed_date, deposit_date, contracts_issued_date, ' +
         'signed_contracts_date, counter_signed_date, handover_date, created_at',
     )
-    .eq('development_id', developmentId);
+    .in('development_id', developmentIds)
+    .is('handover_date', null);
 
   const pipeRows = (pipelineRows || []) as any[];
   if (!pipeRows.length) return [];
@@ -2906,11 +2959,14 @@ async function rankBuyersForDevelopment(
 
   // 4. Viewing counts. agent_viewings keys off a free-text unit_ref + a
   //    nullable unit_id; we count by unit_id where available, and fall
-  //    back to unit_number string match for legacy rows.
+  //    back to unit_number string match for legacy rows. Cross-scheme:
+  //    `.in('scheme_name', ...)` so multi-scheme runs pick up viewings
+  //    from every scheme in scope.
+  const schemeNames = Array.from(schemeNamesById.values());
   const { data: viewingRows } = await supabase
     .from('agent_viewings')
     .select('unit_id, unit_ref, scheme_name, buyer_name')
-    .eq('scheme_name', schemeName);
+    .in('scheme_name', schemeNames);
   const viewingsByUnitId = new Map<string, number>();
   const viewingsByUnitRef = new Map<string, number>();
   for (const v of (viewingRows || []) as any[]) {
@@ -2929,10 +2985,22 @@ async function rankBuyersForDevelopment(
     const unit = unitById.get(p.unit_id);
     const buyerName = (p.purchaser_name || unit?.purchaser_name || '').trim();
     const buyerEmail = (p.purchaser_email || unit?.purchaser_email || null) as string | null;
-    if (!buyerName) continue; // No buyer in pipeline yet — skip, this is "who would convert", not "who could".
+    if (!buyerName) continue; // No buyer in pipeline yet.
+
+    // BUG-C fix: terminal-stage and out-of-scope exclusions.
+    // - p.handover_date set → terminal (already filtered at SQL level above
+    //   but kept here as the source-of-truth guard).
+    // - unit_status='handed_over' → terminal (catches the column-drift case
+    //   where pipeline.handover_date is null but units.unit_status moved on).
+    // - unit_status='social_housing' → out of scope for sales viewings;
+    //   these units don't take private-buyer invitations.
+    if (p.handover_date) continue;
+    if (unit?.unit_status === 'handed_over') continue;
+    if (unit?.unit_status === 'social_housing') continue;
 
     const unitNumber = unit?.unit_number || unit?.unit_uid || 'unknown';
     const { stage, stagePoints } = classifyStage(unit?.unit_status || null, p);
+    const schemeName = schemeNamesById.get(p.development_id) || 'Unknown scheme';
 
     const lastCommIso = lastCommByUnit.get(p.unit_id) || null;
     const daysSinceContact = lastCommIso
@@ -2972,7 +3040,24 @@ async function rankBuyersForDevelopment(
     });
   }
 
-  ranked.sort((a, b) => b.score - a.score);
+  // BUG-A fix: stable tiebreaker chain when scores collide. The score space
+  // is small (4 signals × 3-5 buckets), so ties cluster — auditor saw 5
+  // buyers tied at 44.5. Tiebreaks reward "the agent should follow up with
+  // this person specifically": gone-quiet first, then stalest pipeline,
+  // then alphabetical name as a deterministic final fallback.
+  //   - last_contact_days desc: null → POSITIVE_INFINITY (most gone-quiet)
+  //   - pipeline_age_days desc: null → 0 (no signal sorts to bottom)
+  //   - buyer_name asc: locale-aware so 'Á' / 'Ó' don't sort weirdly
+  ranked.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    const lcA = a.last_contact_days ?? Number.POSITIVE_INFINITY;
+    const lcB = b.last_contact_days ?? Number.POSITIVE_INFINITY;
+    if (lcB !== lcA) return lcB - lcA;
+    const paA = a.pipeline_age_days ?? 0;
+    const paB = b.pipeline_age_days ?? 0;
+    if (paB !== paA) return paB - paA;
+    return a.buyer_name.localeCompare(b.buyer_name);
+  });
   return ranked.slice(0, limit);
 }
 
@@ -2997,10 +3082,10 @@ export async function rankPipelineBuyers(
       };
     }
 
-    const ranked = await rankBuyersForDevelopment(
+    const ranked = await rankBuyersForDevelopments(
       supabase,
-      scope.developmentId,
-      scope.schemeName,
+      scope.developmentIds,
+      scope.schemeNamesById,
       limit,
     );
 
@@ -3008,17 +3093,17 @@ export async function rankPipelineBuyers(
       return {
         skill,
         status: 'awaiting_approval',
-        summary: `No active buyers in the pipeline at ${scope.schemeName} yet.`,
+        summary: `No active buyers in the pipeline at ${scope.primaryLabel} yet.`,
         drafts: [],
         meta: { record_count: 0, generated_at: new Date().toISOString(), query },
       };
     }
 
     const summaryLines = [
-      `Top ${ranked.length} buyer${ranked.length === 1 ? '' : 's'} most likely to convert at ${scope.schemeName}:`,
+      `Top ${ranked.length} buyer${ranked.length === 1 ? '' : 's'} most likely to convert${scope.multi ? ' across your assigned schemes' : ` at ${scope.primaryLabel}`}:`,
       ...ranked.map(
         (r, i) =>
-          `${i + 1}. ${r.buyer_name} — Unit ${r.unit_number} (score ${r.score}) — ${r.reason}`,
+          `${i + 1}. ${r.buyer_name} — Unit ${r.unit_number}${scope.multi ? `, ${r.scheme_name}` : ''} (score ${r.score}) — ${r.reason}`,
       ),
     ];
 
@@ -3034,9 +3119,11 @@ export async function rankPipelineBuyers(
         // @ts-ignore — diagnostic + consumed by create_viewing_schedule
         ranked_buyers: ranked,
         // @ts-ignore
-        development_id: scope.developmentId,
+        development_ids: scope.developmentIds,
         // @ts-ignore
-        scheme_name: scope.schemeName,
+        scheme_names: Array.from(scope.schemeNamesById.values()),
+        // @ts-ignore
+        multi_scheme: scope.multi,
       } as any,
     };
   } catch (err) {
@@ -3174,11 +3261,13 @@ export async function createViewingSchedule(
 
     // Use the same ranker the agent would call directly. We fetch one
     // extra so we have headroom if a top-ranked buyer is missing an
-    // email and we need to skip them.
-    const ranked = await rankBuyersForDevelopment(
+    // email and we need to skip them. When the user named no scheme,
+    // scope.developmentIds is the agent's full assigned list and the
+    // ranker pulls cross-scheme.
+    const ranked = await rankBuyersForDevelopments(
       supabase,
-      scope.developmentId,
-      scope.schemeName,
+      scope.developmentIds,
+      scope.schemeNamesById,
       targetCount + 5,
     );
 
@@ -3187,7 +3276,7 @@ export async function createViewingSchedule(
       return {
         skill,
         status: 'awaiting_approval',
-        summary: `No buyers with email on file at ${scope.schemeName}. Update purchaser emails on the units before scheduling.`,
+        summary: `No buyers with email on file at ${scope.primaryLabel}. Update purchaser emails on the units before scheduling.`,
         drafts: [],
         meta: { record_count: 0, generated_at: new Date().toISOString(), query },
       };
@@ -3223,16 +3312,22 @@ export async function createViewingSchedule(
         .join('\n');
 
       const buyerFirst = firstName(buyer.buyer_name);
-      const subject = `Viewing slot for Unit ${buyer.unit_number}, ${scope.schemeName}`;
+      const buyerScheme = buyer.scheme_name;
+      const subject = `Viewing slot for Unit ${buyer.unit_number}, ${buyerScheme}`;
 
-      // BUG-B fix: opener now leads with the viewing context (unit + date)
-      // instead of the comma-joined system phrases ("no contact logged
-      // yet, counter signed, no viewings yet") that the audit caught
-      // leaking into recipient-facing prose.
+      // BUG-D fix: stage-aware second sentence acknowledges the recipient's
+      // pipeline situation ("contracts signed → check-in", "contracts out →
+      // happy to walk through", etc.). Returns empty string for cold
+      // prospects so the body stays generic and coherent in that case.
+      const stageLine = stageAwareLine(buyer.stage, buyer.viewing_count);
+
+      // Opener leads with the viewing context (unit + date). The stage-aware
+      // line follows when applicable, then the slot list.
       const body = [
         `Hi ${buyerFirst},`,
         '',
-        `I'd like to invite you to view Unit ${buyer.unit_number} at ${scope.schemeName} on ${dayLabel}.`,
+        `I'd like to invite you to view Unit ${buyer.unit_number} at ${buyerScheme} on ${dayLabel}.`,
+        ...(stageLine ? ['', stageLine] : []),
         '',
         `I've held a slot for you — pick whichever works:`,
         slotLines,
@@ -3243,11 +3338,9 @@ export async function createViewingSchedule(
         signature(agentContext),
       ].join('\n');
 
-      // Email draft. BUG-C fix: agent-facing reasoning now uses the
-      // humanizeRankSignals helper so the drawer's "Why drafted" chip
-      // reads like a colleague's note ("Contracts signed but no follow-up
-      // logged yet, and no viewings yet.") rather than a comma-joined
-      // signals dump. buildRankReason itself is untouched.
+      // Email draft. Agent-facing reasoning uses humanizeRankSignals so
+      // the drawer's "Why drafted" chip reads like a colleague's note,
+      // not a comma-joined signals dump. buildRankReason itself untouched.
       drafts.push({
         id: randomUUID(),
         type: 'email' as const,
@@ -3261,7 +3354,7 @@ export async function createViewingSchedule(
         affected_record: {
           kind: 'sales_unit',
           id: buyer.unit_id,
-          label: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+          label: `Unit ${buyer.unit_number}, ${buyerScheme}`,
         },
         reasoning: `Ranked #${i + 1} (score ${buyer.score}). ${humanizeRankSignals(buyer)}`,
       });
@@ -3277,11 +3370,11 @@ export async function createViewingSchedule(
           .insert({
             agent_id: agentContext.agentProfileId,
             tenant_id: tenantId,
-            development_id: scope.developmentId,
+            development_id: buyer.development_id,
             unit_id: buyer.unit_id,
             buyer_name: buyer.buyer_name,
             buyer_email: buyer.buyer_email,
-            scheme_name: scope.schemeName,
+            scheme_name: buyerScheme,
             unit_ref: String(buyer.unit_number),
             viewing_date: inputs.date,
             viewing_time: viewingTime,
@@ -3294,7 +3387,7 @@ export async function createViewingSchedule(
           console.error('[create_viewing_schedule] agent_viewings insert failed', {
             agentProfileId: agentContext.agentProfileId,
             buyer: buyer.buyer_name,
-            unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+            unit: `Unit ${buyer.unit_number}, ${buyerScheme}`,
             date: inputs.date,
             time: viewingTime,
             message: vErr.message,
@@ -3304,7 +3397,7 @@ export async function createViewingSchedule(
             id: vRow?.id ?? null,
             agentProfileId: agentContext.agentProfileId,
             buyer: buyer.buyer_name,
-            unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+            unit: `Unit ${buyer.unit_number}, ${buyerScheme}`,
             date: inputs.date,
             time: viewingTime,
             status: 'pending',
@@ -3314,7 +3407,7 @@ export async function createViewingSchedule(
         console.warn('[create_viewing_schedule] no tenant_id resolved — skipping agent_viewings insert', {
           agentProfileId: agentContext.agentProfileId,
           buyer: buyer.buyer_name,
-          unit: `Unit ${buyer.unit_number}, ${scope.schemeName}`,
+          unit: `Unit ${buyer.unit_number}, ${buyerScheme}`,
         });
       }
     }
@@ -3322,16 +3415,18 @@ export async function createViewingSchedule(
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.schemeName} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). ${usedSlots} proposal email${usedSlots === 1 ? '' : 's'} ready for review; matching slots pre-held in your viewings list as PENDING until each buyer confirms.`,
+      summary: `Drafted a ${usedSlots}-slot viewing schedule for ${scope.primaryLabel} on ${inputs.date} (${inputs.start_time}–${inputs.end_time}). ${usedSlots} proposal email${usedSlots === 1 ? '' : 's'} ready for review; matching slots pre-held in your viewings list as PENDING until each buyer confirms.`,
       drafts,
       meta: {
         record_count: drafts.length,
         generated_at: new Date().toISOString(),
         query,
         // @ts-ignore — surfaced for diagnostics + analytics
-        development_id: scope.developmentId,
+        development_ids: scope.developmentIds,
         // @ts-ignore
-        scheme_name: scope.schemeName,
+        scheme_names: Array.from(scope.schemeNamesById.values()),
+        // @ts-ignore
+        multi_scheme: scope.multi,
         // @ts-ignore
         slot_count: usedSlots,
         // @ts-ignore

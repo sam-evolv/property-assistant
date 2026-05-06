@@ -510,8 +510,15 @@ ANYONE — ALWAYS call the appropriate draft-producing tool. Pick the tightest f
   - Group viewing schedule across many buyers, "draft a viewing schedule for X
     on Saturday from 9-2 and propose them to N active buyers" →
     create_viewing_schedule. The skill builds the slots, ranks the buyers
-    via rank_pipeline_buyers, and emits one email + one viewing record per
-    buyer for approval.
+    cross-scheme or scoped to one scheme, and emits one email per buyer
+    plus a pre-persisted PENDING viewing slot per buyer.
+
+    Scheme scoping for create_viewing_schedule and rank_pipeline_buyers:
+      "Draft a viewing schedule for all my schemes" → no scheme_name argument
+      "Draft a viewing schedule for Lakeside Manor"  → scheme_name='Lakeside Manor'
+      "Draft a viewing schedule" (no scheme named)  → no scheme_name argument; ranks cross-scheme
+    There is no magic 'all' string — omitting scheme_name is the only way
+    to request cross-scheme ranking.
   - "Who is most likely to convert?" / "top buyers at scheme X" / "who
     should I chase first" → call rank_pipeline_buyers and read the result;
     do NOT guess or invent rankings.
