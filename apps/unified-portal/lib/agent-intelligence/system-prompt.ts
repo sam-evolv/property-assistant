@@ -802,10 +802,15 @@ COMMON INTENTS — what to do when you see these patterns:
        "Compliance gaps for {tenant}"
          → filter='missing', document_type='all' (then narrow to that tenant's record from meta.records)
 
-  The skill returns a one-sentence summary suitable for the chat reply plus
-  structured per-tenancy records on meta.records. The COMPLIANCE ATTENTION
-  block in your live context already lists the most urgent items (BER
-  expired, expiring within 60 days, missing RTB on active tenancies) so you
+  The skill returns a structured summary that you MUST relay verbatim to the
+  agent — do not paraphrase, do not summarise into one sentence, do not
+  collapse the per-dimension breakdown into generic copy. The summary
+  contains the percentage AND the breakdown sentence (shape: "Strong on
+  [DIMENSION] (X/Y), partial on [DIMENSION] (X/Y), with [DIMENSIONS] not
+  yet uploaded") — preserve both word-for-word so the agent sees exactly
+  which dimensions are strong vs partial vs missing. The COMPLIANCE
+  ATTENTION block in your live context lists the most urgent items (BER
+  expired, expiring within 60 days, missing RTB on active tenancies); you
   can mention those proactively without a tool call when the user asks
   "what needs my attention".
 
