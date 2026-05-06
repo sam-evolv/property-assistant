@@ -592,17 +592,24 @@ function parseOverdueDays(note: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
-function parseTenantName(raw: string | null | undefined): { firstName: string } {
-  if (!raw) return { firstName: 'there' };
-  // Strip honorifics at the start of each segment before splitting on "and".
+function parseTenantName(raw: string | null | undefined): { firstName: string; greeting: string } {
+  if (!raw) return { firstName: 'there', greeting: 'there' };
+  // Strip honorifics at the start of each segment before splitting on "and" / "&".
+  // Joint tenancies are stored as a single string in agent_tenancies.tenant_name
+  // ("Mark Donnelly and Ciara O'Leary"), so the greeting needs to surface both
+  // names when present — Irish letting agent etiquette requires addressing both
+  // tenants on a renewal even when only one email is on file. Three-tenant
+  // edge case uses Oxford-comma style ("Sam, Alex and Jamie").
   const stripped = raw.replace(/\b(Mr|Ms|Mrs|Miss|Dr)\.?\s+/gi, '').trim();
-  const primary = stripped.split(/\s+and\s+/i)[0] || stripped;
-  const first = primary.trim().split(/\s+/)[0];
-  return { firstName: first || 'there' };
-}
-
-function roundToNearest5(n: number): number {
-  return Math.round(n / 5) * 5;
+  const segments = stripped.split(/\s+(?:and|&)\s+/i).map((s) => s.trim()).filter(Boolean);
+  const firsts = segments.map((s) => s.split(/\s+/)[0]).filter(Boolean);
+  const firstName = firsts[0] || 'there';
+  const greeting =
+    firsts.length === 0 ? 'there'
+    : firsts.length === 1 ? firsts[0]
+    : firsts.length === 2 ? `${firsts[0]} and ${firsts[1]}`
+    : `${firsts.slice(0, -1).join(', ')} and ${firsts[firsts.length - 1]}`;
+  return { firstName, greeting };
 }
 
 export async function weeklyMondayBriefing(
@@ -734,7 +741,7 @@ export async function weeklyMondayBriefing(
 export async function draftLeaseRenewal(
   supabase: SupabaseClient,
   agentContext: SkillAgentContext,
-  inputs: { tenancy_id?: string },
+  inputs: { tenancy_id?: string; tenant_name?: string },
 ): Promise<AgenticSkillEnvelope> {
   const skill = 'draft_lease_renewal';
   const today = new Date();
@@ -742,8 +749,13 @@ export async function draftLeaseRenewal(
   // expired-but-unrenewed tenancies still get a renewal draft generated.
   const fourteenAgoIso = new Date(today.getTime() - 14 * 86400000).toISOString().split('T')[0];
   const ninetyIso = new Date(today.getTime() + 90 * 86400000).toISOString().split('T')[0];
-  const tenancyFilter = inputs.tenancy_id ? ` AND id = '${inputs.tenancy_id}'` : '';
-  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${fourteenAgoIso} AND ${ninetyIso}${tenancyFilter}`;
+  const tenantNameQ = (inputs.tenant_name ?? '').trim();
+  const filterDescription = inputs.tenancy_id
+    ? ` AND id = '${inputs.tenancy_id}'`
+    : tenantNameQ
+      ? ` AND tenant_name ILIKE '%${tenantNameQ}%'`
+      : '';
+  const query = `agent_tenancies WHERE agent_id = '${agentContext.agentProfileId}' AND status = 'active' AND lease_end BETWEEN ${fourteenAgoIso} AND ${ninetyIso}${filterDescription}`;
 
   try {
     let tenancyQ = supabase
@@ -754,7 +766,14 @@ export async function draftLeaseRenewal(
       .gte('lease_end', fourteenAgoIso)
       .lte('lease_end', ninetyIso);
 
-    if (inputs.tenancy_id) tenancyQ = tenancyQ.eq('id', inputs.tenancy_id);
+    if (inputs.tenancy_id) {
+      tenancyQ = tenancyQ.eq('id', inputs.tenancy_id);
+    } else if (tenantNameQ) {
+      // Fuzzy resolve when the user named a tenant in their question.
+      // Joint tenancies stored as "Mark Donnelly and Ciara O'Leary" still
+      // match a query for "Mark" or "Ciara" via ILIKE.
+      tenancyQ = tenancyQ.ilike('tenant_name', `%${tenantNameQ}%`);
+    }
 
     const { data: tenancies, error: tenErr } = await tenancyQ;
     if (tenErr) throw tenErr;
@@ -766,7 +785,31 @@ export async function draftLeaseRenewal(
         status: 'awaiting_approval',
         summary: inputs.tenancy_id
           ? 'No matching active tenancy found in the renewal window (14 days expired through 90 days ahead).'
-          : 'No tenancies in the renewal window (14 days expired through 90 days ahead) — nothing to draft.',
+          : tenantNameQ
+            ? `No active tenancy in the renewal window matching "${tenantNameQ}". Check the tenant name or run the request without a name to see all renewals due.`
+            : 'No tenancies in the renewal window (14 days expired through 90 days ahead) — nothing to draft.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    // C3 disambiguation: if the user named a tenant but the fuzzy match hit
+    // multiple tenancies, refuse to draft and ask for a more specific name.
+    // The model passed `tenant_name` from the user's question — we surface
+    // the candidates so it can re-ask cleanly.
+    if (tenantNameQ && !inputs.tenancy_id && rows.length > 1) {
+      const candidates = rows
+        .slice(0, 6)
+        .map((t: any) => `- ${t.tenant_name}`)
+        .join('\n');
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: [
+          `${rows.length} tenancies in the renewal window match "${tenantNameQ}":`,
+          candidates,
+          'Reply with a more specific name and I\'ll draft the renewal.',
+        ].join('\n'),
         drafts: [],
         meta: { record_count: 0, generated_at: new Date().toISOString(), query },
       };
@@ -786,8 +829,15 @@ export async function draftLeaseRenewal(
       const prop = propertyById.get(t.letting_property_id) || { address: 'Unknown property', city: null };
       const inRPZ = isInRPZ(prop.city);
       const currentRent = Number(t.rent_pcm ?? 0);
+      // C4 fix: floor to nearest €5 BELOW the cap so the proposed rent is
+      // strictly compliant with the 2% RPZ ceiling. The previous helper
+      // (roundToNearest5) rounded to nearest €5, which could exceed the cap
+      // by €1-2 (e.g. €1,950 × 1.02 = €1,989 → €1,990 over). Math.floor on
+      // the post-uplift value, then floor to €5 below, keeps the proposal
+      // legally defensible. Verified against audit cases: €1,985 / €1,680
+      // / €2,445 — all under their respective caps.
       const proposedRent = inRPZ
-        ? roundToNearest5(currentRent * (1 + rpzUpliftCap()))
+        ? Math.floor((currentRent * (1 + rpzUpliftCap())) / 5) * 5
         : currentRent;
       const rentNote = inRPZ
         ? `In line with RPZ rules, the maximum increase is ${(rpzUpliftCap() * 100).toFixed(1)}% per annum.`
@@ -795,7 +845,7 @@ export async function draftLeaseRenewal(
 
       const leaseEnd = new Date(t.lease_end);
       const daysToLeaseEnd = Math.floor((leaseEnd.getTime() - Date.now()) / 86400000);
-      const { firstName: tenantFirst } = parseTenantName(t.tenant_name);
+      const { greeting: tenantGreeting } = parseTenantName(t.tenant_name);
       const leaseEndLabel = formatIrishDate(t.lease_end);
       const expired = daysToLeaseEnd < 0;
       const daysAbs = Math.abs(daysToLeaseEnd);
@@ -805,8 +855,10 @@ export async function draftLeaseRenewal(
           ? `Your current lease at ${prop.address} ends today (${leaseEndLabel}).`
           : `Your current lease at ${prop.address} is due to end on ${leaseEndLabel} (in ${daysToLeaseEnd} day${daysToLeaseEnd === 1 ? '' : 's'}).`;
 
+      // C5 fix: greeting respects joint tenancies — "Hi Mark and Ciara,"
+      // when agent_tenancies.tenant_name is "Mark Donnelly and Ciara O'Leary".
       const body = [
-        `Hi ${tenantFirst},`,
+        `Hi ${tenantGreeting},`,
         ``,
         leaseLine,
         ``,
@@ -845,10 +897,44 @@ export async function draftLeaseRenewal(
       };
     });
 
+    // C2 fix: bake RPZ context into the summary so the model's one-sentence
+    // chat reply names the cap explicitly. The model defers to this string
+    // verbatim when a draft tool fires (system prompt rule), so RPZ has to
+    // be IN this sentence — the per-draft `reasoning` field only surfaces
+    // in the drawer's Why chip, not the chat reply.
+    const summary = (() => {
+      if (drafts.length === 1) {
+        const t = rows[0];
+        const prop = propertyById.get(t.letting_property_id) || { address: 'Unknown property', city: null };
+        const inRPZ = isInRPZ(prop.city);
+        const currentRent = Number(t.rent_pcm ?? 0);
+        const proposedRent = inRPZ
+          ? Math.floor((currentRent * (1 + rpzUpliftCap())) / 5) * 5
+          : currentRent;
+        const rpzNote = inRPZ
+          ? `${prop.city ?? 'this area'} is in a Rent Pressure Zone, so the increase is capped at ${(rpzUpliftCap() * 100).toFixed(0)}%`
+          : 'this property is outside RPZ — no statutory rent cap applies';
+        return `Drafted renewal for ${t.tenant_name || 'tenant'} at ${prop.address} — ${rpzNote}. Proposed €${proposedRent}/m (current €${currentRent}/m).`;
+      }
+      // Multi-draft: split RPZ vs non-RPZ counts so the headline is honest.
+      const rpzCount = rows.filter((t: any) => {
+        const prop = propertyById.get(t.letting_property_id);
+        return prop ? isInRPZ(prop.city) : false;
+      }).length;
+      const nonRpzCount = drafts.length - rpzCount;
+      if (rpzCount && nonRpzCount) {
+        return `Drafted ${drafts.length} renewals — ${rpzCount} in RPZ areas (${(rpzUpliftCap() * 100).toFixed(0)}% cap applied), ${nonRpzCount} outside RPZ (no statutory cap).`;
+      }
+      if (rpzCount) {
+        return `Drafted ${drafts.length} renewal${drafts.length === 1 ? '' : 's'} — all in RPZ areas (${(rpzUpliftCap() * 100).toFixed(0)}% cap applied).`;
+      }
+      return `Drafted ${drafts.length} renewal${drafts.length === 1 ? '' : 's'} — all outside RPZ, no statutory rent cap applies.`;
+    })();
+
     return {
       skill,
       status: 'awaiting_approval',
-      summary: `Drafted ${drafts.length} lease renewal offer${drafts.length === 1 ? '' : 's'} for tenancies in the renewal window.`,
+      summary,
       drafts,
       meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
     };

@@ -256,6 +256,18 @@ export default function LettingsPropertiesPage() {
                     : cat === 'off_market' ? { background: '#E5E7EB', color: '#4B5563' }
                     : { background: '#F3F4F6', color: '#6B7280' };
                   const pillLabel = cat === 'tenanted' ? 'Tenanted' : cat === 'vacant' ? 'Vacant' : cat === 'off_market' ? 'Off-market' : 'Other';
+                  // A3 fix: surface an EXPIRED flag on cards where the lease
+                  // has ended without a renewal. Keeps the structural
+                  // Tenanted pill (the unit is still occupied) and prepends
+                  // a separate red badge with days since expiry, matching
+                  // PR #85's day-count convention from the renewal block.
+                  const expiredDays = (() => {
+                    if (cat !== 'tenanted' || !p.activeTenancy?.leaseEnd) return null;
+                    const end = new Date(p.activeTenancy.leaseEnd);
+                    if (Number.isNaN(end.getTime())) return null;
+                    const days = Math.floor((Date.now() - end.getTime()) / 86400000);
+                    return days > 0 ? days : null;
+                  })();
                   return (
                     <Link key={p.id} href={`/agent/lettings/properties/${p.id}`} className="flex items-center gap-3 bg-white border border-[#E5E7EB] rounded-xl p-4 mb-2 no-underline">
                       <div className="relative w-8 h-8 flex-shrink-0">
@@ -270,7 +282,18 @@ export default function LettingsPropertiesPage() {
                         <div className="text-xs text-[#6B7280] truncate">{p.activeTenancy?.tenantName || (cat === 'tenanted' ? 'Tenanted' : 'Vacant')}</div>
                       </div>
                       <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={pillStyle}>{pillLabel}</span>
+                        <div className="flex items-center gap-1">
+                          {expiredDays !== null && (
+                            <span
+                              data-testid="property-row-expired-pill"
+                              className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full"
+                              style={{ background: '#FEF2F2', color: '#B91C1C' }}
+                            >
+                              EXPIRED {expiredDays}d
+                            </span>
+                          )}
+                          <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider rounded-full" style={pillStyle}>{pillLabel}</span>
+                        </div>
                         {p.activeTenancy?.rentPcm != null && (
                           <span className="text-xs font-medium text-[#0D0D12]">€{Number(p.activeTenancy.rentPcm).toLocaleString()}/m</span>
                         )}
