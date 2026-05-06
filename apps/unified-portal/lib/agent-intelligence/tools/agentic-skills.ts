@@ -326,9 +326,9 @@ export function classifyPipelineStage(unitStatus: string | null, pipe: any | nul
 }
 
 // =====================================================================
-// Skill 1 — chase_aged_contracts
+// Skill 1 — surface_aged_contracts_for_solicitor
 // =====================================================================
-export async function chaseAgedContracts(
+export async function surfaceAgedContractsForSolicitor(
   supabase: SupabaseClient,
   agentContext: SkillAgentContext,
   inputs: { threshold_days?: number; scheme_filter?: string },
@@ -337,7 +337,7 @@ export async function chaseAgedContracts(
     ? Math.max(1, Number(inputs.threshold_days))
     : 42;
   const schemeFilter = (inputs.scheme_filter || '').trim().toLowerCase();
-  const skill = 'chase_aged_contracts';
+  const skill = 'surface_aged_contracts_for_solicitor';
   const cutoffIso = new Date(Date.now() - thresholdDays * 86400000).toISOString();
   const query = `unit_sales_pipeline WHERE signed_contracts_date IS NULL AND contracts_issued_date < now() - interval '${thresholdDays} days'${schemeFilter ? ` AND scheme ILIKE '%${schemeFilter}%'` : ''}`;
 
@@ -543,7 +543,7 @@ export async function draftViewingFollowup(
 // helper in ../context requires a full AgentContext (with assignedSchemes and
 // tenantId) which the skill call-site does not have. Rather than widen
 // SkillAgentContext, we replicate the same query pattern used by
-// chaseAgedContracts above — scheme assignments → pipeline → dev + unit
+// surfaceAgedContractsForSolicitor above — scheme assignments → pipeline → dev + unit
 // lookups. Kept private to this module.
 async function loadAgedForBriefing(
   supabase: SupabaseClient,
@@ -2172,6 +2172,19 @@ const PURPOSE_PRECONDITIONS: Record<
   custom: { check: () => true, rejectionReason: () => '' },
 };
 
+// Safety-net for topic-bleed bug: when the model passes a fragment ("update
+// on signing their contracts") rather than a sentence, the body composer
+// drops it in verbatim and the email reads as a stub. We can't rewrite the
+// fragment into prose from this layer, but we CAN guarantee the line at
+// least ends with a sentence terminator so it reads less like a missing
+// placeholder. The primary fix lives in the registry parameter description
+// + the system prompt's chase examples; this is the last-line defence.
+export function ensureSentenceTerminator(input: string): string {
+  const trimmed = input.trim();
+  if (!trimmed) return trimmed;
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
 function buildFollowupContent(opts: {
   purpose: DraftBuyerFollowupPurpose;
   topic: string;
@@ -2186,8 +2199,9 @@ function buildFollowupContent(opts: {
   const sig = signature(ctx);
   // Defensive: scrub any greeting / sign-off the model may have included in
   // the free-text fields, since the template already supplies both.
-  const topic = stripGreetingAndSignoff(rawTopic);
-  const customInstruction = stripGreetingAndSignoff(rawCustom);
+  // Then append a sentence terminator if the model passed a fragment.
+  const topic = ensureSentenceTerminator(stripGreetingAndSignoff(rawTopic));
+  const customInstruction = ensureSentenceTerminator(stripGreetingAndSignoff(rawCustom));
 
   if (purpose === 'congratulate_handover') {
     return {

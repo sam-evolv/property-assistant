@@ -18,7 +18,7 @@ import type { AgentContext } from './types';
  */
 
 const AGENTIC_DRAFT_TYPE_BY_SKILL: Record<string, string> = {
-  chase_aged_contracts: 'solicitor_chase',
+  surface_aged_contracts_for_solicitor: 'solicitor_chase',
   draft_viewing_followup: 'viewing_followup',
   draft_lease_renewal: 'lease_renewal',
   weekly_monday_briefing: 'weekly_briefing',
@@ -89,7 +89,7 @@ export interface SkillPersistContext {
  * regressions that re-introduce a placeholder.
  *
  * `solicitor@tbc.invalid` was added after the audit found 45 ghost
- * solicitor_chase drafts in production — chaseAgedContracts now surfaces
+ * solicitor_chase drafts in production — surfaceAgedContractsForSolicitor now surfaces
  * the aged contracts via a needs_recipient envelope and never produces a
  * placeholder draft. Blocking the literal closes the regression class.
  *
