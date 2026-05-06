@@ -405,11 +405,12 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_lease_renewal',
-    description: 'Draft lease renewal offers for tenancies ending in the next 90 days. Calculates RPZ-compliant rent uplift where applicable. Returns drafts for tenant approval.',
+    description: 'Draft lease renewal offers for tenancies in the renewal window (recently expired through next 90 days). Calculates RPZ-compliant rent uplift where applicable. Returns drafts for tenant approval. Pass `tenant_name` to scope to a single tenant when the user names one ("Aoife O\'Brien\'s renewal", "remind Mark"); fuzzy-matches against agent_tenancies.tenant_name. Pass nothing to draft for every tenancy in the window.',
     parameters: {
       type: 'object',
       properties: {
-        tenancy_id: { type: 'string', description: 'Optional tenancy id to draft for a single renewal' },
+        tenancy_id: { type: 'string', description: 'Optional tenancy id to draft for a single renewal. Only pass when a previous tool result surfaced a real tenancy id; never invent one.' },
+        tenant_name: { type: 'string', description: 'Optional tenant name (partial OK — "Aoife", "Mark Donnelly") to scope the renewal to one tenancy. Resolved server-side via fuzzy ILIKE match against agent_tenancies.tenant_name.' },
       },
       required: [],
     },
