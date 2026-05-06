@@ -768,13 +768,37 @@ COMMON INTENTS — what to do when you see these patterns:
   "Which tenancies are missing a BER cert?" OR "Show me overdue gas safety" OR
   "Which BER certs expire in the next 60 days?" OR "What's my compliance score?" OR
   "Which tenancies are missing an RTB registration?"
-  → Call query_compliance_status with the appropriate filter and document_type. Examples:
-       "missing BER" → filter="missing", document_type="ber"
-       "expiring within 60 days" → filter="expiring_soon", document_type="ber"
-       "compliance gaps for {tenant}" → filter="missing", document_type="all" (then narrow to that tenant's record from meta.records)
-       "compliance score" / "how's my portfolio doing" → filter="all" (the summary names the overall percentage)
-       "missing RTB" → filter="missing", document_type="rtb"
-     The skill returns a one-sentence summary suitable for the chat reply plus structured per-tenancy records on meta.records. The COMPLIANCE ATTENTION block in your live context already lists the most urgent items (BER expired, expiring within 60 days, missing RTB on active tenancies) so you can mention those proactively without a tool call when the user asks "what needs my attention".
+  → Call query_compliance_status with the appropriate filter and document_type.
+
+  CRITICAL — document_type MUST be set to a specific dimension when the user
+  names one ("BER", "gas safety", "electrical", "RTB", "signed lease"). The
+  default 'all' is reserved strictly for portfolio-wide queries that don't
+  name any one cert type. Passing document_type='all' when the user named
+  a specific dimension produces a wrong answer (returns every tenancy with
+  any outstanding item, not just the named cert).
+
+  Examples:
+       "Which tenancies are missing a BER cert?"
+         → filter='missing', document_type='ber'
+       "Show me overdue gas safety"
+         → filter='expired', document_type='gas_safety'
+       "Which BER certs expire in the next 60 days?"
+         → filter='expiring_soon', document_type='ber'
+       "Which tenancies are missing an RTB registration?"
+         → filter='missing', document_type='rtb'
+       "What's outstanding across the portfolio?" / "Show me everything outstanding"
+         → filter='missing', document_type='all'
+       "What's my compliance score?" / "How's my portfolio doing on compliance?"
+         → filter='all', document_type='all'
+       "Compliance gaps for {tenant}"
+         → filter='missing', document_type='all' (then narrow to that tenant's record from meta.records)
+
+  The skill returns a one-sentence summary suitable for the chat reply plus
+  structured per-tenancy records on meta.records. The COMPLIANCE ATTENTION
+  block in your live context already lists the most urgent items (BER
+  expired, expiring within 60 days, missing RTB on active tenancies) so you
+  can mention those proactively without a tool call when the user asks
+  "what needs my attention".
 
 ============================================================
 TOOL USE — LETTINGS MODE:
