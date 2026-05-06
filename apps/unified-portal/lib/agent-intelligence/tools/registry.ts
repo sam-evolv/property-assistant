@@ -306,11 +306,12 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'rank_pipeline_buyers',
     description: [
-      "Rank the buyers in the agent's sales pipeline at a given scheme by likelihood to convert.",
-      'Use this for "who is most likely to convert", "which buyers should I chase first", "top 10 active buyers" style questions, and as the input source when scheduling group viewings.',
-      'The score is deterministic: stage progress (sale_agreed > deposit_received > released > available), recency of last logged contact, days in pipeline, and viewing count.',
-      'Returns a list of ranked buyers with score and a one-line `reason` per buyer ("contacted 3 days ago, sale agreed, viewed twice").',
-      'Either development_id or scheme_name must be provided; scheme_name is resolved against the agent\'s assigned schemes.',
+      "Rank the buyers in the agent's sales pipeline at a single scheme by likelihood to convert.",
+      'Use this for "who is most likely to convert at Lakeside Manor", "which buyers should I chase first at Westfield Heights", "top 10 active buyers at this scheme" style questions, and as the input source when scheduling group viewings.',
+      'The score is deterministic: stage progress, recency of last logged contact, days in pipeline, and viewing count. Tied scores fall back to last-contact-days desc → pipeline-age-days desc → buyer name asc for stable ordering.',
+      'Terminal stages (handed_over, social_housing) are excluded from the eligible pool — these buyers are out of scope for further sales activity.',
+      "Either development_id or scheme_name must be provided — the skill scopes to a single scheme. Cross-scheme ranking isn't supported in this version.",
+      'Returns a list of ranked buyers with score and a one-line reason per buyer ("contacted 3 days ago, sale agreed, viewed twice").',
     ].join(' '),
     parameters: {
       type: 'object',
@@ -327,10 +328,11 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'create_viewing_schedule',
     description: [
-      'Build a viewing schedule for a scheme on a given date and propose specific timeslots to the top-ranked buyers in one batch.',
-      'Use this for "draft a viewing schedule for X this Saturday, 10 slots from 9–2, propose them to 10 active buyers" style requests.',
-      'Behaviour: builds N timeslots between start_time and end_time at slot_duration_minutes spacing, calls rank_pipeline_buyers internally to pick the buyers, then drafts one personalised email + one viewing_record per buyer. All drafts land in the approval drawer for review — nothing is sent or written to agent_viewings until the agent approves.',
-      'Each email opens with a one-line buyer-specific reasoning ("contacted 3 days ago, sale agreed, viewed twice — wanted to put a slot in front of you") and offers the assigned slot plus 2 alternatives.',
+      'Build a viewing schedule for a single scheme on a given date and propose specific timeslots to the top-ranked buyers in one batch.',
+      'Use this for "draft a viewing schedule for Lakeside Manor this Saturday, 10 slots from 9–2, propose them to 10 active buyers" style requests.',
+      'Behaviour: builds N timeslots between start_time and end_time at slot_duration_minutes spacing, ranks buyers internally (terminal stages excluded — handed_over and social_housing units never receive proposals), drafts one personalised email per buyer, and pre-persists matching agent_viewings rows as PENDING.',
+      'Either development_id or scheme_name must be provided — the skill currently scopes to one scheme per call. If the user asks "across all my schemes", run separate calls per scheme or ask the user to pick one.',
+      'Each email opens with the unit + scheme + date, then a stage-aware second sentence acknowledging the recipient\'s pipeline situation, then 2-3 specific slot options.',
     ].join(' '),
     parameters: {
       type: 'object',

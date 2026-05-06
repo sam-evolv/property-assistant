@@ -341,17 +341,19 @@ export function buildAgentSystemPrompt(
   // Scope block — rendered at the very top of the prompt so the model sees
   // the agent's assigned developments before anything else. Prevents the
   // "no schemes assigned" hallucination when downstream tools aren't in use.
-  const activeDevName = agentContext.activeDevelopmentId
-    ? (agentContext.assignedSchemes.find(s => s.developmentId === agentContext.activeDevelopmentId)?.schemeName
-      ?? 'a scheme outside your assigned list')
-    : 'All Schemes';
+  // The "Active scheme: <X>" line was REMOVED — it was leaking the UI's
+  // currently-focused scheme into the model's framing, which biased tool
+  // calls (e.g. create_viewing_schedule defaulting to scheme_name=<active>
+  // even when the user asked "across all my schemes"). The field
+  // agentContext.activeDevelopmentId is still read by other consumers
+  // (contact-resolver, agent-context fallback, voice-capture extract-
+  // actions) — only the sales prompt's directive surface drops it.
   const assignedNamesJoined = agentContext.assignedDevelopmentNames.length
     ? agentContext.assignedDevelopmentNames.join(', ')
     : '(none)';
   const scopeBlock = `Current agent context:
 - Name: ${agentContext.displayName}
 - Assigned developments: ${assignedNamesJoined}
-- Active scheme: ${activeDevName}
 
 When the user asks about "my schemes" or "my pipeline" without naming a specific one, scope to the assigned developments above. When they name a specific scheme, confirm it's in their assigned list before answering. If the assigned list is "(none)", say so plainly — do not invent a scheme name.`;
 
@@ -510,8 +512,15 @@ ANYONE — ALWAYS call the appropriate draft-producing tool. Pick the tightest f
   - Group viewing schedule across many buyers, "draft a viewing schedule for X
     on Saturday from 9-2 and propose them to N active buyers" →
     create_viewing_schedule. The skill builds the slots, ranks the buyers
-    via rank_pipeline_buyers, and emits one email + one viewing record per
-    buyer for approval.
+    cross-scheme or scoped to one scheme, and emits one email per buyer
+    plus a pre-persisted PENDING viewing slot per buyer.
+
+    Scheme scoping for create_viewing_schedule and rank_pipeline_buyers:
+      "Draft a viewing schedule for Lakeside Manor"          → scheme_name='Lakeside Manor'
+      "Rank my pipeline buyers at Westfield Heights"          → scheme_name='Westfield Heights'
+    Both tools scope to a single scheme per call. Cross-scheme is not
+    supported in this version — if the user asks "across all my schemes",
+    ask which scheme they'd like to start with rather than guessing.
   - "Who is most likely to convert?" / "top buyers at scheme X" / "who
     should I chase first" → call rank_pipeline_buyers and read the result;
     do NOT guess or invent rankings.
