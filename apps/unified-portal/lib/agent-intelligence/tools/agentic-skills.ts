@@ -3408,6 +3408,18 @@ export async function queryComplianceStatus(
       };
     }
 
+    // Sub-bug 2 — asymmetric vacant handling.
+    //
+    // - filter='missing'     EXCLUDES vacant. Vacant properties are between
+    //                        tenancies; their missing certs are a re-letting
+    //                        prep concern, not an active compliance gap.
+    // - filter='expired'     KEEPS vacant. A vacant property with an expired
+    //                        BER blocks re-letting; the agent needs to know.
+    // - filter='expiring_soon' KEEPS vacant for the same reason.
+    //
+    // Do NOT "fix" this back to a uniform exclusion — the asymmetry is
+    // deliberate and tracks the agent's mental model: missing-on-vacant is
+    // less urgent than expiring-on-vacant.
     let filtered: LettingsComplianceRecord[];
     if (filter === 'expired') {
       // Only BER carries an expiry in this schema; other dimensions don't have
@@ -3416,17 +3428,149 @@ export async function queryComplianceStatus(
     } else if (filter === 'expiring_soon') {
       filtered = records.filter(r => r.ber.daysToExpiry !== null && r.ber.daysToExpiry >= 0 && r.ber.daysToExpiry <= 60);
     } else if (filter === 'missing') {
-      filtered = records.filter(r => !complianceDimensionOk(r, docType));
+      filtered = records.filter(r => !r.isVacant && !complianceDimensionOk(r, docType));
     } else {
       filtered = records;
     }
 
-    // Compliance score = fully-compliant non-vacant tenancies / total non-vacant.
     const nonVacant = records.filter(r => !r.isVacant);
-    const fullyCompliant = nonVacant.filter(r => r.outstandingCount === 0);
-    const compliancePct = nonVacant.length === 0
+
+    // Sub-bug 3 — fill-rate compliance score.
+    //
+    // Previous formula was "fully-compliant tenancies / non-vacant tenancies",
+    // which required EVERY dimension OK per tenancy. With 0 docs uploaded
+    // (which is the common state today), no tenancy is fully compliant, so
+    // the score collapsed to 0% even when ber_cert_number / RTB number ARE
+    // recorded on the row. The fill-rate metric is more honest: it reads
+    // "what fraction of applicable conditions are OK across all non-vacant
+    // tenancies?". For a portfolio with 4 BER + 11 RTB OK out of 12*5 = 60
+    // applicable conditions, that's 25% — recoverable, not catastrophic.
+    const okConditions = nonVacant.reduce((sum, r) => {
+      let n = 0;
+      if (r.ber.ok) n++;
+      if (r.gasSafety.ok) n++;
+      if (r.electrical.ok) n++;
+      if (r.rtb.applicable && r.rtb.ok) n++;
+      if (r.signedLease.ok) n++;
+      return sum + n;
+    }, 0);
+    const applicableConditions = nonVacant.reduce((sum, r) => {
+      // For non-vacant records: BER, gas, electrical, signed lease are always
+      // applicable (4); RTB is applicable when the tenancy is active (which
+      // it is for every record in nonVacant). So denominator is 5 per record.
+      // Kept explicit so a future schema change (e.g. doc applicability rules
+      // varying by property type) doesn't silently miscount.
+      return sum + 4 + (r.rtb.applicable ? 1 : 0);
+    }, 0);
+    const compliancePct = applicableConditions === 0
       ? null
-      : Math.round((fullyCompliant.length / nonVacant.length) * 100);
+      : Math.round((okConditions / applicableConditions) * 100);
+
+    // Per-dimension OK / total counts across non-vacant — used by both the
+    // missing+all breakdown (sub-bug 1b) and the score-summary tail.
+    const dimensionTotals = (() => {
+      const tally = {
+        ber: { ok: 0, total: nonVacant.length },
+        gasSafety: { ok: 0, total: nonVacant.length },
+        electrical: { ok: 0, total: nonVacant.length },
+        rtb: { ok: 0, total: 0 },
+        signedLease: { ok: 0, total: nonVacant.length },
+      };
+      for (const r of nonVacant) {
+        if (r.ber.ok) tally.ber.ok++;
+        if (r.gasSafety.ok) tally.gasSafety.ok++;
+        if (r.electrical.ok) tally.electrical.ok++;
+        if (r.rtb.applicable) {
+          tally.rtb.total++;
+          if (r.rtb.ok) tally.rtb.ok++;
+        }
+        if (r.signedLease.ok) tally.signedLease.ok++;
+      }
+      return tally;
+    })();
+
+    // Sub-bug 3b — dynamic strong/weak breakdown sentence. Picks the 1-2
+    // strongest dimensions (highest OK ratio) to highlight first, then names
+    // the weakest 1-3 as "not yet uploaded" / "need attention". One sentence
+    // only. Adapts to whatever the actual numerator distribution is — no
+    // hardcoded strong/weak assumptions.
+    const buildBreakdownSentence = (): string => {
+      const labelOf: Record<string, string> = {
+        ber: 'BER',
+        gasSafety: 'gas safety',
+        electrical: 'electrical',
+        rtb: 'RTB',
+        signedLease: 'signed lease',
+      };
+      const dims = (Object.entries(dimensionTotals) as Array<[keyof typeof dimensionTotals, { ok: number; total: number }]>)
+        .filter(([, v]) => v.total > 0)
+        .map(([k, v]) => ({ key: String(k), label: labelOf[String(k)], ok: v.ok, total: v.total, ratio: v.ok / v.total }));
+      if (!dims.length) return '';
+      const strong = dims.filter(d => d.ratio >= 0.7).sort((a, b) => b.ratio - a.ratio).slice(0, 2);
+      const partial = dims.filter(d => d.ratio > 0 && d.ratio < 0.7).sort((a, b) => b.ratio - a.ratio).slice(0, 2);
+      const weak = dims.filter(d => d.ratio === 0);
+      const parts: string[] = [];
+      if (strong.length) {
+        parts.push(`Strong on ${strong.map(d => `${d.label} (${d.ok}/${d.total})`).join(' and ')}`);
+      }
+      if (partial.length) {
+        const partialFragment = partial.map(d => `${d.label} (${d.ok}/${d.total})`).join(' and ');
+        parts.push(parts.length ? `partial on ${partialFragment}` : `Partial on ${partialFragment}`);
+      }
+      if (weak.length) {
+        const labels = weak.map(d => d.label);
+        const phrase = labels.length === 1
+          ? `${labels[0]} not yet uploaded`
+          : labels.length === 2
+            ? `${labels[0]} and ${labels[1]} not yet uploaded`
+            : `${labels.slice(0, -1).join(', ')}, and ${labels[labels.length - 1]} not yet uploaded`;
+        parts.push(parts.length ? `with ${phrase}` : phrase.charAt(0).toUpperCase() + phrase.slice(1));
+      }
+      return parts.length ? `${parts.join(', ')}.` : '';
+    };
+
+    // Sub-bug 1b — when the user asks "what's outstanding across the
+    // portfolio?" the model passes filter='missing' + document_type='all'.
+    // Returning the union of all outstanding tenancies as a flat list is
+    // useless ("12 tenancies are outstanding") because almost every tenancy
+    // has SOME gap. Instead, return a per-dimension breakdown so the agent
+    // can see where the gaps actually are.
+    if (filter === 'missing' && docType === 'all') {
+      const breakdownLines = [
+        `- BER cert: ${nonVacant.length - dimensionTotals.ber.ok} active tenanc${nonVacant.length - dimensionTotals.ber.ok === 1 ? 'y' : 'ies'} (vacant excluded)`,
+        `- Gas safety: ${nonVacant.length - dimensionTotals.gasSafety.ok} active tenanc${nonVacant.length - dimensionTotals.gasSafety.ok === 1 ? 'y' : 'ies'}`,
+        `- Electrical: ${nonVacant.length - dimensionTotals.electrical.ok} active tenanc${nonVacant.length - dimensionTotals.electrical.ok === 1 ? 'y' : 'ies'}`,
+        `- RTB registration: ${dimensionTotals.rtb.total - dimensionTotals.rtb.ok} active tenanc${dimensionTotals.rtb.total - dimensionTotals.rtb.ok === 1 ? 'y' : 'ies'}`,
+        `- Signed lease: ${nonVacant.length - dimensionTotals.signedLease.ok} active tenanc${nonVacant.length - dimensionTotals.signedLease.ok === 1 ? 'y' : 'ies'}`,
+      ];
+      const breakdownTail = buildBreakdownSentence();
+      const summaryLines = [
+        compliancePct !== null
+          ? `Missing certificates across your portfolio (compliance ${compliancePct}%):`
+          : 'Missing certificates across your portfolio:',
+        ...breakdownLines,
+      ];
+      if (breakdownTail) summaryLines.push('', breakdownTail);
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: summaryLines.join('\n'),
+        drafts: [],
+        meta: {
+          record_count: nonVacant.length,
+          generated_at: new Date().toISOString(),
+          query,
+          // @ts-ignore — full per-tenancy records (active only) for downstream consumers
+          records: nonVacant.slice(0, COMPLIANCE_RECORD_CAP),
+          // @ts-ignore
+          truncated: nonVacant.length > COMPLIANCE_RECORD_CAP,
+          // @ts-ignore
+          compliance_pct: compliancePct,
+          // @ts-ignore
+          dimension_totals: dimensionTotals,
+        } as any,
+      };
+    }
 
     if (!filtered.length) {
       const noneSummary = (() => {
@@ -3434,24 +3578,28 @@ export async function queryComplianceStatus(
         if (filter === 'expiring_soon') return 'No BER certs expiring in the next 60 days.';
         if (filter === 'missing') {
           return docType === 'all'
-            ? 'No tenancies with outstanding compliance items.'
-            : `No tenancies missing ${docType.replace(/_/g, ' ')}.`;
+            ? 'No active tenancies with outstanding compliance items.'
+            : `No active tenancies missing ${docType.replace(/_/g, ' ')}.`;
         }
         return 'No tenancies match the requested compliance filter.';
       })();
+      const tail = buildBreakdownSentence();
+      const pctNote = compliancePct !== null
+        ? ` Portfolio compliance: ${compliancePct}%.${tail ? ' ' + tail : ''}`
+        : '';
       return {
         skill,
         status: 'awaiting_approval',
-        summary: compliancePct !== null
-          ? `${noneSummary} Portfolio compliance: ${compliancePct}% (${fullyCompliant.length} of ${nonVacant.length} tenancies fully compliant).`
-          : noneSummary,
+        summary: `${noneSummary}${pctNote}`,
         drafts: [],
         meta: {
           record_count: 0,
           generated_at: new Date().toISOString(),
           query,
-          // @ts-ignore — surfaced for the chat layer's response framing
+          // @ts-ignore
           compliance_pct: compliancePct,
+          // @ts-ignore
+          dimension_totals: dimensionTotals,
         } as any,
       };
     }
@@ -3488,8 +3636,9 @@ export async function queryComplianceStatus(
     const headline = (() => {
       const subject = describeFilterDocType(filter, docType);
       const truncationNote = truncated ? ` Showing ${COMPLIANCE_RECORD_CAP} of ${totalMatched}.` : '';
+      const tail = buildBreakdownSentence();
       const pctNote = compliancePct !== null
-        ? ` Portfolio compliance: ${compliancePct}%.`
+        ? ` Portfolio compliance: ${compliancePct}%.${tail ? ' ' + tail : ''}`
         : '';
       if (filter === 'expiring_soon') {
         return `${totalMatched} BER cert${totalMatched === 1 ? '' : 's'} expiring within 60 days.${truncationNote}${pctNote}`;
@@ -3498,7 +3647,7 @@ export async function queryComplianceStatus(
         return `${totalMatched} BER cert${totalMatched === 1 ? '' : 's'} already expired.${truncationNote}${pctNote}`;
       }
       if (filter === 'missing') {
-        return `${totalMatched} tenanc${totalMatched === 1 ? 'y' : 'ies'} with ${subject}.${truncationNote}${pctNote}`;
+        return `${totalMatched} active tenanc${totalMatched === 1 ? 'y' : 'ies'} with ${subject}.${truncationNote}${pctNote}`;
       }
       return `${totalMatched} tenanc${totalMatched === 1 ? 'y' : 'ies'} matched.${truncationNote}${pctNote}`;
     })();
@@ -3522,6 +3671,8 @@ export async function queryComplianceStatus(
         truncated,
         // @ts-ignore
         compliance_pct: compliancePct,
+        // @ts-ignore
+        dimension_totals: dimensionTotals,
       } as any,
     };
   } catch (err) {
