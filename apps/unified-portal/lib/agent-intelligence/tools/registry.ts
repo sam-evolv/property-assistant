@@ -37,6 +37,7 @@ import {
   getCandidateUnitsSkill,
   rankPipelineBuyers,
   createViewingSchedule,
+  queryComplianceStatus,
   SkillAgentContext,
 } from './agentic-skills';
 import type { AgenticSkillEnvelope } from '../envelope';
@@ -346,6 +347,33 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(createViewingSchedule, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'query_compliance_status',
+    description: [
+      'Read-only lettings compliance lookup. Answers questions like:',
+      '"Which tenancies are missing a BER cert?", "Show me overdue gas safety", "Which BER certs expire in the next 60 days?", "What\'s my overall compliance score?", "Which tenancies are missing an RTB registration?".',
+      'Mirrors the per-property Compliance tab logic: BER OK = ber_cert_number set OR ber_cert doc uploaded; Gas/Electrical/Lease OK = matching doc_type uploaded; RTB OK = vacant OR rtb_registration_number on file.',
+      'Returns a one-sentence summary plus structured per-tenancy records via meta.records (capped at 50 with a "showing N of M" note when truncated).',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        filter: {
+          type: 'string',
+          enum: ['all', 'expired', 'expiring_soon', 'missing'],
+          description: '"all" (default) returns every record; "expired" = BER expired; "expiring_soon" = BER expiring within 60 days; "missing" = the specified document_type is not on file (or all dimensions when document_type=all).',
+        },
+        document_type: {
+          type: 'string',
+          enum: ['ber', 'gas_safety', 'electrical', 'rtb', 'signed_lease', 'all'],
+          description: 'Restrict to one compliance dimension. Default "all". Note "expired"/"expiring_soon" only meaningfully apply to BER (other dimensions don\'t carry expiry dates in this schema).',
+        },
+      },
+      required: [],
+    },
+    execute: ((supabase, _tenantId, agentContext, params) =>
+      runAgenticSkill(queryComplianceStatus, supabase, agentContext, params as any)) as ToolFunction,
   },
   {
     name: 'generate_developer_report',

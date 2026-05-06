@@ -652,3 +652,140 @@ export async function getUpcomingWeekViewings(
     buyerPhone: v.buyer_phone ?? null,
   }));
 }
+
+// =====================================================================
+// Lettings compliance — per-tenancy status across the five dimensions
+// the Compliance tab of the property detail page already computes:
+//   BER cert, Gas safety cert, Electrical cert, RTB registration,
+//   Signed lease.
+// Mirrors app/agent/lettings/properties/[id]/page.tsx ComplianceTab so
+// Intelligence answers the same question the per-property UI does:
+//   - BER OK = property.berCertNumber set OR a ber_cert doc uploaded
+//   - Gas/Elec/Lease OK = matching doc_type uploaded
+//   - RTB OK = vacant OR tenancy.rtb_registration_number on file
+// One read per source; aggregated in JS so the loader stays a single
+// awaitable for the chat route's Promise.all.
+export interface LettingsComplianceRecord {
+  tenancyId: string | null;
+  propertyId: string;
+  propertyAddress: string;
+  propertyCity: string | null;
+  propertyStatus: string;
+  tenantName: string | null;
+  tenancyStatus: string | null;
+  isVacant: boolean;
+  ber: {
+    ok: boolean;
+    expiryDate: string | null;
+    daysToExpiry: number | null;
+    certNumber: string | null;
+    docUploaded: boolean;
+  };
+  gasSafety: { ok: boolean };
+  electrical: { ok: boolean };
+  rtb: { ok: boolean; applicable: boolean; number: string | null };
+  signedLease: { ok: boolean };
+  outstandingCount: number;
+}
+
+export async function getLettingsCompliance(
+  supabase: SupabaseClient,
+  agentId: string,
+): Promise<LettingsComplianceRecord[]> {
+  const [
+    { data: properties },
+    { data: tenancies },
+    { data: documents },
+  ] = await Promise.all([
+    supabase
+      .from('agent_letting_properties')
+      .select('id, address, city, status, ber_cert_number, ber_expiry_date')
+      .eq('agent_id', agentId),
+    supabase
+      .from('agent_tenancies')
+      .select('id, letting_property_id, tenant_name, status, rtb_registration_number, rtb_registered')
+      .eq('agent_id', agentId)
+      .eq('status', 'active'),
+    supabase
+      .from('lettings_documents')
+      .select('letting_property_id, doc_type')
+      .eq('agent_id', agentId),
+  ]);
+
+  const tenancyByProperty = new Map<string, any>();
+  for (const t of (tenancies || []) as any[]) {
+    if (t.letting_property_id) tenancyByProperty.set(t.letting_property_id, t);
+  }
+
+  const docTypesByProperty = new Map<string, Set<string>>();
+  for (const d of (documents || []) as any[]) {
+    if (!d.letting_property_id || !d.doc_type) continue;
+    const set = docTypesByProperty.get(d.letting_property_id) ?? new Set<string>();
+    set.add(d.doc_type);
+    docTypesByProperty.set(d.letting_property_id, set);
+  }
+
+  const todayMs = Date.now();
+  const records: LettingsComplianceRecord[] = [];
+
+  for (const p of (properties || []) as any[]) {
+    const tenancy = tenancyByProperty.get(p.id) ?? null;
+    const docs = docTypesByProperty.get(p.id) ?? new Set<string>();
+    const propertyStatusLower = (p.status ?? '').toLowerCase();
+    const isVacant =
+      !tenancy ||
+      tenancy.status !== 'active' ||
+      propertyStatusLower === 'vacant';
+
+    const berCertOnFile = !!p.ber_cert_number;
+    const berDocUploaded = docs.has('ber_cert');
+    const berExpiry: string | null = p.ber_expiry_date ?? null;
+    const berDaysToExpiry = berExpiry
+      ? Math.floor((new Date(berExpiry).getTime() - todayMs) / 86400000)
+      : null;
+
+    const ber = {
+      ok: berCertOnFile || berDocUploaded,
+      expiryDate: berExpiry,
+      daysToExpiry: berDaysToExpiry,
+      certNumber: p.ber_cert_number ?? null,
+      docUploaded: berDocUploaded,
+    };
+    const gasSafety = { ok: docs.has('gas_safety_cert') };
+    const electrical = { ok: docs.has('electrical_cert') };
+    const rtb = {
+      // RTB is N/A for vacant properties — Compliance tab matches this exactly
+      // (line 864 of app/agent/lettings/properties/[id]/page.tsx).
+      ok: isVacant ? true : !!tenancy?.rtb_registration_number,
+      applicable: !isVacant,
+      number: tenancy?.rtb_registration_number ?? null,
+    };
+    const signedLease = { ok: docs.has('lease') };
+
+    const outstandingCount =
+      (ber.ok ? 0 : 1) +
+      (gasSafety.ok ? 0 : 1) +
+      (electrical.ok ? 0 : 1) +
+      (rtb.applicable && !rtb.ok ? 1 : 0) +
+      (signedLease.ok ? 0 : 1);
+
+    records.push({
+      tenancyId: tenancy?.id ?? null,
+      propertyId: p.id,
+      propertyAddress: p.address,
+      propertyCity: p.city ?? null,
+      propertyStatus: p.status ?? 'unknown',
+      tenantName: tenancy?.tenant_name ?? null,
+      tenancyStatus: tenancy?.status ?? null,
+      isVacant,
+      ber,
+      gasSafety,
+      electrical,
+      rtb,
+      signedLease,
+      outstandingCount,
+    });
+  }
+
+  return records;
+}
