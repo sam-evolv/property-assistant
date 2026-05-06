@@ -381,6 +381,8 @@ export default function PropertyDetailPage({ params }: { params: { id: string } 
           ) : tab === 'documents' ? (
             <DocumentsTab
               documents={data.documents}
+              property={p}
+              activeTenancy={data.activeTenancy}
               onAdd={() => setUploadingDoc(true)}
             />
           ) : tab === 'tenancy' ? (
@@ -892,7 +894,21 @@ function ComplianceTab({ property, activeTenancy, documents }: { property: Prope
   );
 }
 
-function DocumentsTab({ documents, onAdd }: { documents: DocumentRow[]; onAdd: () => void }) {
+function DocumentsTab({ documents, property, activeTenancy, onAdd }: {
+  documents: DocumentRow[];
+  property: PropertyFields;
+  activeTenancy: Tenancy | null;
+  onAdd: () => void;
+}) {
+  // BUG-A4 fix: Documents tab strictly lists uploaded files, while
+  // Compliance tab considers BER cert numbers / RTB registration numbers
+  // recorded directly on the property/tenancy as also satisfying the
+  // compliance check. When the inbox is empty but those fields ARE set,
+  // surface that in the empty-state copy so the agent sees why Compliance
+  // shows "On record" while Documents shows 0.
+  const recordedHints: string[] = [];
+  if (property.berCertNumber) recordedHints.push(`BER cert #${property.berCertNumber}`);
+  if (activeTenancy?.rtbRegistrationNumber) recordedHints.push(`RTB ${activeTenancy.rtbRegistrationNumber}`);
   return (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-3">
@@ -904,7 +920,11 @@ function DocumentsTab({ documents, onAdd }: { documents: DocumentRow[]; onAdd: (
       </div>
       {documents.length === 0 ? (
         <div className="bg-white border border-[#E5E7EB] rounded-xl p-6 text-center">
-          <p className="text-sm text-[#6B7280] m-0 mb-3">No documents yet. Upload a lease, BER cert, or other document to keep records together.</p>
+          <p className="text-sm text-[#6B7280] m-0 mb-3">
+            No documents uploaded yet.
+            {recordedHints.length > 0 ? ` ${recordedHints.join(' and ')} recorded on the tenancy — file upload optional.` : ''}{' '}
+            Upload a lease, BER cert, or other document to keep records together.
+          </p>
           <button type="button" onClick={onAdd} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-[#0D0D12] border-0 cursor-pointer" style={{ background: 'linear-gradient(135deg, #D4AF37, #C49B2A)' }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#0D0D12" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add document

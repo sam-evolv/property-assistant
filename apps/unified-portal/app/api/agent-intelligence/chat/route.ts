@@ -14,6 +14,7 @@ import {
   getLettingsSummary,
   getRenewalWindow,
   getRentArrears,
+  getLettingsCompliance,
   getTodaysViewings,
   getUpcomingWeekViewings,
 } from '@/lib/agent-intelligence/context';
@@ -147,6 +148,7 @@ export async function POST(request: NextRequest) {
       rentArrears,
       todaysViewings,
       weekViewings,
+      lettingsCompliance,
     ] = await Promise.all([
       getRecentActivitySummary(supabase, tenantId, agentContext).catch(() => ''),
       getUpcomingDeadlines(supabase, tenantId, agentContext).catch(() => ''),
@@ -176,6 +178,9 @@ export async function POST(request: NextRequest) {
       agentContext.agentProfileId
         ? getUpcomingWeekViewings(supabase, agentContext.agentProfileId).catch(() => [])
         : Promise.resolve([]),
+      agentContext.agentProfileId && resolvedMode === 'lettings'
+        ? getLettingsCompliance(supabase, agentContext.agentProfileId).catch(() => [])
+        : Promise.resolve([]),
     ]);
 
     // Assemble the live-context string. buildLiveContext enforces the 2000-token
@@ -191,6 +196,7 @@ export async function POST(request: NextRequest) {
       salesPipeline,
       lettings,
       weekViewings,
+      lettingsCompliance,
     };
     const liveContext = resolvedMode === 'lettings'
       ? buildLettingsLiveContext(liveContextBlocks)

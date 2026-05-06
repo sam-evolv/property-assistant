@@ -4,6 +4,7 @@ import type {
   AgedContract,
   SalesPipelineSummary,
   LettingsSummary,
+  LettingsComplianceRecord,
   RenewalWindowTenancy,
   RentArrearsRecord,
   ViewingRow,
@@ -22,6 +23,7 @@ export interface LiveContextBlocks {
   salesPipeline: SalesPipelineSummary | null;
   lettings: LettingsSummary | null;
   weekViewings: ViewingRow[];
+  lettingsCompliance?: LettingsComplianceRecord[];
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -147,6 +149,62 @@ function renderRentArrears(rows: RentArrearsRecord[]): string {
   return `RENT ARREARS:\n${lines.join('\n')}`;
 }
 
+// Surface only the urgent compliance items in live context. The full per-
+// tenancy compliance grid is exposed via the query_compliance_status tool
+// so the agent can ask for it on demand without bloating every prompt.
+// Sections mirror PR #85's renewal-block pattern (RECENTLY EXPIRED first,
+// upcoming next, empty sections omitted, each capped at 10 with a "+N
+// more" tail).
+function renderComplianceAttention(records: LettingsComplianceRecord[] | undefined): string {
+  if (!records || !records.length) return '';
+
+  const expiredBer = records
+    .filter(r => r.ber.daysToExpiry !== null && r.ber.daysToExpiry < 0)
+    .slice()
+    .sort((a, b) => Math.abs(a.ber.daysToExpiry!) - Math.abs(b.ber.daysToExpiry!));
+  const expiringBer = records
+    .filter(r => r.ber.daysToExpiry !== null && r.ber.daysToExpiry >= 0 && r.ber.daysToExpiry <= 60)
+    .slice()
+    .sort((a, b) => a.ber.daysToExpiry! - b.ber.daysToExpiry!);
+  const missingRtb = records.filter(r => r.rtb.applicable && !r.rtb.ok);
+
+  if (!expiredBer.length && !expiringBer.length && !missingRtb.length) return '';
+
+  const truncate = <T,>(arr: T[], render: (item: T) => string, label: string): string => {
+    const cap = 10;
+    const visible = arr.slice(0, cap).map(render).join('\n');
+    const more = arr.length > cap ? `\n- (+${arr.length - cap} more)` : '';
+    return `${label}\n${visible}${more}`;
+  };
+
+  const sections: string[] = [];
+  if (expiredBer.length) {
+    sections.push(truncate(
+      expiredBer,
+      (r) => {
+        const n = Math.abs(r.ber.daysToExpiry!);
+        return `- ${r.propertyAddress} — ${r.tenantName ?? 'vacant'} — BER EXPIRED ${fmtDate(r.ber.expiryDate)} (${n} day${n === 1 ? '' : 's'} ago)`;
+      },
+      'BER CERTS RECENTLY EXPIRED:',
+    ));
+  }
+  if (expiringBer.length) {
+    sections.push(truncate(
+      expiringBer,
+      (r) => `- ${r.propertyAddress} — ${r.tenantName ?? 'vacant'} — BER expires ${fmtDate(r.ber.expiryDate)} (${r.ber.daysToExpiry}d)`,
+      'BER CERTS EXPIRING WITHIN 60 DAYS:',
+    ));
+  }
+  if (missingRtb.length) {
+    sections.push(truncate(
+      missingRtb,
+      (r) => `- ${r.propertyAddress} — ${r.tenantName ?? 'unknown tenant'} — RTB number not on file`,
+      'MISSING RTB REGISTRATION (active tenancies):',
+    ));
+  }
+  return `COMPLIANCE ATTENTION (action required):\n${sections.join('\n\n')}`;
+}
+
 function renderSalesPipeline(s: SalesPipelineSummary | null): string {
   if (!s || !s.perScheme.length) return '';
   const lines = s.perScheme.map(p => {
@@ -222,14 +280,27 @@ export function buildLettingsLiveContext(blocks: LiveContextBlocks): string {
   const identity = renderAgentIdentity(blocks.agentExtras);
   const renewals = renderRenewalWindow(blocks.renewalWindow);
   const arrears = renderRentArrears(blocks.rentArrears);
-  let combined = [portfolio, identity, renewals, arrears].join('\n\n');
-  if (estimateTokens(combined) > CONTEXT_TOKEN_BUDGET) {
-    // Drop arrears first, then renewals, to stay under budget.
-    combined = [portfolio, identity, renewals].join('\n\n');
-    if (estimateTokens(combined) > CONTEXT_TOKEN_BUDGET) {
-      combined = [portfolio, identity].join('\n\n');
-    }
-  }
+  const compliance = renderComplianceAttention(blocks.lettingsCompliance);
+
+  // Budget pruning ladder: drop arrears → portfolio → renewals when over
+  // budget so COMPLIANCE ATTENTION survives longest. Identity always
+  // included; compliance is the last urgent operational signal to fall.
+  const tryAssemble = (parts: string[]): string =>
+    parts.filter(Boolean).join('\n\n');
+
+  const dropOrder: Array<string | undefined> = [];
+  let combined = tryAssemble([portfolio, identity, renewals, arrears, compliance]);
+  if (estimateTokens(combined) <= CONTEXT_TOKEN_BUDGET) return combined;
+
+  combined = tryAssemble([portfolio, identity, renewals, compliance]); // drop arrears
+  if (estimateTokens(combined) <= CONTEXT_TOKEN_BUDGET) return combined;
+
+  combined = tryAssemble([identity, renewals, compliance]); // drop portfolio
+  if (estimateTokens(combined) <= CONTEXT_TOKEN_BUDGET) return combined;
+
+  combined = tryAssemble([identity, compliance]); // drop renewals — compliance survives last
+  // No further pruning; identity + compliance is the floor.
+  void dropOrder;
   return combined;
 }
 
@@ -693,8 +764,17 @@ COMMON INTENTS — what to do when you see these patterns:
 - "What rent are we getting for {address}?"
   → Look up directly. Cite the monthly rent and tenant name.
 
-- "Is {address} compliant?" OR "What's outstanding for {address}?"
-  → Surface compliance gaps from the property's record (BER cert, gas safety cert, electrical cert, RTB registration, signed lease) using the LETTINGS PORTFOLIO data.
+- "Is {address} compliant?" OR "What's outstanding for {address}?" OR
+  "Which tenancies are missing a BER cert?" OR "Show me overdue gas safety" OR
+  "Which BER certs expire in the next 60 days?" OR "What's my compliance score?" OR
+  "Which tenancies are missing an RTB registration?"
+  → Call query_compliance_status with the appropriate filter and document_type. Examples:
+       "missing BER" → filter="missing", document_type="ber"
+       "expiring within 60 days" → filter="expiring_soon", document_type="ber"
+       "compliance gaps for {tenant}" → filter="missing", document_type="all" (then narrow to that tenant's record from meta.records)
+       "compliance score" / "how's my portfolio doing" → filter="all" (the summary names the overall percentage)
+       "missing RTB" → filter="missing", document_type="rtb"
+     The skill returns a one-sentence summary suitable for the chat reply plus structured per-tenancy records on meta.records. The COMPLIANCE ATTENTION block in your live context already lists the most urgent items (BER expired, expiring within 60 days, missing RTB on active tenancies) so you can mention those proactively without a tool call when the user asks "what needs my attention".
 
 ============================================================
 TOOL USE — LETTINGS MODE:
@@ -794,6 +874,7 @@ PROACTIVE INTELLIGENCE:
 ============================================================
 - Flag related issues the agent might not have thought of, but only when supported by the live context.
 - Call out RPZ implications on renewals (2% cap), upcoming lease ends inside the 90-day notice window, and missing RTB registrations on active tenancies.
+- The COMPLIANCE ATTENTION block in live context lists urgent compliance items (BER expired, BER expiring within 60 days, missing RTB). When discussing renewals or upcoming work, surface relevant compliance items proactively — "Aoife's renewal is due in 3 weeks AND her BER expires 26 May, worth handling both in the same conversation."
 - Never invent patterns or communication history.
 
 ============================================================

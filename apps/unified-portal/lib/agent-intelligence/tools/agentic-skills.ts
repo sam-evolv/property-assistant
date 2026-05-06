@@ -1,6 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
-import { getRenewalWindow, getRentArrears, getUpcomingWeekViewings } from '../context';
+import {
+  getRenewalWindow,
+  getRentArrears,
+  getUpcomingWeekViewings,
+  getLettingsCompliance,
+  type LettingsComplianceRecord,
+} from '../context';
 import { isInRPZ, rpzUpliftCap } from '../rpz-zones';
 import type { AgenticSkillEnvelope } from '../envelope';
 import {
@@ -3330,6 +3336,192 @@ export async function createViewingSchedule(
         slot_count: usedSlots,
         // @ts-ignore
         ranked_buyers: eligible.slice(0, usedSlots),
+      } as any,
+    };
+  } catch (err) {
+    return errorEnvelope(skill, query, err);
+  }
+}
+
+// =====================================================================
+// Skill 12 — query_compliance_status (read-only)
+// =====================================================================
+//
+// Answers compliance questions across the agent's lettings portfolio:
+// "Which tenancies are missing a BER cert?", "Show me overdue gas
+// safety", "Which BER certs expire in the next 60 days?", "What's my
+// compliance score?". Reads the same per-tenancy compliance record
+// `getLettingsCompliance` produces (which mirrors the per-property
+// Compliance tab logic) and filters to the requested subset.
+//
+// Read-only: no drafts produced. The chat layer surfaces the structured
+// records via meta and the model answers from the summary.
+
+type ComplianceFilter = 'all' | 'expired' | 'expiring_soon' | 'missing';
+type ComplianceDocType = 'ber' | 'gas_safety' | 'electrical' | 'rtb' | 'signed_lease' | 'all';
+
+interface QueryComplianceStatusInput {
+  filter?: ComplianceFilter;
+  document_type?: ComplianceDocType;
+}
+
+const COMPLIANCE_RECORD_CAP = 50;
+
+function complianceDimensionOk(record: LettingsComplianceRecord, docType: ComplianceDocType): boolean {
+  switch (docType) {
+    case 'ber': return record.ber.ok;
+    case 'gas_safety': return record.gasSafety.ok;
+    case 'electrical': return record.electrical.ok;
+    case 'rtb': return record.rtb.applicable ? record.rtb.ok : true;
+    case 'signed_lease': return record.signedLease.ok;
+    case 'all': return record.outstandingCount === 0;
+  }
+}
+
+function describeFilterDocType(filter: ComplianceFilter, docType: ComplianceDocType): string {
+  if (filter === 'all') return docType === 'all' ? 'every dimension' : `${docType.replace(/_/g, ' ')} status`;
+  if (filter === 'expired') return `${docType === 'all' ? 'BER' : docType.replace(/_/g, ' ')} expired`;
+  if (filter === 'expiring_soon') return `${docType === 'all' ? 'BER' : docType.replace(/_/g, ' ')} expiring within 60 days`;
+  return `${docType === 'all' ? 'compliance' : docType.replace(/_/g, ' ')} missing`;
+}
+
+export async function queryComplianceStatus(
+  supabase: SupabaseClient,
+  agentContext: SkillAgentContext,
+  inputs: QueryComplianceStatusInput,
+): Promise<AgenticSkillEnvelope> {
+  const skill = 'query_compliance_status';
+  const filter: ComplianceFilter = inputs.filter ?? 'all';
+  const docType: ComplianceDocType = inputs.document_type ?? 'all';
+  const query = `query_compliance_status filter=${filter} document_type=${docType}`;
+
+  try {
+    const records = await getLettingsCompliance(supabase, agentContext.agentProfileId);
+
+    if (!records.length) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: 'No lettings properties on file yet — nothing to report.',
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    let filtered: LettingsComplianceRecord[];
+    if (filter === 'expired') {
+      // Only BER carries an expiry in this schema; other dimensions don't have
+      // an "expired" state distinct from "missing".
+      filtered = records.filter(r => r.ber.expiryDate !== null && r.ber.daysToExpiry !== null && r.ber.daysToExpiry < 0);
+    } else if (filter === 'expiring_soon') {
+      filtered = records.filter(r => r.ber.daysToExpiry !== null && r.ber.daysToExpiry >= 0 && r.ber.daysToExpiry <= 60);
+    } else if (filter === 'missing') {
+      filtered = records.filter(r => !complianceDimensionOk(r, docType));
+    } else {
+      filtered = records;
+    }
+
+    // Compliance score = fully-compliant non-vacant tenancies / total non-vacant.
+    const nonVacant = records.filter(r => !r.isVacant);
+    const fullyCompliant = nonVacant.filter(r => r.outstandingCount === 0);
+    const compliancePct = nonVacant.length === 0
+      ? null
+      : Math.round((fullyCompliant.length / nonVacant.length) * 100);
+
+    if (!filtered.length) {
+      const noneSummary = (() => {
+        if (filter === 'expired') return 'No BER certs expired right now.';
+        if (filter === 'expiring_soon') return 'No BER certs expiring in the next 60 days.';
+        if (filter === 'missing') {
+          return docType === 'all'
+            ? 'No tenancies with outstanding compliance items.'
+            : `No tenancies missing ${docType.replace(/_/g, ' ')}.`;
+        }
+        return 'No tenancies match the requested compliance filter.';
+      })();
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: compliancePct !== null
+          ? `${noneSummary} Portfolio compliance: ${compliancePct}% (${fullyCompliant.length} of ${nonVacant.length} tenancies fully compliant).`
+          : noneSummary,
+        drafts: [],
+        meta: {
+          record_count: 0,
+          generated_at: new Date().toISOString(),
+          query,
+          // @ts-ignore — surfaced for the chat layer's response framing
+          compliance_pct: compliancePct,
+        } as any,
+      };
+    }
+
+    const totalMatched = filtered.length;
+    const truncated = totalMatched > COMPLIANCE_RECORD_CAP;
+    const visible = filtered.slice(0, COMPLIANCE_RECORD_CAP);
+
+    const previewLines = visible.slice(0, 5).map((r) => {
+      const tenant = r.tenantName ?? 'vacant';
+      const where = r.propertyAddress;
+      if (filter === 'expired' && r.ber.daysToExpiry !== null) {
+        const n = Math.abs(r.ber.daysToExpiry);
+        return `- ${where} — ${tenant} — BER expired ${n}d ago`;
+      }
+      if (filter === 'expiring_soon' && r.ber.daysToExpiry !== null) {
+        return `- ${where} — ${tenant} — BER expires in ${r.ber.daysToExpiry}d`;
+      }
+      if (filter === 'missing' && docType === 'rtb') {
+        return `- ${where} — ${tenant} — RTB number not on file`;
+      }
+      if (filter === 'missing' && docType !== 'all') {
+        return `- ${where} — ${tenant} — ${docType.replace(/_/g, ' ')} not uploaded`;
+      }
+      const outstanding: string[] = [];
+      if (!r.ber.ok) outstanding.push('BER');
+      if (!r.gasSafety.ok) outstanding.push('gas safety');
+      if (!r.electrical.ok) outstanding.push('electrical');
+      if (r.rtb.applicable && !r.rtb.ok) outstanding.push('RTB');
+      if (!r.signedLease.ok) outstanding.push('signed lease');
+      return `- ${where} — ${tenant} — outstanding: ${outstanding.join(', ') || 'none'}`;
+    });
+
+    const headline = (() => {
+      const subject = describeFilterDocType(filter, docType);
+      const truncationNote = truncated ? ` Showing ${COMPLIANCE_RECORD_CAP} of ${totalMatched}.` : '';
+      const pctNote = compliancePct !== null
+        ? ` Portfolio compliance: ${compliancePct}%.`
+        : '';
+      if (filter === 'expiring_soon') {
+        return `${totalMatched} BER cert${totalMatched === 1 ? '' : 's'} expiring within 60 days.${truncationNote}${pctNote}`;
+      }
+      if (filter === 'expired') {
+        return `${totalMatched} BER cert${totalMatched === 1 ? '' : 's'} already expired.${truncationNote}${pctNote}`;
+      }
+      if (filter === 'missing') {
+        return `${totalMatched} tenanc${totalMatched === 1 ? 'y' : 'ies'} with ${subject}.${truncationNote}${pctNote}`;
+      }
+      return `${totalMatched} tenanc${totalMatched === 1 ? 'y' : 'ies'} matched.${truncationNote}${pctNote}`;
+    })();
+
+    const summary = previewLines.length
+      ? [headline, '', ...previewLines, ...(visible.length > previewLines.length ? [`(+${visible.length - previewLines.length} more in records)`] : [])].join('\n')
+      : headline;
+
+    return {
+      skill,
+      status: 'awaiting_approval',
+      summary,
+      drafts: [],
+      meta: {
+        record_count: totalMatched,
+        generated_at: new Date().toISOString(),
+        query,
+        // @ts-ignore — full structured records the chat layer can use
+        records: visible,
+        // @ts-ignore
+        truncated,
+        // @ts-ignore
+        compliance_pct: compliancePct,
       } as any,
     };
   } catch (err) {
