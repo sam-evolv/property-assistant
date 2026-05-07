@@ -73,6 +73,7 @@ async function runAgenticSkill<I extends Record<string, any>>(
     displayName: agentContext.displayName,
     agencyName,
     mode: agentContext.mode,
+    isDemoMode: agentContext.isDemoMode,
   };
   const raw = await fn(supabase, skillCtx, params);
   const envelope = await persistSkillEnvelope(supabase, raw, agentContext);

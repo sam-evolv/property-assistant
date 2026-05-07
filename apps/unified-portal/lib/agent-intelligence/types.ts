@@ -41,6 +41,16 @@ export interface AgentContext {
    * treated as 'sales'.
    */
   mode?: 'sales' | 'lettings';
+  /**
+   * `agent_profiles.demo_mode` — when true, the agent is running on a demo
+   * tenant and skills should produce drafts even when production guardrails
+   * (e.g. needs_recipient when no solicitor email is on file) would ordinarily
+   * surface a "needs more info" envelope. The placeholder recipient still
+   * goes into the draft so the agent can edit it in the drawer; the demo
+   * flow doesn't break on missing reference data. Optional / defaults to
+   * false.
+   */
+  isDemoMode?: boolean;
 }
 
 /**

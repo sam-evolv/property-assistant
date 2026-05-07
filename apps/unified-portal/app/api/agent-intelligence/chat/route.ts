@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
       assignedDevelopmentNames: resolved.assignedDevelopmentNames,
       activeDevelopmentId: activeDevelopmentId ?? null,
       mode: resolvedMode,
+      isDemoMode: resolved.isDemoMode,
     };
 
     // Session 14.2 — trip-wire log. If `resolveAgentContext` returned a
@@ -723,6 +724,17 @@ export async function POST(request: NextRequest) {
           let failureCorrelationId: string | null = null;
           let failureQuery: unknown = null;
           if (needsRecipientPayloads.length > 0) {
+            // needs_recipient is a CLARIFICATION request, not a system
+            // failure. The chat layer used to wrap it in
+            // "We couldn't complete this — …" copy and ship it as
+            // failureKind='needs_recipient' alongside hallucinated_drafts /
+            // draft_blocked / etc. The client then rendered it with red
+            // error styling, which read to the agent as a system error
+            // even though the skill was just asking for one more piece of
+            // info to proceed. The kind stays the same for back-compat
+            // with the existing FailureCard plumbing, but the copy and
+            // the explicit `recipientQuery` field now signal "give me
+            // an address" rather than "this failed".
             failureKind = 'needs_recipient';
             failureCorrelationId = needsRecipientPayloads[0].correlationId;
             const p = needsRecipientPayloads[0];
@@ -738,12 +750,12 @@ export async function POST(request: NextRequest) {
                 return `${i + 1}. ${c.name}${where} (${c.email})`;
               });
               failureMessage = [
-                `We couldn't complete this — multiple contacts match "${p.recipient_query}".`,
+                `Multiple contacts match "${p.recipient_query}" — which one did you mean?`,
                 ...lines,
                 'Reply with the number, the full name, or paste an email address.',
               ].join('\n');
             } else {
-              failureMessage = `We couldn't complete this — no email is on file for "${p.recipient_query}". Paste the address and I'll draft it.`;
+              failureMessage = `I need a recipient address for "${p.recipient_query}". Paste the address and I'll draft it.`;
             }
           } else if (draftToolCalled && totalDraftsPersisted === 0) {
             // BUG-05. Pick the first envelope with empty drafts and
@@ -775,6 +787,15 @@ export async function POST(request: NextRequest) {
                 JSON.stringify({ type: 'override', content: failureMessage }) + '\n',
               ),
             );
+            // For needs_recipient, attach the resolver's query string so the
+            // client can render context-specific copy ("I need a solicitor
+            // address" vs the generic "I need a recipient address"). All
+            // other failure kinds carry no query field; the client treats
+            // its absence as a generic error.
+            const recipientQuery =
+              failureKind === 'needs_recipient' && needsRecipientPayloads.length > 0
+                ? needsRecipientPayloads[0].recipient_query
+                : null;
             controller.enqueue(
               encoder.encode(
                 JSON.stringify({
@@ -784,6 +805,7 @@ export async function POST(request: NextRequest) {
                   retryable: true,
                   retryMessage: message,
                   content: failureMessage,
+                  ...(recipientQuery !== null ? { recipientQuery } : {}),
                   ...(failureQuery !== null ? { query: failureQuery } : {}),
                 }) + '\n',
               ),

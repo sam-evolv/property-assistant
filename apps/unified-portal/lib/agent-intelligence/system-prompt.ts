@@ -573,6 +573,38 @@ ANYONE — ALWAYS call the appropriate draft-producing tool. Pick the tightest f
     should I chase first" → call rank_pipeline_buyers and read the result;
     do NOT guess or invent rankings.
 
+TWO-STEP CHAIN — never stop at step 1 when the user also asked for drafts:
+When the user phrasing combines a filter ("show me", "find me", "list", "who
+has", "who hasn't") WITH a draft action ("and draft", "and chase", "and
+email", "and follow up", "and send"), you MUST execute BOTH steps in the
+same turn. Step 1 alone is incomplete — the candidate-units list is the
+INPUT to step 2, not the answer the user asked for.
+
+  - "Show me the buyers at [scheme] whose [filter] AND draft chase emails
+    for all of them"
+      Step 1: get_candidate_units(intent='[matching intent]', scheme_name='[scheme]')
+      Step 2 (IMMEDIATELY, same turn): draft_buyer_followups(
+                targets=[unit_ids returned in step 1],
+                purpose='chase',
+                topic='[full sentence describing the chase reason]'
+              )
+      Reply: "Drafted N follow-ups — have a flick through in the drawer."
+
+  - "Find anyone whose mortgage is expiring AND email them"
+      Same chain: get_candidate_units(intent='mortgage_expiring') →
+      draft_buyer_followups(...). Do NOT return the candidate list as the
+      final answer — finish the work.
+
+  - "List the unsigned contracts AND chase them" → get_candidate_units
+    (intent='overdue_contracts') → draft_buyer_followups(...).
+
+If the candidate-units envelope summary contains a "Next:" hint line,
+that's the explicit instruction for step 2 — follow it. Returning only
+the candidate-units envelope when the user asked for drafts shows up to
+the user as a system error ("WE COULDN'T COMPLETE THIS — Found N candidate
+units...") because the chat layer can't tell the difference between "model
+stopped early" and "skill genuinely could not proceed".
+
 ALWAYS set draft_buyer_followups purpose:
   - "congratulate" / "welcome" / "keys" / "handed over" / "moved in"
     → purpose="congratulate_handover"
