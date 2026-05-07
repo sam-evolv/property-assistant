@@ -26,7 +26,7 @@ import {
 // ready without anything landing in pending_drafts. Session 6D replaced
 // it with draftMessageSkill() in agentic-skills.ts.
 import {
-  chaseAgedContracts,
+  surfaceAgedContractsForSolicitor,
   draftViewingFollowup,
   weeklyMondayBriefing,
   draftLeaseRenewal,
@@ -270,7 +270,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
             required: ['unit_identifier'],
           },
         },
-        topic: { type: 'string', description: 'Body content only — the shared topic / reason for the email. For chase: what to chase on. For custom: the free-text intent. DO NOT include a greeting (no "Hi X,", "Hello,", "Dear X,") and DO NOT include a sign-off, signature, or company name. The skill template adds the greeting and the agent\'s own sign-off block automatically; passing them here causes duplicates in the final email.' },
+        topic: { type: 'string', description: 'Full sentence describing the reason for the email, written in the agent\'s voice. Will appear as-is in the email body between the greeting and the closing line, so it MUST read as a complete sentence the agent would actually write. Example for chase: "I noticed your contracts haven\'t been signed yet — could you let me know where things stand?". Example for custom: "Wanted to flag that the kitchen selection deadline has been pushed to next Friday." NEVER pass a noun phrase, a verb phrase, or a fragment lifted from the user\'s prompt (e.g. "update on signing their contracts", "chase signing", "mortgage expiry"); rewrite the user\'s intent into a proper sentence the recipient could read back. DO NOT include a greeting (no "Hi X,", "Hello,", "Dear X,") and DO NOT include a sign-off, signature, or company name. The skill template adds the greeting and the agent\'s own sign-off block automatically; passing them here causes duplicates in the final email.' },
         tone: { type: 'string', description: 'Message tone', enum: ['warm', 'formal', 'urgent', 'gentle_chase'] },
         purpose: {
           type: 'string',
@@ -286,14 +286,14 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'get_candidate_units',
-    description: 'Return units from the agent\'s assigned schemes filtered by INTENT, for use as clarification candidates when the user specified a count but no specific unit identifiers. Read-only — returns an envelope with zero drafts and the candidate list in the summary. ALWAYS call this BEFORE asking the user "which N units?" so the example set reflects the actual eligible pool.',
+    description: 'Return units from the agent\'s assigned schemes filtered by INTENT, for use as clarification candidates when the user specified a count but no specific unit identifiers — and as the input source for criterion-based buyer chases ("buyers whose mortgage is expiring soon", "buyers who haven\'t signed yet"). Read-only — returns an envelope with zero drafts and the candidate list in the summary. ALWAYS call this BEFORE asking the user "which N units?" so the example set reflects the actual eligible pool.',
     parameters: {
       type: 'object',
       properties: {
         intent: {
           type: 'string',
-          description: 'Filter criterion. "handover" = units with handover_date (congratulate on keys). "overdue_contracts" = contracts issued >28d ago and unsigned. "sale_agreed" = sale_agreed but not yet signed/handed-over. "all" = every unit.',
-          enum: ['handover', 'overdue_contracts', 'sale_agreed', 'all'],
+          description: 'Filter criterion. "handover" = units with handover_date (congratulate on keys). "overdue_contracts" = contracts issued >28d ago and unsigned. "sale_agreed" = sale_agreed but not yet signed/handed-over. "mortgage_expiring" = pipeline rows whose mortgage_expiry_date falls within the next 60 days and have not yet handed over. "all" = every unit.',
+          enum: ['handover', 'overdue_contracts', 'sale_agreed', 'mortgage_expiring', 'all'],
         },
         scheme_name: { type: 'string', description: 'Optional — narrow the candidates to one scheme.' },
         limit: { type: 'number', description: 'Max candidates to return (default 6, max 20).' },
@@ -396,8 +396,8 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   // land until the /confirm endpoint approves the drafts.
   // -------------------------------------------------------------------
   {
-    name: 'chase_aged_contracts',
-    description: "Find contracts issued over 6 weeks ago that haven't been signed, and draft solicitor chase emails for each. Returns drafts for agent approval before any email is sent.",
+    name: 'surface_aged_contracts_for_solicitor',
+    description: "Surface aged unsigned contracts (>6 weeks since contracts_issued_date) for solicitor follow-up. Returns a needs_recipient envelope listing the affected units; the agent must paste the solicitor's email address before any draft is generated. NOT for buyer chase emails — use draft_buyer_followups (with get_candidate_units first when no specific units are named) for that.",
     parameters: {
       type: 'object',
       properties: {
@@ -407,7 +407,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: [],
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
-      runAgenticSkill(chaseAgedContracts, supabase, agentContext, params as any)) as ToolFunction,
+      runAgenticSkill(surfaceAgedContractsForSolicitor, supabase, agentContext, params as any)) as ToolFunction,
   },
   {
     name: 'draft_viewing_followup',

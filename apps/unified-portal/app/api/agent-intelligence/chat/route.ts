@@ -37,7 +37,7 @@ function labelForTool(toolName: string): string {
     case 'draft_buyer_followups': return 'Drafting messages';
     case 'draft_lease_renewal': return 'Drafting renewal offer';
     case 'draft_viewing_followup': return 'Drafting viewing follow-up';
-    case 'chase_aged_contracts': return 'Drafting chase emails';
+    case 'surface_aged_contracts_for_solicitor': return 'Surfacing aged contracts for solicitor';
     case 'weekly_monday_briefing': return 'Building briefing';
     case 'schedule_viewing_draft': return 'Drafting viewing schedule';
     case 'natural_query': return 'Looking up details';
@@ -287,7 +287,7 @@ export async function POST(request: NextRequest) {
     const DRAFT_PRODUCING_TOOLS = new Set<string>([
       'draft_message',
       'draft_buyer_followups',
-      'chase_aged_contracts',
+      'surface_aged_contracts_for_solicitor',
       'draft_viewing_followup',
       'draft_lease_renewal',
       'weekly_monday_briefing',

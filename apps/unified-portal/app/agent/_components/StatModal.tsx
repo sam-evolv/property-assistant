@@ -356,7 +356,7 @@ function ActiveContent({
 /* ─── Urgent / needs attention drill-down ─── */
 
 // Session 14d — build a dynamic Intelligence prompt from the urgent
-// items. Sales-side draft tools (chase_aged_contracts, draft_message)
+// items. Sales-side draft tools (surface_aged_contracts_for_solicitor, draft_message)
 // understand "Draft contract chase emails to: …" and "Draft mortgage
 // approval extension follow-ups to: …" intents per Session 14's
 // TOOL-USE MANDATE; the Intelligence page auto-fires on ?prompt=… so

@@ -172,7 +172,22 @@ export async function resolveUnitIdentifier(
  *   "sale agreed" / "reserved"                        → 'sale_agreed'
  *   anything else                                     → 'all'
  */
-export type CandidateIntent = 'handover' | 'sale_agreed' | 'overdue_contracts' | 'all';
+export type CandidateIntent =
+  | 'handover'
+  | 'sale_agreed'
+  | 'overdue_contracts'
+  | 'mortgage_expiring'
+  | 'all';
+
+/**
+ * Default lookahead window for the `mortgage_expiring` intent. Mirrors the
+ * lettings BER `expiring_soon` window so the two cohort filters feel
+ * consistent. 60 days is wide enough to give the agent a real planning
+ * horizon (mortgage approvals routinely lapse 6 months after issue and
+ * solicitors want 30+ days to react) but not so wide that the cohort
+ * collapses into "every active buyer".
+ */
+export const MORTGAGE_EXPIRY_WINDOW_DAYS = 60;
 
 export interface UnitCandidate {
   id: string;
@@ -314,6 +329,58 @@ export async function getCandidateUnits(
       purchaser_name: r.purchaser_name ?? unitById.get(r.unit_id)?.purchaser_name ?? null,
       status_hint: `sale agreed ${r.sale_agreed_date.slice(0, 10)}`,
     }));
+  }
+
+  if (intent === 'mortgage_expiring') {
+    const now = new Date();
+    const windowEnd = new Date(now.getTime() + MORTGAGE_EXPIRY_WINDOW_DAYS * 86400000);
+    const nowIso = now.toISOString().split('T')[0];
+    const windowEndIso = windowEnd.toISOString().split('T')[0];
+    // Cohort: pipeline rows with mortgage_expiry_date set, within the
+    // lookahead window, and NOT yet handed over (handover_date IS NULL).
+    // Ordered soonest-first so the most urgent expiries surface at the top.
+    const { data: rows } = await supabase
+      .from('unit_sales_pipeline')
+      .select('unit_id, development_id, mortgage_expiry_date, handover_date, purchaser_name')
+      .in('development_id', scope)
+      .not('mortgage_expiry_date', 'is', null)
+      .is('handover_date', null)
+      .gte('mortgage_expiry_date', nowIso)
+      .lte('mortgage_expiry_date', windowEndIso)
+      .order('mortgage_expiry_date', { ascending: true })
+      .limit(limit);
+    const pipelineRows = (rows || []) as Array<{
+      unit_id: string;
+      development_id: string;
+      mortgage_expiry_date: string;
+      handover_date: string | null;
+      purchaser_name: string | null;
+    }>;
+    if (!pipelineRows.length) return [];
+    const unitIds = pipelineRows.map((r) => r.unit_id).filter(Boolean);
+    const { data: units } = unitIds.length
+      ? await supabase
+          .from('units')
+          .select('id, unit_number, purchaser_name')
+          .in('id', unitIds)
+      : { data: [] };
+    const unitById = new Map<string, { unit_number: string | null; purchaser_name: string | null }>(
+      (units || []).map((u: any) => [u.id, { unit_number: u.unit_number, purchaser_name: u.purchaser_name }]),
+    );
+    return pipelineRows.map((r) => {
+      const daysToExpiry = Math.max(
+        0,
+        Math.round((new Date(r.mortgage_expiry_date).getTime() - now.getTime()) / 86400000),
+      );
+      return {
+        id: r.unit_id,
+        development_id: r.development_id,
+        scheme_name: schemeNameById.get(r.development_id) ?? 'Unknown scheme',
+        unit_number: unitById.get(r.unit_id)?.unit_number ?? '?',
+        purchaser_name: r.purchaser_name ?? unitById.get(r.unit_id)?.purchaser_name ?? null,
+        status_hint: `mortgage approval expires ${r.mortgage_expiry_date.slice(0, 10)} (${daysToExpiry}d)`,
+      };
+    });
   }
 
   // 'all' — every unit in scope.

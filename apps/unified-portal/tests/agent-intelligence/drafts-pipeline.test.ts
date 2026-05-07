@@ -305,7 +305,7 @@ describe('Tool registry invariant (Session 6D)', () => {
     const DRAFT_PRODUCERS = new Set([
       'draft_message',
       'draft_buyer_followups',
-      'chase_aged_contracts',
+      'surface_aged_contracts_for_solicitor',
       'draft_viewing_followup',
       'draft_lease_renewal',
       'weekly_monday_briefing',
