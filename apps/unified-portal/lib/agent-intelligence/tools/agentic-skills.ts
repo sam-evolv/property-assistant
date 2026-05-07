@@ -40,6 +40,14 @@ export interface SkillAgentContext {
    * BTR vocabulary out of Sales workspaces. Undefined is treated as 'sales'.
    */
   mode?: 'sales' | 'lettings';
+  /**
+   * Mirrors `agent_profiles.demo_mode`. When true, skills should relax
+   * production guardrails so the demo flow doesn't break on missing
+   * reference data — e.g. produce a draft with a placeholder solicitor
+   * email instead of returning a needs_recipient envelope. Optional;
+   * defaults to false.
+   */
+  isDemoMode?: boolean;
 }
 
 function formatIrishDate(iso: string | null | undefined): string {
@@ -407,9 +415,74 @@ export async function surfaceAgedContractsForSolicitor(
     // role='solicitor' against the developer-portal sales tables. Producing a
     // draft with the `solicitor@tbc.invalid` placeholder leaves a permanent
     // ghost in pending_drafts (45 of them in production at the time of the
-    // audit). Instead, surface the aged contracts via a needs_recipient
+    // audit).
+    //
+    // Production behaviour: surface the aged contracts via a needs_recipient
     // envelope so the agent sees what's stale and can paste the right
     // address — same UX contract the buyer flow uses.
+    //
+    // Demo behaviour (isDemoMode=true): bypass needs_recipient and produce
+    // one draft per unit with a `solicitor@example.invalid` placeholder.
+    // This keeps the demo flow unbroken on accounts that don't have real
+    // solicitor reference data wired up. The placeholder is a different
+    // domain from the BLOCKED_PLACEHOLDER_EMAILS set in draft-store.ts so
+    // it passes the persistence-layer guard; the agent edits the recipient
+    // in the drawer before approving.
+    if (agentContext.isDemoMode) {
+      const sign = 'Best regards,';
+      const sig = signature(agentContext);
+      const drafts = filtered.slice(0, 10).map((r: any) => {
+        const schemeName = devNameById.get(r.development_id) || 'Unknown scheme';
+        const unit = unitById.get(r.unit_id);
+        const unitNumber = unit?.unit_number || unit?.unit_uid || 'unknown';
+        const purchaser = r.purchaser_name || 'the buyer';
+        const issuedLabel = formatIrishDate(r.contracts_issued_date);
+        const daysAged = daysBetween(r.contracts_issued_date);
+        const unitLabel = `${schemeName} Unit ${unitNumber}`;
+        return {
+          id: randomUUID(),
+          type: 'email' as const,
+          recipient: {
+            name: 'Solicitor (TBC)',
+            email: 'solicitor@example.invalid',
+            role: 'solicitor',
+          },
+          subject: `Contract chase — ${unitLabel} (${daysAged}d aged)`,
+          body: [
+            'Hi,',
+            '',
+            `Following up on the contracts for ${unitLabel} (purchaser: ${purchaser}). Contracts were issued on ${issuedLabel} and remain unsigned ${daysAged} days later.`,
+            '',
+            'Could you let me know where things stand at your end and what\'s outstanding to get them returned?',
+            '',
+            sign,
+            sig,
+          ].join('\n'),
+          affected_record: {
+            kind: 'sales_unit' as const,
+            id: r.unit_id,
+            label: unitLabel,
+          },
+          reasoning: `Contracts issued ${issuedLabel}, ${daysAged}d aged with no signed return. DEMO: solicitor address is a placeholder — edit before sending.`,
+        };
+      });
+      const summary =
+        `Drafted ${drafts.length} solicitor chase${drafts.length === 1 ? '' : 's'} for aged contract${drafts.length === 1 ? '' : 's'}. Demo mode — solicitor address is a placeholder; edit before approving.`;
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary,
+        drafts,
+        meta: {
+          record_count: drafts.length,
+          generated_at: new Date().toISOString(),
+          query,
+          // @ts-ignore — diagnostic
+          demo_placeholder_recipient: true,
+        } as any,
+      };
+    }
+
     const correlationId = randomUUID().slice(0, 8);
     const lines = filtered.slice(0, 10).map((r: any) => {
       const schemeName = devNameById.get(r.development_id) || 'Unknown scheme';
@@ -422,7 +495,7 @@ export async function surfaceAgedContractsForSolicitor(
     });
     const more = filtered.length > 10 ? `\n- (+${filtered.length - 10} more)` : '';
     const summary = [
-      `I can't draft solicitor chases yet — there's no solicitor email on file for any of these ${filtered.length} aged contract${filtered.length === 1 ? '' : 's'}.`,
+      `I need a solicitor email address before I can draft chases for these ${filtered.length} aged contract${filtered.length === 1 ? '' : 's'}.`,
       lines.join('\n') + more,
       'Reply with the solicitor address (or addresses) and I\'ll draft the chases.',
     ].join('\n\n');
@@ -436,7 +509,7 @@ export async function surfaceAgedContractsForSolicitor(
         record_count: filtered.length,
         generated_at: new Date().toISOString(),
         query,
-        // @ts-ignore — chat route surfaces this via FailureCard
+        // @ts-ignore — chat route surfaces this via NeedsRecipientCard
         needs_recipient: {
           correlationId,
           recipient_query: 'solicitor for aged contracts',
@@ -2253,6 +2326,19 @@ function buildFollowupContent(opts: {
   }
 
   // Default: chase.
+  // Avoid repeating the "where things stand" phrase when the model's topic
+  // already contains it. The standard chase tail used to read "Could you
+  // let me know where things stand on your end?" — when the model passed
+  // a topic like "could you let me know where things stand?", the rendered
+  // body had two near-identical sentences in a row. Pick a complementary
+  // tail when the topic already covers the ask, so the email always has
+  // exactly one "where things stand" beat.
+  const TOPIC_COVERS_ASK = /where\s+(?:things|we)\s+stand|let\s+me\s+know\s+(?:how|where|what)/i;
+  const standardTail =
+    'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.';
+  const complementaryTail =
+    'Happy to help work through anything that\'s holding things up — just say the word.';
+  const chaseTail = TOPIC_COVERS_ASK.test(topic) ? complementaryTail : standardTail;
   return {
     subject: `Following up — ${unitLabel}`,
     body: [
@@ -2260,7 +2346,7 @@ function buildFollowupContent(opts: {
       '',
       topic,
       '',
-      'Could you let me know where things stand on your end? Happy to help work through anything that\'s holding things up.',
+      chaseTail,
       '',
       sign,
       sig,
@@ -2604,6 +2690,24 @@ export async function getCandidateUnitsSkill(
       limit,
     });
 
+    // Soft nudge for the two-step chain. get_candidate_units is almost
+    // always the FIRST half of "find cohort + draft for cohort" — the
+    // model has been failing to follow through to draft_buyer_followups
+    // in the same turn, leaving the candidate list to render as if the
+    // skill had failed. Surface the next call inline so the model has
+    // it loaded into context immediately. Models routinely follow
+    // leading text in tool outputs, so this costs nothing if the model
+    // would have chained anyway, and rescues the turns where it stops.
+    const purposeForIntent =
+      intent === 'handover'
+        ? 'congratulate_handover'
+        : intent === 'mortgage_expiring' || intent === 'overdue_contracts'
+          ? 'chase'
+          : 'chase';
+    const nextStepHint = candidates.length
+      ? `Next: if the user asked for drafts, immediately call draft_buyer_followups(targets=[the units above], purpose='${purposeForIntent}', topic='[full sentence describing the reason]') in the SAME turn. Do not stop after this candidate list — it is the input to step 2, not the final answer.`
+      : null;
+
     const summaryLines = candidates.length
       ? [
           `Found ${candidates.length} candidate unit${candidates.length === 1 ? '' : 's'} (${intent}):`,
@@ -2611,6 +2715,7 @@ export async function getCandidateUnitsSkill(
             const buyer = c.purchaser_name ? ` — ${c.purchaser_name}` : '';
             return `- ${c.scheme_name} Unit ${c.unit_number}${buyer} (${c.status_hint})`;
           }),
+          ...(nextStepHint ? ['', nextStepHint] : []),
         ]
       : [`No candidate units found for intent '${intent}'.`];
 

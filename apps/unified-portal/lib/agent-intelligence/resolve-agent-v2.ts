@@ -53,7 +53,7 @@ export async function resolveAgentContextV2(
   if (authUserId) {
     const profileRes = await supabase
       .from('agent_profiles')
-      .select('id, user_id, tenant_id, display_name, agent_type, agency_name')
+      .select('id, user_id, tenant_id, display_name, agent_type, agency_name, demo_mode')
       .eq('user_id', authUserId)
       .order('created_at', { ascending: true })
       .limit(1)
@@ -196,6 +196,7 @@ export async function resolveAgentContextV2(
     displayName: profile.display_name || 'Agent',
     agentType: profile.agent_type ?? null,
     agencyName: profile.agency_name ?? null,
+    isDemoMode: Boolean(profile.demo_mode),
     assignedDevelopmentIds: assignedSchemes.map((s) => s.developmentId),
     assignedDevelopmentNames: assignedSchemes.map((s) => s.schemeName),
     assignedSchemes: assignedSchemes.map((s) => ({
@@ -230,4 +231,5 @@ interface AgentProfileRow {
   display_name: string | null;
   agent_type: string | null;
   agency_name: string | null;
+  demo_mode: boolean | null;
 }

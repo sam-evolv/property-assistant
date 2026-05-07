@@ -49,10 +49,17 @@ interface VoiceActionsPayload {
 }
 
 interface FailurePayload {
-  kind: 'hallucinated_drafts' | 'needs_recipient' | 'draft_blocked' | 'stream_failed';
+  kind: 'hallucinated_drafts' | 'needs_recipient' | 'draft_blocked' | 'stream_failed' | 'empty_draft_result';
   correlationId: string | null;
   retryable: boolean;
   retryMessage: string | null;
+  /**
+   * Only set when kind='needs_recipient'. The resolver's query string
+   * ("solicitor for aged contracts", "buyer for Unit 19", etc.) — used
+   * by FailureCard to render context-specific copy on the clarification
+   * card without conflating it with red-styled error cards.
+   */
+  recipientQuery?: string | null;
 }
 
 interface Message {
@@ -385,6 +392,8 @@ function IntelligencePageInner() {
                 correlationId: typeof data.correlationId === 'string' ? data.correlationId : null,
                 retryable: data.retryable !== false,
                 retryMessage: typeof data.retryMessage === 'string' ? data.retryMessage : text.trim(),
+                recipientQuery:
+                  typeof data.recipientQuery === 'string' ? data.recipientQuery : null,
               };
               if (typeof data.content === 'string' && data.content.length > 0) {
                 fullContent = data.content;
@@ -1318,11 +1327,18 @@ function MarkdownText({ source }: { source: string }) {
   return <>{blocks}</>;
 }
 
-// Tool-failure card. Renders when the server emitted a structured
-// `error` SSE frame — distinct visual treatment so the agent can tell at
-// a glance that something didn't complete, plus a Retry button that
-// re-fires the original user message verbatim. The correlation id is
-// surfaced so support can trace it back to the server-side error log.
+// Tool-failure / clarification card. Renders when the server emitted a
+// structured `error` SSE frame.
+//
+// Two visual variants:
+//   - kind='needs_recipient' → amber/neutral "I need one more piece of
+//     info" card. NOT a system error; the skill is asking the agent to
+//     paste a recipient address and re-fire the request.
+//   - everything else (hallucinated_drafts, draft_blocked, stream_failed,
+//     empty_draft_result) → red error card with the original
+//     "We couldn't complete this" framing.
+//
+// Both share the Retry affordance and the correlation-id footer.
 function FailureCard({
   text,
   failure,
@@ -1332,6 +1348,16 @@ function FailureCard({
   failure: FailurePayload;
   onRetry?: () => void;
 }) {
+  const isClarification = failure.kind === 'needs_recipient';
+  const accent = isClarification
+    ? { line: '#D97706', tint: 'rgba(217,119,6,0.10)', boxTint1: 'rgba(217,119,6,0.08)', boxTint2: 'rgba(217,119,6,0.05)', ring: 'rgba(217,119,6,0.18)', headColor: '#92400E', buttonBorder: 'rgba(217,119,6,0.35)', buttonText: '#92400E', refLabel: 'Ref' }
+    : { line: '#DC2626', tint: 'rgba(220,38,38,0.10)', boxTint1: 'rgba(220,38,38,0.08)', boxTint2: 'rgba(220,38,38,0.05)', ring: 'rgba(220,38,38,0.18)', headColor: '#991B1B', buttonBorder: 'rgba(220,38,38,0.35)', buttonText: '#991B1B', refLabel: 'Error ref' };
+  const heading = isClarification
+    ? 'Recipient address needed'
+    : 'We couldn’t complete this';
+  const fallbackBody = isClarification
+    ? 'I need a recipient address before I can draft this.'
+    : 'The action didn’t go through.';
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
       <div
@@ -1341,9 +1367,9 @@ function FailureCard({
           padding: '12px 14px 12px 16px',
           maxWidth: '92%',
           width: '100%',
-          borderLeft: '3px solid #DC2626',
+          borderLeft: `3px solid ${accent.line}`,
           boxShadow:
-            '0 1px 2px rgba(220,38,38,0.08), 0 4px 12px rgba(220,38,38,0.05), 0 0 0 0.5px rgba(220,38,38,0.18)',
+            `0 1px 2px ${accent.boxTint1}, 0 4px 12px ${accent.boxTint2}, 0 0 0 0.5px ${accent.ring}`,
         }}
       >
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
@@ -1352,7 +1378,7 @@ function FailureCard({
               width: 22,
               height: 22,
               borderRadius: '50%',
-              background: 'rgba(220,38,38,0.10)',
+              background: accent.tint,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1360,20 +1386,20 @@ function FailureCard({
               marginTop: 1,
             }}
           >
-            <AlertCircle size={14} color="#DC2626" strokeWidth={2.25} />
+            <AlertCircle size={14} color={accent.line} strokeWidth={2.25} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div
               style={{
                 fontSize: 12,
                 fontWeight: 700,
-                color: '#991B1B',
+                color: accent.headColor,
                 letterSpacing: '0.02em',
                 marginBottom: 4,
                 textTransform: 'uppercase',
               }}
             >
-              We couldn&rsquo;t complete this
+              {heading}
             </div>
             <div
               style={{
@@ -1384,7 +1410,7 @@ function FailureCard({
                 whiteSpace: 'pre-wrap',
               }}
             >
-              {text || 'The action didn’t go through.'}
+              {text || fallbackBody}
             </div>
             <div
               style={{
@@ -1406,11 +1432,11 @@ function FailureCard({
                     gap: 6,
                     padding: '7px 12px',
                     background: '#FFFFFF',
-                    border: '0.5px solid rgba(220,38,38,0.35)',
+                    border: `0.5px solid ${accent.buttonBorder}`,
                     borderRadius: 999,
                     fontSize: 12,
                     fontWeight: 600,
-                    color: '#991B1B',
+                    color: accent.buttonText,
                     cursor: 'pointer',
                     fontFamily: 'inherit',
                   }}
@@ -1428,7 +1454,7 @@ function FailureCard({
                     letterSpacing: '0.02em',
                   }}
                 >
-                  Error ref: {failure.correlationId}
+                  {accent.refLabel}: {failure.correlationId}
                 </span>
               )}
             </div>

@@ -23,6 +23,13 @@ export interface ResolvedAgentContext {
   displayName: string;
   agentType: string | null;
   agencyName: string | null;
+  /**
+   * Mirrors `agent_profiles.demo_mode`. When true, downstream skills should
+   * relax production guardrails (e.g. produce a draft with a placeholder
+   * recipient instead of returning a needs_recipient envelope) so the demo
+   * flow doesn't break on missing reference data.
+   */
+  isDemoMode: boolean;
   assignedDevelopmentIds: string[];
   assignedDevelopmentNames: string[];
   assignedSchemes: Array<{
@@ -122,6 +129,7 @@ export async function resolveAgentContext(
     displayName: profile.display_name || 'Agent',
     agentType: profile.agent_type ?? null,
     agencyName: profile.agency_name ?? null,
+    isDemoMode: Boolean(profile.demo_mode),
     assignedDevelopmentIds: assignedSchemes.map((s) => s.developmentId),
     assignedDevelopmentNames: assignedSchemes.map((s) => s.schemeName),
     assignedSchemes,
@@ -131,7 +139,7 @@ export async function resolveAgentContext(
 async function fetchProfileByUserId(supabase: SupabaseClient, userId: string) {
   const { data } = await supabase
     .from('agent_profiles')
-    .select('id, user_id, tenant_id, display_name, agent_type, agency_name')
+    .select('id, user_id, tenant_id, display_name, agent_type, agency_name, demo_mode')
     .eq('user_id', userId)
     .order('created_at', { ascending: true })
     .limit(1)
@@ -274,6 +282,7 @@ interface AgentProfileRow {
   display_name: string | null;
   agent_type: string | null;
   agency_name: string | null;
+  demo_mode: boolean | null;
 }
 
 /**
