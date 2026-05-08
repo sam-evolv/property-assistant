@@ -6,6 +6,7 @@ import {
   resolveRecipient,
   toDraftRecord,
 } from '@/lib/agent-intelligence/drafts';
+import { authorizeDraftMutation } from '@/lib/agent-intelligence/draft-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,9 +57,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
     if (getErr) return NextResponse.json({ error: getErr.message }, { status: 500 });
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (user && existing.user_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+
+    // Auth + tenant guard. See `lib/agent-intelligence/draft-auth.ts` —
+    // closes the falsy-bypass that let unauthenticated PATCH requests
+    // slip through to the service-role admin client.
+    const authResult = await authorizeDraftMutation(supabase, user, existing);
+    if (!authResult.ok) return authResult.response;
 
     const nextContent = { ...(existing.content_json || {}) };
     if (typeof body.subject === 'string') nextContent.subject = body.subject;
@@ -109,14 +113,17 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
 
     const { data: existing } = await supabase
       .from('pending_drafts')
-      .select('user_id')
+      .select('user_id, tenant_id')
       .eq('id', params.id)
       .maybeSingle();
 
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (user && existing.user_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+
+    // Auth + tenant guard. See `lib/agent-intelligence/draft-auth.ts` —
+    // closes the falsy-bypass that let unauthenticated DELETE requests
+    // slip through to the service-role admin client.
+    const authResult = await authorizeDraftMutation(supabase, user, existing);
+    if (!authResult.ok) return authResult.response;
 
     await supabase
       .from('recent_actions')
