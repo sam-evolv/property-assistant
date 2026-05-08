@@ -302,6 +302,23 @@ export async function POST(request: NextRequest) {
     const MAX_TOOL_ROUNDS = 3;
     const envelopes: AgenticSkillEnvelope[] = [];
 
+    // Task 2 — track whether any skill threw inside the tool loop. The
+    // legacy catch path JSON-stringified the raw exception into the
+    // model's tool-result, which (a) leaked stack/argument detail to the
+    // model context, (b) never set `failureKind`, and (c) let the model
+    // hallucinate "Drafted X follow-ups" because the post-stream guard
+    // had no signal that the underlying tool actually failed. We now
+    // record a single flag + correlation id; the failure-decision
+    // cascade at the end of this route reads the flag and emits a
+    // sanitised user-facing message.
+    let skillExceptionOccurred = false;
+    let skillExceptionCorrelationId: string | null = null;
+    // Sanitised message the model sees as the tool result. Identical to
+    // the user-facing message — the model has no need for the raw
+    // exception text and a clean string keeps it from echoing internals.
+    const SKILL_EXCEPTION_USER_MESSAGE =
+      "I hit an error while running that. Try again, or rephrase the request.";
+
     while (rounds <= MAX_TOOL_ROUNDS) {
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -332,13 +349,14 @@ export async function POST(request: NextRequest) {
         let toolResult: string;
 
         if (toolDef) {
+          let parsedParams: any = null;
           try {
-            const params = JSON.parse(toolCall.function.arguments);
-            const result = await toolDef.execute(supabase, tenantId, agentContext, params);
+            parsedParams = JSON.parse(toolCall.function.arguments);
+            const result = await toolDef.execute(supabase, tenantId, agentContext, parsedParams);
             toolResult = JSON.stringify(result);
             toolsCalled.push({
               tool_name: toolCall.function.name,
-              params,
+              params: parsedParams,
               result_summary: result.summary,
             });
             // Agentic skills return a ToolResult whose `data` is an
@@ -347,8 +365,40 @@ export async function POST(request: NextRequest) {
             const envelope = extractEnvelope(result);
             if (envelope) envelopes.push(envelope);
           } catch (err: unknown) {
-            const errMessage = err instanceof Error ? err.message : 'Unknown error';
-            toolResult = JSON.stringify({ error: errMessage, summary: `Tool execution failed: ${errMessage}` });
+            // Task 2 — sanitised tool-failure path.
+            //
+            // Previously: `JSON.stringify({ error: errMessage, summary:
+            // 'Tool execution failed: ${errMessage}' })` was pushed
+            // verbatim to the model context, leaking the raw exception
+            // string and bypassing the `draftToolCalled &&
+            // totalDraftsPersisted === 0` guard (which never saw a
+            // failureKind set). Result: the model could still write
+            // "Drafted X follow-ups" with nothing persisted.
+            //
+            // New behaviour:
+            //   - log the FULL exception (tool name, args, message,
+            //     stack) to console.error with a `[skill_exception]`
+            //     prefix and a correlation id;
+            //   - feed the model only the sanitised summary;
+            //   - flip a flag the post-stream guard reads, so the
+            //     user-visible reply is overridden with a clear
+            //     "I couldn't complete that" message.
+            const errObj = err instanceof Error ? err : new Error(String(err));
+            const correlationId = randomCorrelationId();
+            skillExceptionOccurred = true;
+            skillExceptionCorrelationId = skillExceptionCorrelationId ?? correlationId;
+            console.error('[skill_exception]', {
+              correlationId,
+              tool: toolCall.function.name,
+              params: parsedParams,
+              message: errObj.message,
+              stack: errObj.stack,
+            });
+            toolResult = JSON.stringify({
+              error: 'skill_exception',
+              correlation_id: correlationId,
+              summary: SKILL_EXCEPTION_USER_MESSAGE,
+            });
           }
         } else {
           toolResult = JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` });
@@ -779,11 +829,25 @@ export async function POST(request: NextRequest) {
             | 'needs_recipient'
             | 'draft_blocked'
             | 'empty_draft_result'
+            | 'skill_exception'
             | null = null;
           let failureMessage: string | null = null;
           let failureCorrelationId: string | null = null;
           let failureQuery: unknown = null;
-          if (needsRecipientPayloads.length > 0) {
+          if (skillExceptionOccurred) {
+            // Task 2 — a skill threw inside the tool loop. The model has
+            // been fed only a sanitised summary, but it may still have
+            // composed a confident-sounding reply around it. Override
+            // the user-facing text with a clear failure message so the
+            // user doesn't see "Drafted X" when nothing happened. The
+            // correlation id is the FIRST exception's id; subsequent
+            // exceptions in the same turn are still logged but rolled
+            // up under that id for support.
+            failureKind = 'skill_exception';
+            failureCorrelationId = skillExceptionCorrelationId;
+            failureMessage =
+              "I couldn't complete that — no drafts were created. Try again, or rephrase the request.";
+          } else if (needsRecipientPayloads.length > 0) {
             // needs_recipient is a CLARIFICATION request, not a system
             // failure. The chat layer used to wrap it in
             // "We couldn't complete this — …" copy and ship it as

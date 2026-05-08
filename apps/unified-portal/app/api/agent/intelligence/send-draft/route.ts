@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
 import { resolveRecipient } from '@/lib/agent-intelligence/drafts';
 import { isStatutoryDraftType } from '@/lib/agent-intelligence/autonomy';
+import { authorizeDraftMutation } from '@/lib/agent-intelligence/draft-auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,9 +55,13 @@ export async function POST(request: NextRequest) {
 
     if (fetchErr) return NextResponse.json({ error: fetchErr.message }, { status: 500 });
     if (!draft) return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
-    if (user && draft.user_id !== user.id) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+
+    // Auth + tenant guard. Replaces the old `if (user && draft.user_id !==
+    // user.id)` pattern which short-circuited to ALLOW when no auth
+    // cookie was present, letting an unauthenticated POST with a known
+    // draft id slip through to the service-role admin client.
+    const authResult = await authorizeDraftMutation(supabase, user, draft);
+    if (!authResult.ok) return authResult.response;
     console.log('[send-draft] entry', {
       draftId,
       userId: draft.user_id,
