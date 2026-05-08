@@ -26,10 +26,16 @@ export interface LiveContextBlocks {
   lettingsCompliance?: LettingsComplianceRecord[];
 }
 
+// Timezone-stable: parses YYYY-MM-DD strings as LOCAL midnight rather
+// than UTC midnight, so a date stored as 2026-05-08 always renders as
+// "8 May 2026" regardless of the runtime timezone (Issue 1.7 /
+// CODE-ISSUE-006).
+import { parseIrishCalendarDate } from './format-helpers';
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return 'unknown';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
+  const d = parseIrishCalendarDate(iso);
+  if (!d) return iso;
   return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
@@ -168,7 +174,21 @@ function renderComplianceAttention(records: LettingsComplianceRecord[] | undefin
     .sort((a, b) => a.ber.daysToExpiry! - b.ber.daysToExpiry!);
   const missingRtb = records.filter(r => r.rtb.applicable && !r.rtb.ok);
 
-  if (!expiredBer.length && !expiringBer.length && !missingRtb.length) return '';
+  // Issue 1.4 / Chrome ISSUE-008 — deterministic header line that uses
+  // the SAME ber.ok definition (`berCertNumber set OR ber_cert doc
+  // uploaded`) as `query_compliance_status`. Without this header the
+  // model used to infer the BER count from the EXPIRY items below
+  // (e.g. "1 expired → 11/12 OK") which contradicted the skill's
+  // cert-on-file count. Now both data sources surface the same
+  // numerator so the model can quote it identically whether it
+  // answers from live context or from the skill output.
+  const nonVacant = records.filter(r => !r.isVacant);
+  const berOnFileCount = nonVacant.filter(r => r.ber.ok).length;
+  const headerLine = `BER cert on file: ${berOnFileCount} of ${nonVacant.length} active tenanc${nonVacant.length === 1 ? 'y' : 'ies'} (cert number recorded OR ber_cert doc uploaded — this is the canonical "BER OK" count, do not derive it from the expiry items below)`;
+
+  if (!expiredBer.length && !expiringBer.length && !missingRtb.length) {
+    return `COMPLIANCE ATTENTION (action required):\n${headerLine}`;
+  }
 
   const truncate = <T,>(arr: T[], render: (item: T) => string, label: string): string => {
     const cap = 10;
@@ -202,7 +222,7 @@ function renderComplianceAttention(records: LettingsComplianceRecord[] | undefin
       'MISSING RTB REGISTRATION (active tenancies):',
     ));
   }
-  return `COMPLIANCE ATTENTION (action required):\n${sections.join('\n\n')}`;
+  return `COMPLIANCE ATTENTION (action required):\n${headerLine}\n\n${sections.join('\n\n')}`;
 }
 
 function renderSalesPipeline(s: SalesPipelineSummary | null): string {

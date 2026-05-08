@@ -50,11 +50,14 @@ export interface SkillAgentContext {
   isDemoMode?: boolean;
 }
 
+// Re-exported from format-helpers so existing callers in this file keep
+// working unchanged. The implementation lives there because (a) it's
+// shared with the route + system-prompt layers, and (b) we want one
+// place for the timezone-stable parser (Issue 1.7 / CODE-ISSUE-006).
+import { formatEuro, formatIrishDate as formatIrishDateImpl, daysUntilCalendarDate } from '../format-helpers';
+
 function formatIrishDate(iso: string | null | undefined): string {
-  if (!iso) return 'unknown date';
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatIrishDateImpl(iso);
 }
 
 // Weekday + day + month, no year. Used by viewing-proposal openers so
@@ -922,8 +925,11 @@ export async function draftLeaseRenewal(
         ? `In line with RPZ rules, the maximum increase is ${(rpzUpliftCap() * 100).toFixed(1)}% per annum.`
         : 'Outside RPZ — rent held at current level for this renewal. Open to discussion.';
 
-      const leaseEnd = new Date(t.lease_end);
-      const daysToLeaseEnd = Math.floor((leaseEnd.getTime() - Date.now()) / 86400000);
+      // Issue 1.7 / CODE-ISSUE-006: parse lease_end at LOCAL midnight and
+      // compare against today's local midnight, not a wall-clock instant.
+      // Without this, the renewal email reads "ended 1 day ago" on the
+      // actual end date in BST after 01:00.
+      const daysToLeaseEnd = daysUntilCalendarDate(t.lease_end) ?? 0;
       const { greeting: tenantGreeting } = parseTenantName(t.tenant_name);
       const leaseEndLabel = formatIrishDate(t.lease_end);
       const expired = daysToLeaseEnd < 0;
@@ -944,7 +950,7 @@ export async function draftLeaseRenewal(
         `We'd like to offer a renewal on the following terms:`,
         ``,
         `- 12-month fixed term from ${leaseEndLabel}`,
-        `- Monthly rent: €${proposedRent} (current rent: €${currentRent})`,
+        `- Monthly rent: ${formatEuro(proposedRent)} (current rent: ${formatEuro(currentRent)})`,
         `- All other terms unchanged`,
         ``,
         rentNote,
@@ -972,7 +978,7 @@ export async function draftLeaseRenewal(
           id: t.id,
           label: `${prop.address} — ${t.tenant_name || 'Tenant'}`,
         },
-        reasoning: `${expired ? `Lease ended ${leaseEndLabel} (${daysAbs} day${daysAbs === 1 ? '' : 's'} ago, unrenewed).` : `Lease ends ${leaseEndLabel}.`} Property is ${inRPZ ? 'in RPZ' : 'outside RPZ'}. Proposed rent: €${proposedRent} (current €${currentRent}, ${inRPZ ? 'within RPZ cap' : 'no statutory cap'}).${t.tenant_email ? '' : ' Tenant email is missing on the tenancy record; recipient set to placeholder pending capture.'}`,
+        reasoning: `${expired ? `Lease ended ${leaseEndLabel} (${daysAbs} day${daysAbs === 1 ? '' : 's'} ago, unrenewed).` : `Lease ends ${leaseEndLabel}.`} Property is ${inRPZ ? 'in RPZ' : 'outside RPZ'}. Proposed rent: ${formatEuro(proposedRent)} (current ${formatEuro(currentRent)}, ${inRPZ ? 'within RPZ cap' : 'no statutory cap'}).${t.tenant_email ? '' : ' Tenant email is missing on the tenancy record; recipient set to placeholder pending capture.'}`,
       };
     });
 
@@ -993,7 +999,7 @@ export async function draftLeaseRenewal(
         const rpzNote = inRPZ
           ? `${prop.city ?? 'this area'} is in a Rent Pressure Zone, so the increase is capped at ${(rpzUpliftCap() * 100).toFixed(0)}%`
           : 'this property is outside RPZ — no statutory rent cap applies';
-        return `Drafted renewal for ${t.tenant_name || 'tenant'} at ${prop.address} — ${rpzNote}. Proposed €${proposedRent}/m (current €${currentRent}/m).`;
+        return `Drafted renewal for ${t.tenant_name || 'tenant'} at ${prop.address} — ${rpzNote}. Proposed ${formatEuro(proposedRent)}/m (current ${formatEuro(currentRent)}/m).`;
       }
       // Multi-draft: split RPZ vs non-RPZ counts so the headline is honest.
       const rpzCount = rows.filter((t: any) => {
@@ -1122,7 +1128,7 @@ export async function naturalQuery(
         const rows = data || [];
         const total = rows.reduce((sum: number, r: any) => sum + (Number(r.rent_pcm) || 0), 0);
         recordIds = rows.map((r: any) => r.id);
-        answer = `Your current monthly rent roll is €${total.toLocaleString('en-IE')} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
+        answer = `Your current monthly rent roll is ${formatEuro(total)} across ${rows.length} active tenanc${rows.length === 1 ? 'y' : 'ies'}.`;
       }
     } else if (intent === 'lease_end') {
       if (mode !== 'lettings') {
@@ -1659,11 +1665,48 @@ async function draftTenantMessage(
     const tenantFullName = tenancy.tenant_name || 'Tenant';
     const tenantFirst = firstName(tenantFullName);
     const propertyAddress = property?.address_line_1 || property?.address || 'your property';
-    const tenantEmail = tenancy.tenant_email || 'tenant@tbc.invalid';
 
-    const subject = context
-      ? `Re: ${context.slice(0, 60)}`
-      : `Quick note from ${agentContext.agencyName || 'your letting agent'}`;
+    // Issue 1.3(a): refuse with a clear envelope when the tenant has no
+    // email on file. Falling through to `tenant@tbc.invalid` produced a
+    // draft that looked sendable in the drawer but couldn't actually go
+    // out — the agent would only learn after clicking Approve.
+    if (!tenancy.tenant_email) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `I don't have an email on file for ${tenantFullName} at ${propertyAddress}. Add their email to the tenancy record and I'll draft this for you.`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+    const tenantEmail: string = tenancy.tenant_email;
+
+    // Issue 1.3(c): landlord-side compliance duties (RTB registration,
+    // BER cert, gas/electrical certs, deposit protection scheme) are
+    // the agent/landlord's legal responsibility — not the tenant's.
+    // The model has been mis-routing "remind me about the missing X"
+    // into a tenant email asking the tenant to supply X. Refuse with a
+    // suggestion to convert into an agent-side task. This is a
+    // conservative guard scoped to error paths; imperative-command
+    // flows (the tenant rephrases their actual ask) are handled in
+    // Batch 2.
+    const LANDLORD_DUTY_RE =
+      /\b(?:rtb(?:\s+(?:registration|number|cert(?:ificate)?))?|ber\s+cert(?:ificate)?|ber\s+number|gas\s+safety\s+cert|electrical\s+cert|deposit\s+protection|landlord\s+(?:registration|certificate|insurance))\b/i;
+    if (LANDLORD_DUTY_RE.test(context)) {
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary: `That looks like a landlord/agent compliance step, not something to ask ${tenantFullName} for. Want me to (a) add this as a task on your list to register/upload, or (b) send ${tenantFullName} a status update saying it's in progress?`,
+        drafts: [],
+        meta: { record_count: 0, generated_at: new Date().toISOString(), query },
+      };
+    }
+
+    // Issue 1.3(b): subject was `Re: ${context.slice(0, 60)}` — produced
+    // mid-word truncation like "Re: This is a reminder regarding the
+    // missing RTB registration nu". Use a stable subject derived from
+    // the property address; it never truncates and is always readable.
+    const subject = `Quick note about ${propertyAddress}`;
 
     const body = [
       toneGreeting(tenantFirst),
@@ -1715,15 +1758,14 @@ function buildTenantRecipientReason(opts: {
 }): string {
   const t = opts.tenancy;
   const leaseEndIso = t?.lease_end as string | null | undefined;
-  if (leaseEndIso) {
-    const ms = new Date(leaseEndIso).getTime();
-    if (!Number.isNaN(ms)) {
-      const days = Math.floor((ms - Date.now()) / 86_400_000);
-      if (days < 0) return `Lease ended ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago.`;
-      if (days === 0) return 'Lease ends today.';
-      if (days <= 30) return `Lease ends in ${days} day${days === 1 ? '' : 's'}.`;
-      if (days <= 90) return `Lease ends in ${days} days, inside the 90-day notice window.`;
-    }
+  // Issue 1.7 / CODE-ISSUE-006 — local-midnight parse so a YYYY-MM-DD
+  // lease_end doesn't read as "1 day ago" in BST evening.
+  const days = daysUntilCalendarDate(leaseEndIso);
+  if (days !== null) {
+    if (days < 0) return `Lease ended ${Math.abs(days)} day${Math.abs(days) === 1 ? '' : 's'} ago.`;
+    if (days === 0) return 'Lease ends today.';
+    if (days <= 30) return `Lease ends in ${days} day${days === 1 ? '' : 's'}.`;
+    if (days <= 90) return `Lease ends in ${days} days, inside the 90-day notice window.`;
   }
   if (t?.rtb_registered === false) {
     return 'RTB registration not on file for this tenancy.';
