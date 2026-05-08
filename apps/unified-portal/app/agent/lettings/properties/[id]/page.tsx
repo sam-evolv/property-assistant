@@ -850,6 +850,11 @@ function NewTicketSheet({ propertyId, onClose, onSuccess }: { propertyId: string
   );
 }
 
+// Per-property compliance score (Issue 1.2 / Chrome ISSUE-006). Helper
+// lives in `lib/lettings/per-property-compliance.ts` so the regression
+// test can import it without pulling in a 'use client' page.
+import { computePerPropertyComplianceScore } from '../../../../../lib/lettings/per-property-compliance';
+
 function ComplianceTab({ property, activeTenancy, documents }: { property: PropertyFields; activeTenancy: Tenancy | null; documents: DocumentRow[] }) {
   const hasDoc = (t: string) => documents.some((d) => d.docType === t);
   const isVacant = !activeTenancy || activeTenancy.status !== 'active' || (property.status ?? '').toLowerCase() === 'vacant';
@@ -866,11 +871,12 @@ function ComplianceTab({ property, activeTenancy, documents }: { property: Prope
     { label: 'RTB registration', state: isVacant ? 'na' : rtbOk ? 'ok' : 'amber', status: isVacant ? 'Not applicable' : rtbOk ? 'Registered' : 'Outstanding' },
     { label: 'Signed lease on file', state: leaseOk ? 'ok' : 'amber', status: leaseOk ? 'Uploaded' : 'Outstanding' },
   ];
+  const scorePct = computePerPropertyComplianceScore(rows);
   return (
     <div className="bg-white border border-[#E5E7EB] rounded-xl p-4 mb-4">
       <div className="flex items-baseline justify-between mb-2">
         <span className="text-[11px] font-semibold tracking-wider uppercase text-[#9EA8B5]">Compliance status</span>
-        <span className="text-base font-semibold text-[#0D0D12]">{property.completenessScore}%</span>
+        <span className="text-base font-semibold text-[#0D0D12]">{scorePct === null ? '—' : `${scorePct}%`}</span>
       </div>
       {rows.map((r, i) => (
         <div key={r.label} className="flex items-center justify-between py-2.5" style={{ borderTop: i === 0 ? 'none' : '0.5px solid #F3F4F6' }}>

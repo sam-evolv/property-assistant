@@ -25,6 +25,7 @@ import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intellig
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import { captureInferredAlias, suggestClosestScheme, normaliseSchemeName } from '@/lib/agent-intelligence/scheme-resolver';
+import { redactEnvelopeForUser, redactSummaryForUser } from '@/lib/agent-intelligence/redact-scaffolding';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -606,7 +607,9 @@ export async function POST(request: NextRequest) {
             controller.enqueue(
               encoder.encode(JSON.stringify({
                 type: 'tools_used',
-                tools: toolsCalled.map(t => ({ name: t.tool_name, summary: t.result_summary })),
+                // Issue 1.1: strip internal model-facing scaffolding from
+                // the per-tool summaries surfaced in the user UI.
+                tools: toolsCalled.map(t => ({ name: t.tool_name, summary: redactSummaryForUser(t.result_summary) })),
               }) + '\n')
             );
           }
@@ -615,9 +618,17 @@ export async function POST(request: NextRequest) {
           // with the full set — approve / edit / discard targets real
           // `pending_drafts.id`s that were rewritten by
           // persistSkillEnvelope inside the registry adapter.
+          //
+          // Issue 1.1 / Chrome ISSUE-001: strip internal model-facing
+          // scaffolding ("Next: call draft_buyer_followups(...)") from
+          // user-visible envelope summaries before emitting the SSE
+          // frame. The original (un-redacted) summary is still pushed to
+          // `messages[]` as the tool-result, so the model's chain
+          // orchestration is unaffected.
           if (combinedEnvelope) {
+            const userVisibleEnvelope = redactEnvelopeForUser(combinedEnvelope);
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'envelope', envelope: combinedEnvelope }) + '\n')
+              encoder.encode(JSON.stringify({ type: 'envelope', envelope: userVisibleEnvelope }) + '\n')
             );
           }
 
@@ -676,14 +687,63 @@ export async function POST(request: NextRequest) {
             // beat before tokens start arriving.
             emitProgress('finalising', 'Almost there');
 
+            // Issue 1.5 / Chrome ISSUE-017 — stream-buffer dangling
+            // fragments. The user used to see mid-sentence truncation
+            // states like "Proposed rent: €1785 (" — the eventual full
+            // text was correct but the partial render was visible
+            // mid-stream. We buffer the trailing incomplete fragment
+            // server-side and only emit content up to the last safe
+            // boundary (newline, sentence terminator + space, or
+            // forced-flush after STREAM_FORCE_FLUSH_CHARS chars without
+            // a break). The remainder waits for the next delta. At
+            // stream end we flush whatever is left.
+            const STREAM_FORCE_FLUSH_CHARS = 80;
+            let pendingTail = '';
+            const findSafeEmitIndex = (buffer: string): number => {
+              // Prefer the last newline, then last sentence terminator
+              // followed by space (or end), then last comma + space, then
+              // a force-flush cutoff if the buffer is past the threshold.
+              const newlineIdx = buffer.lastIndexOf('\n');
+              if (newlineIdx >= 0) return newlineIdx + 1;
+              for (const re of [/[.!?](?=\s|$)/g, /[;:](?=\s|$)/g, /,(?=\s|$)/g]) {
+                let lastMatch = -1;
+                let m: RegExpExecArray | null;
+                while ((m = re.exec(buffer)) !== null) {
+                  lastMatch = m.index + m[0].length;
+                  if (m.index === re.lastIndex) re.lastIndex++;
+                }
+                if (lastMatch >= 0) return lastMatch;
+              }
+              if (buffer.length > STREAM_FORCE_FLUSH_CHARS) {
+                // Force-flush at the last whitespace position so we never
+                // emit a half-word; if there is no whitespace at all,
+                // hold and wait for more deltas.
+                const ws = buffer.lastIndexOf(' ');
+                if (ws > 0) return ws + 1;
+              }
+              return -1;
+            };
             for await (const chunk of stream) {
               const delta = chunk.choices[0]?.delta?.content;
               if (delta) {
                 fullContent += delta;
-                controller.enqueue(
-                  encoder.encode(JSON.stringify({ type: 'token', content: delta }) + '\n')
-                );
+                pendingTail += delta;
+                const idx = findSafeEmitIndex(pendingTail);
+                if (idx > 0) {
+                  const emit = pendingTail.slice(0, idx);
+                  pendingTail = pendingTail.slice(idx);
+                  controller.enqueue(
+                    encoder.encode(JSON.stringify({ type: 'token', content: emit }) + '\n')
+                  );
+                }
               }
+            }
+            // Flush any remaining buffered content at end of stream.
+            if (pendingTail) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'token', content: pendingTail }) + '\n')
+              );
+              pendingTail = '';
             }
 
             if (!fullContent) {
@@ -766,9 +826,13 @@ export async function POST(request: NextRequest) {
             // is required.", etc) — far more useful than the generic
             // "rephrase your request" copy that used to be emitted.
             const emptyEnv = envelopes.find((e) => e.drafts.length === 0) || envelopes[0] || null;
+            // Issue 1.1: redact internal scaffolding from the user-facing
+            // failure message — the empty-result envelope summary may
+            // include the get_candidate_units chain nudge.
+            const redacted = redactSummaryForUser(emptyEnv?.summary).trim();
             const summary =
-              (emptyEnv?.summary && emptyEnv.summary.trim().length > 0)
-                ? emptyEnv.summary.trim()
+              redacted.length > 0
+                ? redacted
                 : "The draft action didn't go through.";
             failureKind = 'empty_draft_result';
             failureCorrelationId = randomCorrelationId();
