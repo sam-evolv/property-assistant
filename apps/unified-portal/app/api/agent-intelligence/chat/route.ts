@@ -25,6 +25,9 @@ import { getToolDefinitionsForOpenAI, getToolByName } from '@/lib/agent-intellig
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import { captureInferredAlias, suggestClosestScheme, normaliseSchemeName } from '@/lib/agent-intelligence/scheme-resolver';
+import { shouldChainAfterCandidateUnits } from '@/lib/agent-intelligence/chain-orchestration';
+import type { CandidateIntent, UnitCandidate } from '@/lib/agent-intelligence/unit-resolver';
+import { randomUUID } from 'node:crypto';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -329,10 +332,16 @@ export async function POST(request: NextRequest) {
       for (const toolCall of responseMessage.tool_calls) {
         const toolDef = getToolByName(toolCall.function.name);
         let toolResult: string;
+        // Track the parsed params + envelope of the original call so we can
+        // optionally server-side chain into draft_buyer_followups after
+        // get_candidate_units (Issue D).
+        let originalParams: Record<string, any> = {};
+        let originalEnvelope: AgenticSkillEnvelope | null = null;
 
         if (toolDef) {
           try {
             const params = JSON.parse(toolCall.function.arguments);
+            originalParams = params;
             const result = await toolDef.execute(supabase, tenantId, agentContext, params);
             toolResult = JSON.stringify(result);
             toolsCalled.push({
@@ -344,7 +353,10 @@ export async function POST(request: NextRequest) {
             // AgenticSkillEnvelope. Collect them so we can stream an
             // `envelope` SSE frame once the tool-calling rounds finish.
             const envelope = extractEnvelope(result);
-            if (envelope) envelopes.push(envelope);
+            if (envelope) {
+              envelopes.push(envelope);
+              originalEnvelope = envelope;
+            }
           } catch (err: unknown) {
             const errMessage = err instanceof Error ? err.message : 'Unknown error';
             toolResult = JSON.stringify({ error: errMessage, summary: `Tool execution failed: ${errMessage}` });
@@ -358,6 +370,111 @@ export async function POST(request: NextRequest) {
           tool_call_id: toolCall.id,
           content: toolResult,
         });
+
+        // Issue D — server-side two-step chain.
+        //
+        // After get_candidate_units returns, if the user's original
+        // message carries draft-intent language and the candidate set
+        // is non-empty, fire draft_buyer_followups in the same turn
+        // with hard-coded per-intent purpose + topic. The model never
+        // has to decide to chain — it just summarises both tool
+        // results in its final reply.
+        //
+        // We synthesize the second call as a follow-up assistant
+        // message + tool result pair so the conversation history
+        // OpenAI sees stays consistent (every tool message references
+        // an assistant tool_call). The model in its NEXT round sees
+        // both results and writes a coherent summary.
+        if (toolDef && toolCall.function.name === 'get_candidate_units' && originalEnvelope) {
+          const candidates = (originalEnvelope.meta as any)?.candidates as
+            | UnitCandidate[]
+            | undefined;
+          const intent = (originalParams.intent ?? null) as CandidateIntent | null;
+          const chain = shouldChainAfterCandidateUnits({
+            toolName: toolCall.function.name,
+            intent,
+            candidates: candidates ?? [],
+            userMessage: message,
+          });
+          if (chain) {
+            const chainedToolDef = getToolByName('draft_buyer_followups');
+            if (chainedToolDef) {
+              const chainedParams = {
+                targets: chain.targets,
+                purpose: chain.plan.purpose,
+                topic: chain.plan.topic,
+                tone: 'gentle_chase',
+              };
+              const chainedToolCallId = `chain-${randomUUID()}`;
+              // Synthetic assistant message — opaque to the model in
+              // this round; it's only there so OpenAI's tool-result
+              // wiring stays consistent for the NEXT round's call.
+              messages.push({
+                role: 'assistant',
+                content: null,
+                tool_calls: [
+                  {
+                    id: chainedToolCallId,
+                    type: 'function',
+                    function: {
+                      name: 'draft_buyer_followups',
+                      arguments: JSON.stringify(chainedParams),
+                    },
+                  },
+                ],
+              } as any);
+              try {
+                const chainedResult = await chainedToolDef.execute(
+                  supabase,
+                  tenantId,
+                  agentContext,
+                  chainedParams,
+                );
+                const chainedToolResult = JSON.stringify(chainedResult);
+                toolsCalled.push({
+                  tool_name: 'draft_buyer_followups',
+                  params: chainedParams,
+                  result_summary: chainedResult.summary,
+                });
+                const chainedEnvelope = extractEnvelope(chainedResult);
+                if (chainedEnvelope) envelopes.push(chainedEnvelope);
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: chainedToolCallId,
+                  content: chainedToolResult,
+                });
+                // Tell the model the chain already fired. Stops it
+                // from re-calling draft_buyer_followups in the NEXT
+                // round (which would duplicate drafts).
+                messages.push({
+                  role: 'system',
+                  content:
+                    'AUTO-CHAINED: server-side invoked draft_buyer_followups against the candidate units. Drafts already produced. Do NOT call draft_buyer_followups again this turn — summarise the result instead.',
+                });
+              } catch (chainErr: unknown) {
+                // Defensive: chain failures must not blow up the
+                // user's original turn. Emit a tool-result for the
+                // synthetic call so the conversation stays valid,
+                // and let the model continue.
+                const chainErrMsg =
+                  chainErr instanceof Error ? chainErr.message : 'Unknown error';
+                messages.push({
+                  role: 'tool',
+                  tool_call_id: chainedToolCallId,
+                  content: JSON.stringify({
+                    error: chainErrMsg,
+                    summary: `Auto-chain into draft_buyer_followups failed: ${chainErrMsg}`,
+                  }),
+                });
+                console.error('[chat/route] auto-chain failed', {
+                  intent,
+                  candidatesCount: chain.targets.length,
+                  error: chainErrMsg,
+                });
+              }
+            }
+          }
+        }
       }
     }
 
@@ -775,10 +892,36 @@ export async function POST(request: NextRequest) {
             failureMessage = summary;
             failureQuery = emptyEnv?.meta?.query ?? null;
           } else if (claimsDrafts && totalDraftsPersisted === 0) {
-            failureKind = 'hallucinated_drafts';
-            failureCorrelationId = randomCorrelationId();
-            failureMessage =
-              "We couldn't complete this — the email action didn't go through and nothing landed in the drafts inbox. Tap Retry, or tell me the specific unit numbers / buyer names you meant.";
+            // Issue E (PR follow-up to #97). Suppress the red
+            // hallucinated_drafts card when the only tools called this
+            // turn were read-only — never-draft-producing tools like
+            // get_candidate_units, get_unit_status, etc. The model may
+            // still emit "I'll draft them" prose without firing any
+            // draft skill, but in that case there's nothing to lie
+            // ABOUT — no drafts were ever expected to land. Letting
+            // the response render as a normal AIResponseCard surfaces
+            // the candidate list / read-only result the user actually
+            // got, instead of a misleading red error envelope.
+            //
+            // The hallucination guard still fires the moment ANY
+            // draft-producing tool gets called and produces zero — that's
+            // the regression class we keep blocking.
+            const anyDraftToolFired = toolsCalled.some((t) =>
+              DRAFT_PRODUCING_TOOLS.has(t.tool_name),
+            );
+            if (anyDraftToolFired) {
+              failureKind = 'hallucinated_drafts';
+              failureCorrelationId = randomCorrelationId();
+              failureMessage =
+                "We couldn't complete this — the email action didn't go through and nothing landed in the drafts inbox. Tap Retry, or tell me the specific unit numbers / buyer names you meant.";
+            } else {
+              console.warn('[chat/route] model emitted draft-claim language without firing any draft tool', {
+                userId: agentContext.authUserId,
+                originalMessage: message,
+                toolsCalled: toolsCalled.map((t) => t.tool_name),
+                contentSnippet: fullContent.slice(0, 200),
+              });
+            }
           }
 
           if (failureKind && failureMessage) {
