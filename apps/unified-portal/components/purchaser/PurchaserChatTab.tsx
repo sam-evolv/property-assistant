@@ -1111,6 +1111,18 @@ export default function PurchaserChatTab({
         const offset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
         document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
         document.documentElement.style.setProperty('--vv-offset', `${offset}px`);
+        // Android TWA: when the soft keyboard opens, the visual viewport shrinks
+        // by ~keyboard-height (>150px). In that case we want the input bar to sit
+        // flush against the top of the keyboard — NOT above the bottom-nav tab bar,
+        // which is occluded by the keyboard anyway. We expose this as a CSS-only
+        // multiplier so the input bar's `bottom:` can collapse the tab-bar offset
+        // to 0 without any React re-render (which would steal focus and dismiss
+        // the keyboard). 1 = keyboard closed, 0 = keyboard open.
+        const keyboardOpen = offset > 150;
+        document.documentElement.style.setProperty(
+          '--kb-tabbar-multiplier',
+          keyboardOpen ? '0' : '1'
+        );
       };
 
       vv.addEventListener('resize', onResize);
@@ -1125,6 +1137,7 @@ export default function PurchaserChatTab({
       const fallback = () => {
         document.documentElement.style.setProperty('--vvh', `${window.innerHeight}px`);
         document.documentElement.style.setProperty('--vv-offset', '0px');
+        document.documentElement.style.setProperty('--kb-tabbar-multiplier', '1');
       };
       window.addEventListener('resize', fallback);
       fallback();
@@ -2044,13 +2057,18 @@ export default function PurchaserChatTab({
             : 'bg-white/95 backdrop-blur-xl border-t border-black/5'
         }`}
         style={{
+          // iOS Capacitor: React state drives positioning (keyboard events fire via
+          // Capacitor plugin, not VisualViewport). Android/Web: CSS variables only —
+          // `--kb-tabbar-multiplier` collapses the tab-bar offset to 0 when the
+          // soft keyboard is open so the input bar sits flush on top of the keyboard
+          // instead of floating 80px above it. Driving this via a CSS variable
+          // (not React state) is critical: a re-render on input focus steals focus
+          // from the <input> and dismisses the keyboard.
           bottom: isIOSNative
             ? (isKeyboardOpen ? 0 : iosTabBarHeight)
-            : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px))',
-          // Web/Android uses `interactiveWidget: 'resizes-content'` in layout.tsx which
-          // handles keyboard-driven viewport shrinking at the browser level. The
-          // --vv-offset is 0 on Android under that setting, so this transform is a no-op
-          // on Android TWA and keeps the iOS-native VisualViewport behavior intact.
+            : 'calc(env(safe-area-inset-bottom, 0px) + var(--mobile-tab-bar-h, 80px) * var(--kb-tabbar-multiplier, 1))',
+          // Pull the bar up by the VisualViewport offset so it sits at the top edge
+          // of the visible viewport (top of keyboard on Android TWA).
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
