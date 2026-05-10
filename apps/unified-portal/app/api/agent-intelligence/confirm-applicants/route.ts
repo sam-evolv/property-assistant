@@ -77,10 +77,27 @@ export async function POST(request: NextRequest) {
     }
 
     if (isAddBody(body)) {
+      console.log('[confirm-applicants:add] body received', {
+        candidates: body.candidates.length,
+        selected_indices: body.selected_indices,
+      });
       const result = await confirmApplicantAdd(supabase, agentContext, {
         candidates: body.candidates,
         selected_indices: body.selected_indices,
       });
+      // When the agent picked at least one candidate but every insert
+      // failed, surface a 500 with the per-row errors so the card lands in
+      // its visible error state instead of silently saying "Added 0".
+      if (body.selected_indices.length > 0 && result.created.length === 0) {
+        return NextResponse.json(
+          {
+            error: result.errors[0]?.message || "Couldn't add applicants",
+            action: 'add',
+            result,
+          },
+          { status: 500 },
+        );
+      }
       return NextResponse.json({ action: 'add', result });
     }
     if (isUpdateBody(body)) {

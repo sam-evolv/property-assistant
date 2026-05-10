@@ -493,7 +493,7 @@ function IntelligencePageInner() {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content:
-          "We couldn't complete this — the connection to Intelligence dropped before we got an answer. Tap Retry to try again.",
+          "We couldn't complete this. The connection to Intelligence dropped before we got an answer. Tap Retry to try again.",
         failure: {
           kind: 'stream_failed',
           correlationId,
@@ -780,7 +780,7 @@ function IntelligencePageInner() {
                   ...v.autoSendUi,
                   status: 'failed',
                   active: false,
-                  failMessage: err.holdCopy || err.error || "Couldn't auto-send — the draft is in review.",
+                  failMessage: err.holdCopy || err.error || "Couldn't auto-send. The draft is in review.",
                 }
               : v.autoSendUi,
           }));
@@ -800,7 +800,7 @@ function IntelligencePageInner() {
         updateVoiceMessage(msgId, (v) => ({
           ...v,
           autoSendUi: v.autoSendUi
-            ? { ...v.autoSendUi, status: 'failed', active: false, failMessage: "Couldn't auto-send — the draft is in review." }
+            ? { ...v.autoSendUi, status: 'failed', active: false, failMessage: "Couldn't auto-send. The draft is in review." }
             : v.autoSendUi,
         }));
         notifyDraftsChanged();
@@ -1125,6 +1125,15 @@ function IntelligencePageInner() {
                     <ApplicantCard
                       key={`${msg.id}-applicant-${idx}`}
                       envelope={envelope}
+                      onConfirmFailed={(note) => {
+                        setMessages(prev => prev.map(m => {
+                          if (m.id !== msg.id) return m;
+                          const existing = m.content || '';
+                          if (existing.includes(note)) return m;
+                          const next = existing.length > 0 ? `${existing}\n\n${note}` : note;
+                          return { ...m, content: next };
+                        }));
+                      }}
                     />
                   ))}
                   {msg.viewingDrafts && msg.viewingDrafts.map((draft, idx) => (

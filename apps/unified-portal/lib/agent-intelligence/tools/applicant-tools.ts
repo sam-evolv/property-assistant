@@ -226,7 +226,7 @@ export async function manageApplicants(
     if (classified.length === 1) {
       summary = `Add ${classified[0].full_name}${classified[0].classification === 'duplicate_likely' ? ' (possible duplicate)' : ''}.`;
     } else {
-      summary = `Add ${classified.length} applicants${dupCount > 0 ? ` — ${dupCount} look like possible duplicates` : ''}.`;
+      summary = `Add ${classified.length} applicants${dupCount > 0 ? `, ${dupCount} look like possible duplicates` : ''}.`;
     }
 
     const result: ManageApplicantsAddDraft = {
@@ -288,7 +288,7 @@ export async function manageApplicants(
       const result: ManageApplicantsResult = {
         status: 'needs_clarification',
         reason: 'no_input',
-        message: "Nothing to change — those values match what's on file.",
+        message: "Nothing to change, those values match what's on file.",
       };
       return { data: result, summary: result.message };
     }
@@ -395,8 +395,29 @@ export async function manageApplicants(
 }
 
 // -----------------------------------------------------------------------
-// Confirmation + undo helpers — invoked from the API routes, not the tool.
+// Confirmation + undo helpers, invoked from the API routes, not the tool.
 // -----------------------------------------------------------------------
+
+// Allowed source values per agent_applicants_source_check on the DB.
+// Anything else gets normalised to 'other' before insert so the row lands
+// instead of the constraint blocking it silently.
+const ALLOWED_SOURCES = new Set([
+  'daft',
+  'myhome',
+  'rent_ie',
+  'facebook',
+  'walk_in',
+  'word_of_mouth',
+  'other',
+  'unknown',
+]);
+
+function normaliseSource(raw: string | null | undefined): string {
+  if (!raw) return 'other';
+  const lower = raw.trim().toLowerCase();
+  if (ALLOWED_SOURCES.has(lower)) return lower;
+  return 'other';
+}
 
 export interface ConfirmAddArgs {
   candidates: ApplicantCandidate[];
@@ -406,6 +427,7 @@ export interface ConfirmAddArgs {
 export interface ConfirmAddResult {
   created: Array<{ id: string; full_name: string; audit_log_id: string }>;
   skipped: number;
+  errors: Array<{ full_name: string; message: string }>;
 }
 
 export async function confirmApplicantAdd(
@@ -417,6 +439,14 @@ export async function confirmApplicantAdd(
   const selectedSet = new Set(selected_indices);
   const chosen = candidates.filter((_, idx) => selectedSet.has(idx));
   const created: ConfirmAddResult['created'] = [];
+  const errors: ConfirmAddResult['errors'] = [];
+  console.log('[confirmApplicantAdd] start', {
+    agentProfileId: agentContext.agentProfileId,
+    tenantId: agentContext.tenantId,
+    candidateCount: candidates.length,
+    selectedCount: chosen.length,
+    selectedIndices: Array.from(selectedSet.values()),
+  });
   for (const c of chosen) {
     const insertRow = {
       agent_id: agentContext.agentProfileId,
@@ -425,15 +455,25 @@ export async function confirmApplicantAdd(
       email: c.email,
       phone: c.phone,
       notes: c.notes,
-      source: c.source || 'intelligence',
+      source: normaliseSource(c.source),
     };
     const { data, error } = await supabase
       .from('agent_applicants')
       .insert(insertRow)
       .select('id, full_name, email, phone, notes, source')
       .single();
-    if (error || !data) continue;
-    const { data: audit } = await supabase
+    if (error || !data) {
+      const message = error?.message || 'insert returned no row';
+      console.error('[confirmApplicantAdd] insert failed', {
+        full_name: c.full_name,
+        error: message,
+        details: error?.details,
+        hint: error?.hint,
+      });
+      errors.push({ full_name: c.full_name, message });
+      continue;
+    }
+    const { data: audit, error: auditError } = await supabase
       .from('applicant_audit_log')
       .insert({
         tenant_id: agentContext.tenantId,
@@ -445,13 +485,20 @@ export async function confirmApplicantAdd(
       })
       .select('id')
       .single();
+    if (auditError) {
+      console.error('[confirmApplicantAdd] audit log failed', {
+        applicant_id: (data as any).id,
+        error: auditError.message,
+      });
+    }
     created.push({
       id: (data as any).id,
       full_name: (data as any).full_name,
       audit_log_id: (audit as any)?.id ?? '',
     });
   }
-  return { created, skipped: candidates.length - created.length };
+  console.log('[confirmApplicantAdd] done', { created: created.length, errors: errors.length });
+  return { created, skipped: candidates.length - created.length, errors };
 }
 
 export interface ConfirmUpdateArgs {

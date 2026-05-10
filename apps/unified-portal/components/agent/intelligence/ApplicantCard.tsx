@@ -66,6 +66,13 @@ export type ApplicantDraftEnvelope =
 
 interface ApplicantCardProps {
   envelope: ApplicantDraftEnvelope;
+  /**
+   * Called when the confirm path fails irrecoverably so the chat surface
+   * can append a system-style note to the assistant message. Without this,
+   * the next-turn LLM history would still claim "Added Mary..." even though
+   * nothing was written. Bug 4 fix.
+   */
+  onConfirmFailed?: (note: string) => void;
 }
 
 type Phase = 'draft' | 'confirming' | 'receipt' | 'reverted' | 'cancelled' | 'error';
@@ -180,7 +187,7 @@ function buildReceiptDetailLink(action: 'add' | 'update' | 'remove', ids: string
   return { link: null, label: '' };
 }
 
-export default function ApplicantCard({ envelope }: ApplicantCardProps) {
+export default function ApplicantCard({ envelope, onConfirmFailed }: ApplicantCardProps) {
   const initialSelected = useMemo<Set<number>>(() => {
     if (envelope.action !== 'add') return new Set();
     const out = new Set<number>();
@@ -300,8 +307,19 @@ export default function ApplicantCard({ envelope }: ApplicantCardProps) {
       }
       setPhase('receipt');
     } catch (err) {
-      setErrorText(err instanceof Error ? err.message : 'Could not save changes');
+      const message = err instanceof Error ? err.message : 'Could not save changes';
+      setErrorText(message);
       setPhase('error');
+      // Bug 4: tell the chat surface so the assistant message picks up a
+      // visible "no applicants were created" note. The next-turn history
+      // then carries the truth instead of the model's confident lie.
+      const noteByAction =
+        envelope.action === 'add'
+          ? 'Add operation failed, no applicants were created.'
+          : envelope.action === 'update'
+            ? 'Update operation failed, no changes saved.'
+            : 'Remove operation failed, no applicants were removed.';
+      onConfirmFailed?.(noteByAction);
     }
   }
 
@@ -430,12 +448,34 @@ export default function ApplicantCard({ envelope }: ApplicantCardProps) {
           ? `Remove ${envelope.drafts[0].full_name}`
           : `Remove ${envelope.drafts.length} applicants`;
 
+  const isErrorPhase = phase === 'error';
+  const errorTitleByAction =
+    envelope.action === 'add'
+      ? "Couldn't add applicants"
+      : envelope.action === 'update'
+        ? "Couldn't update applicant"
+        : "Couldn't remove applicants";
+  const cardSurfaceForPhase: React.CSSProperties = isErrorPhase
+    ? {
+        ...cardSurface,
+        border: '1px solid rgba(220,38,38,0.45)',
+        boxShadow:
+          '0 1px 2px rgba(0,0,0,0.04), 0 4px 12px rgba(220,38,38,0.10), 0 0 0 0.5px rgba(220,38,38,0.20)',
+      }
+    : cardSurface;
+
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-      <div style={cardSurface}>
+      <div style={cardSurfaceForPhase}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Icon size={16} strokeWidth={2} style={{ color: '#0D0D12' }} />
-          <span style={{ fontSize: 13, fontWeight: 600, color: '#0D0D12' }}>{titleByAction}</span>
+          {isErrorPhase ? (
+            <AlertTriangle size={16} strokeWidth={2.25} style={{ color: '#B91C1C' }} />
+          ) : (
+            <Icon size={16} strokeWidth={2} style={{ color: '#0D0D12' }} />
+          )}
+          <span style={{ fontSize: 13, fontWeight: 600, color: isErrorPhase ? '#B91C1C' : '#0D0D12' }}>
+            {isErrorPhase ? errorTitleByAction : titleByAction}
+          </span>
         </div>
 
         {envelope.action === 'add' && (
@@ -541,10 +581,10 @@ export default function ApplicantCard({ envelope }: ApplicantCardProps) {
                 <span style={labelText}>{field}</span>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ ...valueText, color: '#9CA3AF', textDecoration: 'line-through' }}>
-                    {String(envelope.draft.before[field] ?? '—')}
+                    {String(envelope.draft.before[field] ?? '-')}
                   </span>
                   <ArrowRight size={12} strokeWidth={2.25} style={{ color: '#9CA3AF' }} />
-                  <span style={valueText}>{String(envelope.draft.after[field] ?? '—')}</span>
+                  <span style={valueText}>{String(envelope.draft.after[field] ?? '-')}</span>
                 </div>
               </div>
             ))}

@@ -1021,7 +1021,18 @@ export async function POST(request: NextRequest) {
           // Generate follow-up suggestions (non-blocking, appended after main response)
           // Skip when we fired the Session 14 yes/no short-circuit — the
           // user's next move is literally "yes" or "no", not an action chip.
+          // Also skip when this turn surfaced a viewing or applicant draft
+          // card. Those cards already carry the next action (Confirm /
+          // Edit / Cancel); a duplicate "Confirm Jack Murphy's application"
+          // chip rendering alongside is the second-UI bug from session 3.
           if (topCandidateForPrompt) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
+            );
+            controller.close();
+            return;
+          }
+          if (viewingDrafts.length > 0 || applicantDrafts.length > 0) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
             );

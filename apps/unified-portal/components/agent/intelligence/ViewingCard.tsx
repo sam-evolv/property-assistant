@@ -209,7 +209,7 @@ export default function ViewingCard({
     const start = new Date(viewing.scheduled_at).getTime();
     const end = start + viewing.duration_minutes * 60 * 1000;
     const result = await addEventToDeviceCalendar({
-      title: `Viewing — ${viewing.applicant_name} at ${viewing.development_name}`,
+      title: `Viewing: ${viewing.applicant_name} at ${viewing.development_name}`,
       startMs: start,
       endMs: end,
       location: viewing.location ?? viewing.development_name,
@@ -337,7 +337,7 @@ export default function ViewingCard({
           disabled={retryingCalendar}
         >
           {retryingCalendar ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} strokeWidth={2.25} />}
-          <span>Not added to calendar — tap to retry</span>
+          <span>Not added to calendar, tap to retry</span>
         </button>
       );
     })();

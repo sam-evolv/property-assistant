@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Users } from 'lucide-react';
+import { Users, Plus, X, Loader2 } from 'lucide-react';
 import AgentShell from '../_components/AgentShell';
 import { useAgent } from '@/lib/agent/AgentContext';
 import {
@@ -28,6 +28,7 @@ export default function ApplicantsListPage() {
   const [loading, setLoading] = useState(true);
   const [pullOffset, setPullOffset] = useState(0);
   const pullStartY = useRef<number | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   const load = useCallback(async (next: FilterKey) => {
     setLoading(true);
@@ -76,27 +77,53 @@ export default function ApplicantsListPage() {
             background: 'rgba(250,250,248,0.95)',
           }}
         >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 20,
-              fontWeight: 700,
-              letterSpacing: '-0.03em',
-              color: '#0D0D12',
-            }}
-          >
-            Applicants
-          </h1>
-          <p
-            style={{
-              margin: '4px 0 0',
-              fontSize: 12.5,
-              color: '#9CA3AF',
-              letterSpacing: '0.005em',
-            }}
-          >
-            Everyone who viewed, enquired, or applied. Flagged ones first.
-          </p>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <h1
+                style={{
+                  margin: 0,
+                  fontSize: 20,
+                  fontWeight: 700,
+                  letterSpacing: '-0.03em',
+                  color: '#0D0D12',
+                }}
+              >
+                Applicants
+              </h1>
+              <p
+                style={{
+                  margin: '4px 0 0',
+                  fontSize: 12.5,
+                  color: '#9CA3AF',
+                  letterSpacing: '0.005em',
+                }}
+              >
+                Everyone who viewed, enquired, or applied. Flagged ones first.
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="applicants-add-button"
+              onClick={() => setAddOpen(true)}
+              aria-label="Add applicant"
+              className="agent-tappable"
+              style={{
+                width: 36,
+                height: 36,
+                borderRadius: 18,
+                border: 'none',
+                background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+                color: '#FFFFFF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                flexShrink: 0,
+              }}
+            >
+              <Plus size={18} strokeWidth={2.25} />
+            </button>
+          </div>
 
           {/* Filter tabs */}
           <div
@@ -164,7 +191,7 @@ export default function ApplicantsListPage() {
               Loading applicants...
             </p>
           ) : items.length === 0 ? (
-            <EmptyState />
+            <EmptyState onAdd={() => setAddOpen(true)} />
           ) : (
             <div
               data-testid="applicants-list"
@@ -177,6 +204,15 @@ export default function ApplicantsListPage() {
           )}
         </div>
       </div>
+      {addOpen && (
+        <ManualAddSheet
+          onClose={() => setAddOpen(false)}
+          onSaved={() => {
+            setAddOpen(false);
+            load(filter);
+          }}
+        />
+      )}
     </AgentShell>
   );
 }
@@ -299,7 +335,7 @@ function pillPalette(status: string | null): { bg: string; color: string } {
   }
 }
 
-function EmptyState() {
+function EmptyState({ onAdd }: { onAdd: () => void }) {
   return (
     <div
       data-testid="applicants-empty-state"
@@ -335,12 +371,251 @@ function EmptyState() {
           color: '#9CA3AF',
           margin: 0,
           textAlign: 'center',
-          maxWidth: 260,
+          maxWidth: 280,
           lineHeight: 1.5,
         }}
       >
-        Voice-log a viewing and they&apos;ll appear here.
+        Add them from the Intelligence chat or tap the + button.
       </p>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="agent-tappable"
+        style={{
+          marginTop: 8,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '10px 14px',
+          background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+          border: 'none',
+          borderRadius: 999,
+          fontSize: 13,
+          fontWeight: 600,
+          color: '#FFFFFF',
+          cursor: 'pointer',
+          fontFamily: 'inherit',
+        }}
+      >
+        <Plus size={14} strokeWidth={2.25} />
+        Add an applicant
+      </button>
     </div>
+  );
+}
+
+function ManualAddSheet({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    const trimmed = fullName.trim();
+    if (trimmed.length === 0) {
+      setError('Add a full name to save.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/agent-intelligence/confirm-applicants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add',
+          candidates: [{
+            full_name: trimmed,
+            email: email.trim() || null,
+            phone: phone.trim() || null,
+            notes: notes.trim() || null,
+            source: 'other',
+            classification: 'new',
+          }],
+          selected_indices: [0],
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.error || "Couldn't add applicant");
+      }
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't add applicant");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add applicant"
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(13,13,18,0.45)',
+        zIndex: 100,
+        display: 'flex',
+        alignItems: 'flex-end',
+        justifyContent: 'center',
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: '#FFFFFF',
+          width: '100%',
+          maxWidth: 520,
+          borderTopLeftRadius: 22,
+          borderTopRightRadius: 22,
+          padding: '20px 20px 24px',
+          boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 14,
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0D0D12', letterSpacing: '-0.02em' }}>
+            Add an applicant
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="agent-tappable"
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 16,
+              background: 'transparent',
+              border: 'none',
+              color: '#6B7280',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <ManualField label="Full name" required value={fullName} onChange={setFullName} placeholder="Jack Murphy" autoFocus />
+        <ManualField label="Email" type="email" value={email} onChange={setEmail} placeholder="jack@example.ie" />
+        <ManualField label="Phone" type="tel" value={phone} onChange={setPhone} placeholder="087 123 4567" />
+        <ManualField label="Notes" value={notes} onChange={setNotes} placeholder="Anything to remember about them" multiline />
+        {error && (
+          <p style={{ margin: 0, fontSize: 12.5, color: '#B91C1C' }}>{error}</p>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving}
+            className="agent-tappable"
+            style={{
+              flex: 1,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              padding: '12px 16px',
+              background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+              border: 'none',
+              borderRadius: 999,
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: '#FFFFFF',
+              cursor: saving ? 'progress' : 'pointer',
+              fontFamily: 'inherit',
+              opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? <Loader2 size={14} className="animate-spin" /> : null}
+            {saving ? 'Saving' : 'Save applicant'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="agent-tappable"
+            style={{
+              padding: '12px 16px',
+              background: 'transparent',
+              border: 'none',
+              fontSize: 13.5,
+              fontWeight: 500,
+              color: '#6B7280',
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ManualField({
+  label,
+  value,
+  onChange,
+  placeholder,
+  required,
+  type = 'text',
+  multiline,
+  autoFocus,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  type?: 'text' | 'email' | 'tel';
+  multiline?: boolean;
+  autoFocus?: boolean;
+}) {
+  const inputStyle: React.CSSProperties = {
+    padding: '10px 12px',
+    fontSize: 14,
+    border: '0.5px solid rgba(0,0,0,0.16)',
+    borderRadius: 10,
+    background: '#FFFFFF',
+    color: '#0D0D12',
+    fontFamily: 'inherit',
+    width: '100%',
+  };
+  return (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span style={{ fontSize: 11.5, fontWeight: 600, color: '#6B7280' }}>
+        {label}
+        {required ? <span style={{ color: '#B91C1C', marginLeft: 3 }}>*</span> : null}
+      </span>
+      {multiline ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          rows={3}
+          style={{ ...inputStyle, resize: 'vertical', minHeight: 64 }}
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          autoFocus={autoFocus}
+          style={inputStyle}
+        />
+      )}
+    </label>
   );
 }
