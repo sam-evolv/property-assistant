@@ -313,6 +313,11 @@ export async function POST(request: NextRequest) {
     // as an `applicant_draft` SSE frame; the assistant message renders an
     // ApplicantCard from it.
     const applicantDrafts: Array<Record<string, unknown>> = [];
+    // schedule_viewings (composite) returns a single envelope per call. The
+    // chat surface renders one CompositeScheduleCard. When composite drafts
+    // exist this turn, the per-tool applicant_draft / viewing_draft frames
+    // are suppressed so only the composite "one mental object" surfaces.
+    const compositeDrafts: Array<Record<string, unknown>> = [];
 
     // Task 2 — track whether any skill threw inside the tool loop. The
     // legacy catch path JSON-stringified the raw exception into the
@@ -394,6 +399,15 @@ export async function POST(request: NextRequest) {
               (result.data as any).status === 'draft'
             ) {
               applicantDrafts.push(result.data as Record<string, unknown>);
+            }
+            if (
+              toolCall.function.name === 'schedule_viewings' &&
+              result?.data &&
+              typeof result.data === 'object' &&
+              (result.data as any).status === 'draft' &&
+              (result.data as any).type === 'composite_schedule'
+            ) {
+              compositeDrafts.push(result.data as Record<string, unknown>);
             }
           } catch (err: unknown) {
             // Task 2 — sanitised tool-failure path.
@@ -713,23 +727,36 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Emit one viewing_draft frame per draft the create_viewing tool
-          // returned this turn. The IntelligencePage stashes them on the
-          // assistant message and renders a persistent ViewingCard the
-          // agent confirms / edits / cancels.
-          for (const draft of viewingDrafts) {
+          // Composite schedule drafts win over the per-tool surfaces. When
+          // schedule_viewings ran this turn, its envelope already carries
+          // the applicants AND viewings AND calendar choice in one mental
+          // object; rendering separate ApplicantCard / ViewingCard cards
+          // alongside would duplicate the surface and confuse the agent.
+          const hasComposite = compositeDrafts.length > 0;
+          for (const envelope of compositeDrafts) {
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'viewing_draft', draft }) + '\n'),
+              encoder.encode(JSON.stringify({ type: 'composite_draft', envelope }) + '\n'),
             );
           }
-          // Emit one applicant_draft frame per envelope the manage_applicants
-          // tool returned. The chat surface renders an ApplicantCard from
-          // each. Multiple drafts in one turn happen when the agent issued
-          // distinct add/update/remove calls.
-          for (const envelope of applicantDrafts) {
-            controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'applicant_draft', envelope }) + '\n'),
-            );
+          if (!hasComposite) {
+            // Emit one viewing_draft frame per draft the create_viewing tool
+            // returned this turn. The IntelligencePage stashes them on the
+            // assistant message and renders a persistent ViewingCard the
+            // agent confirms / edits / cancels.
+            for (const draft of viewingDrafts) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'viewing_draft', draft }) + '\n'),
+              );
+            }
+            // Emit one applicant_draft frame per envelope the manage_applicants
+            // tool returned. The chat surface renders an ApplicantCard from
+            // each. Multiple drafts in one turn happen when the agent issued
+            // distinct add/update/remove calls.
+            for (const envelope of applicantDrafts) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'applicant_draft', envelope }) + '\n'),
+              );
+            }
           }
 
           // Session 14 — yes/no disambiguation short-circuit. When a skill
@@ -1032,7 +1059,7 @@ export async function POST(request: NextRequest) {
             controller.close();
             return;
           }
-          if (viewingDrafts.length > 0 || applicantDrafts.length > 0) {
+          if (viewingDrafts.length > 0 || applicantDrafts.length > 0 || compositeDrafts.length > 0) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
             );

@@ -21,6 +21,7 @@ import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-i
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intelligence/ViewingCard';
 import ApplicantCard, { type ApplicantDraftEnvelope } from '@/components/agent/intelligence/ApplicantCard';
+import CompositeScheduleCard, { type CompositeScheduleEnvelope } from '@/components/agent/intelligence/CompositeScheduleCard';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
 // INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
@@ -95,6 +96,10 @@ interface Message {
   // as viewingDrafts; ApplicantCard handles add / update / remove
   // shapes plus the propose_undoable auto-confirm path.
   applicantDrafts?: ApplicantDraftEnvelope[];
+  // schedule_viewings (composite) envelopes. One card per turn at most;
+  // when present, the chat route suppresses the per-tool applicant_draft
+  // and viewing_draft frames so only the composite renders.
+  compositeDrafts?: CompositeScheduleEnvelope[];
 }
 
 interface UndoBatch {
@@ -399,6 +404,24 @@ function IntelligencePageInner() {
                   role: 'assistant',
                   content: '',
                   applicantDrafts: [envelope],
+                }];
+              });
+            } else if (data.type === 'composite_draft' && data.envelope) {
+              const envelope = data.envelope as CompositeScheduleEnvelope;
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, compositeDrafts: [...(m.compositeDrafts ?? []), envelope] }
+                      : m,
+                  );
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  compositeDrafts: [envelope],
                 }];
               });
             } else if (data.type === 'override') {
@@ -1125,6 +1148,22 @@ function IntelligencePageInner() {
                     <ApplicantCard
                       key={`${msg.id}-applicant-${idx}`}
                       envelope={envelope}
+                      onConfirmFailed={(note) => {
+                        setMessages(prev => prev.map(m => {
+                          if (m.id !== msg.id) return m;
+                          const existing = m.content || '';
+                          if (existing.includes(note)) return m;
+                          const next = existing.length > 0 ? `${existing}\n\n${note}` : note;
+                          return { ...m, content: next };
+                        }));
+                      }}
+                    />
+                  ))}
+                  {msg.compositeDrafts && msg.compositeDrafts.map((envelope, idx) => (
+                    <CompositeScheduleCard
+                      key={`${msg.id}-composite-${idx}`}
+                      envelope={envelope}
+                      developments={developments?.map((d) => ({ id: d.id, name: d.name }))}
                       onConfirmFailed={(note) => {
                         setMessages(prev => prev.map(m => {
                           if (m.id !== msg.id) return m;
