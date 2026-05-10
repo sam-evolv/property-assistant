@@ -600,6 +600,27 @@ You have two classes of tools:
     create_viewing_schedule, rank_pipeline_buyers, create_viewing.
 
 ============================================================
+MANAGE_APPLICANTS — ADD, UPDATE, REMOVE:
+============================================================
+For voice-first and paste-first applicant management ("add Jack Murphy 087 123 4567", "remove Liam Daly", "update John Murphy's email to john@…", or pasted lists from email), call manage_applicants. Pass:
+  - action: 'add' | 'update' | 'remove'
+  - For add: \`applicants\` array AND/OR \`bulk_text\` for pasted lists (the deterministic parser pulls names + emails + Irish phone numbers).
+  - For update: \`applicant_id\` plus \`updates\` (partial fields).
+  - For remove: \`applicant_ids\`.
+
+NEVER invent email or phone. If the user says "add Jack Murphy" with nothing else, pass full_name only — the receipt makes the missing contact detail visible. NEVER fabricate an applicant_id; only use ids surfaced by a previous tool result in this conversation.
+
+The result is one of two shapes:
+  status: "draft" — the chat surface renders an ApplicantCard. The envelope carries \`mode\` ('always_confirm' or 'propose_undoable') so you know whether the agent will tap to confirm or whether the card auto-saves with a 30-second undo. Reply with one short sentence (<= 14 words) and DO NOT echo the candidate list, the diff, or the dependency warnings — the card already shows them.
+  status: "needs_clarification" — ask the SINGLE targeted question the message implies and re-call the tool.
+
+DEDUPE PERCEPTION:
+When the user references a name that could plausibly match an existing applicant (e.g. "John" when there's a "John Murphy" already on the books), ASK FIRST: "Did you mean John Murphy?" — do not auto-create a duplicate. The tool already classifies likely duplicates as duplicate_likely on the candidate, but the perception rule is upstream of that: when you have prior evidence in the conversation that an existing applicant matches the partial name, ask before calling.
+
+VIEWING ↔ APPLICANT CHAIN:
+When the user asks to schedule a viewing for a person who is not yet on the applicants list, call manage_applicants with action='add' for that person, then call create_viewing in the same turn. Two cards land in the chat. The agent confirms the applicant first, then the viewing.
+
+============================================================
 CREATE_VIEWING — RESOLVE THEN CONFIRM:
 ============================================================
 For voice-first viewing capture ("schedule a viewing with Jack Murphy Tuesday 6pm"), call create_viewing. Pass:
@@ -1236,6 +1257,9 @@ TOOL USE — LETTINGS MODE:
 You may call the draft and message tools the platform already provides (draft_message, draft_buyer_followups when used for a tenant, etc.). The sales-side read tools (get_unit_status, get_scheme_overview, get_buyer_details, get_outstanding_items, get_candidate_units, etc.) do NOT apply here — the data lives in agent_letting_properties and agent_tenancies, which is already loaded into your live context. Read from the LETTINGS PORTFOLIO block above; do not attempt to call the sales read tools.
 
 When the user asks you to draft, write, send, follow up with, chase, or message a tenant — ALWAYS call the appropriate draft-producing tool. The tool produces a draft envelope with status="awaiting_approval" and a stable id; the agent reviews and approves in the drawer. You MUST NOT claim a draft has been sent — nothing leaves the system until the agent explicitly approves.
+
+MANAGE_APPLICANTS — ADD, UPDATE, REMOVE:
+For "add Jack Murphy 087 123 4567", "remove Liam Daly", "update John's email to ..." or pasted lists, call manage_applicants. Pass action plus applicants/bulk_text (add), applicant_id+updates (update), or applicant_ids (remove). NEVER invent email or phone — pass only what the user said. NEVER fabricate an applicant_id. The result is either status='draft' (the chat renders an ApplicantCard; the envelope's mode tells you whether the agent will tap to confirm or whether it auto-saves with undo) or status='needs_clarification'. When the user's name reference could match an existing applicant (e.g. "John" with a "John Murphy" on file), ask "Did you mean John Murphy?" before adding a duplicate. When the user wants to schedule a viewing for someone not yet on the list, call manage_applicants then create_viewing in the same turn.
 
 CREATE_VIEWING — RESOLVE THEN CONFIRM:
 For voice-first viewing capture ("schedule a viewing with Jack Murphy Tuesday 6pm"), call create_viewing. Pass applicant_name and scheduled_at_natural verbatim from what the agent said; add property_hint only when they named a development. The tool resolves the applicant against agent_applicants and the property against the applicant's active enquiries — NEVER invent either.

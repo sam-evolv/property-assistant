@@ -20,6 +20,7 @@ import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intellige
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intelligence/ViewingCard';
+import ApplicantCard, { type ApplicantDraftEnvelope } from '@/components/agent/intelligence/ApplicantCard';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
 // INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
@@ -90,6 +91,10 @@ interface Message {
   // assistant message so the card renders inline and persists in
   // history. The card mutates in place to a receipt on confirm.
   viewingDrafts?: ViewingDraftPayload[];
+  // manage_applicants draft envelopes. Same persistent-card pattern
+  // as viewingDrafts; ApplicantCard handles add / update / remove
+  // shapes plus the propose_undoable auto-confirm path.
+  applicantDrafts?: ApplicantDraftEnvelope[];
 }
 
 interface UndoBatch {
@@ -376,6 +381,24 @@ function IntelligencePageInner() {
                   role: 'assistant',
                   content: '',
                   viewingDrafts: [draft],
+                }];
+              });
+            } else if (data.type === 'applicant_draft' && data.envelope) {
+              const envelope = data.envelope as ApplicantDraftEnvelope;
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, applicantDrafts: [...(m.applicantDrafts ?? []), envelope] }
+                      : m,
+                  );
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  applicantDrafts: [envelope],
                 }];
               });
             } else if (data.type === 'override') {
@@ -1098,6 +1121,12 @@ function IntelligencePageInner() {
                       onReopen={(env) => openApprovalDrawer(env)}
                     />
                   )}
+                  {msg.applicantDrafts && msg.applicantDrafts.map((envelope, idx) => (
+                    <ApplicantCard
+                      key={`${msg.id}-applicant-${idx}`}
+                      envelope={envelope}
+                    />
+                  ))}
                   {msg.viewingDrafts && msg.viewingDrafts.map((draft, idx) => (
                     <ViewingCard
                       key={`${msg.id}-viewing-${idx}`}

@@ -17,6 +17,7 @@ import {
   generateDeveloperReport,
 } from './write-tools';
 import { createViewing } from './viewing-tools';
+import { manageApplicants } from './applicant-tools';
 // schedule_viewing is intentionally NOT imported here: its immediate-write
 // behaviour has been replaced by schedule_viewing_draft. The underlying
 // scheduleViewing function remains exported from './write-tools' for any
@@ -461,6 +462,58 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(naturalQuery, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'manage_applicants',
+    description: [
+      'Add, update or remove applicants on the agent\'s books. Voice-first and paste-first — the agent says "add Jack Murphy 087 123 4567" or pastes a list of names from an email.',
+      'NEVER writes on its own. Always returns a draft envelope; the agent confirms in the chat card. The agent\'s applicant_write_mode setting decides whether the card auto-confirms with undo (propose_undoable) or waits for an explicit tap (always_confirm). The mode is included in the result so the model can phrase its reply accordingly.',
+      'Inputs by action:',
+      '  add — pass `applicants` (one or more {full_name, email?, phone?, notes?, source?}) AND/OR `bulk_text` for raw pasted lists. The bulk parser is deterministic (regex over Irish phone formats and the common "Name <email>" / "Name (phone)" / comma / pipe / table shapes). Never invent email or phone — leave them null when the user did not provide them.',
+      '  update — pass `applicant_id` plus `updates` (partial {full_name, email, phone, notes}). Only the fields that actually changed land in the draft.',
+      '  remove — pass `applicant_ids` (string array). The skill flags any applicant with active enquiries or upcoming viewings as has_dependencies so the agent sees what they\'re losing.',
+      'Dedupe rule: when the user references a name that case-insensitively matches an existing applicant, the candidate is classified `duplicate_likely` with the existing match surfaced; ask the user "Did you mean <existing_name>?" before adding a duplicate.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['add', 'update', 'remove'], description: 'What the user wants to do.' },
+        applicants: {
+          type: 'array',
+          description: 'Applicants to add. One entry per applicant.',
+          items: {
+            type: 'object',
+            properties: {
+              full_name: { type: 'string', description: 'Full name as the user said it.' },
+              email: { type: 'string', description: 'Email address. Only pass when the user gave one.' },
+              phone: { type: 'string', description: 'Phone number. Only pass when the user gave one.' },
+              notes: { type: 'string', description: 'Optional free-text note.' },
+              source: { type: 'string', description: 'Origin tag (defaults to "intelligence").' },
+            },
+            required: ['full_name'],
+          },
+        },
+        applicant_id: { type: 'string', description: 'Required for action=update.' },
+        updates: {
+          type: 'object',
+          description: 'Partial fields to change for action=update.',
+          properties: {
+            full_name: { type: 'string' },
+            email: { type: 'string' },
+            phone: { type: 'string' },
+            notes: { type: 'string' },
+          },
+        },
+        applicant_ids: {
+          type: 'array',
+          description: 'Required for action=remove.',
+          items: { type: 'string' },
+        },
+        bulk_text: { type: 'string', description: 'Raw pasted text the deterministic parser will turn into add candidates. Use when the user pastes a list.' },
+      },
+      required: ['action'],
+    },
+    execute: manageApplicants as ToolFunction,
   },
   {
     name: 'create_viewing',
