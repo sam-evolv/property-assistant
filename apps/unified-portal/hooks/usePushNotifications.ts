@@ -56,6 +56,17 @@ async function tryCapacitorPush(unitUid: string, token: string): Promise<boolean
       return false;
     }
 
+    // Session 8 Bug 2 fix — see lib/capacitor-native.ts (requestMicrophonePermission).
+    // The bare-specifier `import('@capacitor/push-notifications')` below hits the
+    // WebView as an unresolved fetch when the plugin isn't installed in the iOS
+    // shell, which corrupts WKWebView's decide-policy state and causes subsequent
+    // in-app navigations to be handed off to Mobile Safari. Only run the import
+    // if the plugin is already pre-registered on Capacitor.Plugins. Do not remove.
+    const preregistered = Capacitor.Plugins?.PushNotifications;
+    if (!preregistered || typeof preregistered.requestPermissions !== 'function') {
+      return false;
+    }
+
     // @ts-ignore - @capacitor/push-notifications is an optional dependency, dynamically imported
     const { PushNotifications } = await import(/* webpackIgnore: true */ capacitorPush);
 
