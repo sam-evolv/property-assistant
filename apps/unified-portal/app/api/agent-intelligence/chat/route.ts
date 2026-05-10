@@ -26,6 +26,7 @@ import type { AgentContext } from '@/lib/agent-intelligence/types';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import { captureInferredAlias, suggestClosestScheme, normaliseSchemeName } from '@/lib/agent-intelligence/scheme-resolver';
 import { redactEnvelopeForUser, redactSummaryForUser } from '@/lib/agent-intelligence/redact-scaffolding';
+import { isActionMessage } from '@/lib/agent-intelligence/action-classifier';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -1060,6 +1061,18 @@ export async function POST(request: NextRequest) {
             return;
           }
           if (viewingDrafts.length > 0 || applicantDrafts.length > 0 || compositeDrafts.length > 0) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
+            );
+            controller.close();
+            return;
+          }
+          // Action messages (schedule, add, cancel, log...) should never
+          // generate "draft an email" / "log inquiry details" chips, even
+          // when the tool returned needs_clarification (no draft frame).
+          // The model's job is to ask the clarifying question; the user
+          // answers it. Chips here are noise.
+          if (isActionMessage(message)) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
             );
