@@ -7,6 +7,7 @@ import {
   formatViewingTime,
   DEFAULT_TZ,
 } from '../viewing-resolver';
+import { matchDevelopment } from '../property-matcher';
 
 /**
  * Composite scheduling tool, session 3.
@@ -64,6 +65,8 @@ export interface CompositeScheduleClarification {
     | 'property_required_for_new_applicant'
     | 'property_ambiguous'
     | 'property_not_found'
+    | 'property_not_in_assigned_schemes'
+    | 'no_property_specified'
     | 'date_unparseable'
     | 'missing_time'
     | 'no_viewings';
@@ -109,19 +112,6 @@ async function readPreferredCalendar(
 interface AssignedDevelopment {
   id: string;
   name: string;
-}
-
-function pickDevelopmentByHint(
-  developments: AssignedDevelopment[],
-  hint: string | undefined | null,
-): { match?: AssignedDevelopment; ambiguous?: AssignedDevelopment[] } {
-  if (!hint) return {};
-  const lower = hint.trim().toLowerCase();
-  if (!lower) return {};
-  const matches = developments.filter((d) => d.name.toLowerCase().includes(lower));
-  if (matches.length === 1) return { match: matches[0] };
-  if (matches.length > 1) return { ambiguous: matches };
-  return {};
 }
 
 function clampDuration(raw: number | undefined): number {
@@ -217,64 +207,9 @@ export async function scheduleViewings(
       const a = applicantRes.applicant!;
       applicant_ref = { existing_id: a.id };
       resolvedApplicantName = a.name;
-
-      const propertyRes = await resolvePropertyForApplicant(supabase, {
-        agentProfileId: agentContext.agentProfileId,
-        applicantId: a.id,
-        applicantEmail: a.email,
-        applicantName: a.name,
-        propertyHint: v.property_hint,
-      });
-
-      if (propertyRes.status === 'one') {
-        development_id = propertyRes.property!.development_id;
-        development_name = propertyRes.property!.name;
-      } else if (propertyRes.status === 'ambiguous') {
-        // Fall through to try property_hint against the agent's assigned schemes.
-        const hinted = pickDevelopmentByHint(assignedDevelopments, v.property_hint);
-        if (hinted.match) {
-          development_id = hinted.match.id;
-          development_name = hinted.match.name;
-        } else {
-          const candidates = propertyRes.candidates ?? [];
-          const summaryLine = candidates.map((c) => c.name).join(', ');
-          const message = `${a.name} has enquiries on more than one scheme: ${summaryLine}. Which one for the ${formatViewingTime(parsed.iso, tz)} viewing?`;
-          const result: CompositeScheduleResult = {
-            status: 'needs_clarification',
-            reason: 'property_ambiguous',
-            message,
-            candidates,
-          };
-          return { data: result, summary: message };
-        }
-      } else {
-        // No active enquiry for this applicant. Fall back to property_hint.
-        const hinted = pickDevelopmentByHint(assignedDevelopments, v.property_hint);
-        if (hinted.match) {
-          development_id = hinted.match.id;
-          development_name = hinted.match.name;
-        } else if (hinted.ambiguous && hinted.ambiguous.length > 0) {
-          const summaryLine = hinted.ambiguous.map((c) => c.name).join(', ');
-          const message = `"${v.property_hint}" matches more than one of your schemes: ${summaryLine}. Which one for ${a.name}?`;
-          const result: CompositeScheduleResult = {
-            status: 'needs_clarification',
-            reason: 'property_ambiguous',
-            message,
-            candidates: hinted.ambiguous.map((c) => ({ development_id: c.id, name: c.name })),
-          };
-          return { data: result, summary: message };
-        } else {
-          const message = `${a.name} has no active enquiry I can pin a property to. Which development for the ${formatViewingTime(parsed.iso, tz)} viewing?`;
-          const result: CompositeScheduleResult = {
-            status: 'needs_clarification',
-            reason: 'property_not_found',
-            message,
-          };
-          return { data: result, summary: message };
-        }
-      }
     } else {
-      // New applicant. Property MUST come from property_hint.
+      // New applicant. Dedup by lowercased name so multiple viewings for
+      // the same new person share one applicants_to_create entry.
       const lowerKey = applicantName.toLowerCase();
       const existingIdx = applicantsByLowerName.get(lowerKey);
       if (existingIdx === undefined) {
@@ -291,30 +226,80 @@ export async function scheduleViewings(
       } else {
         applicant_ref = { new_index: existingIdx };
       }
+    }
 
-      const hinted = pickDevelopmentByHint(assignedDevelopments, v.property_hint);
-      if (hinted.match) {
-        development_id = hinted.match.id;
-        development_name = hinted.match.name;
-      } else if (hinted.ambiguous && hinted.ambiguous.length > 0) {
-        const summaryLine = hinted.ambiguous.map((c) => c.name).join(', ');
-        const message = `"${v.property_hint}" matches more than one of your schemes: ${summaryLine}. Which one for ${applicantName}?`;
+    // Property resolution. property_hint takes priority over enquiries:
+    // when the user named a development, trust them, even if the applicant
+    // also has enquiries on a different scheme.
+    const hint = (v.property_hint || '').trim();
+    if (hint) {
+      const hintMatch = matchDevelopment(hint, assignedDevelopments);
+      if (hintMatch.type === 'unique') {
+        development_id = hintMatch.development.id;
+        development_name = hintMatch.development.name;
+      } else if (hintMatch.type === 'ambiguous') {
+        const summaryLine = hintMatch.candidates.map((c) => c.name).join(', ');
+        const message = `"${hint}" matches more than one of your schemes: ${summaryLine}. Which one for ${resolvedApplicantName}?`;
         const result: CompositeScheduleResult = {
           status: 'needs_clarification',
           reason: 'property_ambiguous',
           message,
-          candidates: hinted.ambiguous.map((c) => ({ development_id: c.id, name: c.name })),
+          candidates: hintMatch.candidates.map((c) => ({ development_id: c.id, name: c.name })),
         };
         return { data: result, summary: message };
       } else {
-        const message = `${applicantName} isn't on your applicants yet. Which development is the ${formatViewingTime(parsed.iso, tz)} viewing at?`;
+        const message = `"${hint}" isn't in your assigned developments. Which one did you mean?`;
         const result: CompositeScheduleResult = {
           status: 'needs_clarification',
-          reason: 'property_required_for_new_applicant',
+          reason: 'property_not_in_assigned_schemes',
           message,
+          candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
         };
         return { data: result, summary: message };
       }
+    } else if (applicantRes.status === 'one') {
+      const a = applicantRes.applicant!;
+      const propertyRes = await resolvePropertyForApplicant(supabase, {
+        agentProfileId: agentContext.agentProfileId,
+        applicantId: a.id,
+        applicantEmail: a.email,
+        applicantName: a.name,
+      });
+
+      if (propertyRes.status === 'one') {
+        development_id = propertyRes.property!.development_id;
+        development_name = propertyRes.property!.name;
+      } else if (propertyRes.status === 'ambiguous') {
+        const candidates = propertyRes.candidates ?? [];
+        const summaryLine = candidates.map((c) => c.name).join(', ');
+        const message = `${a.name} has enquiries on more than one scheme: ${summaryLine}. Which one for the ${formatViewingTime(parsed.iso, tz)} viewing?`;
+        const result: CompositeScheduleResult = {
+          status: 'needs_clarification',
+          reason: 'property_ambiguous',
+          message,
+          candidates,
+        };
+        return { data: result, summary: message };
+      } else {
+        const message = 'Which development is this viewing for?';
+        const result: CompositeScheduleResult = {
+          status: 'needs_clarification',
+          reason: 'no_property_specified',
+          message,
+          candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
+        };
+        return { data: result, summary: message };
+      }
+    } else {
+      // New applicant + no hint: ask which scheme.
+      const message = 'Which development is this viewing for?';
+      const result: CompositeScheduleResult = {
+        status: 'needs_clarification',
+        reason: 'no_property_specified',
+        message,
+        candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
+      };
+      return { data: result, summary: message };
     }
 
     if (!development_id || !development_name) {
