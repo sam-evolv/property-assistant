@@ -301,6 +301,13 @@ export async function POST(request: NextRequest) {
     let rounds = 0;
     const MAX_TOOL_ROUNDS = 3;
     const envelopes: AgenticSkillEnvelope[] = [];
+    // create_viewing returns either { status: 'draft', draft } or
+    // { status: 'needs_clarification', ... }. The draft payload is surfaced
+    // to the chat surface as a `viewing_draft` SSE frame so the assistant
+    // message can render a persistent ViewingCard. Most of the time only
+    // one viewing draft fires per turn; on the off chance two come back we
+    // emit both.
+    const viewingDrafts: Array<Record<string, unknown>> = [];
 
     // Task 2 — track whether any skill threw inside the tool loop. The
     // legacy catch path JSON-stringified the raw exception into the
@@ -364,6 +371,17 @@ export async function POST(request: NextRequest) {
             // `envelope` SSE frame once the tool-calling rounds finish.
             const envelope = extractEnvelope(result);
             if (envelope) envelopes.push(envelope);
+            // create_viewing draft surfacing — picked up by the
+            // ViewingCard renderer in the assistant message stream.
+            if (
+              toolCall.function.name === 'create_viewing' &&
+              result?.data &&
+              typeof result.data === 'object' &&
+              (result.data as any).status === 'draft' &&
+              (result.data as any).draft
+            ) {
+              viewingDrafts.push((result.data as any).draft as Record<string, unknown>);
+            }
           } catch (err: unknown) {
             // Task 2 — sanitised tool-failure path.
             //
@@ -679,6 +697,16 @@ export async function POST(request: NextRequest) {
             const userVisibleEnvelope = redactEnvelopeForUser(combinedEnvelope);
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'envelope', envelope: userVisibleEnvelope }) + '\n')
+            );
+          }
+
+          // Emit one viewing_draft frame per draft the create_viewing tool
+          // returned this turn. The IntelligencePage stashes them on the
+          // assistant message and renders a persistent ViewingCard the
+          // agent confirms / edits / cancels.
+          for (const draft of viewingDrafts) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'viewing_draft', draft }) + '\n'),
             );
           }
 
