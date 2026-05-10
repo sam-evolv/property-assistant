@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, PauseCircle, Sparkles } from 'lucide-react';
+import { ArrowLeft, PauseCircle, Sparkles, Calendar as CalendarIcon } from 'lucide-react';
 import AgentShell from '../../_components/AgentShell';
 import { useAgent } from '@/lib/agent/AgentContext';
 import { draftTypeLabel } from '@/lib/agent-intelligence/drafts';
@@ -55,6 +55,23 @@ export default function AutonomySettingsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ applicant_write_mode: next ? 'propose_undoable' : 'always_confirm' }),
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (body?.settings) setAgentSettings(body.settings as AgentSettings);
+      }
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  const setPreferredCalendar = async (next: string | null) => {
+    setSaving('_preferred_calendar');
+    try {
+      const res = await fetch('/api/agent-intelligence/agent-settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ preferred_calendar_provider: next }),
       });
       if (res.ok) {
         const body = await res.json();
@@ -194,6 +211,11 @@ export default function AutonomySettingsPage() {
               enabled={agentSettings?.applicant_write_mode === 'propose_undoable'}
               saving={saving === '_applicant_write_mode'}
               onChange={toggleApplicantUndoMode}
+            />
+            <PreferredCalendarRow
+              value={agentSettings?.preferred_calendar_provider ?? null}
+              saving={saving === '_preferred_calendar'}
+              onChange={setPreferredCalendar}
             />
           </div>
 
@@ -461,6 +483,84 @@ function ApplicantUndoRow({
         onChange={onChange}
         testId="applicant-undo-toggle"
       />
+    </div>
+  );
+}
+
+function PreferredCalendarRow({
+  value,
+  saving,
+  onChange,
+}: {
+  value: string | null;
+  saving: boolean;
+  onChange: (next: string | null) => void;
+}) {
+  const options: Array<{ value: string; label: string; needsConnect?: boolean }> = [
+    { value: '__ask', label: 'Always ask' },
+    { value: 'device', label: 'iPhone' },
+    { value: 'google', label: 'Google Calendar', needsConnect: true },
+    { value: 'outlook', label: 'Outlook', needsConnect: true },
+    { value: 'apple', label: 'Apple Calendar' },
+  ];
+  const current = value ?? '__ask';
+  const selected = options.find((o) => o.value === current);
+  return (
+    <div
+      data-testid="preferred-calendar-row"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        padding: '14px 16px',
+        borderRadius: 14,
+        background: '#FFFFFF',
+        border: '0.5px solid rgba(0,0,0,0.06)',
+      }}
+    >
+      <div
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 17,
+          background: 'rgba(212, 175, 55, 0.10)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#B8960C',
+          flexShrink: 0,
+        }}
+      >
+        <CalendarIcon size={18} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#0D0D12' }}>Preferred calendar</div>
+        <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
+          Where new viewings get added by default. {selected?.needsConnect ? 'Connect via OAuth before syncing actually starts.' : 'Change anytime.'}
+        </div>
+      </div>
+      <select
+        data-testid="preferred-calendar-select"
+        value={current}
+        disabled={saving}
+        onChange={(e) => onChange(e.target.value === '__ask' ? null : e.target.value)}
+        style={{
+          padding: '8px 12px',
+          fontSize: 13,
+          fontWeight: 500,
+          color: '#0D0D12',
+          border: '0.5px solid rgba(0,0,0,0.16)',
+          borderRadius: 999,
+          background: '#FFFFFF',
+          fontFamily: 'inherit',
+          cursor: saving ? 'progress' : 'pointer',
+          minWidth: 140,
+        }}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>{opt.label}{opt.needsConnect ? ' (Connect)' : ''}</option>
+        ))}
+      </select>
     </div>
   );
 }

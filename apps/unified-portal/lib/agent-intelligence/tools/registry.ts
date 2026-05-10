@@ -18,6 +18,7 @@ import {
 } from './write-tools';
 import { createViewing } from './viewing-tools';
 import { manageApplicants } from './applicant-tools';
+import { scheduleViewings } from './composite-tools';
 // schedule_viewing is intentionally NOT imported here: its immediate-write
 // behaviour has been replaced by schedule_viewing_draft. The underlying
 // scheduleViewing function remains exported from './write-tools' for any
@@ -514,6 +515,46 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['action'],
     },
     execute: manageApplicants as ToolFunction,
+  },
+  {
+    name: 'schedule_viewings',
+    description: [
+      'Composite scheduling tool. Use when the agent wants to schedule MORE THAN ONE viewing in one go, OR a single viewing for an applicant who is NOT yet on the books. The card surfaces one Confirm; the writes land atomically (applicants, audit log rows, and viewings together) so a property typo does not leave half the work done.',
+      'For a single viewing for an existing applicant, use create_viewing instead. This composite tool is overkill for that.',
+      'Inputs:',
+      '- viewings: array of { applicant_name, scheduled_at_natural, property_hint?, duration_minutes?, notes? }, one entry per viewing.',
+      '- calendar_preference (optional): pass when the user explicitly asked ("add it to my iPhone calendar"). Otherwise omit.',
+      'NEVER invent email or phone for new applicants. Pass full_name only. The card lets the agent fill in details inline if they want.',
+      'New applicants need a property_hint that maps to one of the agent\'s assigned schemes; otherwise the tool returns needs_clarification. One question maximum.',
+      'Returns either { status: "draft", type: "composite_schedule", applicants_to_create, viewings_to_create, calendar, message } for the chat card to render, or { status: "needs_clarification", reason, message }. Do NOT echo the per-row details in your reply, the card is the canonical surface.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        viewings: {
+          type: 'array',
+          description: 'One entry per viewing. The same applicant_name appearing twice is fine, the tool dedupes for new-applicant creation.',
+          items: {
+            type: 'object',
+            properties: {
+              applicant_name: { type: 'string', description: 'Name of the person the viewing is for, exactly as the user said it.' },
+              scheduled_at_natural: { type: 'string', description: 'Natural-language time, e.g. "Thursday 6pm". Parsed against Europe/Dublin.' },
+              property_hint: { type: 'string', description: 'Development name. Required for new applicants since they have no enquiries yet.' },
+              duration_minutes: { type: 'number', description: 'Defaults to 30. Clamped to 5-240.' },
+              notes: { type: 'string', description: 'Optional note to record on the viewing.' },
+            },
+            required: ['applicant_name', 'scheduled_at_natural'],
+          },
+        },
+        calendar_preference: {
+          type: 'string',
+          enum: ['device', 'google', 'outlook', 'apple', 'skip'],
+          description: 'Pass when the user explicitly stated a calendar preference for these viewings.',
+        },
+      },
+      required: ['viewings'],
+    },
+    execute: scheduleViewings as ToolFunction,
   },
   {
     name: 'create_viewing',
