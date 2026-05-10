@@ -76,7 +76,7 @@ export async function createViewing(
   if (applicantRes.status === 'ambiguous') {
     const candidates = applicantRes.candidates ?? [];
     const summaryLine = candidates
-      .map((c) => `${c.name}${c.latest_enquiry_property ? ` — ${c.latest_enquiry_property}` : ''}`)
+      .map((c) => `${c.name}${c.latest_enquiry_property ? ` (${c.latest_enquiry_property})` : ''}`)
       .join('; ');
     const message = `A few applicants match "${params.applicant_name}": ${summaryLine}. Which one?`;
     const result: CreateViewingResult = {

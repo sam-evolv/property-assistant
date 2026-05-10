@@ -308,6 +308,11 @@ export async function POST(request: NextRequest) {
     // one viewing draft fires per turn; on the off chance two come back we
     // emit both.
     const viewingDrafts: Array<Record<string, unknown>> = [];
+    // manage_applicants returns one of three draft shapes (add / update /
+    // remove) or a needs_clarification. The full draft envelope is shipped
+    // as an `applicant_draft` SSE frame; the assistant message renders an
+    // ApplicantCard from it.
+    const applicantDrafts: Array<Record<string, unknown>> = [];
 
     // Task 2 — track whether any skill threw inside the tool loop. The
     // legacy catch path JSON-stringified the raw exception into the
@@ -381,6 +386,14 @@ export async function POST(request: NextRequest) {
               (result.data as any).draft
             ) {
               viewingDrafts.push((result.data as any).draft as Record<string, unknown>);
+            }
+            if (
+              toolCall.function.name === 'manage_applicants' &&
+              result?.data &&
+              typeof result.data === 'object' &&
+              (result.data as any).status === 'draft'
+            ) {
+              applicantDrafts.push(result.data as Record<string, unknown>);
             }
           } catch (err: unknown) {
             // Task 2 — sanitised tool-failure path.
@@ -709,6 +722,15 @@ export async function POST(request: NextRequest) {
               encoder.encode(JSON.stringify({ type: 'viewing_draft', draft }) + '\n'),
             );
           }
+          // Emit one applicant_draft frame per envelope the manage_applicants
+          // tool returned. The chat surface renders an ApplicantCard from
+          // each. Multiple drafts in one turn happen when the agent issued
+          // distinct add/update/remove calls.
+          for (const envelope of applicantDrafts) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'applicant_draft', envelope }) + '\n'),
+            );
+          }
 
           // Session 14 — yes/no disambiguation short-circuit. When a skill
           // surfaced a single-candidate scheme typo this turn, bypass the
@@ -999,7 +1021,18 @@ export async function POST(request: NextRequest) {
           // Generate follow-up suggestions (non-blocking, appended after main response)
           // Skip when we fired the Session 14 yes/no short-circuit — the
           // user's next move is literally "yes" or "no", not an action chip.
+          // Also skip when this turn surfaced a viewing or applicant draft
+          // card. Those cards already carry the next action (Confirm /
+          // Edit / Cancel); a duplicate "Confirm Jack Murphy's application"
+          // chip rendering alongside is the second-UI bug from session 3.
           if (topCandidateForPrompt) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
+            );
+            controller.close();
+            return;
+          }
+          if (viewingDrafts.length > 0 || applicantDrafts.length > 0) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
             );
