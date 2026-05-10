@@ -19,6 +19,7 @@ import { notifyDraftsChanged, useDraftsCount } from '../_hooks/useDraftsCount';
 import { ApprovalDrawerProvider, useApprovalDrawer } from '@/lib/agent-intelligence/drawer-store';
 import { isAgenticSkillEnvelope, type AgenticSkillEnvelope } from '@/lib/agent-intelligence/envelope';
 import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
+import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intelligence/ViewingCard';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
 // INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
@@ -84,6 +85,11 @@ interface Message {
   // frame; renders as a red-bordered card with AlertCircle, the failure
   // copy, an "error ref: <id>" footer, and a Retry button.
   failure?: FailurePayload;
+  // create_viewing draft surfacing. The chat route emits one
+  // `viewing_draft` SSE frame per draft; we stash them on the
+  // assistant message so the card renders inline and persists in
+  // history. The card mutates in place to a receipt on confirm.
+  viewingDrafts?: ViewingDraftPayload[];
 }
 
 interface UndoBatch {
@@ -136,7 +142,7 @@ export default function IntelligencePage() {
 }
 
 function IntelligencePageInner() {
-  const { agent, alerts, developmentIds, activeWorkspace } = useAgent();
+  const { agent, alerts, developmentIds, developments, activeWorkspace } = useAgent();
   const { openApprovalDrawer } = useApprovalDrawer();
   const { count: pendingDraftsCount, ready: draftsReady } = useDraftsCount();
   const searchParams = useSearchParams();
@@ -354,6 +360,24 @@ function IntelligencePageInner() {
                   }];
                 });
               }
+            } else if (data.type === 'viewing_draft' && data.draft) {
+              const draft = data.draft as ViewingDraftPayload;
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m =>
+                    m.id === streamingMsgId
+                      ? { ...m, viewingDrafts: [...(m.viewingDrafts ?? []), draft] }
+                      : m,
+                  );
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  viewingDrafts: [draft],
+                }];
+              });
             } else if (data.type === 'override') {
               // Server detected the model hallucinated drafts. Replace
               // whatever tokens have streamed so far with the honest
@@ -1063,15 +1087,25 @@ function IntelligencePageInner() {
                 );
               }
               return (
-                <AIResponseCard
-                  key={msg.id}
-                  text={msg.content}
-                  emails={msg.emails}
-                  followups={msg.followups}
-                  onFollowup={handleSend}
-                  envelope={msg.envelope}
-                  onReopen={(env) => openApprovalDrawer(env)}
-                />
+                <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {(msg.content || msg.emails || msg.followups || msg.envelope) && (
+                    <AIResponseCard
+                      text={msg.content}
+                      emails={msg.emails}
+                      followups={msg.followups}
+                      onFollowup={handleSend}
+                      envelope={msg.envelope}
+                      onReopen={(env) => openApprovalDrawer(env)}
+                    />
+                  )}
+                  {msg.viewingDrafts && msg.viewingDrafts.map((draft, idx) => (
+                    <ViewingCard
+                      key={`${msg.id}-viewing-${idx}`}
+                      draft={draft}
+                      developments={developments?.map((d) => ({ id: d.id, name: d.name }))}
+                    />
+                  ))}
+                </div>
               );
             })}
             {isTyping && <TypingIndicator />}

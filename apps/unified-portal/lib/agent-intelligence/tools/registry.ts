@@ -16,6 +16,7 @@ import {
   logCommunication,
   generateDeveloperReport,
 } from './write-tools';
+import { createViewing } from './viewing-tools';
 // schedule_viewing is intentionally NOT imported here: its immediate-write
 // behaviour has been replaced by schedule_viewing_draft. The underlying
 // scheduleViewing function remains exported from './write-tools' for any
@@ -460,6 +461,30 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
     execute: ((supabase, _tenantId, agentContext, params) =>
       runAgenticSkill(naturalQuery, supabase, agentContext, params as any)) as ToolFunction,
+  },
+  {
+    name: 'create_viewing',
+    description: [
+      'Schedule a new property viewing for a known applicant. Voice-first entry point — the agent says "schedule a viewing with Jack Murphy Tuesday 6pm" and this resolves the applicant, the property and the time, then returns a draft for the agent to confirm.',
+      'NEVER writes on its own — always returns either a draft for confirmation or a needs_clarification with one targeted question.',
+      'Resolution rules:',
+      '- Applicant: ilike match on agent_applicants.full_name within the agent\'s tenant. Zero matches → needs_clarification (applicant_not_found). Multiple matches → needs_clarification (applicant_ambiguous) with the candidate list.',
+      '- Property: pulled from the applicant\'s active enquiries. Single match → use it. Multiple → use property_hint (ilike on development name) when supplied; otherwise needs_clarification (property_ambiguous).',
+      '- Date / time: parsed against Europe/Dublin. Bare weekday means the next occurrence; if today is that weekday, defaults to next week unless the time is still ahead today.',
+      'When fully resolved, returns { status: "draft", draft, message: "Confirm to create this viewing" }. The chat surface renders a viewing card from the draft — DO NOT echo the draft fields in your reply, the card is the canonical surface.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        applicant_name: { type: 'string', description: 'Full or partial applicant name as the agent said it. Resolved server-side via ilike on agent_applicants.full_name.' },
+        property_hint: { type: 'string', description: 'Optional development-name hint when the applicant has enquiries on more than one scheme.' },
+        scheduled_at_natural: { type: 'string', description: 'Natural-language date and time, e.g. "Tuesday 6pm", "tomorrow at 11", "next Monday 3pm". Parsed against Europe/Dublin.' },
+        duration_minutes: { type: 'number', description: 'Viewing length in minutes. Defaults to 30. Clamped to 5-240.' },
+        notes: { type: 'string', description: 'Optional notes captured from the agent\'s instruction (parking, joint viewing, anything specific).' },
+      },
+      required: ['applicant_name', 'scheduled_at_natural'],
+    },
+    execute: createViewing as ToolFunction,
   },
   {
     name: 'schedule_viewing_draft',

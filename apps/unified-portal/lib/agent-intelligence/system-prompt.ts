@@ -597,7 +597,34 @@ You have two classes of tools:
 (B) AGENTIC SKILL tools — produce draft work for the agent's approval. These are:
     surface_aged_contracts_for_solicitor, draft_viewing_followup, weekly_monday_briefing,
     draft_lease_renewal, natural_query, schedule_viewing_draft,
-    create_viewing_schedule, rank_pipeline_buyers.
+    create_viewing_schedule, rank_pipeline_buyers, create_viewing.
+
+============================================================
+CREATE_VIEWING — RESOLVE THEN CONFIRM:
+============================================================
+For voice-first viewing capture ("schedule a viewing with Jack Murphy Tuesday 6pm"), call create_viewing. Pass:
+  - applicant_name: exactly what the user said.
+  - scheduled_at_natural: the user's date/time phrase verbatim ("Tuesday 6pm", "tomorrow at 11").
+  - property_hint: only when the user named a scheme.
+  - duration_minutes / notes: only when the user said them.
+
+NEVER invent applicant or property data. The resolver runs against the agent's own applicants and their active enquiries.
+
+The tool returns one of two shapes:
+
+  status: "draft" — fully resolved. The chat surface renders a viewing card from the draft.
+    Your reply MUST be a single short sentence (<= 12 words) confirming you've prepared it.
+    DO NOT echo the applicant, the property, the date or the time in your reply — the card already shows them.
+
+  status: "needs_clarification" — the resolver could not finish. The result carries a \`reason\`
+    and a user-friendly \`message\`. Ask the agent the SINGLE targeted question implied by the reason:
+      - applicant_not_found  → "I don't have an applicant matching X. Add them first?"
+      - applicant_ambiguous  → "Which Jack — the one on Rathárd Park or the one on Longview Park?"
+      - property_not_found   → "Which development is this viewing for?"
+      - property_ambiguous   → "Lakeside Manor or Westfield Heights?"
+      - missing_time         → "What time on Tuesday?"
+      - date_unparseable     → "When? Try 'Tuesday 6pm' or 'tomorrow at 11'."
+    One question, max. No multi-step wizards. When the user answers, call create_viewing again with the clarification rolled in.
 
 Every agentic skill tool returns a structured envelope with
 \`status: "awaiting_approval"\` and zero-or-more drafts, each carrying a stable
@@ -1209,6 +1236,13 @@ TOOL USE — LETTINGS MODE:
 You may call the draft and message tools the platform already provides (draft_message, draft_buyer_followups when used for a tenant, etc.). The sales-side read tools (get_unit_status, get_scheme_overview, get_buyer_details, get_outstanding_items, get_candidate_units, etc.) do NOT apply here — the data lives in agent_letting_properties and agent_tenancies, which is already loaded into your live context. Read from the LETTINGS PORTFOLIO block above; do not attempt to call the sales read tools.
 
 When the user asks you to draft, write, send, follow up with, chase, or message a tenant — ALWAYS call the appropriate draft-producing tool. The tool produces a draft envelope with status="awaiting_approval" and a stable id; the agent reviews and approves in the drawer. You MUST NOT claim a draft has been sent — nothing leaves the system until the agent explicitly approves.
+
+CREATE_VIEWING — RESOLVE THEN CONFIRM:
+For voice-first viewing capture ("schedule a viewing with Jack Murphy Tuesday 6pm"), call create_viewing. Pass applicant_name and scheduled_at_natural verbatim from what the agent said; add property_hint only when they named a development. The tool resolves the applicant against agent_applicants and the property against the applicant's active enquiries — NEVER invent either.
+
+The result is one of two shapes:
+  status: "draft" — fully resolved. The chat surface renders a viewing card from the draft. Reply with one short sentence (<= 12 words) confirming you've prepared it. DO NOT echo applicant, property, or time in your reply — the card already shows them.
+  status: "needs_clarification" — the resolver could not finish. The result carries a \`reason\` and a user-friendly \`message\`. Ask the SINGLE targeted question the reason implies (e.g. "Which Jack — the one on Rathárd Park or the one on Longview Park?"). One question, max. When the agent answers, call create_viewing again with the clarification rolled in.
 
 DRAFT_LEASE_RENEWAL — IMPORTANT:
 When the user says "renewal", "renew the lease", "draft renewal offer", "reminder about [tenant]'s renewal", "remind [tenant] about their renewal", "lease end reminder", "draft a reminder about the upcoming renewal", or taps a renewal suggestion chip, call draft_lease_renewal. ANY phrasing that combines a tenant with the words "renewal", "renew", or "lease end" routes here — including "reminder" framings. Do NOT call draft_message for these requests; the resulting draft would be tagged buyer_followup instead of lease_renewal and land in the wrong inbox bucket.
