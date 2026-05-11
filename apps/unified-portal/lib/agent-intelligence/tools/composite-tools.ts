@@ -152,6 +152,30 @@ export async function scheduleViewings(
   for (let i = 0; i < requested.length; i++) {
     const v = requested[i];
     const applicantName = (v.applicant_name || '').trim();
+
+    // ---- Phase 1: parse every input independently. No early returns
+    // until we have a full picture of what's missing. The previous
+    // implementation short-circuited on the first failure, which meant
+    // "schedule a viewing for QA New One at 4pm Thursday in Lakeside
+    // Manor" could ask "Which development?" even though the user named
+    // a development, because the applicant lookup ran first and the
+    // property-hint branch never got consulted.
+    const parsedDate = applicantName
+      ? parseScheduledAtNatural(v.scheduled_at_natural ?? '', { tz })
+      : { ok: false as const, reason: 'empty_input' };
+
+    const applicantRes = applicantName
+      ? await findApplicantByName(supabase, agentContext.agentProfileId, applicantName)
+      : { status: 'none' as const };
+
+    const hint = (v.property_hint || '').trim();
+    const hintMatch = hint ? matchDevelopment(hint, assignedDevelopments) : null;
+
+    // ---- Phase 2: classify what's missing in priority order. Inputs the
+    // user did NOT give are softer failures than inputs the user gave
+    // wrongly. We bias the clarification toward whatever the user gave
+    // so we don't lose information they already typed.
+
     if (!applicantName) {
       const message = `Viewing #${i + 1} has no applicant name. Tell me who the viewing is for.`;
       const result: CompositeScheduleResult = {
@@ -161,27 +185,6 @@ export async function scheduleViewings(
       };
       return { data: result, summary: message };
     }
-
-    const parsed = parseScheduledAtNatural(v.scheduled_at_natural ?? '', { tz });
-    if (!parsed.ok) {
-      const reason = parsed.reason === 'missing_time' ? 'missing_time' : 'date_unparseable';
-      const message =
-        reason === 'missing_time'
-          ? `What time on ${v.scheduled_at_natural || 'that day'} for ${applicantName}?`
-          : `I couldn't read "${v.scheduled_at_natural}" as a date for ${applicantName}. Try "Thursday 6pm" or "tomorrow at 11".`;
-      const result: CompositeScheduleResult = {
-        status: 'needs_clarification',
-        reason,
-        message,
-      };
-      return { data: result, summary: message };
-    }
-
-    const applicantRes = await findApplicantByName(
-      supabase,
-      agentContext.agentProfileId,
-      applicantName,
-    );
 
     if (applicantRes.status === 'ambiguous') {
       const candidates = applicantRes.candidates ?? [];
@@ -198,18 +201,30 @@ export async function scheduleViewings(
       return { data: result, summary: message };
     }
 
+    if (!parsedDate.ok) {
+      const reason = parsedDate.reason === 'missing_time' ? 'missing_time' : 'date_unparseable';
+      const message =
+        reason === 'missing_time'
+          ? `What time on ${v.scheduled_at_natural || 'that day'} for ${applicantName}?`
+          : `I couldn't read "${v.scheduled_at_natural}" as a date for ${applicantName}. Try "Thursday 6pm" or "tomorrow at 11".`;
+      const result: CompositeScheduleResult = {
+        status: 'needs_clarification',
+        reason,
+        message,
+      };
+      return { data: result, summary: message };
+    }
+
+    const parsed = parsedDate;
+
+    // ---- Phase 3: applicant slot.
     let applicant_ref: ApplicantRef;
     let resolvedApplicantName = applicantName;
-    let development_id: string | null = null;
-    let development_name: string | null = null;
-
-    if (applicantRes.status === 'one') {
-      const a = applicantRes.applicant!;
+    if (applicantRes.status === 'one' && applicantRes.applicant) {
+      const a = applicantRes.applicant;
       applicant_ref = { existing_id: a.id };
       resolvedApplicantName = a.name;
     } else {
-      // New applicant. Dedup by lowercased name so multiple viewings for
-      // the same new person share one applicants_to_create entry.
       const lowerKey = applicantName.toLowerCase();
       const existingIdx = applicantsByLowerName.get(lowerKey);
       if (existingIdx === undefined) {
@@ -228,47 +243,45 @@ export async function scheduleViewings(
       }
     }
 
-    // Property resolution. property_hint takes priority over enquiries:
-    // when the user named a development, trust them, even if the applicant
-    // also has enquiries on a different scheme.
-    const hint = (v.property_hint || '').trim();
-    if (hint) {
-      const hintMatch = matchDevelopment(hint, assignedDevelopments);
-      if (hintMatch.type === 'unique') {
-        development_id = hintMatch.development.id;
-        development_name = hintMatch.development.name;
-      } else if (hintMatch.type === 'ambiguous') {
-        const summaryLine = hintMatch.candidates.map((c) => c.name).join(', ');
-        const message = `"${hint}" matches more than one of your schemes: ${summaryLine}. Which one for ${resolvedApplicantName}?`;
-        const result: CompositeScheduleResult = {
-          status: 'needs_clarification',
-          reason: 'property_ambiguous',
-          message,
-          candidates: hintMatch.candidates.map((c) => ({ development_id: c.id, name: c.name })),
-        };
-        return { data: result, summary: message };
-      } else {
-        const message = `"${hint}" isn't in your assigned developments. Which one did you mean?`;
-        const result: CompositeScheduleResult = {
-          status: 'needs_clarification',
-          reason: 'property_not_in_assigned_schemes',
-          message,
-          candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
-        };
-        return { data: result, summary: message };
-      }
-    } else if (applicantRes.status === 'one') {
-      const a = applicantRes.applicant!;
+    // ---- Phase 4: property slot. Priority: explicit hint > applicant
+    // enquiries > ask. The hint always wins when it resolves uniquely,
+    // even if the applicant has enquiries on a different scheme.
+    let development_id: string | null = null;
+    let development_name: string | null = null;
+
+    if (hintMatch && hintMatch.type === 'unique') {
+      development_id = hintMatch.development.id;
+      development_name = hintMatch.development.name;
+    } else if (hintMatch && hintMatch.type === 'ambiguous') {
+      const summaryLine = hintMatch.candidates.map((c) => c.name).join(', ');
+      const message = `"${hint}" matches more than one of your schemes: ${summaryLine}. Which one for ${resolvedApplicantName}?`;
+      const result: CompositeScheduleResult = {
+        status: 'needs_clarification',
+        reason: 'property_ambiguous',
+        message,
+        candidates: hintMatch.candidates.map((c) => ({ development_id: c.id, name: c.name })),
+      };
+      return { data: result, summary: message };
+    } else if (hintMatch && hintMatch.type === 'no_match') {
+      const message = `"${hint}" isn't in your assigned developments. Which one did you mean?`;
+      const result: CompositeScheduleResult = {
+        status: 'needs_clarification',
+        reason: 'property_not_in_assigned_schemes',
+        message,
+        candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
+      };
+      return { data: result, summary: message };
+    } else if (applicantRes.status === 'one' && applicantRes.applicant) {
+      const a = applicantRes.applicant;
       const propertyRes = await resolvePropertyForApplicant(supabase, {
         agentProfileId: agentContext.agentProfileId,
         applicantId: a.id,
         applicantEmail: a.email,
         applicantName: a.name,
       });
-
-      if (propertyRes.status === 'one') {
-        development_id = propertyRes.property!.development_id;
-        development_name = propertyRes.property!.name;
+      if (propertyRes.status === 'one' && propertyRes.property) {
+        development_id = propertyRes.property.development_id;
+        development_name = propertyRes.property.name;
       } else if (propertyRes.status === 'ambiguous') {
         const candidates = propertyRes.candidates ?? [];
         const summaryLine = candidates.map((c) => c.name).join(', ');
@@ -291,7 +304,7 @@ export async function scheduleViewings(
         return { data: result, summary: message };
       }
     } else {
-      // New applicant + no hint: ask which scheme.
+      // New applicant + no hint at all.
       const message = 'Which development is this viewing for?';
       const result: CompositeScheduleResult = {
         status: 'needs_clarification',

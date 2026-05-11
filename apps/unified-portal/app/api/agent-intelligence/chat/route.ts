@@ -33,6 +33,22 @@ export const dynamic = 'force-dynamic';
 
 // Map a tool name to a human-readable label for the streaming progress
 // indicator. New tools fall back to a generic "Looking up details" label.
+// Stable signature for viewing mutation drafts. Used to dedupe SSE frames
+// when multi-round tool calling produces the same envelope more than once
+// in a single chat turn.
+function mutationEnvelopeSignature(env: Record<string, unknown>): string {
+  const type = (env.type as string) || '';
+  const id = (env.viewing_id as string) || '';
+  if (type === 'viewing_update') {
+    const next = (env.next as Record<string, unknown>) || {};
+    return `${type}|${id}|${JSON.stringify(next)}`;
+  }
+  if (type === 'viewing_mark_status') {
+    return `${type}|${id}|${(env.new_status as string) || ''}`;
+  }
+  return `${type}|${id}`;
+}
+
 function labelForTool(toolName: string): string {
   switch (toolName) {
     case 'draft_message': return 'Drafting message';
@@ -319,6 +335,11 @@ export async function POST(request: NextRequest) {
     // exist this turn, the per-tool applicant_draft / viewing_draft frames
     // are suppressed so only the composite "one mental object" surfaces.
     const compositeDrafts: Array<Record<string, unknown>> = [];
+    // update_viewing / cancel_viewing / mark_viewing_status all return a
+    // single mutation envelope per call. The chat surface renders one
+    // ViewingMutationCard. Mutually exclusive with the four other card
+    // types per turn (composite, applicant, viewing, mutation).
+    const viewingMutationDrafts: Array<Record<string, unknown>> = [];
 
     // Task 2 — track whether any skill threw inside the tool loop. The
     // legacy catch path JSON-stringified the raw exception into the
@@ -409,6 +430,18 @@ export async function POST(request: NextRequest) {
               (result.data as any).type === 'composite_schedule'
             ) {
               compositeDrafts.push(result.data as Record<string, unknown>);
+            }
+            if (
+              (toolCall.function.name === 'update_viewing' ||
+                toolCall.function.name === 'cancel_viewing' ||
+                toolCall.function.name === 'mark_viewing_status') &&
+              result?.data &&
+              typeof result.data === 'object' &&
+              (result.data as any).status === 'draft' &&
+              typeof (result.data as any).type === 'string' &&
+              ((result.data as any).type as string).startsWith('viewing_')
+            ) {
+              viewingMutationDrafts.push(result.data as Record<string, unknown>);
             }
           } catch (err: unknown) {
             // Task 2 — sanitised tool-failure path.
@@ -728,18 +761,34 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Composite schedule drafts win over the per-tool surfaces. When
-          // schedule_viewings ran this turn, its envelope already carries
-          // the applicants AND viewings AND calendar choice in one mental
-          // object; rendering separate ApplicantCard / ViewingCard cards
-          // alongside would duplicate the surface and confuse the agent.
-          const hasComposite = compositeDrafts.length > 0;
-          for (const envelope of compositeDrafts) {
+          // The five draft surfaces are mutually exclusive per turn. Order
+          // of precedence: viewing_mutation_draft > composite_draft >
+          // (viewing_draft | applicant_draft). The mutation card is the
+          // most specific (a single existing viewing being changed); when
+          // it fires, no other card surfaces this turn.
+          const seenMutationSigs = new Set<string>();
+          const dedupedMutations = viewingMutationDrafts.filter((env) => {
+            const sig = mutationEnvelopeSignature(env);
+            if (seenMutationSigs.has(sig)) return false;
+            seenMutationSigs.add(sig);
+            return true;
+          });
+          const hasMutation = dedupedMutations.length > 0;
+          for (const envelope of dedupedMutations) {
             controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'composite_draft', envelope }) + '\n'),
+              encoder.encode(JSON.stringify({ type: 'viewing_mutation_draft', envelope }) + '\n'),
             );
           }
-          if (!hasComposite) {
+
+          const hasComposite = compositeDrafts.length > 0;
+          if (!hasMutation) {
+            for (const envelope of compositeDrafts) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'composite_draft', envelope }) + '\n'),
+              );
+            }
+          }
+          if (!hasMutation && !hasComposite) {
             // Emit one viewing_draft frame per draft the create_viewing tool
             // returned this turn. The IntelligencePage stashes them on the
             // assistant message and renders a persistent ViewingCard the
@@ -1060,7 +1109,12 @@ export async function POST(request: NextRequest) {
             controller.close();
             return;
           }
-          if (viewingDrafts.length > 0 || applicantDrafts.length > 0 || compositeDrafts.length > 0) {
+          if (
+            viewingDrafts.length > 0 ||
+            applicantDrafts.length > 0 ||
+            compositeDrafts.length > 0 ||
+            viewingMutationDrafts.length > 0
+          ) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
             );
