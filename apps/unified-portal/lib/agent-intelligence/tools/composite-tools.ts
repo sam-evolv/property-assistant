@@ -171,10 +171,12 @@ export async function scheduleViewings(
     const hint = (v.property_hint || '').trim();
     const hintMatch = hint ? matchDevelopment(hint, assignedDevelopments) : null;
 
-    // ---- Phase 2: classify what's missing in priority order. Inputs the
-    // user did NOT give are softer failures than inputs the user gave
-    // wrongly. We bias the clarification toward whatever the user gave
-    // so we don't lose information they already typed.
+    // ---- Phase 2: clarification-only cases. We early-return here ONLY for
+    // inputs the user gave wrongly or did not give at all. The
+    // "applicant doesn't exist" case is deliberately NOT in this block:
+    // the whole point of schedule_viewings is to auto-create unknown
+    // applicants in the same atomic write as the viewing. A future
+    // restructure must never add `applicantRes.status === 'none'` here.
 
     if (!applicantName) {
       const message = `Viewing #${i + 1} has no applicant name. Tell me who the viewing is for.`;
@@ -187,6 +189,8 @@ export async function scheduleViewings(
     }
 
     if (applicantRes.status === 'ambiguous') {
+      // 2+ existing applicants match the name. This is the only genuine
+      // applicant ambiguity. A brand new name (0 matches) falls through.
       const candidates = applicantRes.candidates ?? [];
       const summaryLine = candidates
         .map((c) => `${c.name}${c.latest_enquiry_property ? ` (${c.latest_enquiry_property})` : ''}`)
@@ -217,7 +221,10 @@ export async function scheduleViewings(
 
     const parsed = parsedDate;
 
-    // ---- Phase 3: applicant slot.
+    // ---- Phase 3: applicant slot. After Phase 2, applicantRes.status is
+    // either 'one' (use existing id) or 'none' (auto-create). The 'none'
+    // path is the happy path for new applicants, it must never route to
+    // a clarification.
     let applicant_ref: ApplicantRef;
     let resolvedApplicantName = applicantName;
     if (applicantRes.status === 'one' && applicantRes.applicant) {
@@ -225,6 +232,9 @@ export async function scheduleViewings(
       applicant_ref = { existing_id: a.id };
       resolvedApplicantName = a.name;
     } else {
+      // applicantRes.status === 'none': unknown name, add to
+      // applicants_to_create. Dedup by lowercased name so multiple
+      // viewings for the same new person share one slot.
       const lowerKey = applicantName.toLowerCase();
       const existingIdx = applicantsByLowerName.get(lowerKey);
       if (existingIdx === undefined) {
