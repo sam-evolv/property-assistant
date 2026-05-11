@@ -2,11 +2,11 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { ToolResult, AgentContext } from '../types';
 import {
   parseScheduledAtNatural,
-  resolveApplicantByName,
   resolvePropertyForApplicant,
   formatViewingTime,
   DEFAULT_TZ,
 } from '../viewing-resolver';
+import { findApplicantByName } from '../applicant-lookup';
 import { matchDevelopment } from '../property-matcher';
 
 /**
@@ -177,7 +177,7 @@ export async function scheduleViewings(
       return { data: result, summary: message };
     }
 
-    const applicantRes = await resolveApplicantByName(
+    const applicantRes = await findApplicantByName(
       supabase,
       agentContext.agentProfileId,
       applicantName,

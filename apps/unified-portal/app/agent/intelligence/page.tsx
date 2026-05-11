@@ -142,6 +142,22 @@ function parseEmails(response: string): { emails: DraftedEmail[]; cleanText: str
   return { emails, cleanText };
 }
 
+// Stable per-envelope signature used to dedupe composite_draft frames that
+// arrive more than once in a single chat turn (multi-round tool calling,
+// SSE retries). Includes the viewings shape and applicant set so two
+// genuinely-distinct composite drafts in one turn still render separately.
+function compositeEnvelopeSignature(env: CompositeScheduleEnvelope): string {
+  const applicants = env.applicants_to_create
+    .map(a => `${a.full_name.toLowerCase()}|${(a.email ?? '').toLowerCase()}|${(a.phone ?? '')}`)
+    .sort()
+    .join('||');
+  const viewings = env.viewings_to_create
+    .map(v => `${v.development_id}|${v.scheduled_at}|${v.applicant_name.toLowerCase()}`)
+    .sort()
+    .join('||');
+  return `${applicants}::${viewings}`;
+}
+
 export default function IntelligencePage() {
   return (
     <ApprovalDrawerProvider>
@@ -408,14 +424,20 @@ function IntelligencePageInner() {
               });
             } else if (data.type === 'composite_draft' && data.envelope) {
               const envelope = data.envelope as CompositeScheduleEnvelope;
+              // Dedupe by payload signature. The server can emit the same
+              // envelope more than once (multi-round tool calling, retries),
+              // and the card has its own internal phase state — duplicate
+              // mounts caused the "6-8 receipt cards stacked" render thrash.
+              const sig = compositeEnvelopeSignature(envelope);
               setMessages(prev => {
                 const existing = prev.find(m => m.id === streamingMsgId);
                 if (existing) {
-                  return prev.map(m =>
-                    m.id === streamingMsgId
-                      ? { ...m, compositeDrafts: [...(m.compositeDrafts ?? []), envelope] }
-                      : m,
-                  );
+                  return prev.map(m => {
+                    if (m.id !== streamingMsgId) return m;
+                    const current = m.compositeDrafts ?? [];
+                    if (current.some(e => compositeEnvelopeSignature(e) === sig)) return m;
+                    return { ...m, compositeDrafts: [...current, envelope] };
+                  });
                 }
                 return [...prev, {
                   id: streamingMsgId,
