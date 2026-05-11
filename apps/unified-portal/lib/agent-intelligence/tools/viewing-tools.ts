@@ -2,11 +2,11 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { ToolResult, AgentContext } from '../types';
 import {
   parseScheduledAtNatural,
-  resolveApplicantByName,
   resolvePropertyForApplicant,
   formatViewingTime,
   DEFAULT_TZ,
 } from '../viewing-resolver';
+import { findApplicantByName } from '../applicant-lookup';
 import { matchDevelopment } from '../property-matcher';
 
 export interface ViewingDraft {
@@ -66,13 +66,23 @@ export async function createViewing(
     return { data: result, summary: message };
   }
 
-  const applicantRes = await resolveApplicantByName(supabase, agentContext.agentProfileId, params.applicant_name);
+  const applicantRes = await findApplicantByName(supabase, agentContext.agentProfileId, params.applicant_name);
   if (applicantRes.status === 'none') {
-    const message = `I don't have an applicant matching "${params.applicant_name}". Add them in Applicants first, or check the spelling.`;
+    // Applicant isn't on the books. Don't dead-end — instead route the caller
+    // toward picking a scheme. Once the user names one, the model will re-call
+    // via schedule_viewings (composite), which has a working new-applicant
+    // creation path. Without this redirect, "schedule a viewing with Jack
+    // Murphy at 7pm Tuesday" (no scheme) wrongly returns "applicant not
+    // found" even though Jack could be created.
+    const assignedDevelopments = (agentContext.assignedDevelopmentIds || [])
+      .map((id, idx) => ({ id, name: agentContext.assignedDevelopmentNames?.[idx] ?? '' }))
+      .filter((d) => d.name.length > 0);
+    const message = `I don't have ${params.applicant_name} on your books yet. Which development is this viewing for? I'll add them as a new applicant.`;
     const result: CreateViewingResult = {
       status: 'needs_clarification',
-      reason: 'applicant_not_found',
+      reason: 'no_property_specified',
       message,
+      candidates: assignedDevelopments.map((d) => ({ development_id: d.id, name: d.name })),
     };
     return { data: result, summary: message };
   }

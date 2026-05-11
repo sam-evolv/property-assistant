@@ -189,6 +189,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const expectedApplicants = applicantsKept.length;
+    const expectedViewings = viewingsKept.length;
+
     const result = await confirmCompositeSchedule(supabaseAdmin, agentContext, {
       applicants_to_create: applicantsKept.map(({ a }) => ({
         full_name: a.full_name.trim(),
@@ -203,6 +206,33 @@ export async function POST(request: NextRequest) {
         {
           status: 'error',
           error: result.error,
+          created_applicants: result.created_applicants,
+          created_viewings: result.created_viewings,
+        },
+        { status: 500 },
+      );
+    }
+
+    // Mutation-result-integrity guard. The RPC reports success, but we
+    // refuse to call it success unless every expected row appears in the
+    // returned arrays. Without this, a silently-shorter array could be
+    // dressed up as a green receipt while half the writes never landed.
+    const actualApplicants = result.created_applicants.length;
+    const actualViewings = result.created_viewings.length;
+    if (actualApplicants !== expectedApplicants || actualViewings !== expectedViewings) {
+      const integrityMessage =
+        `RPC reported success but only ${actualApplicants}/${expectedApplicants} applicants and ` +
+        `${actualViewings}/${expectedViewings} viewings landed.`;
+      console.error('[confirm-composite-schedule] integrity mismatch', {
+        expectedApplicants,
+        actualApplicants,
+        expectedViewings,
+        actualViewings,
+      });
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: integrityMessage,
           created_applicants: result.created_applicants,
           created_viewings: result.created_viewings,
         },
