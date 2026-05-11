@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../_components/AgentShell';
 import StatusBadge from '../_components/StatusBadge';
@@ -42,23 +43,9 @@ export default function ViewingsPage() {
   const [showForm, setShowForm] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [kebabOpenFor, setKebabOpenFor] = useState<string | null>(null);
   const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
-  const kebabRef = useRef<HTMLDivElement>(null);
-
-  // Close the kebab menu on outside click.
-  useEffect(() => {
-    if (!kebabOpenFor) return;
-    function onDocClick(e: MouseEvent) {
-      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
-        setKebabOpenFor(null);
-      }
-    }
-    document.addEventListener('mousedown', onDocClick);
-    return () => document.removeEventListener('mousedown', onDocClick);
-  }, [kebabOpenFor]);
 
   async function handleActionConfirm(payload: { reason?: string; status?: 'no_show' | 'completed'; reschedule?: { isoDateTime: string; durationMinutes: number; developmentId: string | null; notes: string | null } }) {
     if (!activeAction) return;
@@ -335,38 +322,42 @@ export default function ViewingsPage() {
                       </div>
 
                       <StatusBadge status={v.status} />
-                      <div ref={kebabOpenFor === v.id ? kebabRef : undefined} style={{ position: 'relative', flexShrink: 0 }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setKebabOpenFor(prev => (prev === v.id ? null : v.id));
-                          }}
-                          aria-label="Viewing actions"
-                          style={{
-                            width: 28, height: 28, borderRadius: 14, border: 'none',
-                            background: 'transparent', display: 'flex', alignItems: 'center',
-                            justifyContent: 'center', cursor: 'pointer',
-                          }}
-                        >
-                          <MoreVertical size={16} color="#A0A8B0" />
-                        </button>
-                        {kebabOpenFor === v.id && (
-                          <div
+                      <DropdownMenu.Root>
+                        <DropdownMenu.Trigger asChild>
+                          <button
+                            type="button"
+                            onClick={(e) => e.stopPropagation()}
+                            aria-label="Viewing actions"
                             style={{
-                              position: 'absolute', top: 32, right: 0, zIndex: 50,
-                              minWidth: 200, background: '#FFFFFF', borderRadius: 12,
-                              boxShadow: '0 8px 24px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.06)',
-                              padding: 4,
+                              width: 28, height: 28, borderRadius: 14, border: 'none',
+                              background: 'transparent', display: 'flex', alignItems: 'center',
+                              justifyContent: 'center', cursor: 'pointer', flexShrink: 0,
+                              outline: 'none',
                             }}
                           >
-                            <KebabItem icon={CalendarClock} label="Reschedule" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'reschedule' }); }} />
-                            <KebabItem icon={CheckCircle2} label="Mark as completed" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'mark_completed' }); }} />
-                            <KebabItem icon={UserX} label="Mark as no-show" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'mark_no_show' }); }} />
-                            <KebabItem icon={XCircle} label="Cancel viewing" tone="danger" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'cancel' }); }} />
-                          </div>
-                        )}
-                      </div>
+                            <MoreVertical size={16} color="#A0A8B0" />
+                          </button>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Portal>
+                          <DropdownMenu.Content
+                            align="end"
+                            side="bottom"
+                            sideOffset={6}
+                            collisionPadding={{ top: 16, bottom: 96, left: 16, right: 16 }}
+                            avoidCollisions
+                            style={{
+                              minWidth: 200, background: '#FFFFFF', borderRadius: 12,
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.06)',
+                              padding: 4, zIndex: 60,
+                            }}
+                          >
+                            <KebabItem icon={CalendarClock} label="Reschedule" onSelect={() => setActiveAction({ viewing: v, action: 'reschedule' })} />
+                            <KebabItem icon={CheckCircle2} label="Mark as completed" onSelect={() => setActiveAction({ viewing: v, action: 'mark_completed' })} />
+                            <KebabItem icon={UserX} label="Mark as no-show" onSelect={() => setActiveAction({ viewing: v, action: 'mark_no_show' })} />
+                            <KebabItem icon={XCircle} label="Cancel viewing" tone="danger" onSelect={() => setActiveAction({ viewing: v, action: 'cancel' })} />
+                          </DropdownMenu.Content>
+                        </DropdownMenu.Portal>
+                      </DropdownMenu.Root>
                     </div>
                   ))}
                 </div>
@@ -541,22 +532,23 @@ function KebabItem({
 }) {
   const color = tone === 'danger' ? '#B91C1C' : '#0D0D12';
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <DropdownMenu.Item
+      onSelect={onSelect}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         width: '100%', padding: '8px 10px', borderRadius: 8,
-        background: 'transparent', border: 'none', cursor: 'pointer',
+        background: 'transparent', cursor: 'pointer',
         color, fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-        textAlign: 'left',
+        textAlign: 'left', outline: 'none', userSelect: 'none',
       }}
-      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F4F4F5'; }}
-      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F4F4F5'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
+      onFocus={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#F4F4F5'; }}
+      onBlur={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'transparent'; }}
     >
       <Icon size={14} strokeWidth={2} color={color} />
       {label}
-    </button>
+    </DropdownMenu.Item>
   );
 }
 
