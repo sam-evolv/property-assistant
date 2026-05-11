@@ -359,6 +359,12 @@ export async function POST(request: NextRequest) {
       "I hit an error while running that. Try again, or rephrase the request.";
 
     while (rounds <= MAX_TOOL_ROUNDS) {
+      // TEMP: remove after diagnosis
+      console.log('[CHAT_TRACE] pre-completion', {
+        round: rounds,
+        userMessage: (effectiveMessage || '').slice(0, 200),
+        toolsSent: tools.map((t) => t.function?.name).filter(Boolean),
+      });
       const completion = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages,
@@ -369,6 +375,24 @@ export async function POST(request: NextRequest) {
       });
 
       const responseMessage = completion.choices[0]?.message;
+      // TEMP: remove after diagnosis
+      console.log('[CHAT_TRACE] post-completion', {
+        round: rounds,
+        hasResponse: Boolean(responseMessage),
+        toolCalls: responseMessage?.tool_calls?.map((tc) => {
+          let args: unknown = tc.function?.arguments;
+          try {
+            args = JSON.parse(tc.function?.arguments ?? '{}');
+          } catch {
+            // keep raw string if not valid JSON
+          }
+          return { name: tc.function?.name, args };
+        }) ?? null,
+        textContent:
+          responseMessage && !responseMessage.tool_calls?.length
+            ? (responseMessage.content ?? '').slice(0, 300)
+            : null,
+      });
       if (!responseMessage) break;
 
       // If no tool calls, we have a final text response but it came non-streamed.
@@ -482,6 +506,14 @@ export async function POST(request: NextRequest) {
         } else {
           toolResult = JSON.stringify({ error: `Unknown tool: ${toolCall.function.name}` });
         }
+
+        // TEMP: remove after diagnosis
+        console.log('[CHAT_TRACE] tool-dispatch', {
+          round: rounds,
+          tool: toolCall.function.name,
+          hasToolDef: Boolean(toolDef),
+          resultPreview: (toolResult ?? '').slice(0, 300),
+        });
 
         messages.push({
           role: 'tool',
