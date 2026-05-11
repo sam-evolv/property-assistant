@@ -16,7 +16,7 @@ import {
   logCommunication,
   generateDeveloperReport,
 } from './write-tools';
-import { createViewing, updateViewing, cancelViewing, markViewingStatus } from './viewing-tools';
+import { updateViewing, cancelViewing, markViewingStatus } from './viewing-tools';
 import { manageApplicants } from './applicant-tools';
 import { scheduleViewings } from './composite-tools';
 // schedule_viewing (immediate-write) is intentionally NOT imported here.
@@ -519,8 +519,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'schedule_viewings',
     description: [
-      'Composite scheduling tool. Use when the agent wants to schedule MORE THAN ONE viewing in one go, OR a single viewing for an applicant who is NOT yet on the books. The card surfaces one Confirm; the writes land atomically (applicants, audit log rows, and viewings together) so a property typo does not leave half the work done.',
-      'For a single viewing for an existing applicant, use create_viewing instead. This composite tool is overkill for that.',
+      'The single viewing-scheduling tool. Use for ANY request to schedule one or more viewings, whether the applicant is on the books or brand new, whether the user named a property or did not. The card surfaces one Confirm; the writes land atomically (applicants, audit log rows, and viewings together) so a property typo does not leave half the work done.',
       'Inputs:',
       '- viewings: array of { applicant_name, scheduled_at_natural, property_hint?, duration_minutes?, notes? }, one entry per viewing.',
       '- calendar_preference (optional): pass when the user explicitly asked ("add it to my iPhone calendar"). Otherwise omit.',
@@ -555,30 +554,6 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['viewings'],
     },
     execute: scheduleViewings as ToolFunction,
-  },
-  {
-    name: 'create_viewing',
-    description: [
-      'Schedule a new property viewing for a known applicant. Voice-first entry point — the agent says "schedule a viewing with Jack Murphy Tuesday 6pm" and this resolves the applicant, the property and the time, then returns a draft for the agent to confirm.',
-      'NEVER writes on its own — always returns either a draft for confirmation or a needs_clarification with one targeted question.',
-      'Resolution rules:',
-      '- Applicant: ilike match on agent_applicants.full_name within the agent\'s tenant. Zero matches → needs_clarification (applicant_not_found). Multiple matches → needs_clarification (applicant_ambiguous) with the candidate list.',
-      '- Property: pulled from the applicant\'s active enquiries. Single match → use it. Multiple → use property_hint (ilike on development name) when supplied; otherwise needs_clarification (property_ambiguous).',
-      '- Date / time: parsed against Europe/Dublin. Bare weekday means the next occurrence; if today is that weekday, defaults to next week unless the time is still ahead today.',
-      'When fully resolved, returns { status: "draft", draft, message: "Confirm to create this viewing" }. The chat surface renders a viewing card from the draft — DO NOT echo the draft fields in your reply, the card is the canonical surface.',
-    ].join(' '),
-    parameters: {
-      type: 'object',
-      properties: {
-        applicant_name: { type: 'string', description: 'Full or partial applicant name as the agent said it. Resolved server-side via ilike on agent_applicants.full_name.' },
-        property_hint: { type: 'string', description: 'Optional development-name hint when the applicant has enquiries on more than one scheme.' },
-        scheduled_at_natural: { type: 'string', description: 'Natural-language date and time, e.g. "Tuesday 6pm", "tomorrow at 11", "next Monday 3pm". Parsed against Europe/Dublin.' },
-        duration_minutes: { type: 'number', description: 'Viewing length in minutes. Defaults to 30. Clamped to 5-240.' },
-        notes: { type: 'string', description: 'Optional notes captured from the agent\'s instruction (parking, joint viewing, anything specific).' },
-      },
-      required: ['applicant_name', 'scheduled_at_natural'],
-    },
-    execute: createViewing as ToolFunction,
   },
   {
     name: 'update_viewing',
