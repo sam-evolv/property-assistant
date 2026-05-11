@@ -22,6 +22,7 @@ import ApprovalDrawer from '@/components/agent/intelligence/ApprovalDrawer';
 import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intelligence/ViewingCard';
 import ApplicantCard, { type ApplicantDraftEnvelope } from '@/components/agent/intelligence/ApplicantCard';
 import CompositeScheduleCard, { type CompositeScheduleEnvelope } from '@/components/agent/intelligence/CompositeScheduleCard';
+import ViewingMutationCard, { type ViewingMutationEnvelope } from '@/components/agent/intelligence/ViewingMutationCard';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
 // INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
@@ -100,6 +101,9 @@ interface Message {
   // when present, the chat route suppresses the per-tool applicant_draft
   // and viewing_draft frames so only the composite renders.
   compositeDrafts?: CompositeScheduleEnvelope[];
+  // update_viewing / cancel_viewing / mark_viewing_status envelopes. One
+  // card per turn; suppresses the four other draft surfaces when present.
+  viewingMutationDrafts?: ViewingMutationEnvelope[];
 }
 
 interface UndoBatch {
@@ -156,6 +160,18 @@ function compositeEnvelopeSignature(env: CompositeScheduleEnvelope): string {
     .sort()
     .join('||');
   return `${applicants}::${viewings}`;
+}
+
+// Matches the chat route's mutation signature so the same envelope landing
+// twice in one turn (multi-round tool calling) collapses to one card.
+function mutationEnvelopeSignature(env: ViewingMutationEnvelope): string {
+  if (env.type === 'viewing_update') {
+    return `${env.type}|${env.viewing_id}|${JSON.stringify(env.next)}`;
+  }
+  if (env.type === 'viewing_mark_status') {
+    return `${env.type}|${env.viewing_id}|${env.new_status}`;
+  }
+  return `${env.type}|${env.viewing_id}`;
 }
 
 export default function IntelligencePage() {
@@ -444,6 +460,26 @@ function IntelligencePageInner() {
                   role: 'assistant',
                   content: '',
                   compositeDrafts: [envelope],
+                }];
+              });
+            } else if (data.type === 'viewing_mutation_draft' && data.envelope) {
+              const envelope = data.envelope as ViewingMutationEnvelope;
+              const sig = mutationEnvelopeSignature(envelope);
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m => {
+                    if (m.id !== streamingMsgId) return m;
+                    const current = m.viewingMutationDrafts ?? [];
+                    if (current.some(e => mutationEnvelopeSignature(e) === sig)) return m;
+                    return { ...m, viewingMutationDrafts: [...current, envelope] };
+                  });
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  viewingMutationDrafts: [envelope],
                 }];
               });
             } else if (data.type === 'override') {
@@ -1202,6 +1238,21 @@ function IntelligencePageInner() {
                       key={`${msg.id}-viewing-${idx}`}
                       draft={draft}
                       developments={developments?.map((d) => ({ id: d.id, name: d.name }))}
+                    />
+                  ))}
+                  {msg.viewingMutationDrafts && msg.viewingMutationDrafts.map((envelope, idx) => (
+                    <ViewingMutationCard
+                      key={`${msg.id}-mutation-${idx}`}
+                      envelope={envelope}
+                      onConfirmFailed={(note) => {
+                        setMessages(prev => prev.map(m => {
+                          if (m.id !== msg.id) return m;
+                          const existing = m.content || '';
+                          if (existing.includes(note)) return m;
+                          const next = existing.length > 0 ? `${existing}\n\n${note}` : note;
+                          return { ...m, content: next };
+                        }));
+                      }}
                     />
                   ))}
                 </div>

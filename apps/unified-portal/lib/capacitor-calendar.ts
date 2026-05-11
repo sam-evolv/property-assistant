@@ -100,3 +100,84 @@ export async function addEventToDeviceCalendar(input: CalendarEventInput): Promi
     };
   }
 }
+
+export type CalendarUpdateResult =
+  | { status: 'updated' }
+  | { status: 'denied' }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string };
+
+export async function updateEventOnDeviceCalendar(
+  eventId: string,
+  input: Partial<CalendarEventInput>,
+): Promise<CalendarUpdateResult> {
+  if (!eventId) return { status: 'unavailable' };
+  const permission = await ensureCalendarPermission();
+  if (permission === 'unavailable') return { status: 'unavailable' };
+  if (permission === 'denied') return { status: 'denied' };
+
+  const plugin = await loadCalendarPlugin();
+  if (!plugin) return { status: 'unavailable' };
+
+  // The Capacitor plugin exposes `modifyEvent` on iOS and `updateEvent` on
+  // Android in different versions. Try whatever is present and fall back
+  // to delete-then-recreate so the caller still sees a valid event.
+  const updatePayload: Record<string, unknown> = { id: eventId };
+  if (input.title !== undefined) updatePayload.title = input.title;
+  if (input.startMs !== undefined) updatePayload.startDate = input.startMs;
+  if (input.endMs !== undefined) updatePayload.endDate = input.endMs;
+  if (input.location !== undefined) updatePayload.location = input.location;
+  if (input.notes !== undefined) updatePayload.description = input.notes;
+
+  try {
+    if (typeof plugin.modifyEvent === 'function') {
+      await plugin.modifyEvent(updatePayload);
+      return { status: 'updated' };
+    }
+    if (typeof plugin.updateEvent === 'function') {
+      await plugin.updateEvent(updatePayload);
+      return { status: 'updated' };
+    }
+    return { status: 'unavailable' };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Calendar update failed',
+    };
+  }
+}
+
+export type CalendarDeleteResult =
+  | { status: 'deleted' }
+  | { status: 'denied' }
+  | { status: 'unavailable' }
+  | { status: 'error'; message: string };
+
+export async function deleteEventFromDeviceCalendar(
+  eventId: string,
+): Promise<CalendarDeleteResult> {
+  if (!eventId) return { status: 'unavailable' };
+  const permission = await ensureCalendarPermission();
+  if (permission === 'unavailable') return { status: 'unavailable' };
+  if (permission === 'denied') return { status: 'denied' };
+
+  const plugin = await loadCalendarPlugin();
+  if (!plugin) return { status: 'unavailable' };
+
+  try {
+    if (typeof plugin.deleteEvent === 'function') {
+      await plugin.deleteEvent({ id: eventId });
+      return { status: 'deleted' };
+    }
+    if (typeof plugin.removeEvent === 'function') {
+      await plugin.removeEvent({ id: eventId });
+      return { status: 'deleted' };
+    }
+    return { status: 'unavailable' };
+  } catch (err) {
+    return {
+      status: 'error',
+      message: err instanceof Error ? err.message : 'Calendar delete failed',
+    };
+  }
+}

@@ -16,7 +16,7 @@ import {
   logCommunication,
   generateDeveloperReport,
 } from './write-tools';
-import { createViewing } from './viewing-tools';
+import { createViewing, updateViewing, cancelViewing, markViewingStatus } from './viewing-tools';
 import { manageApplicants } from './applicant-tools';
 import { scheduleViewings } from './composite-tools';
 // schedule_viewing (immediate-write) is intentionally NOT imported here.
@@ -579,6 +579,93 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['applicant_name', 'scheduled_at_natural'],
     },
     execute: createViewing as ToolFunction,
+  },
+  {
+    name: 'update_viewing',
+    description: [
+      'Reschedule or edit an existing viewing. Use when the user wants to change the time, date, property, duration, or notes on a viewing already on the books ("reschedule Jack to 7pm Friday", "move that viewing to Lakeside Manor", "change the duration to 45 minutes").',
+      'Resolves the viewing by applicant name (and optional date hint). If the applicant has multiple viewings, returns needs_clarification with the candidates so you can ask one targeted question.',
+      'Returns either { status: "draft", type: "viewing_update", ... } for the chat card, or { status: "needs_clarification", reason, message }. The chat surface renders one ViewingMutationCard with a previous → next diff. NEVER claim the change has been saved before the agent confirms the card.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        viewing_reference: {
+          type: 'object',
+          description: 'How to identify the viewing.',
+          properties: {
+            applicant_name: { type: 'string', description: 'Applicant name as the user said it.' },
+            scheduled_at_natural: { type: 'string', description: 'Optional date/time hint to disambiguate when the applicant has multiple viewings ("Thursday viewing", "the 5pm one").' },
+            viewing_id: { type: 'string', description: 'Optional explicit viewing UUID, only when surfaced by a previous tool result.' },
+          },
+        },
+        changes: {
+          type: 'object',
+          description: 'Fields to change. Pass only what the user asked to change.',
+          properties: {
+            scheduled_at_natural: { type: 'string', description: 'New date/time, natural language ("Friday 7pm").' },
+            duration_minutes: { type: 'number', description: 'New length in minutes. Clamped 5-240.' },
+            property_hint: { type: 'string', description: 'New development name. Resolved against the agent\'s assigned schemes.' },
+            notes: { type: 'string', description: 'New notes. Pass empty string to clear.' },
+          },
+        },
+      },
+      required: ['viewing_reference', 'changes'],
+    },
+    execute: updateViewing as ToolFunction,
+  },
+  {
+    name: 'cancel_viewing',
+    description: [
+      'Cancel a viewing that is on the books. Use when the user says "cancel Jack\'s viewing", "X cancelled", "scrap that viewing", or any clear cancellation phrasing.',
+      'Resolves the viewing by applicant name (and optional date hint). Returns a draft envelope; the agent confirms via a red Confirm button on the ViewingMutationCard. Status moves to cancelled and any device calendar event is removed.',
+      'NEVER call cancel_viewing for a request to remove or delete the applicant themselves, that is manage_applicants action="remove".',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        viewing_reference: {
+          type: 'object',
+          description: 'How to identify the viewing.',
+          properties: {
+            applicant_name: { type: 'string' },
+            scheduled_at_natural: { type: 'string' },
+            viewing_id: { type: 'string' },
+          },
+        },
+        reason: { type: 'string', description: 'Optional reason captured from the user ("buyer wants to push back", "scheme withdrawn"). Stored on the viewing notes when provided.' },
+      },
+      required: ['viewing_reference'],
+    },
+    execute: cancelViewing as ToolFunction,
+  },
+  {
+    name: 'mark_viewing_status',
+    description: [
+      'Mark a viewing as no_show or completed after the fact. Use when the user reports outcome ("Jack didn\'t show", "viewing with X went well", "Sarah turned up", "X was a no-show").',
+      'Status no_show ONLY when the user clearly says someone did not attend. Status completed ONLY when the user clearly indicates the viewing happened. Do NOT infer either from a generic mention of the applicant.',
+      'Returns a draft envelope for confirmation. The historical calendar event is preserved (no calendar action).',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        viewing_reference: {
+          type: 'object',
+          properties: {
+            applicant_name: { type: 'string' },
+            scheduled_at_natural: { type: 'string' },
+            viewing_id: { type: 'string' },
+          },
+        },
+        status: {
+          type: 'string',
+          enum: ['no_show', 'completed'],
+          description: 'Outcome to record on the viewing.',
+        },
+      },
+      required: ['viewing_reference', 'status'],
+    },
+    execute: markViewingStatus as ToolFunction,
   },
 ];
 

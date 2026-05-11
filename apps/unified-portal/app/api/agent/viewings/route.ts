@@ -269,9 +269,14 @@ interface Viewing {
   unitRef: string | null;
   viewingDate: string;
   viewingTime: string;
+  durationMinutes: number;
   status: string;
   notes: string | null;
   source: string | null;
+  // Which physical table this row lives in. Lifecycle mutations need to
+  // know which table to write back to (canonical viewings or legacy
+  // agent_viewings) since the two tables have different schemas.
+  tableSource: 'viewings' | 'agent_viewings';
   createdAt: string | null;
   updatedAt: string | null;
 }
@@ -320,9 +325,11 @@ function formatCanonicalViewing(
     unitRef: null,
     viewingDate: isoParts.date,
     viewingTime: isoParts.time,
+    durationMinutes: typeof row.duration_minutes === 'number' ? row.duration_minutes : 30,
     status,
     notes: row.notes ?? null,
     source: 'intelligence',
+    tableSource: 'viewings',
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
   };
@@ -358,9 +365,11 @@ function formatViewing(v: any): Viewing {
     unitRef: v.unit_ref ?? null,
     viewingDate: v.viewing_date ?? '',
     viewingTime: v.viewing_time ?? '',
+    durationMinutes: 30,
     status: v.status,
     notes: v.notes ?? null,
     source: v.source ?? null,
+    tableSource: 'agent_viewings',
     createdAt: v.created_at ?? null,
     updatedAt: v.updated_at ?? null,
   };

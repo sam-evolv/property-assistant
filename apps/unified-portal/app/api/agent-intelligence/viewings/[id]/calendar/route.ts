@@ -9,9 +9,16 @@ export const dynamic = 'force-dynamic';
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const body = await request.json();
-    const eventId: unknown = body?.device_calendar_event_id;
-    if (typeof eventId !== 'string' || eventId.length === 0) {
-      return NextResponse.json({ error: 'device_calendar_event_id required' }, { status: 400 });
+    const raw = body?.device_calendar_event_id;
+    // Accept null to clear the field after a calendar deletion. Accept a
+    // non-empty string to set/replace it. Anything else is a 400.
+    let eventId: string | null;
+    if (raw === null) {
+      eventId = null;
+    } else if (typeof raw === 'string' && raw.length > 0) {
+      eventId = raw;
+    } else {
+      return NextResponse.json({ error: 'device_calendar_event_id must be a non-empty string or null' }, { status: 400 });
     }
 
     const cookieStore = cookies();

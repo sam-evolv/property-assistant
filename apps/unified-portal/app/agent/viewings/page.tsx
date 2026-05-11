@@ -1,10 +1,16 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAgent } from '@/lib/agent/AgentContext';
 import AgentShell from '../_components/AgentShell';
 import StatusBadge from '../_components/StatusBadge';
-import { X, Check, Clock, ChevronDown, Loader2 } from 'lucide-react';
+import {
+  X, Check, Clock, ChevronDown, Loader2, MoreVertical,
+  CalendarClock, XCircle, UserX, CheckCircle2, MessageSquare,
+} from 'lucide-react';
+
+type ViewingTableSource = 'viewings' | 'agent_viewings';
 
 interface Viewing {
   id: string;
@@ -13,18 +19,109 @@ interface Viewing {
   unitRef: string;
   viewingDate: string;
   viewingTime: string;
+  durationMinutes?: number;
   status: 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show';
   notes?: string;
   source?: string;
+  developmentId?: string | null;
+  tableSource?: ViewingTableSource;
+}
+
+type RowAction = 'reschedule' | 'cancel' | 'mark_no_show' | 'mark_completed';
+
+interface ActiveAction {
+  viewing: Viewing;
+  action: RowAction;
 }
 
 export default function ViewingsPage() {
   const { agent, alerts, developments } = useAgent();
+  const router = useRouter();
   const [viewings, setViewings] = useState<Viewing[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [formSuccess, setFormSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [kebabOpenFor, setKebabOpenFor] = useState<string | null>(null);
+  const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const kebabRef = useRef<HTMLDivElement>(null);
+
+  // Close the kebab menu on outside click.
+  useEffect(() => {
+    if (!kebabOpenFor) return;
+    function onDocClick(e: MouseEvent) {
+      if (kebabRef.current && !kebabRef.current.contains(e.target as Node)) {
+        setKebabOpenFor(null);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [kebabOpenFor]);
+
+  async function handleActionConfirm(payload: { reason?: string; status?: 'no_show' | 'completed'; reschedule?: { isoDateTime: string; durationMinutes: number; developmentId: string | null; notes: string | null } }) {
+    if (!activeAction) return;
+    const { viewing, action } = activeAction;
+    const tableSource: ViewingTableSource = viewing.tableSource || 'viewings';
+    setActionBusy(true);
+    setActionError(null);
+    try {
+      let res: Response;
+      if (action === 'reschedule' && payload.reschedule) {
+        const r = payload.reschedule;
+        res = await fetch('/api/agent-intelligence/confirm-update-viewing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            viewing_id: viewing.id,
+            source: tableSource,
+            next: {
+              scheduled_at: r.isoDateTime,
+              duration_minutes: r.durationMinutes,
+              property: r.developmentId
+                ? { development_id: r.developmentId, name: developments.find(d => d.id === r.developmentId)?.name ?? null }
+                : undefined,
+              notes: r.notes,
+            },
+          }),
+        });
+      } else if (action === 'cancel') {
+        res = await fetch('/api/agent-intelligence/confirm-cancel-viewing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            viewing_id: viewing.id,
+            source: tableSource,
+            reason: payload.reason || null,
+          }),
+        });
+      } else if (action === 'mark_no_show' || action === 'mark_completed') {
+        res = await fetch('/api/agent-intelligence/confirm-mark-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            viewing_id: viewing.id,
+            source: tableSource,
+            status: action === 'mark_completed' ? 'completed' : 'no_show',
+          }),
+        });
+      } else {
+        throw new Error('Unknown action');
+      }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || 'Could not save changes');
+      }
+      // Refresh the list so the row reflects the new state.
+      setActiveAction(null);
+      await fetchViewings();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Could not save changes');
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   // Form state
   const [formBuyer, setFormBuyer] = useState('');
@@ -170,7 +267,21 @@ export default function ViewingsPage() {
               </svg>
             </div>
             <p style={{ color: '#6B7280', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No upcoming viewings</p>
-            <p style={{ color: '#A0A8B0', fontSize: 12 }}>Schedule your first viewing below</p>
+            <p style={{ color: '#A0A8B0', fontSize: 12, marginBottom: 16 }}>Schedule one from the Intelligence chat.</p>
+            <button
+              type="button"
+              onClick={() => router.push('/agent/intelligence')}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '10px 18px', borderRadius: 999,
+                background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+                border: 'none', fontSize: 13, fontWeight: 600, color: '#FFFFFF',
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <MessageSquare size={14} strokeWidth={2.25} />
+              Open Intelligence
+            </button>
           </div>
         ) : (
           <>
@@ -224,6 +335,38 @@ export default function ViewingsPage() {
                       </div>
 
                       <StatusBadge status={v.status} />
+                      <div ref={kebabOpenFor === v.id ? kebabRef : undefined} style={{ position: 'relative', flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setKebabOpenFor(prev => (prev === v.id ? null : v.id));
+                          }}
+                          aria-label="Viewing actions"
+                          style={{
+                            width: 28, height: 28, borderRadius: 14, border: 'none',
+                            background: 'transparent', display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', cursor: 'pointer',
+                          }}
+                        >
+                          <MoreVertical size={16} color="#A0A8B0" />
+                        </button>
+                        {kebabOpenFor === v.id && (
+                          <div
+                            style={{
+                              position: 'absolute', top: 32, right: 0, zIndex: 50,
+                              minWidth: 200, background: '#FFFFFF', borderRadius: 12,
+                              boxShadow: '0 8px 24px rgba(0,0,0,0.12), 0 0 0 0.5px rgba(0,0,0,0.06)',
+                              padding: 4,
+                            }}
+                          >
+                            <KebabItem icon={CalendarClock} label="Reschedule" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'reschedule' }); }} />
+                            <KebabItem icon={CheckCircle2} label="Mark as completed" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'mark_completed' }); }} />
+                            <KebabItem icon={UserX} label="Mark as no-show" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'mark_no_show' }); }} />
+                            <KebabItem icon={XCircle} label="Cancel viewing" tone="danger" onSelect={() => { setKebabOpenFor(null); setActiveAction({ viewing: v, action: 'cancel' }); }} />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -370,7 +513,272 @@ export default function ViewingsPage() {
           to { transform: rotate(360deg); }
         }
       `}</style>
+
+      {activeAction && (
+        <ActionModal
+          activeAction={activeAction}
+          developments={developments}
+          busy={actionBusy}
+          error={actionError}
+          onClose={() => { setActiveAction(null); setActionError(null); }}
+          onConfirm={handleActionConfirm}
+        />
+      )}
     </AgentShell>
+  );
+}
+
+function KebabItem({
+  icon: Icon,
+  label,
+  onSelect,
+  tone,
+}: {
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
+  label: string;
+  onSelect: () => void;
+  tone?: 'danger' | 'default';
+}) {
+  const color = tone === 'danger' ? '#B91C1C' : '#0D0D12';
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 8,
+        width: '100%', padding: '8px 10px', borderRadius: 8,
+        background: 'transparent', border: 'none', cursor: 'pointer',
+        color, fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+        textAlign: 'left',
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = '#F4F4F5'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'transparent'; }}
+    >
+      <Icon size={14} strokeWidth={2} color={color} />
+      {label}
+    </button>
+  );
+}
+
+function ActionModal({
+  activeAction,
+  developments,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  activeAction: ActiveAction;
+  developments: Array<{ id: string; name: string }>;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: (payload: { reason?: string; status?: 'no_show' | 'completed'; reschedule?: { isoDateTime: string; durationMinutes: number; developmentId: string | null; notes: string | null } }) => void;
+}) {
+  const { viewing, action } = activeAction;
+  const [reason, setReason] = useState<string>('');
+  // Reschedule form state, only used for action='reschedule'.
+  const initialDateTime = `${viewing.viewingDate}T${(viewing.viewingTime || '12:00').slice(0, 5)}`;
+  const [dateTime, setDateTime] = useState<string>(initialDateTime);
+  const [durationMinutes, setDurationMinutes] = useState<number>(viewing.durationMinutes || 30);
+  const [developmentId, setDevelopmentId] = useState<string>(viewing.developmentId || developments[0]?.id || '');
+  const [notes, setNotes] = useState<string>(viewing.notes || '');
+
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+    backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+    zIndex: 200, display: 'flex', alignItems: 'flex-end',
+  };
+  const sheetStyle: React.CSSProperties = {
+    width: '100%', background: '#fff', borderRadius: '24px 24px 0 0',
+    boxShadow: '0 -4px 32px rgba(0,0,0,0.12)',
+    animation: 'slideUp 300ms cubic-bezier(.2,.8,.2,1)',
+    maxHeight: '90dvh', overflowY: 'auto',
+  };
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px 14px', borderRadius: 12,
+    border: '1px solid rgba(0,0,0,0.08)', fontSize: 14,
+    color: '#0D0D12', background: '#FAFAF8',
+    fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+  };
+  const labelStyle: React.CSSProperties = {
+    fontSize: 12, fontWeight: 600, color: '#6B7280', letterSpacing: '0.01em',
+    display: 'block', marginBottom: 6,
+  };
+
+  const title = action === 'reschedule'
+    ? `Reschedule ${viewing.buyerName}`
+    : action === 'cancel'
+      ? `Cancel ${viewing.buyerName}'s viewing`
+      : action === 'mark_completed'
+        ? `Mark ${viewing.buyerName} as completed`
+        : `Mark ${viewing.buyerName} as no-show`;
+
+  const isDanger = action === 'cancel';
+
+  function handleSubmit() {
+    if (action === 'reschedule') {
+      const [datePart, timePart] = dateTime.split('T');
+      if (!datePart || !timePart) return;
+      const [y, m, d] = datePart.split('-').map((n) => parseInt(n, 10));
+      const [hh, mm] = timePart.split(':').map((n) => parseInt(n, 10));
+      const utcGuess = Date.UTC(y, m - 1, d, hh, mm);
+      const probe = new Date(utcGuess);
+      const fmt = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'Europe/Dublin',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false,
+      });
+      const parts: Record<string, string> = {};
+      for (const p of fmt.formatToParts(probe)) {
+        if (p.type !== 'literal') parts[p.type] = p.value;
+      }
+      const projected = Date.UTC(
+        parseInt(parts.year, 10),
+        parseInt(parts.month, 10) - 1,
+        parseInt(parts.day, 10),
+        parseInt(parts.hour, 10),
+        parseInt(parts.minute, 10),
+      );
+      const offset = utcGuess - projected;
+      const isoDateTime = new Date(utcGuess + offset).toISOString();
+      onConfirm({
+        reschedule: {
+          isoDateTime,
+          durationMinutes: Math.max(5, Math.min(240, Math.round(durationMinutes))),
+          developmentId: developmentId || null,
+          notes: notes.trim() || null,
+        },
+      });
+    } else if (action === 'cancel') {
+      onConfirm({ reason: reason.trim() || undefined });
+    } else {
+      onConfirm({ status: action === 'mark_completed' ? 'completed' : 'no_show' });
+    }
+  }
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={sheetStyle} onClick={(e) => e.stopPropagation()}>
+        <div style={{ width: 40, height: 4, background: '#E0E0DC', borderRadius: 2, margin: '14px auto 16px' }} />
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px 16px' }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: '#0D0D12', margin: 0, letterSpacing: '-0.03em' }}>
+            {title}
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 32, height: 32, borderRadius: 10, background: '#F5F5F3',
+              border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+            }}
+          >
+            <X size={16} color="#6B7280" />
+          </button>
+        </div>
+
+        <div style={{ padding: '0 24px 24px' }}>
+          {action === 'reschedule' && (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>When</label>
+                <input
+                  type="datetime-local"
+                  value={dateTime}
+                  onChange={(e) => setDateTime(e.target.value)}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Property</label>
+                <div style={{ position: 'relative' }}>
+                  <select
+                    value={developmentId}
+                    onChange={(e) => setDevelopmentId(e.target.value)}
+                    style={{ ...inputStyle, appearance: 'none', paddingRight: 36 }}
+                  >
+                    {developments.map(d => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={14} color="#A0A8B0" style={{ position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Length (minutes)</label>
+                <input
+                  type="number"
+                  min={5}
+                  max={240}
+                  value={durationMinutes}
+                  onChange={(e) => setDurationMinutes(parseInt(e.target.value || '30', 10))}
+                  style={inputStyle}
+                />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <label style={labelStyle}>Notes</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={3}
+                  style={{ ...inputStyle, resize: 'none', minHeight: 80 }}
+                />
+              </div>
+            </>
+          )}
+
+          {action === 'cancel' && (
+            <div style={{ marginBottom: 14 }}>
+              <label style={labelStyle}>Reason (optional)</label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="e.g. buyer wants to push back"
+                rows={3}
+                style={{ ...inputStyle, resize: 'none', minHeight: 80 }}
+              />
+            </div>
+          )}
+
+          {(action === 'mark_completed' || action === 'mark_no_show') && (
+            <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 14 }}>
+              {action === 'mark_completed'
+                ? `Mark ${viewing.buyerName}'s viewing as completed.`
+                : `Mark ${viewing.buyerName}'s viewing as a no-show.`}
+            </p>
+          )}
+
+          {error && (
+            <p style={{ fontSize: 12.5, color: '#B91C1C', marginBottom: 12 }}>{error}</p>
+          )}
+
+          <button
+            onClick={handleSubmit}
+            disabled={busy}
+            style={{
+              width: '100%', padding: '14px', borderRadius: 14,
+              background: busy
+                ? '#E0E0E0'
+                : isDanger
+                  ? 'linear-gradient(180deg, #EF4444 0%, #DC2626 100%)'
+                  : 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+              color: '#fff', fontSize: 14, fontWeight: 600, border: 'none',
+              cursor: busy ? 'not-allowed' : 'pointer', fontFamily: 'inherit',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              marginBottom: 8,
+            }}
+          >
+            {busy ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={15} />}
+            {busy
+              ? 'Saving'
+              : isDanger
+                ? 'Confirm cancellation'
+                : action === 'reschedule'
+                  ? 'Save changes'
+                  : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
