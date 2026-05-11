@@ -19,12 +19,13 @@ import {
 import { createViewing } from './viewing-tools';
 import { manageApplicants } from './applicant-tools';
 import { scheduleViewings } from './composite-tools';
-// schedule_viewing is intentionally NOT imported here: its immediate-write
-// behaviour has been replaced by schedule_viewing_draft. The underlying
-// scheduleViewing function remains exported from './write-tools' for any
-// internal code path that still needs a direct insert.
+// schedule_viewing (immediate-write) is intentionally NOT imported here.
+// All viewing scheduling goes through schedule_viewings (composite tool).
+// The underlying scheduleViewing function remains exported from
+// './write-tools' for any internal code path that still needs a direct
+// insert.
 //
-// draft_message is also NOT imported from write-tools any more — it was a
+// draft_message is also NOT imported from write-tools any more. It was a
 // non-envelope "template helper" that let the model claim drafts were
 // ready without anything landing in pending_drafts. Session 6D replaced
 // it with draftMessageSkill() in agentic-skills.ts.
@@ -34,7 +35,6 @@ import {
   weeklyMondayBriefing,
   draftLeaseRenewal,
   naturalQuery,
-  scheduleViewingDraft,
   draftMessageSkill,
   draftBuyerFollowups,
   getCandidateUnitsSkill,
@@ -579,23 +579,6 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['applicant_name', 'scheduled_at_natural'],
     },
     execute: createViewing as ToolFunction,
-  },
-  {
-    name: 'schedule_viewing_draft',
-    description: 'Prepare a new viewing: resolves the property reference, checks for conflicts, and drafts both the viewing record and a confirmation email. Agent must approve before the viewing is created or the email sent.',
-    parameters: {
-      type: 'object',
-      properties: {
-        unit_or_property_ref: { type: 'string', description: 'Sales unit reference (e.g. "Árdan View Unit 50") or letting property address fragment' },
-        buyer_name: { type: 'string', description: 'Buyer name' },
-        buyer_email: { type: 'string', description: 'Buyer email' },
-        buyer_phone: { type: 'string', description: 'Buyer phone' },
-        preferred_datetime: { type: 'string', description: 'Preferred viewing datetime in ISO 8601 format' },
-      },
-      required: ['unit_or_property_ref', 'buyer_name', 'preferred_datetime'],
-    },
-    execute: ((supabase, _tenantId, agentContext, params) =>
-      runAgenticSkill(scheduleViewingDraft, supabase, agentContext, params as any)) as ToolFunction,
   },
 ];
 
