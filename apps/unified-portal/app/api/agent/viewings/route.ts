@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { createClient } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
+import { viewingIdsWithCapture } from '@/lib/agent-intelligence/voice-capture-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,12 +104,21 @@ export async function GET(request: NextRequest) {
       merged.push(v);
     }
 
+    // Annotate each row with whether a post-viewing voice capture has
+    // already happened. The Viewings tab uses this to swap the mic
+    // button for a "Captured" badge; the Intelligence proactive prompt
+    // uses it to suppress the "just finished?" card for already-captured
+    // viewings.
+    const captureIds = await viewingIdsWithCapture(supabase, merged.map((v) => v.id));
+    for (const v of merged) v.hasCapture = captureIds.has(v.id);
+
     console.log('[agent/viewings GET]', {
       agentProfileId: profile.id,
       tenantId: profile.tenant_id,
       canonicalCount: canonicalFormatted.length,
       legacyCount: legacyFormatted.length,
       mergedCount: merged.length,
+      capturedCount: captureIds.size,
     });
 
     return NextResponse.json({ viewings: merged });
@@ -279,6 +289,10 @@ interface Viewing {
   tableSource: 'viewings' | 'agent_viewings';
   createdAt: string | null;
   updatedAt: string | null;
+  // Annotated server-side from pending_drafts: true when the orchestrator
+  // ran for this viewing. Drives the "Captured" badge + the suppression
+  // of the proactive prompt for already-captured viewings.
+  hasCapture?: boolean;
 }
 
 // Map canonical `viewings` rows into the legacy Viewing shape the page
@@ -332,6 +346,7 @@ function formatCanonicalViewing(
     tableSource: 'viewings',
     createdAt: row.created_at ?? null,
     updatedAt: row.updated_at ?? null,
+    hasCapture: false,
   };
 }
 
@@ -372,5 +387,6 @@ function formatViewing(v: any): Viewing {
     tableSource: 'agent_viewings',
     createdAt: v.created_at ?? null,
     updatedAt: v.updated_at ?? null,
+    hasCapture: false,
   };
 }
