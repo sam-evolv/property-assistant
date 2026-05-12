@@ -145,7 +145,6 @@ export default function CareDashboardOverview() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [sentReminders, setSentReminders] = useState<Set<string>>(new Set());
 
   const fetchData = useCallback(async (isRefresh = false) => {
@@ -178,16 +177,6 @@ export default function CareDashboardOverview() {
   }, []);
 
   useEffect(() => { fetchData(); }, [fetchData]);
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      await fetch('/api/care/seed', { method: 'POST' });
-      await fetchData();
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   const handleSendReminder = (installId: string) => {
     setSentReminders(prev => new Set(prev).add(installId));
@@ -264,16 +253,6 @@ export default function CareDashboardOverview() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {installations.length === 0 && (
-                <button
-                  onClick={handleSeed}
-                  disabled={seeding}
-                  className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg bg-gold-500 text-white hover:bg-gold-600 transition-colors disabled:opacity-50"
-                >
-                  {seeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                  Seed Demo Data
-                </button>
-              )}
               <button
                 onClick={() => fetchData(true)}
                 disabled={refreshing}
