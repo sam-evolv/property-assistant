@@ -9,7 +9,9 @@ import StatusBadge from '../_components/StatusBadge';
 import {
   X, Check, Clock, ChevronDown, Loader2, MoreVertical,
   CalendarClock, XCircle, UserX, CheckCircle2, MessageSquare,
+  Mic, Plus,
 } from 'lucide-react';
+import VoiceCaptureCard from '@/components/agent/intelligence/VoiceCaptureCard';
 
 type ViewingTableSource = 'viewings' | 'agent_viewings';
 
@@ -26,6 +28,7 @@ interface Viewing {
   source?: string;
   developmentId?: string | null;
   tableSource?: ViewingTableSource;
+  hasCapture?: boolean;
 }
 
 type RowAction = 'reschedule' | 'cancel' | 'mark_no_show' | 'mark_completed';
@@ -33,6 +36,23 @@ type RowAction = 'reschedule' | 'cancel' | 'mark_no_show' | 'mark_completed';
 interface ActiveAction {
   viewing: Viewing;
   action: RowAction;
+}
+
+// "Captureable" = the viewing has happened in real life so a post-viewing
+// voice loop makes sense. We allow capture for any scheduled/confirmed
+// viewing whose start time is in the past OR within the next 2 hours
+// (an agent might tap straight after a viewing wraps but before the
+// official end time). Already-completed, no-shows, and cancellations
+// are out of scope, the voice loop wouldn't change the outcome.
+function isViewingCaptureable(v: Viewing, nowMs: number = Date.now()): boolean {
+  // The API formatter remaps canonical status='scheduled' to 'confirmed'
+  // before returning, so we only check the post-remap states here.
+  if (v.status !== 'confirmed' && v.status !== 'pending') return false;
+  if (!v.viewingDate || !v.viewingTime) return false;
+  const iso = `${v.viewingDate}T${v.viewingTime.slice(0, 5)}:00`;
+  const scheduled = new Date(iso).getTime();
+  if (Number.isNaN(scheduled)) return false;
+  return scheduled - nowMs <= 2 * 60 * 60 * 1000;
 }
 
 export default function ViewingsPage() {
@@ -46,6 +66,7 @@ export default function ViewingsPage() {
   const [activeAction, setActiveAction] = useState<ActiveAction | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionBusy, setActionBusy] = useState(false);
+  const [captureTarget, setCaptureTarget] = useState<Viewing | null>(null);
 
   async function handleActionConfirm(payload: { reason?: string; status?: 'no_show' | 'completed'; reschedule?: { isoDateTime: string; durationMinutes: number; developmentId: string | null; notes: string | null } }) {
     if (!activeAction) return;
@@ -254,21 +275,39 @@ export default function ViewingsPage() {
               </svg>
             </div>
             <p style={{ color: '#6B7280', fontSize: 14, fontWeight: 500, marginBottom: 4 }}>No upcoming viewings</p>
-            <p style={{ color: '#A0A8B0', fontSize: 12, marginBottom: 16 }}>Schedule one from the Intelligence chat.</p>
-            <button
-              type="button"
-              onClick={() => router.push('/agent/intelligence')}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 18px', borderRadius: 999,
-                background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
-                border: 'none', fontSize: 13, fontWeight: 600, color: '#FFFFFF',
-                cursor: 'pointer', fontFamily: 'inherit',
-              }}
-            >
-              <MessageSquare size={14} strokeWidth={2.25} />
-              Open Intelligence
-            </button>
+            <p style={{ color: '#A0A8B0', fontSize: 12, marginBottom: 16 }}>
+              Schedule one from the Intelligence chat, or tap + to add one manually.
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => router.push('/agent/intelligence')}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: 'linear-gradient(180deg, #D4AF37 0%, #C49B2A 100%)',
+                  border: 'none', fontSize: 13, fontWeight: 600, color: '#FFFFFF',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <MessageSquare size={14} strokeWidth={2.25} />
+                Open chat
+              </button>
+              <button
+                type="button"
+                onClick={() => { setFormDate(today); setShowForm(true); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  padding: '10px 18px', borderRadius: 999,
+                  background: '#F4F4F5', border: '0.5px solid rgba(0,0,0,0.08)',
+                  fontSize: 13, fontWeight: 600, color: '#0D0D12',
+                  cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <Plus size={14} strokeWidth={2.25} />
+                Add manually
+              </button>
+            </div>
           </div>
         ) : (
           <>
@@ -321,6 +360,38 @@ export default function ViewingsPage() {
                         )}
                       </div>
 
+                      {v.hasCapture ? (
+                        <span
+                          title="Already captured"
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', gap: 4,
+                            padding: '4px 8px', borderRadius: 999,
+                            background: 'rgba(16,112,60,0.10)', color: '#10703C',
+                            fontSize: 11, fontWeight: 600, letterSpacing: '0.01em',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Check size={11} strokeWidth={2.5} />
+                          Captured
+                        </span>
+                      ) : isViewingCaptureable(v) ? (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setCaptureTarget(v); }}
+                          aria-label="Capture viewing notes"
+                          title="Capture viewing notes"
+                          style={{
+                            width: 32, height: 32, borderRadius: 999, border: 'none',
+                            background: 'rgba(196,155,42,0.10)', cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0, color: '#C49B2A', transition: 'background 120ms ease',
+                          }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(196,155,42,0.20)'; }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(196,155,42,0.10)'; }}
+                        >
+                          <Mic size={14} strokeWidth={2.25} />
+                        </button>
+                      ) : null}
                       <StatusBadge status={v.status} />
                       <DropdownMenu.Root>
                         <DropdownMenu.Trigger asChild>
@@ -515,7 +586,52 @@ export default function ViewingsPage() {
           onConfirm={handleActionConfirm}
         />
       )}
+
+      {captureTarget && (
+        <VoiceCaptureSheet
+          viewing={captureTarget}
+          onClose={() => { setCaptureTarget(null); fetchViewings(); }}
+        />
+      )}
     </AgentShell>
+  );
+}
+
+function VoiceCaptureSheet({
+  viewing,
+  onClose,
+}: {
+  viewing: Viewing;
+  onClose: () => void;
+}) {
+  // Reuse the existing bottom-sheet overlay vocabulary used by ActionModal.
+  const overlayStyle: React.CSSProperties = {
+    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+    backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+    zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+  };
+  const sheetStyle: React.CSSProperties = {
+    width: '100%', maxWidth: 560, background: 'transparent',
+    padding: '0 12px 20px',
+    animation: 'slideUp 300ms cubic-bezier(.2,.8,.2,1)',
+    maxHeight: '92dvh', overflowY: 'auto',
+  };
+  const scheduledIso = `${viewing.viewingDate}T${(viewing.viewingTime || '12:00').slice(0, 5)}:00`;
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={sheetStyle} onClick={(e) => e.stopPropagation()}>
+        <VoiceCaptureCard
+          viewing={{
+            id: viewing.id,
+            applicant_name: viewing.buyerName,
+            development_name: viewing.schemeName || null,
+            scheduled_at: scheduledIso,
+            status: viewing.status,
+          }}
+          onClose={onClose}
+        />
+      </div>
+    </div>
   );
 }
 

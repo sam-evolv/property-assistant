@@ -23,6 +23,7 @@ import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intell
 import ApplicantCard, { type ApplicantDraftEnvelope } from '@/components/agent/intelligence/ApplicantCard';
 import CompositeScheduleCard, { type CompositeScheduleEnvelope } from '@/components/agent/intelligence/CompositeScheduleCard';
 import ViewingMutationCard, { type ViewingMutationEnvelope } from '@/components/agent/intelligence/ViewingMutationCard';
+import PostViewingPrompt from '@/components/agent/intelligence/PostViewingPrompt';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
 // INDEPENDENT_PILLS 2×2 grid are gone. Capability surfacing is now the
@@ -1274,6 +1275,7 @@ function IntelligencePageInner() {
           }}
         >
           <div style={{ pointerEvents: 'auto' }}>
+            <PostViewingPrompt />
             <VoiceInputBar
               ref={inputElRef}
               input={input}
