@@ -657,8 +657,8 @@ function IntelligencePageInner() {
             ? {
                 ...m,
                 content: hadTranscript
-                  ? `I heard "${transcript.trim()}" but I'm not sure what you'd like me to do. Try again?`
-                  : "I couldn't catch that. Tap the mic and try again?",
+                  ? `I can't turn "${transcript.trim()}" into an action yet. Here's what I can do instead: type the request out so I can read it as text, or tap the mic and give it a shorter phrasing.`
+                  : "I couldn't catch any audio. Tap the mic and give it another go, or type the request out instead.",
                 voice: undefined,
               }
             : m,

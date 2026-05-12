@@ -2023,7 +2023,7 @@ export async function POST(request: NextRequest) {
         if (intentClassification?.intent === 'affirmative') {
           // Couldn't extract a follow-up topic - provide helpful response
           
-          const helpfulResponse = 'I want to help, but I am not sure what you would like more information about. Could you tell me specifically what you would like to know?';
+          const helpfulResponse = "I can't tell what you're saying yes to without more context. Ask the specific question (for example \"what schools are nearby?\" or \"when does the kitchen get fitted?\") and I'll answer directly.";
           
           await persistMessageSafely({
             tenant_id: userTenantId,
@@ -2049,7 +2049,7 @@ export async function POST(request: NextRequest) {
         }
       } else {
         // No conversation history - ask for clarification
-        const clarificationResponse = 'I want to help, but I am not sure what you would like more information about. Could you tell me what you are looking for?';
+        const clarificationResponse = "I can't tell what you're saying yes to without more context. Ask the specific question (for example \"what schools are nearby?\" or \"when does my snag list close?\") and I'll answer directly.";
         
         await persistMessageSafely({
           tenant_id: userTenantId,
