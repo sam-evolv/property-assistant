@@ -439,12 +439,12 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'draft_lease_renewal',
-    description: 'Draft lease renewal offers for tenancies in the renewal window (recently expired through next 90 days). Calculates RPZ-compliant rent uplift where applicable. Returns drafts for tenant approval. Pass `tenant_name` to scope to a single tenant when the user names one ("Aoife O\'Brien\'s renewal", "remind Mark"); fuzzy-matches against agent_tenancies.tenant_name. Pass nothing to draft for every tenancy in the window.',
+    description: 'Draft lease renewal offers for tenancies in the renewal window (recently expired through next 90 days). Calculates RPZ-compliant rent uplift where applicable. Returns drafts for tenant approval. Pass `tenant_name` to scope to a single tenant when the user names one (e.g. "<tenant first name>\'s renewal", "remind <tenant first name>"); fuzzy-matches against agent_tenancies.tenant_name. Pass nothing to draft for every tenancy in the window.',
     parameters: {
       type: 'object',
       properties: {
         tenancy_id: { type: 'string', description: 'Optional tenancy id to draft for a single renewal. Only pass when a previous tool result surfaced a real tenancy id; never invent one.' },
-        tenant_name: { type: 'string', description: 'Optional tenant name (partial OK — "Aoife", "Mark Donnelly") to scope the renewal to one tenancy. Resolved server-side via fuzzy ILIKE match against agent_tenancies.tenant_name.' },
+        tenant_name: { type: 'string', description: 'Optional tenant name (partial OK, e.g. a first name or a full name) to scope the renewal to one tenancy. Resolved server-side via fuzzy ILIKE match against agent_tenancies.tenant_name.' },
       },
       required: [],
     },
@@ -467,7 +467,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'manage_applicants',
     description: [
-      'Add, update or remove applicants on the agent\'s books. Voice-first and paste-first — the agent says "add Jack Murphy 087 123 4567" or pastes a list of names from an email.',
+      'Add, update or remove applicants on the agent\'s books. Voice-first and paste-first. The agent says "add <full name as stated> <phone number as stated>" or pastes a list of names from an email.',
       'NEVER writes on its own. Always returns a draft envelope; the agent confirms in the chat card. The agent\'s applicant_write_mode setting decides whether the card auto-confirms with undo (propose_undoable) or waits for an explicit tap (always_confirm). The mode is included in the result so the model can phrase its reply accordingly.',
       'Inputs by action:',
       '  add — pass `applicants` (one or more {full_name, email?, phone?, notes?, source?}) AND/OR `bulk_text` for raw pasted lists. The bulk parser is deterministic (regex over Irish phone formats and the common "Name <email>" / "Name (phone)" / comma / pipe / table shapes). Never invent email or phone — leave them null when the user did not provide them.',
@@ -536,8 +536,8 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
           items: {
             type: 'object',
             properties: {
-              applicant_name: { type: 'string', description: 'Name of the person the viewing is for, exactly as the user said it.' },
-              scheduled_at_natural: { type: 'string', description: 'Natural-language time, e.g. "Thursday 6pm". Parsed against Europe/Dublin.' },
+              applicant_name: { type: 'string', description: 'The applicant\'s FULL name exactly as the user stated it. Never truncate (a full name stays a full name; do not drop the surname). Never substitute. Never lift any example name from this description or any other prompt: pass only the literal name the current user message contains.' },
+              scheduled_at_natural: { type: 'string', description: 'The time the user stated, verbatim. Examples of the shape (NOT defaults): "<weekday> <time as user said it>", "tomorrow at <time as user said it>", "today at <time as user said it>". Always include both day reference and time AND am/pm if the user said am/pm. NEVER substitute a different time. NEVER lift one of these example strings as a literal. If the user did not state a time, return needs_clarification rather than guessing. Parsed against Europe/Dublin.' },
               property_hint: { type: 'string', description: 'Development name. Required for new applicants since they have no enquiries yet.' },
               duration_minutes: { type: 'number', description: 'Defaults to 30. Clamped to 5-240.' },
               notes: { type: 'string', description: 'Optional note to record on the viewing.' },
@@ -558,7 +558,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'update_viewing',
     description: [
-      'Reschedule or edit an existing viewing. Use when the user wants to change the time, date, property, duration, or notes on a viewing already on the books ("reschedule Jack to 7pm Friday", "move that viewing to Lakeside Manor", "change the duration to 45 minutes").',
+      'Reschedule or edit an existing viewing. Use when the user wants to change the time, date, property, duration, or notes on a viewing already on the books (e.g. "reschedule <applicant> to <new time as user said it>", "move that viewing to <scheme as user said it>", "change the duration to 45 minutes").',
       'Resolves the viewing by applicant name (and optional date hint). If the applicant has multiple viewings, returns needs_clarification with the candidates so you can ask one targeted question.',
       'Returns either { status: "draft", type: "viewing_update", ... } for the chat card, or { status: "needs_clarification", reason, message }. The chat surface renders one ViewingMutationCard with a previous → next diff. NEVER claim the change has been saved before the agent confirms the card.',
     ].join(' '),
@@ -570,7 +570,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: 'How to identify the viewing.',
           properties: {
             applicant_name: { type: 'string', description: 'Applicant name as the user said it.' },
-            scheduled_at_natural: { type: 'string', description: 'Optional date/time hint to disambiguate when the applicant has multiple viewings ("Thursday viewing", "the 5pm one").' },
+            scheduled_at_natural: { type: 'string', description: 'Optional date/time hint, verbatim from the user, to disambiguate when the applicant has multiple viewings (e.g. "<weekday> viewing", "the <time the user said> one"). NEVER substitute a different time.' },
             viewing_id: { type: 'string', description: 'Optional explicit viewing UUID, only when surfaced by a previous tool result.' },
           },
         },
@@ -578,7 +578,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
           type: 'object',
           description: 'Fields to change. Pass only what the user asked to change.',
           properties: {
-            scheduled_at_natural: { type: 'string', description: 'New date/time, natural language ("Friday 7pm").' },
+            scheduled_at_natural: { type: 'string', description: 'New date/time, verbatim from the user (e.g. "<weekday> <new time as user said it>"). NEVER substitute. Always include both day reference and time the user actually stated.' },
             duration_minutes: { type: 'number', description: 'New length in minutes. Clamped 5-240.' },
             property_hint: { type: 'string', description: 'New development name. Resolved against the agent\'s assigned schemes.' },
             notes: { type: 'string', description: 'New notes. Pass empty string to clear.' },
@@ -592,7 +592,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'cancel_viewing',
     description: [
-      'Cancel a viewing that is on the books. Use when the user says "cancel Jack\'s viewing", "X cancelled", "scrap that viewing", or any clear cancellation phrasing.',
+      'Cancel a viewing that is on the books. Use when the user says "cancel <applicant>\'s viewing", "X cancelled", "scrap that viewing", or any clear cancellation phrasing.',
       'Resolves the viewing by applicant name (and optional date hint). Returns a draft envelope; the agent confirms via a red Confirm button on the ViewingMutationCard. Status moves to cancelled and any device calendar event is removed.',
       'NEVER call cancel_viewing for a request to remove or delete the applicant themselves, that is manage_applicants action="remove".',
     ].join(' '),
@@ -617,7 +617,7 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'mark_viewing_status',
     description: [
-      'Mark a viewing as no_show or completed after the fact. Use when the user reports outcome ("Jack didn\'t show", "viewing with X went well", "Sarah turned up", "X was a no-show").',
+      'Mark a viewing as no_show or completed after the fact. Use when the user reports outcome (e.g. "<applicant> didn\'t show", "viewing with <applicant> went well", "<applicant> turned up", "<applicant> was a no-show").',
       'Status no_show ONLY when the user clearly says someone did not attend. Status completed ONLY when the user clearly indicates the viewing happened. Do NOT infer either from a generic mention of the applicant.',
       'Returns a draft envelope for confirmation. The historical calendar event is preserved (no calendar action).',
     ].join(' '),

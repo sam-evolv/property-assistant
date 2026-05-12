@@ -23,7 +23,7 @@ interface Viewing {
   viewingDate: string;
   viewingTime: string;
   durationMinutes?: number;
-  status: 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show';
+  status: 'scheduled' | 'confirmed' | 'pending' | 'completed' | 'cancelled' | 'no_show';
   notes?: string;
   source?: string;
   developmentId?: string | null;
@@ -47,9 +47,12 @@ interface ActiveAction {
 // no-shows, and cancellations are out of scope, the voice loop wouldn't
 // change the outcome.
 function isViewingCaptureable(v: Viewing, nowMs: number = Date.now()): boolean {
-  // The API formatter remaps canonical status='scheduled' to 'confirmed'
-  // before returning, so we only check the post-remap states here.
-  if (v.status !== 'confirmed' && v.status !== 'pending') return false;
+  // The API formatter usually remaps canonical status='scheduled' to
+  // 'confirmed' before returning, but the live DB rows we've seen come
+  // back with status='scheduled' (the remap path is bypassed for at
+  // least one code path). Accept all three values so the mic shows up
+  // either way.
+  if (v.status !== 'confirmed' && v.status !== 'scheduled' && v.status !== 'pending') return false;
   if (!v.viewingDate) return false;
   // Compare on YYYY-MM-DD in Dublin. viewingDate already arrives in
   // Dublin-local form from the API formatter; build "today" the same
