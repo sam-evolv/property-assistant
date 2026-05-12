@@ -23,6 +23,7 @@ import ViewingCard, { type ViewingDraftPayload } from '@/components/agent/intell
 import ApplicantCard, { type ApplicantDraftEnvelope } from '@/components/agent/intelligence/ApplicantCard';
 import CompositeScheduleCard, { type CompositeScheduleEnvelope } from '@/components/agent/intelligence/CompositeScheduleCard';
 import ViewingMutationCard, { type ViewingMutationEnvelope } from '@/components/agent/intelligence/ViewingMutationCard';
+import BroadcastCard, { type BroadcastEnvelope } from '@/components/agent/intelligence/BroadcastCard';
 import PostViewingPrompt from '@/components/agent/intelligence/PostViewingPrompt';
 
 // Session 7 — the landing-screen action-button grid and the SCHEME_PILLS /
@@ -105,6 +106,11 @@ interface Message {
   // update_viewing / cancel_viewing / mark_viewing_status envelopes. One
   // card per turn; suppresses the four other draft surfaces when present.
   viewingMutationDrafts?: ViewingMutationEnvelope[];
+  // broadcast_to_applicants envelopes. One card per turn at most; when
+  // present, the chat route suppresses every other card surface and the
+  // follow-up chips (the BroadcastCard already carries its own
+  // approve / cancel / undo affordances).
+  broadcastDrafts?: BroadcastEnvelope[];
 }
 
 interface UndoBatch {
@@ -161,6 +167,18 @@ function compositeEnvelopeSignature(env: CompositeScheduleEnvelope): string {
     .sort()
     .join('||');
   return `${applicants}::${viewings}`;
+}
+
+// Stable signature for broadcast drafts. Same dedupe pattern as composite
+// and mutation cards; an identical envelope arriving twice in one turn
+// collapses to a single rendered BroadcastCard.
+function broadcastEnvelopeSignature(env: BroadcastEnvelope): string {
+  const emails = env.recipients
+    .map((r) => r.email.toLowerCase())
+    .filter((s) => s.length > 0)
+    .sort()
+    .join(',');
+  return `${env.intent}::${env.filter_natural}::${emails}`;
 }
 
 // Matches the chat route's mutation signature so the same envelope landing
@@ -481,6 +499,26 @@ function IntelligencePageInner() {
                   role: 'assistant',
                   content: '',
                   viewingMutationDrafts: [envelope],
+                }];
+              });
+            } else if (data.type === 'broadcast_draft' && data.envelope) {
+              const envelope = data.envelope as BroadcastEnvelope;
+              const sig = broadcastEnvelopeSignature(envelope);
+              setMessages(prev => {
+                const existing = prev.find(m => m.id === streamingMsgId);
+                if (existing) {
+                  return prev.map(m => {
+                    if (m.id !== streamingMsgId) return m;
+                    const current = m.broadcastDrafts ?? [];
+                    if (current.some(e => broadcastEnvelopeSignature(e) === sig)) return m;
+                    return { ...m, broadcastDrafts: [...current, envelope] };
+                  });
+                }
+                return [...prev, {
+                  id: streamingMsgId,
+                  role: 'assistant',
+                  content: '',
+                  broadcastDrafts: [envelope],
                 }];
               });
             } else if (data.type === 'override') {
@@ -1244,6 +1282,21 @@ function IntelligencePageInner() {
                   {msg.viewingMutationDrafts && msg.viewingMutationDrafts.map((envelope, idx) => (
                     <ViewingMutationCard
                       key={`${msg.id}-mutation-${idx}`}
+                      envelope={envelope}
+                      onConfirmFailed={(note) => {
+                        setMessages(prev => prev.map(m => {
+                          if (m.id !== msg.id) return m;
+                          const existing = m.content || '';
+                          if (existing.includes(note)) return m;
+                          const next = existing.length > 0 ? `${existing}\n\n${note}` : note;
+                          return { ...m, content: next };
+                        }));
+                      }}
+                    />
+                  ))}
+                  {msg.broadcastDrafts && msg.broadcastDrafts.map((envelope, idx) => (
+                    <BroadcastCard
+                      key={`${msg.id}-broadcast-${idx}`}
                       envelope={envelope}
                       onConfirmFailed={(note) => {
                         setMessages(prev => prev.map(m => {

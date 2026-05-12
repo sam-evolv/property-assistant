@@ -19,6 +19,7 @@ import {
 import { updateViewing, cancelViewing, markViewingStatus } from './viewing-tools';
 import { manageApplicants } from './applicant-tools';
 import { scheduleViewings } from './composite-tools';
+import { planBroadcast } from './broadcast-tools';
 // schedule_viewing (immediate-write) is intentionally NOT imported here.
 // All viewing scheduling goes through schedule_viewings (composite tool).
 // The underlying scheduleViewing function remains exported from
@@ -554,6 +555,44 @@ export const AGENT_TOOL_DEFINITIONS: ToolDefinition[] = [
       required: ['viewings'],
     },
     execute: scheduleViewings as ToolFunction,
+  },
+  {
+    name: 'broadcast_to_applicants',
+    description: [
+      'Bulk personalised applicant broadcast. Use when the user wants to email a group of applicants based on a filter rather than naming each recipient.',
+      'Examples that should trigger this tool:',
+      '- "email everyone interested in <the scheme as user said it> about <the user\'s intent verbatim>"',
+      '- "notify all applicants who enquired about <the scheme as user said it> that <the user\'s intent verbatim>"',
+      '- "tell my waitlist <the user\'s intent verbatim>"',
+      '- "send out an update to anyone who viewed <the scheme as user said it>"',
+      'The tool runs three phases: it parses the natural-language filter, resolves recipients from the enquiries table within the agent\'s tenant, and drafts one personalised email per recipient. The chat surface renders one BroadcastCard with a single Approve gesture; the agent can deselect any recipient or edit any individual email before approving.',
+      'Inputs:',
+      '- intent: the user\'s message about what to send, VERBATIM. Never paraphrase. This is what each personalised email conveys. FAITHFUL EXTRACTION applies.',
+      '- filter_natural: the user\'s recipient filter, VERBATIM. Never paraphrase or normalise scheme names; the tool does its own resolution against the agent\'s assigned schemes.',
+      '- tone: optional. Defaults to "warm". Pass "professional" for formal updates (price changes, policy notices). Pass "urgent" for time-sensitive things (last chance, available now).',
+      'Returns either { status: "draft", type: "broadcast", recipients, emails, ... } for the chat card to render, or { status: "needs_clarification", reason, message }. Clarification reasons cover empty intent, empty filter, unresolved scheme, zero recipients (with a sample), and too many recipients (>200). Surface the clarification message verbatim and let the user narrow.',
+      'NEVER invent applicant details that are not in their record. NEVER claim the broadcast was sent before the agent approves the card.',
+    ].join(' '),
+    parameters: {
+      type: 'object',
+      properties: {
+        intent: {
+          type: 'string',
+          description: 'The user\'s message to convey to each recipient. Pass VERBATIM, never paraphrase or summarise. The same wording the user said.',
+        },
+        filter_natural: {
+          type: 'string',
+          description: 'The user\'s natural-language filter for who to email. Pass VERBATIM. Examples of structure (NOT defaults): "everyone interested in <scheme>", "anyone who enquired about <scheme> in the last <N> days", "applicants who viewed <scheme>". Never invent a scheme name the user did not say.',
+        },
+        tone: {
+          type: 'string',
+          enum: ['warm', 'professional', 'urgent'],
+          description: 'Tone for the drafted emails. Defaults to "warm". Use "professional" for formal updates, "urgent" for time-sensitive things.',
+        },
+      },
+      required: ['intent', 'filter_natural'],
+    },
+    execute: planBroadcast as ToolFunction,
   },
   {
     name: 'update_viewing',

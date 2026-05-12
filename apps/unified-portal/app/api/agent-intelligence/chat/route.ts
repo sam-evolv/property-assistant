@@ -49,6 +49,21 @@ function mutationEnvelopeSignature(env: Record<string, unknown>): string {
   return `${type}|${id}`;
 }
 
+// Stable signature for broadcast drafts. Same pattern as the mutation
+// helper: collapses identical envelopes produced by multi-round tool
+// calling so we never render the same BroadcastCard twice.
+function broadcastEnvelopeSignature(env: Record<string, unknown>): string {
+  const intent = (env.intent as string) || '';
+  const filterNatural = (env.filter_natural as string) || '';
+  const recipientsRaw = Array.isArray(env.recipients) ? (env.recipients as Array<Record<string, unknown>>) : [];
+  const emails = recipientsRaw
+    .map((r) => String(r.email ?? '').toLowerCase())
+    .filter((s) => s.length > 0)
+    .sort()
+    .join(',');
+  return `${intent}::${filterNatural}::${emails}`;
+}
+
 function labelForTool(toolName: string): string {
   switch (toolName) {
     case 'draft_message': return 'Drafting message';
@@ -340,6 +355,10 @@ export async function POST(request: NextRequest) {
     // ViewingMutationCard. Mutually exclusive with the four other card
     // types per turn (composite, applicant, viewing, mutation).
     const viewingMutationDrafts: Array<Record<string, unknown>> = [];
+    // broadcast_to_applicants returns one envelope per call. The chat
+    // surface renders one BroadcastCard with N personalised emails. Same
+    // mutual-exclusion contract as the other card surfaces.
+    const broadcastDrafts: Array<Record<string, unknown>> = [];
 
     // Task 2 — track whether any skill threw inside the tool loop. The
     // legacy catch path JSON-stringified the raw exception into the
@@ -466,6 +485,15 @@ export async function POST(request: NextRequest) {
               ((result.data as any).type as string).startsWith('viewing_')
             ) {
               viewingMutationDrafts.push(result.data as Record<string, unknown>);
+            }
+            if (
+              toolCall.function.name === 'broadcast_to_applicants' &&
+              result?.data &&
+              typeof result.data === 'object' &&
+              (result.data as any).status === 'draft' &&
+              (result.data as any).type === 'broadcast'
+            ) {
+              broadcastDrafts.push(result.data as Record<string, unknown>);
             }
           } catch (err: unknown) {
             // Task 2 — sanitised tool-failure path.
@@ -793,11 +821,26 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // The five draft surfaces are mutually exclusive per turn. Order
-          // of precedence: viewing_mutation_draft > composite_draft >
-          // (viewing_draft | applicant_draft). The mutation card is the
-          // most specific (a single existing viewing being changed); when
-          // it fires, no other card surfaces this turn.
+          // The card surfaces are mutually exclusive per turn. Order of
+          // precedence: broadcast_draft > viewing_mutation_draft >
+          // composite_draft > (viewing_draft | applicant_draft). A
+          // broadcast is the broadest action the agent can take in one
+          // turn, so when it fires nothing else surfaces; below that the
+          // most specific single-record card wins.
+          const seenBroadcastSigs = new Set<string>();
+          const dedupedBroadcasts = broadcastDrafts.filter((env) => {
+            const sig = broadcastEnvelopeSignature(env);
+            if (seenBroadcastSigs.has(sig)) return false;
+            seenBroadcastSigs.add(sig);
+            return true;
+          });
+          const hasBroadcast = dedupedBroadcasts.length > 0;
+          for (const envelope of dedupedBroadcasts) {
+            controller.enqueue(
+              encoder.encode(JSON.stringify({ type: 'broadcast_draft', envelope }) + '\n'),
+            );
+          }
+
           const seenMutationSigs = new Set<string>();
           const dedupedMutations = viewingMutationDrafts.filter((env) => {
             const sig = mutationEnvelopeSignature(env);
@@ -805,22 +848,24 @@ export async function POST(request: NextRequest) {
             seenMutationSigs.add(sig);
             return true;
           });
-          const hasMutation = dedupedMutations.length > 0;
-          for (const envelope of dedupedMutations) {
-            controller.enqueue(
-              encoder.encode(JSON.stringify({ type: 'viewing_mutation_draft', envelope }) + '\n'),
-            );
+          const hasMutation = !hasBroadcast && dedupedMutations.length > 0;
+          if (!hasBroadcast) {
+            for (const envelope of dedupedMutations) {
+              controller.enqueue(
+                encoder.encode(JSON.stringify({ type: 'viewing_mutation_draft', envelope }) + '\n'),
+              );
+            }
           }
 
           const hasComposite = compositeDrafts.length > 0;
-          if (!hasMutation) {
+          if (!hasBroadcast && !hasMutation) {
             for (const envelope of compositeDrafts) {
               controller.enqueue(
                 encoder.encode(JSON.stringify({ type: 'composite_draft', envelope }) + '\n'),
               );
             }
           }
-          if (!hasMutation && !hasComposite) {
+          if (!hasBroadcast && !hasMutation && !hasComposite) {
             // Emit one viewing_draft frame per draft the create_viewing tool
             // returned this turn. The IntelligencePage stashes them on the
             // assistant message and renders a persistent ViewingCard the
@@ -1145,7 +1190,8 @@ export async function POST(request: NextRequest) {
             viewingDrafts.length > 0 ||
             applicantDrafts.length > 0 ||
             compositeDrafts.length > 0 ||
-            viewingMutationDrafts.length > 0
+            viewingMutationDrafts.length > 0 ||
+            broadcastDrafts.length > 0
           ) {
             controller.enqueue(
               encoder.encode(JSON.stringify({ type: 'done', sessionId: currentSessionId }) + '\n')
