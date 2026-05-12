@@ -40,19 +40,30 @@ interface ActiveAction {
 
 // "Captureable" = the viewing has happened in real life so a post-viewing
 // voice loop makes sense. We allow capture for any scheduled/confirmed
-// viewing whose start time is in the past OR within the next 2 hours
-// (an agent might tap straight after a viewing wraps but before the
-// official end time). Already-completed, no-shows, and cancellations
-// are out of scope, the voice loop wouldn't change the outcome.
+// viewing whose start time is today (in Europe/Dublin) or earlier. The
+// agent often only gets to their phone at the end of the day, so a
+// 9am-then-11am-then-2pm string of viewings all need to be captureable
+// from one Viewings tab visit later that evening. Already-completed,
+// no-shows, and cancellations are out of scope, the voice loop wouldn't
+// change the outcome.
 function isViewingCaptureable(v: Viewing, nowMs: number = Date.now()): boolean {
   // The API formatter remaps canonical status='scheduled' to 'confirmed'
   // before returning, so we only check the post-remap states here.
   if (v.status !== 'confirmed' && v.status !== 'pending') return false;
-  if (!v.viewingDate || !v.viewingTime) return false;
-  const iso = `${v.viewingDate}T${v.viewingTime.slice(0, 5)}:00`;
-  const scheduled = new Date(iso).getTime();
-  if (Number.isNaN(scheduled)) return false;
-  return scheduled - nowMs <= 2 * 60 * 60 * 1000;
+  if (!v.viewingDate) return false;
+  // Compare on YYYY-MM-DD in Dublin. viewingDate already arrives in
+  // Dublin-local form from the API formatter; build "today" the same
+  // way so a 4pm viewing on Tuesday stays captureable until midnight.
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Dublin',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  const parts: Record<string, string> = {};
+  for (const p of fmt.formatToParts(new Date(nowMs))) {
+    if (p.type !== 'literal') parts[p.type] = p.value;
+  }
+  const todayStr = `${parts.year}-${parts.month}-${parts.day}`;
+  return v.viewingDate <= todayStr;
 }
 
 export default function ViewingsPage() {
