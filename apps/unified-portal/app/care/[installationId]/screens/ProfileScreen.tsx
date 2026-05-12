@@ -242,44 +242,96 @@ export default function ProfileScreen() {
               </div>
             )}
 
-            {activeSection === 'warranty' && (
-              <div className="space-y-4">
-                {[
-                  { label: 'Solar Panels', years: installation.system_specs.panel_warranty_years, icon: Sun, color: 'text-amber-500', provider: installation.panel_model.split(' ')[0] },
-                  { label: 'Inverter', years: installation.system_specs.inverter_warranty_years, icon: Zap, color: 'text-blue-500', provider: installation.inverter_model.split(' ')[0] },
-                  { label: 'Workmanship', years: installation.system_specs.workmanship_warranty_years, icon: Wrench, color: 'text-[#D4AF37]', provider: installation.installer_name },
-                ].map((w) => {
-                  const used = daysSince / 365;
-                  const pct = Math.min((used / w.years) * 100, 100);
-                  const remaining = Math.max(0, w.years - used);
-                  const expiry = new Date(installation.install_date);
-                  expiry.setFullYear(expiry.getFullYear() + w.years);
-                  return (
-                    <div key={w.label} className="rounded-xl border border-slate-200 p-4">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
-                          <w.icon className={`w-5 h-5 ${w.color}`} />
+            {activeSection === 'warranty' && (() => {
+              // Null-guarded warranty section. The shape on `installation`
+              // is sparse for non-solar installs (heat-pump only, MVHR
+              // only) and for any record where the installer has not yet
+              // filled in component specs. Every field below can be null.
+              const specs = installation.system_specs || {};
+              const installDate = installation.install_date ? new Date(installation.install_date) : null;
+              const installDateValid = installDate !== null && !isNaN(installDate.getTime());
+              const yearsSinceInstall = installDateValid
+                ? (Date.now() - installDate.getTime()) / (365 * 86400000)
+                : null;
+
+              const firstWord = (s: unknown): string | null => {
+                if (typeof s !== 'string') return null;
+                const trimmed = s.trim();
+                if (!trimmed) return null;
+                return trimmed.split(/\s+/)[0];
+              };
+
+              type WarrantyItem = {
+                label: string;
+                years: number;
+                icon: React.ElementType;
+                color: string;
+                provider: string | null;
+              };
+
+              const items: WarrantyItem[] = ([
+                { label: 'Solar Panels', years: specs.panel_warranty_years, icon: Sun, color: 'text-amber-500', provider: firstWord(installation.panel_model) },
+                { label: 'Inverter', years: specs.inverter_warranty_years, icon: Zap, color: 'text-blue-500', provider: firstWord(installation.inverter_model) },
+                { label: 'Workmanship', years: specs.workmanship_warranty_years, icon: Wrench, color: 'text-[#D4AF37]', provider: typeof installation.installer_name === 'string' ? installation.installer_name : null },
+              ] as Array<{ label: string; years: unknown; icon: React.ElementType; color: string; provider: string | null }>)
+                .filter((w): w is WarrantyItem => typeof w.years === 'number' && w.years > 0);
+
+              if (items.length === 0) {
+                return (
+                  <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+                    <Shield className="w-6 h-6 text-slate-300 mx-auto mb-3" />
+                    <p className="text-sm text-slate-500">
+                      Warranty details aren't on file yet. Your installer can add them in the admin panel.
+                    </p>
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {items.map((w) => {
+                    const used = yearsSinceInstall ?? 0;
+                    const pct = Math.min((used / w.years) * 100, 100);
+                    const remaining = Math.max(0, w.years - used);
+                    let expiryLabel: string | null = null;
+                    if (installDateValid) {
+                      const expiry = new Date(installDate.getTime());
+                      expiry.setFullYear(expiry.getFullYear() + w.years);
+                      expiryLabel = expiry.toLocaleDateString('en-IE', { month: 'short', year: 'numeric' });
+                    }
+                    return (
+                      <div key={w.label} className="rounded-xl border border-slate-200 p-4">
+                        <div className="flex items-center gap-3 mb-3">
+                          <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center">
+                            <w.icon className={`w-5 h-5 ${w.color}`} />
+                          </div>
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold text-slate-900">{w.label}</p>
+                            {w.provider && (
+                              <p className="text-xs text-slate-400">{w.provider}</p>
+                            )}
+                          </div>
+                          <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
+                            Active
+                          </span>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-slate-900">{w.label}</p>
-                          <p className="text-xs text-slate-400">{w.provider}</p>
+                        <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
+                          <div className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F5D874]" style={{ width: `${pct}%` }} />
                         </div>
-                        <span className="text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                          Active
-                        </span>
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                          <span>
+                            {installDateValid
+                              ? `${remaining.toFixed(1)} years remaining`
+                              : `${w.years} year cover`}
+                          </span>
+                          {expiryLabel && <span>Expires: {expiryLabel}</span>}
+                        </div>
                       </div>
-                      <div className="h-2 bg-slate-100 rounded-full overflow-hidden mb-2">
-                        <div className="h-full rounded-full bg-gradient-to-r from-[#D4AF37] to-[#F5D874]" style={{ width: `${pct}%` }} />
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-slate-400">
-                        <span>{remaining.toFixed(1)} years remaining</span>
-                        <span>Expires: {expiry.toLocaleDateString('en-IE', { month: 'short', year: 'numeric' })}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
           </div>
         </div>
 
