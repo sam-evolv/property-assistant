@@ -20,6 +20,7 @@ import {
   getRelevantCareKnowledge,
   formatCareKnowledge,
 } from '@/lib/care/care-knowledge';
+import { verifyConversationBelongsToInstallation } from '@/lib/care/verify-conversation-ownership';
 import {
   getSeSystemsKnowledge,
   getSeSystemsInstallerContext,
@@ -374,6 +375,45 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    // STOPGAP CROSS-CHECK (Batch 1.3, audit C002): if the request supplies
+    // a conversation_id, verify it belongs to the same installationId before
+    // we load any history into the model context. Without this check, a
+    // caller can pass another homeowner's conversation_id and have that
+    // conversation's history streamed into the prompt.
+    //
+    // This is a structural fix only. The homeowner side of the Care app has
+    // no admin session today (QR-code entry per middleware.ts:37), which
+    // means we cannot rely on RLS or session-tenant filtering here. Batch 2
+    // will replace this stopgap with the real homeowner session model. Until
+    // then, the verifier below is the security boundary.
+    if (conversation_id) {
+      const ownership = await verifyConversationBelongsToInstallation(
+        supabase,
+        conversation_id,
+        installationId,
+      );
+      if (ownership.status === 'cross_tenant') {
+        // Stable tag for log greps; do not include the actual other-tenant
+        // installation id in the response.
+        console.warn(
+          '[CARE_CROSS_TENANT_CONVERSATION] conversation_id=%s requested_installation_id=%s actual_installation_id=%s',
+          conversation_id,
+          installationId,
+          ownership.actualInstallationId,
+        );
+        return NextResponse.json(
+          { error: 'Conversation not found' },
+          { status: 404 },
+        );
+      }
+      if (ownership.status === 'not_found') {
+        return NextResponse.json(
+          { error: 'Conversation not found' },
+          { status: 404 },
+        );
+      }
+    }
+
     // Get installation — fall back to demo data if not in DB (e.g. demo portal URLs)
     const { data: dbInstallation } = await supabase
       .from('installations')
@@ -428,10 +468,16 @@ export async function POST(request: NextRequest) {
       })(),
       (async () => {
         if (!conversation_id) return [];
+        // Defence in depth on top of the explicit verifier above: join
+        // through care_conversations and filter by installation_id, so even
+        // if the verifier is ever bypassed or removed, the history query
+        // itself can never return messages from another installation's
+        // conversation.
         const { data: history } = await supabase
           .from('care_messages')
-          .select('role, content')
+          .select('role, content, care_conversations!inner(installation_id)')
           .eq('conversation_id', conversation_id)
+          .eq('care_conversations.installation_id', installationId)
           .order('created_at', { ascending: true })
           .limit(20);
         return (history || [])
