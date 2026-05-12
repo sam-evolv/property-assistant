@@ -109,7 +109,11 @@ export async function GET(request: NextRequest) {
     // button for a "Captured" badge; the Intelligence proactive prompt
     // uses it to suppress the "just finished?" card for already-captured
     // viewings.
-    const captureIds = await viewingIdsWithCapture(supabase, merged.map((v) => v.id));
+    const captureIds = await viewingIdsWithCapture(
+      supabase,
+      profile.tenant_id,
+      merged.map((v) => v.id),
+    );
     for (const v of merged) v.hasCapture = captureIds.has(v.id);
 
     console.log('[agent/viewings GET]', {

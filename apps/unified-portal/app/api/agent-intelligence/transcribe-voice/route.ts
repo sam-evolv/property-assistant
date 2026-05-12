@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error ? error.message : 'Transcription request failed';
     console.error('[agent-intelligence/transcribe-voice] Error:', message);
     return NextResponse.json(
-      { error: "Couldn't transcribe — try again.", details: message },
+      { error: "Couldn't transcribe. Try again.", details: message },
       { status: 500 },
     );
   }

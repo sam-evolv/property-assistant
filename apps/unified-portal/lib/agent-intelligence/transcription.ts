@@ -72,7 +72,7 @@ export async function transcribeAudio(
     );
   }
   throw new TranscriptionError(
-    "Couldn't transcribe — try again.",
+    "Couldn't transcribe. Try again.",
     'provider',
     lastError,
   );

@@ -22,11 +22,14 @@ const VOICE_CAPTURE_SKILL = 'post_viewing_voice_capture';
 
 export async function hasCaptureForViewing(
   supabase: SupabaseClient,
+  tenantId: string,
   viewingId: string,
 ): Promise<boolean> {
+  if (!tenantId) return false;
   const { data, error } = await supabase
     .from('pending_drafts')
     .select('id')
+    .eq('tenant_id', tenantId)
     .eq('content_json->>skill', VOICE_CAPTURE_SKILL)
     .eq('content_json->affected_record->>id', viewingId)
     .limit(1);
@@ -37,16 +40,23 @@ export async function hasCaptureForViewing(
 /**
  * Batched variant for list views that need to annotate many viewings at once.
  * Returns a Set of viewing_ids that have at least one capture marker.
+ *
+ * Tenant-scoped: the route handler uses the service-role admin client which
+ * bypasses RLS, so this helper MUST filter by tenant_id explicitly to avoid
+ * a cross-tenant read.
  */
 export async function viewingIdsWithCapture(
   supabase: SupabaseClient,
+  tenantId: string,
   viewingIds: string[],
 ): Promise<Set<string>> {
   const out = new Set<string>();
+  if (!tenantId) return out;
   if (viewingIds.length === 0) return out;
   const { data, error } = await supabase
     .from('pending_drafts')
     .select('content_json')
+    .eq('tenant_id', tenantId)
     .eq('content_json->>skill', VOICE_CAPTURE_SKILL);
   if (error || !data) return out;
   const requested = new Set(viewingIds);

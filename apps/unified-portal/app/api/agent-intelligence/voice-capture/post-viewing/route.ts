@@ -108,7 +108,7 @@ export async function POST(request: NextRequest) {
       const message = err instanceof Error ? err.message : 'Transcription failed';
       console.error('[voice-capture/post-viewing] transcription error', { message });
       return NextResponse.json(
-        { error: "Couldn't transcribe — try again.", step: 'transcribe' },
+        { error: "Couldn't transcribe. Try again.", step: 'transcribe' },
         { status: 502 },
       );
     }
