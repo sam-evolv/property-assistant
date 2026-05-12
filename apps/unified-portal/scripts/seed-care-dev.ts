@@ -1,22 +1,46 @@
 /**
- * POST /api/care/seed — Seed SE Systems demo data
- * Only runs if no installations exist for the tenant.
+ * Care demo data seeder. Local development only.
+ *
+ * Usage:
+ *   NEXT_PUBLIC_SUPABASE_URL=... \
+ *   SUPABASE_SERVICE_ROLE_KEY=... \
+ *   npx tsx scripts/seed-care-dev.ts
+ *
+ * Refuses to run in production. Idempotent: a second run is a no-op if the
+ * tenant already has 12 or more installations.
+ *
+ * Replaces the deleted POST /api/care/seed route. The route was removed
+ * because Next.js keeps it in the manifest even when env-gated, and an
+ * accidental flag flip in production would let an unauthenticated POST
+ * rewrite demo data. Moving the logic to a script means it is impossible to
+ * trigger from the network in any environment.
  */
-import { NextResponse } from 'next/server';
+
 import { createClient } from '@supabase/supabase-js';
 import { randomUUID } from 'crypto';
 
-export const dynamic = 'force-dynamic';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
+function die(msg: string): never {
+  console.error(`[seed-care-dev] ${msg}`);
+  process.exit(1);
 }
 
-// 12 installations — Cork area, realistic variety
+if (process.env.NODE_ENV === 'production') {
+  die('Refusing to run with NODE_ENV=production. This script is for local development only.');
+}
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) die('NEXT_PUBLIC_SUPABASE_URL is not set.');
+if (!SERVICE_KEY) die('SUPABASE_SERVICE_ROLE_KEY is not set.');
+if (!SERVICE_KEY.startsWith('ey')) {
+  die('SUPABASE_SERVICE_ROLE_KEY does not look like a JWT (must start with "ey").');
+}
+
+const supabase = createClient(SUPABASE_URL, SERVICE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
 function buildInstallations(tenantId: string) {
   const now = new Date();
 
@@ -40,7 +64,6 @@ function buildInstallations(tenantId: string) {
     const warrantyExpiry = new Date(installDate);
     warrantyExpiry.setFullYear(warrantyExpiry.getFullYear() + 10);
 
-    // Energy: ~900 kWh/kWp/year, prorated by months since install
     const monthsSinceInstall = Math.max(0, (now.getTime() - installDate.getTime()) / (1000 * 60 * 60 * 24 * 30.44));
     const annualGeneration = r.kwp * 900;
     const totalGenerated = r.type === 'mvhr' ? 0 : Math.round(annualGeneration * (monthsSinceInstall / 12));
@@ -69,10 +92,7 @@ function buildInstallations(tenantId: string) {
   });
 }
 
-export async function POST() {
-  const supabase = getSupabaseAdmin();
-
-  // Find SE Systems tenant
+async function main() {
   const { data: tenants } = await supabase
     .from('tenants')
     .select('id, name')
@@ -83,21 +103,19 @@ export async function POST() {
 
   if (tenants && tenants.length > 0) {
     tenantId = tenants[0].id;
+    console.log(`[seed-care-dev] Found tenant: ${tenants[0].name} (${tenantId})`);
   } else {
-    // Fallback: get the first tenant
     const { data: fallback } = await supabase
       .from('tenants')
-      .select('id')
+      .select('id, name')
       .limit(1)
       .single();
 
-    if (!fallback) {
-      return NextResponse.json({ error: 'No tenants found' }, { status: 404 });
-    }
+    if (!fallback) die('No tenants found in this Supabase project.');
     tenantId = fallback.id;
+    console.log(`[seed-care-dev] Using fallback tenant: ${fallback.name} (${tenantId})`);
   }
 
-  // Check if data already exists
   const { count } = await supabase
     .from('installations')
     .select('*', { count: 'exact', head: true })
@@ -105,23 +123,22 @@ export async function POST() {
     .not('job_reference', 'is', null);
 
   if (count && count >= 12) {
-    return NextResponse.json({ message: 'Demo data already seeded', tenantId, count });
+    console.log(`[seed-care-dev] Demo data already seeded (${count} installations). Nothing to do.`);
+    return;
   }
 
-  // Seed installations
   const installations = buildInstallations(tenantId);
-  const { error: instError } = await supabase.from('installations').upsert(installations, { onConflict: 'job_reference' });
+  const { error: instError } = await supabase
+    .from('installations')
+    .upsert(installations, { onConflict: 'job_reference' });
 
-  if (instError) {
-    return NextResponse.json({ error: instError.message }, { status: 500 });
-  }
+  if (instError) die(`Failed to insert installations: ${instError.message}`);
 
-  // Seed support_queries table (create if needed)
   const supportQueries = [
     {
       id: randomUUID(),
       tenant_id: tenantId,
-      installation_id: installations[9].id, // SES-2024-010 (flagged)
+      installation_id: installations[9].id,
       customer_ref: 'Customer J',
       address: '27 The Green, Douglas',
       query_type: 'Inverter Error Code',
@@ -132,7 +149,7 @@ export async function POST() {
     {
       id: randomUUID(),
       tenant_id: tenantId,
-      installation_id: installations[5].id, // SES-2024-006 (pending portal)
+      installation_id: installations[5].id,
       customer_ref: 'Customer F',
       address: '9 Oak Park, Midleton',
       query_type: 'Portal Access',
@@ -143,7 +160,7 @@ export async function POST() {
     {
       id: randomUUID(),
       tenant_id: tenantId,
-      installation_id: installations[3].id, // SES-2023-004 (heat pump)
+      installation_id: installations[3].id,
       customer_ref: 'Customer D',
       address: '3 Harbour View, Cobh',
       query_type: 'Warranty Query',
@@ -154,22 +171,21 @@ export async function POST() {
     {
       id: randomUUID(),
       tenant_id: tenantId,
-      installation_id: installations[6].id, // SES-2024-007
+      installation_id: installations[6].id,
       customer_ref: 'Customer G',
       address: '31 Lakeview Crescent, Togher',
       query_type: 'App Not Loading',
       query_status: 'resolved',
-      description: 'Homeowner app was showing blank screen. Resolved — they needed to update the app.',
+      description: 'Homeowner app was showing blank screen. Resolved: they needed to update the app.',
       created_at: new Date(Date.now() - 20 * 24 * 60 * 60 * 1000).toISOString(),
     },
   ];
 
   const { error: sqError } = await supabase.from('support_queries').insert(supportQueries);
   if (sqError) {
-    // Non-fatal: table might not exist yet
+    console.warn(`[seed-care-dev] support_queries insert failed (non-fatal): ${sqError.message}`);
   }
 
-  // Seed diagnostic_flows table
   const diagnosticFlows = [
     {
       id: randomUUID(),
@@ -205,13 +221,13 @@ export async function POST() {
 
   const { error: dfError } = await supabase.from('diagnostic_flows').insert(diagnosticFlows);
   if (dfError) {
+    console.warn(`[seed-care-dev] diagnostic_flows insert failed (non-fatal): ${dfError.message}`);
   }
 
-  return NextResponse.json({
-    message: 'Demo data seeded successfully',
-    tenantId,
-    installations: installations.length,
-    supportQueries: supportQueries.length,
-    diagnosticFlows: diagnosticFlows.length,
-  });
+  console.log(`[seed-care-dev] Seeded ${installations.length} installations, ${supportQueries.length} support queries, ${diagnosticFlows.length} diagnostic flows.`);
 }
+
+main().catch((err) => {
+  console.error('[seed-care-dev] Unhandled error:', err);
+  process.exit(1);
+});

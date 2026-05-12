@@ -1,6 +1,12 @@
 /**
  * GET /api/care/service-records?installation_id=X
  * Returns service records for a given installation, ordered by date descending.
+ *
+ * Homeowner-side route (called from /care/[installationId]/ServiceScreen).
+ * Auth model deferred to Batch 2: homeowner session design. Until then this
+ * route trusts installationId from the query string. The structural cross-
+ * check applied to the chat route in Batch 1.3 will extend to this route in
+ * Batch 2.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
