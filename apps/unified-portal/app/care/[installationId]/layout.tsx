@@ -76,7 +76,7 @@ const INSTALLATION_COLUMNS = [
   'co2_saved_today_grams',
   'monthly_running_cost_cents',
   'monthly_budget_cents',
-].join(', ') + ', tenants(name, contact, logo_url)';
+].join(', ') + ', tenants(name, installer_display_name, contact, logo_url)';
 
 export async function generateMetadata({
   params,
@@ -171,7 +171,10 @@ export default async function CareAppLayout({
   }
 
   const tenants = (installation as any).tenants ?? null;
-  const installerName = tenants?.name || 'Your Installer';
+  // Customer-facing name. Prefer the trading name; fall back to the legal
+  // name only if the display column has not been populated. The legal name
+  // (tenants.name) stays internal: it is invisible to the homeowner.
+  const installerName = tenants?.installer_display_name || tenants?.name || 'Your Installer';
 
   const installationData = {
     ...installation,
