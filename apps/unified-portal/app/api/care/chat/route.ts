@@ -57,6 +57,34 @@ function getOpenAI() {
 }
 
 // ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
+
+type ServiceRecord = {
+  id: string;
+  service_date: string;
+  service_type: string | null;
+  engineer_name: string | null;
+  company: string | null;
+  outcome: string | null;
+  notes: string | null;
+  warranty_validated: boolean | null;
+};
+
+async function fetchServiceHistory(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  installationId: string,
+): Promise<ServiceRecord[]> {
+  const { data } = await supabase
+    .from('service_records')
+    .select('id, service_date, service_type, engineer_name, company, outcome, notes, warranty_validated')
+    .eq('installation_id', installationId)
+    .order('service_date', { ascending: false })
+    .limit(20);
+  return (data as ServiceRecord[] | null) ?? [];
+}
+
+// ---------------------------------------------------------------------------
 // Tool definitions
 // ---------------------------------------------------------------------------
 
@@ -66,7 +94,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_system_status',
       description:
-        'Get the current status and details for this installation — system type, size, health, and components.',
+        'Get the current status and details for this installation: system type, size, health, and components. Use for read-only questions about what is installed.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -75,7 +103,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'troubleshoot_issue',
       description:
-        'ALWAYS call this when the homeowner mentions any fault, error code, red light, flashing light, system not working, or any problem with their heat pump or solar system. This is the knowledge base — do not answer troubleshooting questions from your own knowledge, always search here first.',
+        'ALWAYS call this when the homeowner mentions any fault, error code, red light, flashing light, system not working, or any problem. This is the knowledge base. Never answer troubleshooting questions from your own training; always search here first.',
       parameters: {
         type: 'object',
         properties: {
@@ -91,19 +119,10 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {
-      name: 'get_energy_estimate',
+      name: 'get_service_history',
       description:
-        'Get estimated energy generation figures based on system size and installation location.',
-      parameters: {
-        type: 'object',
-        properties: {
-          period: {
-            type: 'string',
-            enum: ['daily', 'monthly', 'annual'],
-            description: 'Which period to estimate for',
-          },
-        },
-      },
+        'Return the service records the installer has logged for this installation, ordered by date (newest first). Use when the homeowner asks about past services, who last visited, warranty validations, or when the next service is due.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
@@ -111,7 +130,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_warranty_info',
       description:
-        'Get warranty details — expiry date, what is covered, and how to make a claim.',
+        'Get warranty details: expiry date, what is covered, and how to make a claim.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -120,7 +139,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'draft_service_request',
       description:
-        'Draft a service request to the installer. Always show the draft first before confirming it is sent.',
+        'Draft a service request to the installer. Always returns a draft for the homeowner to review. Does not send anything. The homeowner has to approve the draft separately.',
       parameters: {
         type: 'object',
         properties: {
@@ -141,7 +160,8 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
 async function executeTool(
   toolName: string,
   args: any,
-  installation: any
+  installation: any,
+  ctx: { supabase: ReturnType<typeof getSupabaseAdmin>; serviceHistory: ServiceRecord[] }
 ): Promise<any> {
   switch (toolName) {
     case 'get_system_status': {
@@ -263,42 +283,29 @@ async function executeTool(
       };
     }
 
-    case 'get_energy_estimate': {
-      const period = args.period || 'annual';
-      const kwp = installation.system_size_kwp || 4;
-
-      // Ireland average: ~850 kWh/kWp/year
-      const annualKwh = kwp * 850;
-      const monthlyKwh = annualKwh / 12;
-      const dailyKwh = annualKwh / 365;
-
-      // Irish electricity rate ~€0.30/kWh (average residential)
-      const rate = 0.30;
-
-      const figures: Record<string, any> = {
-        daily: {
-          generation_kwh: dailyKwh.toFixed(1),
-          estimated_savings_eur: (dailyKwh * rate).toFixed(2),
-          note: 'Varies significantly with weather and season.',
-        },
-        monthly: {
-          generation_kwh: monthlyKwh.toFixed(0),
-          estimated_savings_eur: (monthlyKwh * rate).toFixed(2),
-          note: 'Summer months ~2x winter output in Ireland.',
-        },
-        annual: {
-          generation_kwh: annualKwh.toFixed(0),
-          estimated_savings_eur: (annualKwh * rate).toFixed(2),
-          note: 'Based on Irish average of 850 kWh/kWp/year.',
-        },
-      };
-
+    case 'get_service_history': {
+      // Service history is loaded once per request and passed into the tool
+      // context so a single request can call this tool more than once without
+      // hitting the database again.
+      const records = ctx.serviceHistory;
+      if (records.length === 0) {
+        return {
+          count: 0,
+          records: [],
+          note: 'No service records on file for this installation yet.',
+        };
+      }
       return {
-        period,
-        system_size_kwp: kwp,
-        ...figures[period],
-        seai_export_note:
-          "You may also earn from excess exported to the grid via your energy supplier's Micro-generation Support Scheme.",
+        count: records.length,
+        records: records.map((r) => ({
+          date: r.service_date,
+          type: r.service_type,
+          engineer: r.engineer_name,
+          company: r.company,
+          outcome: r.outcome,
+          warranty_validated: r.warranty_validated,
+          notes: r.notes,
+        })),
       };
     }
 
@@ -414,14 +421,20 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Get installation — fall back to demo data if not in DB (e.g. demo portal URLs)
+    // Get installation. Join tenants to pick up the customer-facing trading
+    // name (installer_display_name). The legal name stays internal and never
+    // reaches the assistant context.
     const { data: dbInstallation } = await supabase
       .from('installations')
-      .select('id, tenant_id, system_type, system_specs, health_status, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, heat_pump_model, heat_pump_serial, heat_pump_cop, flow_temp_current, hot_water_temp_current, controls_model, installer_name, installer_contact, system_category, next_service_due')
+      .select('id, tenant_id, system_type, system_specs, health_status, install_date, warranty_expiry, inverter_model, panel_model, panel_count, system_size_kwp, portal_status, address_line_1, city, county, job_reference, customer_name, customer_email, heat_pump_model, heat_pump_serial, heat_pump_cop, flow_temp_current, hot_water_temp_current, controls_model, installer_name, installer_contact, system_category, next_service_due, tenants(installer_display_name, name)')
       .eq('id', installationId)
       .single();
 
-    const installation = dbInstallation ?? {
+    // Cast through any: the Supabase typegen produces an awkward union with
+    // the demo-fallback object below, and the downstream code is already
+    // duck-typed against this shape. Tightening the types properly is
+    // tracked in the homeowner-screens nullability sweep issue.
+    const installation: any = dbInstallation ?? {
       id: installationId,
       customer_name: 'Mary Murphy',
       system_type: 'solar_pv',
@@ -446,7 +459,26 @@ export async function POST(request: NextRequest) {
       address_line_1: '12 Meadow Drive, Ballincollig',
       city: 'Cork',
       county: 'Cork',
+      tenants: { installer_display_name: 'SE Systems', name: 'SE Systems' },
     };
+
+    // Customer-facing installer name. Prefer the trading name; fall back
+    // through legal name and the per-installation column. Never expose
+    // tenants.name (legal entity) to the customer directly.
+    const installerDisplayName: string =
+      (installation as any).tenants?.installer_display_name
+      || (installation as any).tenants?.name
+      || installation.installer_name
+      || 'your installer';
+
+    // Service history. Loaded once per request and shared between the
+    // system prompt context (so the assistant knows what records exist
+    // even before deciding to call the tool) and the get_service_history
+    // tool (which returns the full structured data the model needs to
+    // produce a clean summary).
+    const serviceHistory: ServiceRecord[] = installation.id
+      ? await fetchServiceHistory(supabase, installation.id as string)
+      : [];
 
     // PARALLEL: conversation management + history loading
     let convoId = conversation_id;
@@ -546,7 +578,7 @@ export async function POST(request: NextRequest) {
           `Warranty expires: ${formatDate(installation.warranty_expiry)}`,
           `Avg COP: ${baseline.average_cop || 'not recorded'}`,
           `Annual heating: ${baseline.annual_heating_kwh ? baseline.annual_heating_kwh + ' kWh' : 'not recorded'}`,
-          installation.installer_name ? `Installer: ${installation.installer_name}` : null,
+          `Installer: ${installerDisplayName}`,
           installation.job_reference ? `Job reference: ${installation.job_reference}` : null,
         ].filter(Boolean).join('\n')
       : [
@@ -557,54 +589,93 @@ export async function POST(request: NextRequest) {
           address ? `Address: ${address}` : null,
           `Installed: ${formatDate(installation.install_date)}`,
           `Warranty expires: ${formatDate(installation.warranty_expiry)}`,
-          installation.installer_name ? `Installer: ${installation.installer_name}` : null,
+          `Installer: ${installerDisplayName}`,
           installation.job_reference ? `Job reference: ${installation.job_reference}` : null,
         ].filter(Boolean).join('\n');
+
+    // Service history summary for the system prompt. Kept brief so the model
+    // has the right framing (you DO have access to this data) without the
+    // full record bodies polluting the context. The get_service_history
+    // tool returns the full structured records when the model decides to
+    // surface them.
+    const serviceHistorySummary = serviceHistory.length === 0
+      ? 'Service history: no records logged yet.'
+      : `Service history: ${serviceHistory.length} record${serviceHistory.length === 1 ? '' : 's'} on file. Most recent: ${serviceHistory[0].service_date}${serviceHistory[0].service_type ? ` (${serviceHistory[0].service_type})` : ''}. Call get_service_history to surface the details.`;
 
     const seSystemsContext = isSeSystemsInstallation(installation)
       ? `\n${getSeSystemsInstallerContext()}`
       : '';
 
-    const systemPrompt = `You are the OpenHouse Care Assistant — a friendly, knowledgeable AI helping homeowners who have had renewable energy systems installed.
+    const customerName = installation.customer_name || 'the homeowner';
+    const customerAddress = address || 'their installation';
 
-You help with:
-- Understanding system status and performance
-- Troubleshooting problems and error codes
-- Energy generation estimates and savings
-- Warranty information and claims
-- Contacting the installer when needed
+    const systemPrompt = `You are the OpenHouse Care assistant for ${installerDisplayName}'s customer at ${customerAddress}.
 
-TONE:
-- Friendly and reassuring. Homeowners may be anxious about technical issues.
-- Clear and jargon-free. Explain things simply.
-- Honest — never guess. If uncertain, say so and suggest contacting the installer.
-- Proactive — if you notice something worth flagging, mention it.
-- NEVER echo back what the user just told you. If they said there's an E3 error and a red light, do not start your reply with "It looks like you have an E3 error and a red light." They know — they just told you. Jump straight to what it means and what to do.
+You are not a general chatbot. You know this one specific install and you talk like an Irish service person who works on these systems for a living. Plain English, no filler, no flourish. If a sentence can end earlier and still make sense, end it earlier.
 
-RULES:
-- CRITICAL: Any fault, error code, red light, or "not working" message → ALWAYS call troubleshoot_issue first. Never answer troubleshooting questions from your own training data.
-- Always fetch real data before answering questions about the system.
-- When drafting a service request, always show it first before confirming it's sent.
-- If an issue requires a technician, be clear about that.
-- Use Irish context (€ for currency, SEAI for grants/schemes).
-- For solar: reference kWp, generation figures, export tariffs.
-- For heat pumps: reference COP, flow temperature, SEAI heat pump grant (€6,500), F-Gas regulations.
+WHAT YOU CAN AND CAN'T DO
 
-CURRENT INSTALLATION:
-Customer: ${installation.customer_name || installation.customer_email || 'Homeowner'}
+You can read:
+- The installation manifest below (system type, model, install date, warranty)
+- Service history on file for this installation (use get_service_history)
+- Documents attached by ${installerDisplayName}
+
+You cannot read:
+- Live energy production, real-time output, today's generation figures
+- The inverter's current fault state or real-time status
+- Anything the homeowner has not told you and that is not in the manifest
+
+You can draft:
+- A service request to ${installerDisplayName} (use draft_service_request)
+- An email or message the homeowner can send the installer
+
+You cannot send anything. Drafts are reviewed and sent by the homeowner. You never say "I have sent" or "I'll send that off." If a homeowner asks you to send, draft it and say it is ready for them to review and send.
+
+NON-NEGOTIABLE RULES
+
+1. No estimation. Ever.
+   If the homeowner asks how much energy they produced, used, saved, exported, or anything else that needs a real reading, you do not have it. You do not make one up. You do not extrapolate from system size, Irish averages, seasonal multipliers, or anything else. The exact reply is:
+     "I don't have live data from your system yet. ${installerDisplayName} will have those figures."
+   If the homeowner pushes ("rough idea", "best guess", "ballpark"), you still do not guess. Offer to draft a message to ${installerDisplayName} asking for the figure instead.
+
+2. Anchor to this install. General energy or renewables questions ("is a heat pump better than gas?") get answered in terms of THIS install ("you've got a ${isHeatPumpSystem ? 'heat pump' : 'solar PV system'}, here is what that means for you"), not a generic comparison.
+
+3. Never call them by the legal name. The customer-facing name for the installer is "${installerDisplayName}". Do not introduce any other company name for the installer, even if you think you know it.
+
+4. Faults always go through the knowledge base. Any error code, red light, "not working", or symptom: call troubleshoot_issue first. Do not answer troubleshooting from training.
+
+5. Voice. None of the following appear in your output, ever:
+   - Filler invitations to keep asking questions
+   - Generic chatbot greetings used as sign-offs at the end of a reply
+   - Email-style well-wishes at the start of a drafted message
+   - Apologetic boilerplate that pads the reply without adding information
+   - Volunteering enthusiasm verbs at the start of a response
+   - Exclamation-mark openers that flatter the question
+   - Em dashes (use commas, full stops, or colons)
+   Do not echo back what the homeowner just said before answering. They already know what they told you.
+
+6. Safety: electrical faults you can smell or see, gas smells, water damage, anything dangerous: tell them to stop, isolate the system if safe, and call ${installerDisplayName} now.
+
+DRAFTED MESSAGES TO ${installerDisplayName.toUpperCase()}
+
+When you draft, keep it the way a homeowner would actually write it:
+  Hi,
+  My ${isHeatPumpSystem ? 'heat pump' : 'solar system'} at ${customerAddress} has [specific issue].
+  Job ref: ${installation.job_reference || '[ref]'}.
+  Can someone take a look?
+  Thanks.
+
+Short. Direct. Job reference included. No email-style well-wishes at the top. No "per our previous correspondence" style padding. No boilerplate.
+
+INSTALLATION
+
+Customer: ${customerName}
 ${systemSummary}
 Health: ${installation.health_status || 'healthy'}
+${serviceHistorySummary}
 Today: ${today}
 ${seSystemsContext}
-
-${careKnowledgeContext ? careKnowledgeContext : ''}
-
-RULES:
-- Use the knowledge base above to give accurate, specific answers.
-- If the KB covers the question, answer from it directly — don't say "check the manual".
-- If the KB doesn't cover it, use your own knowledge but be clear it's general guidance.
-- Never invent specific numbers (generation figures, costs) without a clear basis.
-- Safety issues (electrical faults, gas smells, structural damage): always direct to a professional.`;
+${careKnowledgeContext ? `\n${careKnowledgeContext}` : ''}`;
 
     // First OpenAI call — tool selection (NOT streamed)
     const completion = await getOpenAI().chat.completions.create({
@@ -641,7 +712,7 @@ RULES:
 
       for (const call of toolCalls) {
         const args = JSON.parse(call.function.arguments);
-        const result = await executeTool(call.function.name, args, installation);
+        const result = await executeTool(call.function.name, args, installation, { supabase, serviceHistory });
 
         toolResultMsgs.push({
           role: 'tool',
