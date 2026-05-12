@@ -146,14 +146,14 @@ Return JSON of exactly this shape:
 
 Rules:
 - Only populate a field when the agent's wording clearly implies it. Otherwise leave it null or empty.
-- interested_in_scheme_names: extract any scheme names the agent mentioned, exactly as they wrote them. Do not normalise. Do not invent.
-- has_active_enquiry: true when the agent's wording implies open or unresolved enquiries. null otherwise.
-- viewed_property_names: scheme or property names the agent said the recipients viewed.
+- interested_in_scheme_names: scheme names the agent mentioned, exactly as they wrote them. Use this for ANY phrasing that ties a recipient to a scheme: "interested in X", "looking at X", "enquiring about X", "viewing X", "viewed X", "who came to X". Do not normalise the scheme name. Do not invent one.
+- viewed_property_names: optional, only populate when the agent specifically distinguishes "viewed" from "interested" and wants ONLY past attendees. In every other case leave this empty and rely on interested_in_scheme_names; the recipient resolver treats both as the same signal (viewings drive scheme interest in this system, applicants do not carry a separate "interested in" column).
+- has_active_enquiry: true when the agent's wording implies open or unresolved enquiries ("anyone who hasn't replied yet"). null otherwise.
 - last_contact_before_days: integer count of days, when the agent said something like "haven't heard from in 30 days". null otherwise.
-- status: enquiry status terms the agent used verbatim ("new", "warm", "cold"). Empty array otherwise.
+- status: enquiry or viewing status terms the agent used verbatim ("new", "warm", "cold"). Empty array otherwise.
 - confidence: "high" when the description is unambiguous, "low" when you had to guess.
 
-NEVER invent a scheme name the agent didn't say. NEVER infer days the agent didn't state. NEVER use em dashes anywhere in your output.`;
+NEVER invent a scheme name the agent didn't say. NEVER infer days the agent didn't state. NEVER use em dashes anywhere in your output. Return scheme names as plain strings, do not resolve them to ids; the calling layer does fuzzy matching against the agent's assigned schemes.`;
 
 interface FilterLLMOutput {
   interested_in_scheme_names: string[];
@@ -272,84 +272,149 @@ function buildStructuredFilter(
 // =====================================================================
 // Phase 2 - resolve recipients from the database
 // =====================================================================
+//
+// Bug fix history: the first implementation joined the `enquiries` table
+// to determine "applicant interested in scheme X". That assumed an enquiry
+// row would exist for every applicant who'd shown interest. In production
+// most of the test tenant's applicants are tracked via viewings only
+// (agent_applicants has no interested_in_scheme column; the linkage is
+// purely viewings.development_id and the denormalised agent_viewings
+// rows). That implementation shipped zero recipients on the QA prompt.
+// This version joins through both viewings tables and treats "viewed X"
+// and "interested in X" as the same signal.
 
-interface EnquiryRow {
-  id: string;
-  enquirer_name: string | null;
-  enquirer_email: string | null;
+interface CandidateRow {
+  applicant_id: string | null;
+  name: string;
+  email: string | null;
   development_id: string | null;
   status: string | null;
-  last_contacted_at: string | null;
-  created_at: string;
 }
 
-const ACTIVE_ENQUIRY_STATUSES = new Set([
-  'new',
-  'open',
-  'active',
-  'warm',
-  'in_progress',
-  'pending',
-  'awaiting_response',
-]);
+async function fetchCanonicalViewingsCandidates(
+  supabase: SupabaseClient,
+  tenantId: string,
+  developmentIds: string[],
+): Promise<CandidateRow[]> {
+  if (developmentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('viewings')
+    .select('applicant_id, development_id, status')
+    .eq('tenant_id', tenantId)
+    .in('development_id', developmentIds)
+    .limit(2000);
+  if (error || !Array.isArray(data) || data.length === 0) {
+    if (error) console.error('[broadcast-tools] viewings query failed', { message: error.message });
+    return [];
+  }
+  const rows = data as Array<{ applicant_id: string | null; development_id: string | null; status: string | null }>;
+  const applicantIds = Array.from(
+    new Set(rows.map((r) => r.applicant_id).filter((id): id is string => !!id)),
+  );
+  if (applicantIds.length === 0) return [];
+  const { data: applicants, error: applicantErr } = await supabase
+    .from('agent_applicants')
+    .select('id, full_name, email')
+    .eq('tenant_id', tenantId)
+    .in('id', applicantIds);
+  if (applicantErr || !Array.isArray(applicants)) {
+    if (applicantErr) console.error('[broadcast-tools] agent_applicants enrich failed', { message: applicantErr.message });
+    return [];
+  }
+  const byId = new Map<string, { name: string; email: string | null }>();
+  for (const a of applicants as Array<{ id: string; full_name: string | null; email: string | null }>) {
+    if (a.id && a.full_name) byId.set(a.id, { name: a.full_name, email: a.email });
+  }
+  const out: CandidateRow[] = [];
+  for (const v of rows) {
+    if (!v.applicant_id) continue;
+    if ((v.status ?? '').trim().toLowerCase() === 'cancelled') continue;
+    const ap = byId.get(v.applicant_id);
+    if (!ap) continue;
+    out.push({
+      applicant_id: v.applicant_id,
+      name: ap.name,
+      email: ap.email,
+      development_id: v.development_id,
+      status: v.status,
+    });
+  }
+  return out;
+}
 
-function dedupeRecipients(
-  rows: EnquiryRow[],
+async function fetchDenormalisedViewingsCandidates(
+  supabase: SupabaseClient,
+  tenantId: string,
+  developmentIds: string[],
+): Promise<CandidateRow[]> {
+  if (developmentIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('agent_viewings')
+    .select('buyer_name, buyer_email, development_id, status')
+    .eq('tenant_id', tenantId)
+    .in('development_id', developmentIds)
+    .limit(2000);
+  if (error || !Array.isArray(data)) {
+    if (error) console.error('[broadcast-tools] agent_viewings query failed', { message: error.message });
+    return [];
+  }
+  const out: CandidateRow[] = [];
+  for (const v of data as Array<{ buyer_name: string | null; buyer_email: string | null; development_id: string | null; status: string | null }>) {
+    const name = (v.buyer_name || '').trim();
+    if (!name) continue;
+    if ((v.status ?? '').trim().toLowerCase() === 'cancelled') continue;
+    out.push({
+      applicant_id: null,
+      name,
+      email: (v.buyer_email || '').trim() || null,
+      development_id: v.development_id,
+      status: v.status,
+    });
+  }
+  return out;
+}
+
+function dedupeCandidates(
+  rows: CandidateRow[],
   schemeNameById: Map<string, string>,
 ): BroadcastRecipient[] {
   const byKey = new Map<string, BroadcastRecipient>();
   for (const row of rows) {
-    const email = (row.enquirer_email || '').trim().toLowerCase();
-    const name = (row.enquirer_name || '').trim();
-    if (!email || !name) continue;
-    const key = email;
+    const email = (row.email || '').trim().toLowerCase();
+    const name = row.name.trim();
+    if (!name) continue;
+    // Dedupe key: lowercased email if present (the canonical identifier),
+    // otherwise the lowercased name as a fallback so a single person
+    // viewing twice in agent_viewings doesn't appear twice.
+    const key = email || `name:${name.toLowerCase()}`;
     const schemeId = row.development_id || null;
     const schemeName = schemeId ? schemeNameById.get(schemeId) || null : null;
     const existing = byKey.get(key);
     if (!existing) {
       byKey.set(key, {
-        applicant_id: null,
+        applicant_id: row.applicant_id,
         name,
         email,
         scheme_of_interest_id: schemeId,
         scheme_of_interest_name: schemeName,
-        last_contact_date: row.last_contacted_at,
+        last_contact_date: null,
       });
       continue;
     }
-    // Prefer the most recently contacted record for the same email.
-    if (
-      row.last_contacted_at &&
-      (!existing.last_contact_date || row.last_contacted_at > existing.last_contact_date)
-    ) {
-      existing.last_contact_date = row.last_contacted_at;
-    }
+    if (!existing.applicant_id && row.applicant_id) existing.applicant_id = row.applicant_id;
+    if (!existing.email && email) existing.email = email;
     if (!existing.scheme_of_interest_id && schemeId) {
       existing.scheme_of_interest_id = schemeId;
       existing.scheme_of_interest_name = schemeName;
     }
   }
-  return Array.from(byKey.values()).sort((a, b) => a.name.localeCompare(b.name));
-}
-
-async function attachApplicantIds(
-  supabase: SupabaseClient,
-  tenantId: string,
-  recipients: BroadcastRecipient[],
-): Promise<BroadcastRecipient[]> {
-  if (recipients.length === 0) return recipients;
-  const emails = recipients.map((r) => r.email);
-  const { data, error } = await supabase
-    .from('agent_applicants')
-    .select('id, email')
-    .eq('tenant_id', tenantId)
-    .in('email', emails);
-  if (error || !Array.isArray(data)) return recipients;
-  const byEmail = new Map<string, string>();
-  for (const row of data as Array<{ id: string; email: string | null }>) {
-    if (row.email) byEmail.set(row.email.trim().toLowerCase(), row.id);
-  }
-  return recipients.map((r) => ({ ...r, applicant_id: byEmail.get(r.email) ?? null }));
+  // Recipients without an email cannot receive a broadcast. The card has
+  // no inline-edit affordance for missing addresses in v1, so we drop
+  // them silently here. The clarification message tells the agent if
+  // every candidate fell out for this reason.
+  return Array.from(byKey.values())
+    .filter((r) => r.email.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function resolveRecipients(
@@ -360,55 +425,20 @@ async function resolveRecipients(
   const tenantId = agentContext.tenantId;
   const assignedIds = new Set(agentContext.assignedDevelopmentIds ?? []);
 
-  let query = supabase
-    .from('enquiries')
-    .select('id, enquirer_name, enquirer_email, development_id, status, last_contacted_at, created_at')
-    .eq('tenant_id', tenantId)
-    .not('enquirer_email', 'is', null);
+  // Scope set: filter.interested_in_scheme_ids when supplied, otherwise
+  // the agent's full assigned-developments list. We never search across
+  // every tenant scheme; that would broadcast outside the agent's
+  // visible portfolio.
+  const explicitSchemeIds = filter.interested_in_scheme_ids ?? [];
+  const viewedSchemeIds = filter.viewed_property_ids ?? [];
+  const schemeIds = new Set<string>([...explicitSchemeIds, ...viewedSchemeIds]);
+  const developmentIds = schemeIds.size > 0 ? Array.from(schemeIds) : Array.from(assignedIds);
+  if (developmentIds.length === 0) return [];
 
-  if (filter.interested_in_scheme_ids && filter.interested_in_scheme_ids.length > 0) {
-    query = query.in('development_id', filter.interested_in_scheme_ids);
-  } else if (assignedIds.size > 0) {
-    // No explicit scheme filter, but scope to the agent's assigned schemes so
-    // we never surface a recipient from outside the agent's own pipeline.
-    query = query.in('development_id', Array.from(assignedIds));
-  }
-
-  if (filter.status && filter.status.length > 0) {
-    query = query.in('status', filter.status);
-  }
-
-  if (filter.last_contact_before_days !== undefined) {
-    const cutoff = new Date(Date.now() - filter.last_contact_before_days * 24 * 60 * 60 * 1000);
-    query = query.or(`last_contacted_at.is.null,last_contacted_at.lt.${cutoff.toISOString()}`);
-  }
-
-  const { data, error } = await query.limit(1000);
-  if (error) {
-    console.error('[broadcast-tools] enquiry query failed', { message: error.message });
-    return [];
-  }
-  let rows = (data as EnquiryRow[]) ?? [];
-
-  if (filter.has_active_enquiry === true) {
-    rows = rows.filter((r) => r.status && ACTIVE_ENQUIRY_STATUSES.has(r.status.toLowerCase()));
-  } else if (filter.has_active_enquiry === false) {
-    rows = rows.filter((r) => !r.status || !ACTIVE_ENQUIRY_STATUSES.has(r.status.toLowerCase()));
-  }
-
-  // viewed_property_ids: cross-reference with agent_viewings on email match.
-  if (filter.viewed_property_ids && filter.viewed_property_ids.length > 0) {
-    const { data: viewings } = await supabase
-      .from('agent_viewings')
-      .select('buyer_email, development_id')
-      .eq('tenant_id', tenantId)
-      .in('development_id', filter.viewed_property_ids);
-    const viewedEmails = new Set<string>();
-    for (const v of (viewings as Array<{ buyer_email: string | null }> | null) ?? []) {
-      if (v.buyer_email) viewedEmails.add(v.buyer_email.trim().toLowerCase());
-    }
-    rows = rows.filter((r) => r.enquirer_email && viewedEmails.has(r.enquirer_email.trim().toLowerCase()));
-  }
+  const [canonical, denormalised] = await Promise.all([
+    fetchCanonicalViewingsCandidates(supabase, tenantId, developmentIds),
+    fetchDenormalisedViewingsCandidates(supabase, tenantId, developmentIds),
+  ]);
 
   const schemeNameById = new Map<string, string>();
   const ids = agentContext.assignedDevelopmentIds ?? [];
@@ -417,8 +447,7 @@ async function resolveRecipients(
     if (names[i]) schemeNameById.set(ids[i], names[i]);
   }
 
-  const recipients = dedupeRecipients(rows, schemeNameById);
-  return attachApplicantIds(supabase, tenantId, recipients);
+  return dedupeCandidates([...canonical, ...denormalised], schemeNameById);
 }
 
 async function sampleTenantRecipients(
@@ -426,21 +455,32 @@ async function sampleTenantRecipients(
   agentContext: AgentContext,
   limit = 5,
 ): Promise<BroadcastRecipient[]> {
+  // Use agent_viewings as the sample source because it carries
+  // buyer_email and buyer_name inline, so a sample never returns
+  // anonymous "no email on file" rows. The agent uses this list to
+  // sanity-check that their filter is just too narrow rather than
+  // their tenant being empty.
   const { data } = await supabase
-    .from('enquiries')
-    .select('enquirer_name, enquirer_email, development_id, last_contacted_at, created_at')
+    .from('agent_viewings')
+    .select('buyer_name, buyer_email, development_id')
     .eq('tenant_id', agentContext.tenantId)
-    .not('enquirer_email', 'is', null)
+    .not('buyer_email', 'is', null)
     .order('created_at', { ascending: false })
-    .limit(limit);
-  const rows = ((data as EnquiryRow[]) ?? []).map((r) => ({ ...r, id: '', status: null }));
+    .limit(Math.max(limit * 4, 20));
   const schemeNameById = new Map<string, string>();
   const ids = agentContext.assignedDevelopmentIds ?? [];
   const names = agentContext.assignedDevelopmentNames ?? [];
   for (let i = 0; i < ids.length; i++) {
     if (names[i]) schemeNameById.set(ids[i], names[i]);
   }
-  return dedupeRecipients(rows, schemeNameById);
+  const rows = ((data as Array<{ buyer_name: string | null; buyer_email: string | null; development_id: string | null }> | null) ?? []).map((r) => ({
+    applicant_id: null,
+    name: (r.buyer_name || '').trim(),
+    email: (r.buyer_email || '').trim() || null,
+    development_id: r.development_id,
+    status: null,
+  })) as CandidateRow[];
+  return dedupeCandidates(rows, schemeNameById).slice(0, limit);
 }
 
 // =====================================================================
@@ -625,12 +665,11 @@ export async function planBroadcast(
 
   if (recipients.length === 0) {
     const sample = await sampleTenantRecipients(supabase, agentContext, 5);
+    const sampleNames = sample.map((s) => s.name).join(', ');
     const message =
       sample.length > 0
-        ? `No applicants match that filter. Recent applicants in your tenant include ${sample
-            .map((s) => s.name)
-            .join(', ')}. Want to narrow or rephrase the filter?`
-        : 'No applicants match that filter, and your tenant has no recent applicants on file.';
+        ? `No applicants match that filter. Recent contacts on your books include ${sampleNames}. Either narrow the filter, try a different phrasing (for example "everyone who viewed Lakeside Manor" instead of "everyone interested in Lakeside Manor"), or pick named recipients with draft_message.`
+        : 'No applicants match that filter, and your tenant has no recent viewings on file. Try a different scheme or check the contact records before broadcasting.';
     const result: BroadcastClarification = {
       status: 'needs_clarification',
       reason: 'no_recipients_match',
