@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from 'next';
-import { createClient } from '@supabase/supabase-js';
 import { CareAppProvider } from './care-app-provider';
 import { SWRegister } from '../sw-register';
 import { notFound } from 'next/navigation';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +13,70 @@ export const viewport: Viewport = {
   userScalable: false,
   viewportFit: 'cover',
 };
+
+// Columns the homeowner Care app actually surfaces to the client. Listing them
+// explicitly does two things at once:
+//
+//   1. Performance. The previous `select('*')` pulled every column on
+//      `installations`, including large JSONB blobs the layout does not need.
+//      That made every RSC navigation slower than it had to be, and is the
+//      most plausible root cause of the gateway-level 503 the audit caught
+//      on `/care/[id]?_rsc=...` requests under cold-start conditions.
+//
+//   2. Security. `telemetry_api_key` is intentionally NOT in this list. It
+//      is plaintext on the row today (tracked separately in the security
+//      audit) and has no business being serialised into a client provider.
+//      Dropping `*` makes it impossible to leak by accident.
+//
+// Keep this list in sync with InstallationData in care-app-provider.tsx.
+const INSTALLATION_COLUMNS = [
+  'id',
+  'tenant_id',
+  'job_reference',
+  'customer_name',
+  'customer_email',
+  'customer_phone',
+  'address_line_1',
+  'city',
+  'county',
+  'system_type',
+  'system_category',
+  'system_size_kwp',
+  'inverter_model',
+  'panel_model',
+  'panel_count',
+  'install_date',
+  'warranty_expiry',
+  'health_status',
+  'portal_status',
+  'system_specs',
+  'heat_pump_model',
+  'heat_pump_serial',
+  'heat_pump_cop',
+  'flow_temp_current',
+  'zones_total',
+  'zones_active',
+  'hot_water_cylinder_model',
+  'hot_water_temp_current',
+  'controls_model',
+  'controls_issue',
+  'last_service_date',
+  'next_service_due',
+  'warranty_years',
+  'annual_service_required',
+  'seai_grant_amount',
+  'seai_grant_status',
+  'seai_grant_ref',
+  'seai_application_date',
+  'ber_rating',
+  'active_safety_alerts',
+  'indoor_temp_current',
+  'indoor_temp_target',
+  'daily_running_cost_cents',
+  'co2_saved_today_grams',
+  'monthly_running_cost_cents',
+  'monthly_budget_cents',
+].join(', ') + ', tenants(name, contact, logo_url)';
 
 export async function generateMetadata({
   params,
@@ -30,10 +94,16 @@ export async function generateMetadata({
       .from('installations')
       .select('tenants(logo_url)')
       .eq('id', installationId)
-      .single();
+      .maybeSingle();
     tenantLogo = (data as any)?.tenants?.logo_url ?? null;
-  } catch {
-    // Fall through to default icon.
+  } catch (err) {
+    // Non-fatal. The page renders fine with the default icon. Log so we can
+    // grep for a regression without needing another full audit.
+    console.warn(
+      '[care.layout.metadata_fetch_error] installation_id=%s error=%s',
+      installationId,
+      err instanceof Error ? err.message : String(err),
+    );
   }
 
   return {
@@ -51,14 +121,6 @@ export async function generateMetadata({
   };
 }
 
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
-
 export default async function CareAppLayout({
   children,
   params,
@@ -67,28 +129,58 @@ export default async function CareAppLayout({
   params: Promise<{ installationId: string }>;
 }) {
   const { installationId } = await params;
-  const supabase = getSupabaseAdmin();
 
-  const { data: installation, error } = await supabase
-    .from('installations')
-    .select('*, tenants(name, contact, logo_url)')
-    .eq('id', installationId)
-    .single();
+  let installation: Record<string, unknown> | null = null;
 
-  if (error || !installation) {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from('installations')
+      .select(INSTALLATION_COLUMNS)
+      .eq('id', installationId)
+      .maybeSingle();
+
+    if (error) {
+      // Surface the database error path with a grep-able tag. Without this
+      // log, an upstream Supabase issue is invisible: the layout either
+      // 503s at the gateway (cold start + slow query) or silently 404s
+      // (notFound below) and we cannot tell the two apart.
+      console.error(
+        '[care.layout.installation_fetch_error] installation_id=%s code=%s message=%s',
+        installationId,
+        error.code,
+        error.message,
+      );
+    }
+
+    installation = data as Record<string, unknown> | null;
+  } catch (err) {
+    // createClient itself can throw if SUPABASE_SERVICE_ROLE_KEY is missing
+    // or malformed. The centralised getSupabaseAdmin in lib/supabase-server
+    // throws a descriptive error in that case; without this catch, the
+    // throw becomes an opaque 5xx from the function gateway.
+    console.error(
+      '[care.layout.supabase_client_error] installation_id=%s error=%s',
+      installationId,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+
+  if (!installation) {
     notFound();
   }
 
-  const installerName = installation.tenants?.name || 'Your Installer';
+  const tenants = (installation as any).tenants ?? null;
+  const installerName = tenants?.name || 'Your Installer';
 
   const installationData = {
     ...installation,
     installer_name: installerName,
-    installer_contact: installation.tenants?.contact || {},
+    installer_contact: tenants?.contact || {},
   };
 
   return (
-    <CareAppProvider installationId={installationId} installation={installationData}>
+    <CareAppProvider installationId={installationId} installation={installationData as any}>
       <SWRegister />
       {children}
     </CareAppProvider>
