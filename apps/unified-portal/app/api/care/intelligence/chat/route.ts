@@ -1,9 +1,11 @@
 /**
  * POST /api/care/intelligence/chat
  *
- * Care Intelligence — the Care skin of the central OpenHouse Intelligence brain.
- * Installer-scoped: all queries filter by installer_name (e.g. "SE Systems")
- * regardless of which developer commissioned the installation.
+ * Care Intelligence: the Care skin of the central OpenHouse Intelligence brain.
+ * Scoped to the caller's tenant: every tool filters installations and related
+ * rows by session.tenantId, never by a hardcoded installer_name. This is the
+ * fix for audit finding C022 (hardcoded INSTALLER_NAME literal was the
+ * security boundary for the intelligence chat).
  *
  * Streams NDJSON to the client: each event is a single JSON object followed by
  * a newline. Matches the protocol used by scheme-intelligence/chat.
@@ -11,24 +13,16 @@
 
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  CareAuthError,
+  careAuthErrorToResponse,
+  requireCareTenantSession,
+} from '@/lib/care/require-care-session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
-
-// For the SE Systems demo, installer context is fixed at the route level.
-// When multi-installer is introduced, resolve from user_contexts instead.
-const INSTALLER_NAME = 'SE Systems';
-const INSTALLER_DISPLAY = 'SE Systems Cork';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-  );
-}
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -78,8 +72,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         properties: {
           window: {
             type: 'string',
-            enum: ['this_month', 'q2', 'next_90_days', 'expired'],
-            description: 'Warranty window to query',
+            description: "One of 'this_month', 'next_90_days', 'q2', 'expired'",
           },
         },
       },
@@ -90,7 +83,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_support_queue',
       description:
-        'List open and in-progress support tickets / escalations, grouped by priority.',
+        'Return open escalations and support tickets that need attention. Use for "what needs my attention" questions.',
       parameters: { type: 'object', properties: {} },
     },
   },
@@ -99,7 +92,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_customer_communications',
       description:
-        'Summarise recent customer queries grouped by theme (e.g. fault codes, portal access, performance). Use for "what are customers asking about most" questions.',
+        'Group recent support queries by theme to surface what homeowners are asking about.',
       parameters: {
         type: 'object',
         properties: {
@@ -113,13 +106,8 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_performance_metrics',
       description:
-        'Return fleet yield metrics. Supports quarterly averages and flagging underperformers.',
-      parameters: {
-        type: 'object',
-        properties: {
-          quarter: { type: 'string', description: "Quarter label e.g. 'Q2' (default current quarter)" },
-        },
-      },
+        'Return solar generation performance for the installer fleet, including average annual yield per kWp and underperformers.',
+      parameters: { type: 'object', properties: {} },
     },
   },
   {
@@ -127,39 +115,28 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     function: {
       name: 'get_attention_required',
       description:
-        'Return a unified action list of items needing attention now: open high-priority tickets, faulted systems, warranties expiring soon.',
+        'High-level "what needs attention now" view: high-priority tickets, faulted installations, and warranties expiring within 60 days.',
       parameters: { type: 'object', properties: {} },
     },
   },
 ];
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
-function fmtAddress(inst: Record<string, unknown>): string {
-  const parts = [inst.address_line_1, inst.city, inst.county].filter(Boolean);
-  return parts.join(', ');
+// ── Formatters ──────────────────────────────────────────────────────────────
+function fmtAddress(r: Record<string, unknown>): string {
+  return [r.address_line_1, r.city, r.county].filter(Boolean).join(', ');
 }
 
-function fmtDate(d?: string | null): string {
-  if (!d) return 'unknown';
-  try {
-    return new Date(d).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
-  } catch {
-    return d;
-  }
+function fmtDate(d: string | null | undefined): string | null {
+  if (!d) return null;
+  return new Date(d).toLocaleDateString('en-IE', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function firstDayOfQuarter(offset = 0): Date {
-  const now = new Date();
-  const q = Math.floor(now.getMonth() / 3) + offset;
-  const d = new Date(now.getFullYear(), q * 3, 1);
-  return d;
-}
-
-// ── Tool execution ─────────────────────────────────────────────────────────
+// ── Tool executor ───────────────────────────────────────────────────────────
 async function executeTool(
   name: string,
   args: Record<string, unknown>,
   supabase: SupabaseClient,
+  tenantId: string,
 ): Promise<Record<string, unknown>> {
   switch (name) {
     case 'search_installations': {
@@ -171,7 +148,7 @@ async function executeTool(
       let q = supabase
         .from('installations')
         .select('id, job_reference, customer_name, address_line_1, city, county, system_type, inverter_model, heat_pump_model, system_size_kwp, health_status, install_date, warranty_expiry')
-        .eq('installer_name', INSTALLER_NAME)
+        .eq('tenant_id', tenantId)
         .limit(limit);
 
       if (system_type) q = q.eq('system_type', system_type);
@@ -206,20 +183,19 @@ async function executeTool(
       const days = (args.days as number) || 30;
       const since = new Date(Date.now() - days * 86400000).toISOString();
 
-      // Join support_queries → installations to scope and group by product model
       const { data: queries } = await supabase
         .from('support_queries')
-        .select('query_text, query_category, escalated, resolved, created_at, installations!inner(installer_name, inverter_model, heat_pump_model, system_type)')
+        .select('query_text, query_category, escalated, resolved, created_at, installations!inner(tenant_id, inverter_model, heat_pump_model, system_type)')
+        .eq('installations.tenant_id', tenantId)
         .gte('created_at', since);
 
-      const scoped = (queries || []).filter((q: any) => q.installations?.installer_name === INSTALLER_NAME);
+      const scoped = (queries || []) as any[];
 
-      // Group by model + error code extracted from query_text
       const faultCounts = new Map<string, { model: string; fault: string; count: number; escalated: number }>();
-      for (const q of scoped as any[]) {
+      for (const q of scoped) {
         if (q.query_category !== 'fault_code' && q.query_category !== 'performance') continue;
         const text = (q.query_text as string) || '';
-        const model = q.installations.inverter_model || q.installations.heat_pump_model || 'Unknown';
+        const model = q.installations?.inverter_model || q.installations?.heat_pump_model || 'Unknown';
         const errMatch = text.match(/error\s+(\d{2,4})/i) || text.match(/\b([EFef]\d{1,3})\b/);
         const fault = errMatch ? `error ${errMatch[1]}` : 'unspecified fault';
         const key = `${model}||${fault}`;
@@ -255,7 +231,6 @@ async function executeTool(
         from = '2000-01-01';
         to = now.toISOString().slice(0, 10);
       } else {
-        // next_90_days
         from = now.toISOString().slice(0, 10);
         to = new Date(now.getTime() + 90 * 86400000).toISOString().slice(0, 10);
       }
@@ -263,7 +238,7 @@ async function executeTool(
       const { data } = await supabase
         .from('installations')
         .select('job_reference, customer_name, address_line_1, city, system_type, inverter_model, heat_pump_model, warranty_expiry')
-        .eq('installer_name', INSTALLER_NAME)
+        .eq('tenant_id', tenantId)
         .gte('warranty_expiry', from)
         .lte('warranty_expiry', to)
         .order('warranty_expiry', { ascending: true });
@@ -282,18 +257,18 @@ async function executeTool(
     case 'get_support_queue': {
       const { data } = await supabase
         .from('escalations')
-        .select('id, title, description, priority, status, created_at, installations!inner(installer_name, customer_name, address_line_1, city, job_reference)')
+        .select('id, title, description, priority, status, created_at, installations!inner(tenant_id, customer_name, address_line_1, city, job_reference)')
+        .eq('installations.tenant_id', tenantId)
         .in('status', ['open', 'in_progress'])
         .order('created_at', { ascending: false });
 
-      const scoped = (data || []).filter((e: any) => e.installations?.installer_name === INSTALLER_NAME);
-      const tickets = scoped.map((e: any) => ({
+      const tickets = ((data || []) as any[]).map((e) => ({
         title: e.title,
         priority: e.priority,
         status: e.status,
-        customer: e.installations.customer_name,
-        address: [e.installations.address_line_1, e.installations.city].filter(Boolean).join(', '),
-        job_reference: e.installations.job_reference,
+        customer: e.installations?.customer_name,
+        address: [e.installations?.address_line_1, e.installations?.city].filter(Boolean).join(', '),
+        job_reference: e.installations?.job_reference,
         opened: fmtDate(e.created_at),
       }));
 
@@ -309,14 +284,15 @@ async function executeTool(
 
       const { data } = await supabase
         .from('support_queries')
-        .select('query_text, query_category, created_at, installations!inner(installer_name, customer_name, city)')
+        .select('query_text, query_category, created_at, installations!inner(tenant_id, customer_name, city)')
+        .eq('installations.tenant_id', tenantId)
         .gte('created_at', since)
         .order('created_at', { ascending: false });
 
-      const scoped = (data || []).filter((q: any) => q.installations?.installer_name === INSTALLER_NAME);
+      const scoped = (data || []) as any[];
 
       const themes = new Map<string, { theme: string; count: number; examples: string[] }>();
-      for (const q of scoped as any[]) {
+      for (const q of scoped) {
         const theme = (q.query_category as string) || 'general';
         const existing = themes.get(theme) || { theme, count: 0, examples: [] };
         existing.count += 1;
@@ -338,19 +314,17 @@ async function executeTool(
       const { data } = await supabase
         .from('installations')
         .select('job_reference, customer_name, address_line_1, city, system_type, system_size_kwp, energy_generated_kwh, health_status, inverter_model')
-        .eq('installer_name', INSTALLER_NAME)
+        .eq('tenant_id', tenantId)
         .eq('system_type', 'solar_pv')
         .not('system_size_kwp', 'is', null);
 
       const rows = (data || []).filter((r) => r.energy_generated_kwh && r.system_size_kwp);
-      // Ireland baseline: 850 kWh/kWp/year → quarterly expected = 850/4 = 212.5 kWh/kWp
       const EXPECTED_Q = 212.5;
 
       const yields = rows.map((r) => {
         const size = Number(r.system_size_kwp) || 0;
         const generated = Number(r.energy_generated_kwh) || 0;
         const annual_yield = size > 0 ? generated / size : 0;
-        // Rough quarterly estimate: assume even spread
         const q_yield = annual_yield / 4;
         return {
           job_reference: r.job_reference,
@@ -383,38 +357,36 @@ async function executeTool(
     }
 
     case 'get_attention_required': {
-      // High-priority open tickets
       const ticketsRes = await supabase
         .from('escalations')
-        .select('title, priority, status, created_at, installations!inner(installer_name, customer_name, city, job_reference)')
+        .select('title, priority, status, created_at, installations!inner(tenant_id, customer_name, city, job_reference)')
+        .eq('installations.tenant_id', tenantId)
         .in('status', ['open', 'in_progress']);
 
-      const tickets = (ticketsRes.data || []).filter((e: any) => e.installations?.installer_name === INSTALLER_NAME);
-      const highPriority = tickets.filter((t: any) => t.priority === 'high' || t.priority === 'critical');
+      const tickets = (ticketsRes.data || []) as any[];
+      const highPriority = tickets.filter((t) => t.priority === 'high' || t.priority === 'critical');
 
-      // Installations with issue health status
       const faultedRes = await supabase
         .from('installations')
         .select('job_reference, customer_name, address_line_1, city, system_type, inverter_model, heat_pump_model, health_status')
-        .eq('installer_name', INSTALLER_NAME)
+        .eq('tenant_id', tenantId)
         .eq('health_status', 'issue');
 
-      // Warranties expiring within 60 days
       const soon = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 10);
       const today = new Date().toISOString().slice(0, 10);
       const warrantyRes = await supabase
         .from('installations')
         .select('job_reference, customer_name, address_line_1, city, warranty_expiry')
-        .eq('installer_name', INSTALLER_NAME)
+        .eq('tenant_id', tenantId)
         .gte('warranty_expiry', today)
         .lte('warranty_expiry', soon);
 
       return {
-        high_priority_tickets: highPriority.map((t: any) => ({
+        high_priority_tickets: highPriority.map((t) => ({
           title: t.title,
           priority: t.priority,
-          customer: t.installations.customer_name,
-          job_reference: t.installations.job_reference,
+          customer: t.installations?.customer_name,
+          job_reference: t.installations?.job_reference,
           opened: fmtDate(t.created_at),
         })),
         faulted_installations: (faultedRes.data || []).map((r) => ({
@@ -438,7 +410,7 @@ async function executeTool(
 }
 
 // ── System prompt ───────────────────────────────────────────────────────────
-function buildSystemPrompt(): string {
+async function buildSystemPrompt(supabase: SupabaseClient, tenantId: string): Promise<string> {
   const today = new Date().toLocaleDateString('en-IE', {
     weekday: 'long',
     year: 'numeric',
@@ -446,9 +418,23 @@ function buildSystemPrompt(): string {
     day: 'numeric',
   });
 
+  // Look up the tenant's display name for the prompt. Falls back to a
+  // generic label if the tenant row has no name set.
+  let installerDisplay = 'your installer team';
+  try {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', tenantId)
+      .maybeSingle();
+    if (tenant?.name) installerDisplay = String(tenant.name);
+  } catch {
+    // Non-fatal; keep the fallback.
+  }
+
   return `You are OpenHouse Care Intelligence, a sharp, experienced colleague for renewable energy installers managing aftercare across multiple developments.
 
-You work for ${INSTALLER_DISPLAY}. You have full visibility across every installation ${INSTALLER_DISPLAY} has done, regardless of which developer commissioned it.
+You work for ${installerDisplay}. You have full visibility across every installation ${installerDisplay} has done, regardless of which developer commissioned it.
 
 Your job is to help installer teams (operations directors, technical directors, support staff) answer practical aftercare questions fast:
 - Which installations need attention right now
@@ -472,13 +458,16 @@ FORMAT:
 - Use Irish English (colour, realise) and Irish conventions (€, Cork, Eircode).
 
 CURRENT CONTEXT:
-Installer: ${INSTALLER_DISPLAY}
+Installer: ${installerDisplay}
 Today: ${today}`;
 }
 
 // ── Handler ─────────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
+    const { supabase, session } = await requireCareTenantSession();
+    const tenantId = session.tenantId;
+
     const body = await request.json();
     const { message, history } = body as {
       message?: string;
@@ -492,9 +481,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const supabase = getSupabaseAdmin();
     const openai = getOpenAI();
-    const systemPrompt = buildSystemPrompt();
+    const systemPrompt = await buildSystemPrompt(supabase, tenantId);
 
     const baseMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemPrompt },
@@ -505,7 +493,6 @@ export async function POST(request: NextRequest) {
       { role: 'user', content: message },
     ];
 
-    // First call — let the model pick tools
     const toolPick = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: baseMessages,
@@ -535,7 +522,7 @@ export async function POST(request: NextRequest) {
         } catch {
           args = {};
         }
-        const result = await executeTool(call.function.name, args, supabase);
+        const result = await executeTool(call.function.name, args, supabase, tenantId);
         followUpMessages.push({
           role: 'tool',
           tool_call_id: call.id,
@@ -549,7 +536,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Stream the natural-language answer
     const encoder = new TextEncoder();
     const readable = new ReadableStream({
       async start(controller) {
@@ -574,7 +560,6 @@ export async function POST(request: NextRequest) {
               }
             }
           } else {
-            // No tools called — send the model's direct text (usually a clarification)
             const direct = choice?.content || 'No answer generated.';
             fullResponse = direct;
             controller.enqueue(
@@ -588,7 +573,6 @@ export async function POST(request: NextRequest) {
             );
           }
 
-          // Follow-up suggestions
           try {
             const followUpCompletion = await openai.chat.completions.create({
               model: 'gpt-4o-mini',
@@ -620,11 +604,11 @@ export async function POST(request: NextRequest) {
             // skip silently
           }
 
-          // Log the interaction (best-effort)
           try {
             await supabase.from('intelligence_interactions').insert({
               skin: 'care',
               user_role: 'admin',
+              tenant_id: tenantId,
               query_text: message,
               response_text: fullResponse,
               response_type: 'answer',
@@ -659,6 +643,7 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    if (error instanceof CareAuthError) return careAuthErrorToResponse(error);
     return new Response(
       JSON.stringify({
         error: error instanceof Error ? error.message : 'Internal server error',
