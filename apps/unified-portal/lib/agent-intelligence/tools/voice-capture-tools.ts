@@ -108,7 +108,7 @@ SUGGESTED FOLLOW-UP (a short draft email from the agent to the applicant). Requi
   - Reference the specific concerns/questions the agent captured. Never invent details (no quoting prices, BER numbers, dates, dimensions the agent didn't mention).
   - BANNED PHRASES: "I hope this finds you well", "I trust you're well", "I wanted to reach out", "I'm reaching out", "thank you for your time today" (overused), em dashes, "yet from here", any AI filler.
   - No emoji. No markdown. No exclamation marks unless the transcript itself contained one.
-  - subject: one short clause referring to the viewing or the property (e.g. "Following up on your viewing at Lakeside Manor").
+  - subject: one short clause referring to the viewing or the property (e.g. "Following up on your viewing at <scheme name>").
   - addresses_concerns: copy the exact content strings from structured_notes whose substance is reflected in the email body.
 
 CONFIDENCE:

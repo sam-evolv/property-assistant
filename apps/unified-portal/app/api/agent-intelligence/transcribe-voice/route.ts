@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
-import { transcribeAudio, TranscriptionError } from '@/lib/agent-intelligence/transcription';
+import {
+  transcribeAudio,
+  TranscriptionError,
+  buildVocabularyPrompt,
+} from '@/lib/agent-intelligence/transcription';
+import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { resolveAgentContextV2 } from '@/lib/agent-intelligence/resolve-agent-v2';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -49,7 +55,17 @@ export async function POST(request: NextRequest) {
     const audioBuffer = Buffer.from(await audio.arrayBuffer());
     const mimeType = (audio as any).type || 'audio/webm';
 
-    const result = await transcribeAudio(audioBuffer, mimeType);
+    let developmentNames: string[] = [];
+    try {
+      const v2 = await resolveAgentContextV2(getSupabaseAdmin(), user.id);
+      developmentNames = v2.context?.assignedDevelopmentNames ?? [];
+    } catch {
+      // Fall through with empty names; buildVocabularyPrompt has a static fallback.
+    }
+
+    const result = await transcribeAudio(audioBuffer, mimeType, {
+      vocabularyPrompt: buildVocabularyPrompt(developmentNames),
+    });
 
     return NextResponse.json({
       transcript: result.transcript,

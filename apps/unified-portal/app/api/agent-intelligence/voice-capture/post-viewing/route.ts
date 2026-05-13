@@ -3,7 +3,11 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { resolveAgentContextV2 } from '@/lib/agent-intelligence/resolve-agent-v2';
-import { transcribeAudio, TranscriptionError } from '@/lib/agent-intelligence/transcription';
+import {
+  transcribeAudio,
+  TranscriptionError,
+  buildVocabularyPrompt,
+} from '@/lib/agent-intelligence/transcription';
 import { executePostViewingCapture } from '@/lib/agent-intelligence/tools/voice-capture-tools';
 import type { AgentContext } from '@/lib/agent-intelligence/types';
 
@@ -91,7 +95,9 @@ export async function POST(request: NextRequest) {
 
     let transcript: string;
     try {
-      const trx = await transcribeAudio(audioBuffer, mimeType);
+      const trx = await transcribeAudio(audioBuffer, mimeType, {
+        vocabularyPrompt: buildVocabularyPrompt(agentContext.assignedDevelopmentNames ?? []),
+      });
       transcript = trx.transcript;
     } catch (err) {
       if (err instanceof TranscriptionError) {

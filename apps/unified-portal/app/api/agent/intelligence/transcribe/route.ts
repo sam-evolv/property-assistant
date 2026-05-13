@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { transcribeAudio, TranscriptionError } from '@/lib/agent-intelligence/transcription';
+import {
+  transcribeAudio,
+  TranscriptionError,
+  buildVocabularyPrompt,
+} from '@/lib/agent-intelligence/transcription';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +27,9 @@ export async function POST(request: NextRequest) {
     const audioBuffer = Buffer.from(await audio.arrayBuffer());
     const mimeType = (audio as any).type || 'audio/webm';
 
-    const result = await transcribeAudio(audioBuffer, mimeType);
+    const result = await transcribeAudio(audioBuffer, mimeType, {
+      vocabularyPrompt: buildVocabularyPrompt([]),
+    });
 
     return NextResponse.json({ transcript: result.transcript, provider: result.provider });
   } catch (error) {

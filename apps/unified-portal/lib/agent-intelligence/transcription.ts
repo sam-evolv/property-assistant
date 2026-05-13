@@ -21,6 +21,28 @@ export interface TranscriptionResult {
   language: string;
 }
 
+// Whisper accepts a `prompt` parameter that biases token selection toward the
+// listed vocabulary. It doesn't constrain output. Used here to nudge Whisper
+// toward Irish placenames and property-domain terms the agent is likely to
+// say, which materially improves transcription accuracy on Irish accents.
+export function buildVocabularyPrompt(developmentNames: string[]): string {
+  const base =
+    'Irish English speaker. Property domain. ' +
+    'Common terms: BER, RTB, RPZ, Part 4 tenancy, snag list, ' +
+    'lease renewal, viewing, applicant, buyer, tenant, unit, ' +
+    'scheme, development, contracts issued.';
+  const cleaned = developmentNames
+    .map((n) => (typeof n === 'string' ? n.trim() : ''))
+    .filter((n) => n.length > 0);
+  if (cleaned.length === 0) {
+    return (
+      base +
+      ' Common Irish placenames including Cork, Dublin, Galway, Limerick, Waterford.'
+    );
+  }
+  return base + ' Schemes mentioned often: ' + cleaned.join(', ') + '.';
+}
+
 export class TranscriptionError extends Error {
   constructor(
     message: string,
@@ -34,6 +56,7 @@ export class TranscriptionError extends Error {
 export async function transcribeAudio(
   audio: Buffer,
   mimeType: string,
+  options: { vocabularyPrompt?: string } = {},
 ): Promise<TranscriptionResult> {
   if (audio.byteLength === 0) {
     throw new TranscriptionError('Audio file is empty', 'empty');
@@ -57,7 +80,7 @@ export async function transcribeAudio(
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      return await transcribeWithWhisper(audio, mimeType);
+      return await transcribeWithWhisper(audio, mimeType, options.vocabularyPrompt);
     } catch (err: any) {
       lastError = lastError
         ? `${lastError}; whisper: ${err?.message ?? 'unknown'}`
@@ -124,6 +147,7 @@ async function transcribeWithDeepgram(
 async function transcribeWithWhisper(
   audio: Buffer,
   mimeType: string,
+  vocabularyPrompt?: string,
 ): Promise<TranscriptionResult> {
   const form = new FormData();
   const ext = mimeExtension(mimeType);
@@ -131,6 +155,9 @@ async function transcribeWithWhisper(
   form.append('model', 'whisper-1');
   form.append('language', 'en');
   form.append('response_format', 'verbose_json');
+  if (vocabularyPrompt && vocabularyPrompt.length > 0) {
+    form.append('prompt', vocabularyPrompt);
+  }
 
   const res = await fetch('https://api.openai.com/v1/audio/transcriptions', {
     method: 'POST',
