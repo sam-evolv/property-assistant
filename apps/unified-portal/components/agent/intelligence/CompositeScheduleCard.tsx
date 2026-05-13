@@ -439,7 +439,19 @@ export default function CompositeScheduleCard({ envelope, developments, onConfir
   }
 
   function cancel() {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] CompositeScheduleCard.cancel');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'CompositeScheduleCard',
+      phase,
+      envelopeViewingCount: envelope.viewings_to_create.length,
+      envelopeApplicantCount: envelope.applicants_to_create.length,
+      timestamp: Date.now(),
+    });
     setPhase('cancelled');
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] CompositeScheduleCard.cancel');
+    });
   }
 
   if (phase === 'cancelled') {

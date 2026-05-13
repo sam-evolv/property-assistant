@@ -383,11 +383,23 @@ export default function VoiceCaptureCard({ viewing, onClose, onConfirmed }: Voic
   }
 
   function cancelRecording() {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] VoiceCaptureCard.cancelRecording');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'VoiceCaptureCard',
+      phase,
+      elapsed,
+      hasBlob: !!lastBlobRef.current,
+      timestamp: Date.now(),
+    });
     cleanupRecording();
     chunksRef.current = [];
     lastBlobRef.current = null;
     setPhase('idle');
     setElapsed(0);
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] VoiceCaptureCard.cancelRecording');
+    });
   }
 
   async function postCapture(blob: Blob | null) {
