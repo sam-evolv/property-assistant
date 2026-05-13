@@ -24,34 +24,42 @@ jobs:
       run:
         working-directory: apps/openhouse-select
     steps:
-      - name: Checkout
+      - name: Checkout mobile app
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/openhouse-select
+          sparse-checkout-cone-mode: true
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-          cache-dependency-path: apps/openhouse-select/package-lock.json
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Typecheck
-        run: npx tsc --noEmit
+        run: npm run typecheck
 
       - name: Expo config validation
         run: npx expo config --type public
 
       - name: Expo dependency health
-        run: npx expo-doctor
+        run: npm run doctor
 
   wrapper-metadata:
     name: Native wrapper metadata checks
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout wrapper metadata
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/unified-portal/android/app/src/main/AndroidManifest.xml
+            apps/unified-portal/ios/App/App/Info.plist
+          sparse-checkout-cone-mode: false
 
       - name: Verify Android release hardening
         shell: bash
