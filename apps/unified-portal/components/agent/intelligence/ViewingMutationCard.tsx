@@ -404,7 +404,18 @@ export default function ViewingMutationCard({ envelope, onConfirmFailed }: Viewi
     // Pure setState. No async, no event listeners to detach. The expensive
     // unmount path in the chat surface (re-rendering every other card) is
     // avoided by keeping the cancelled-state node in place.
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] ViewingMutationCard.cancel');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'ViewingMutationCard',
+      envelopeType: envelope.type,
+      phase,
+      timestamp: Date.now(),
+    });
     setPhase('cancelled');
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] ViewingMutationCard.cancel');
+    });
   }
 
   // ---------- Render branches ----------

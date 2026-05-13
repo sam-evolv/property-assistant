@@ -344,7 +344,18 @@ export default function ApplicantCard({ envelope, onConfirmFailed }: ApplicantCa
   }
 
   function cancel() {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] ApplicantCard.cancel');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'ApplicantCard',
+      action: envelope.action,
+      phase,
+      timestamp: Date.now(),
+    });
     setPhase('cancelled');
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] ApplicantCard.cancel');
+    });
   }
 
   const Icon = actionIcon(envelope.action);

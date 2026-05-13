@@ -328,7 +328,19 @@ export default function BroadcastCard({ envelope, onConfirmFailed }: BroadcastCa
   }
 
   function cancelDraft() {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] BroadcastCard.cancelDraft');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'BroadcastCard',
+      phase,
+      recipientCount: envelope.recipients.length,
+      emailCount: emails.length,
+      timestamp: Date.now(),
+    });
     setPhase('cancelled');
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] BroadcastCard.cancelDraft');
+    });
   }
 
   if (phase === 'cancelled') {

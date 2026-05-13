@@ -225,17 +225,35 @@ function IntelligencePageInner() {
   const inputElRef = useRef<HTMLInputElement | null>(null);
   const voiceIntentRef = useRef<string | undefined>(undefined);
 
+  // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+  // Runs on every render of IntelligencePageInner so we can see how
+  // many renders the parent does in the cancel re-render cycle.
+  if (typeof window !== 'undefined') {
+    console.log('[FREEZE_DIAG] IntelligencePage render', {
+      messageCount: messages.length,
+      isTyping,
+      hasUndoBatch: !!undoBatch,
+      timestamp: Date.now(),
+    });
+  }
+
   useEffect(() => {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] effect:scrollToBottom');
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
+    console.timeEnd('[FREEZE_DIAG] effect:scrollToBottom');
   }, [messages]);
 
   useEffect(() => {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] effect:matchMedia');
     const mq = window.matchMedia('(min-width: 900px)');
     const update = () => setIsDesktop(mq.matches);
     update();
     mq.addEventListener('change', update);
+    console.timeEnd('[FREEZE_DIAG] effect:matchMedia');
     return () => mq.removeEventListener('change', update);
   }, []);
 
@@ -243,11 +261,18 @@ function IntelligencePageInner() {
   // flight the carousel uses its fallback set, so first paint is never
   // blank.
   useEffect(() => {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] effect:fetchCapabilityChips');
     let cancelled = false;
     (async () => {
       const chips = await fetchCapabilityChips(activeWorkspace?.mode);
       if (!cancelled) setLiveChips(chips);
+      console.log('[FREEZE_DIAG] fetchCapabilityChips resolved', {
+        mode: activeWorkspace?.mode,
+        timestamp: Date.now(),
+      });
     })();
+    console.timeEnd('[FREEZE_DIAG] effect:fetchCapabilityChips');
     return () => { cancelled = true; };
   }, [activeWorkspace?.mode]);
 
@@ -256,6 +281,8 @@ function IntelligencePageInner() {
   // successful approve fires once per draftId; approve-all fires once
   // per draft in the batch.
   useEffect(() => {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] effect:onDraftSentListener');
     function onDraftSent(e: Event) {
       const detail = (e as CustomEvent).detail || {};
       const recipientName = typeof detail.recipientName === 'string' && detail.recipientName.length > 0
@@ -274,15 +301,19 @@ function IntelligencePageInner() {
       }]);
     }
     window.addEventListener('oh-draft-sent', onDraftSent);
+    console.timeEnd('[FREEZE_DIAG] effect:onDraftSentListener');
     return () => window.removeEventListener('oh-draft-sent', onDraftSent);
   }, []);
 
   // Handle prefilled prompt from URL
   useEffect(() => {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] effect:prefillPrompt');
     if (prefillPrompt && !prefillHandled.current) {
       prefillHandled.current = true;
       handleSend(prefillPrompt);
     }
+    console.timeEnd('[FREEZE_DIAG] effect:prefillPrompt');
   }, [prefillPrompt]);
 
   const handleSend = useCallback(async (text: string) => {

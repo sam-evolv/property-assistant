@@ -269,8 +269,18 @@ export default function ViewingCard({
   }
 
   function handleCancel() {
+    // TODO: remove after freeze diagnosis (cancel-freeze diagnostic PR).
+    console.time('[FREEZE_DIAG] ViewingCard.handleCancel');
+    console.log('[FREEZE_DIAG] cancel start', {
+      card: 'ViewingCard',
+      phase,
+      timestamp: Date.now(),
+    });
     setPhase('cancelled');
     onCancelled?.();
+    queueMicrotask(() => {
+      console.timeEnd('[FREEZE_DIAG] ViewingCard.handleCancel');
+    });
   }
 
   if (phase === 'cancelled') {
