@@ -1,0 +1,51 @@
+name: Mobile release readiness
+
+on:
+  pull_request:
+    paths:
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - "apps/unified-portal/public/**"
+      - "apps/unified-portal/app/layout.tsx"
+      - "apps/unified-portal/app/care/sw-register.tsx"
+      - "apps/unified-portal/hooks/usePushNotifications.ts"
+      - "apps/unified-portal/lib/capacitor-native.ts"
+      - "apps/unified-portal/scripts/pwa-capacitor-audit.mjs"
+      - "apps/unified-portal/scripts/mobile-release-readiness.mjs"
+      - "apps/unified-portal/docs/MOBILE_RELEASE_QA.md"
+      - "apps/unified-portal/package.json"
+      - ".github/workflows/mobile-release-readiness.yml"
+  workflow_dispatch:
+    inputs:
+      require_native_build_projects:
+        description: "Fail unless complete Android Gradle and iOS Xcode projects are checked in"
+        required: true
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  release-readiness:
+    name: PWA, wrapper, and release-readiness audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/unified-portal
+    env:
+      STRICT_NATIVE_BUILDS: ${{ github.event_name == 'workflow_dispatch' && inputs.require_native_build_projects == 'true' && 'true' || 'false' }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run PWA/Capacitor audit
+        run: npm run audit:pwa-capacitor
+
+      - name: Run mobile release readiness audit
+        run: npm run audit:mobile-release-readiness
