@@ -1,6 +1,6 @@
 {
   "buildCommand": "npm --workspace=@openhouse/unified-portal run build",
-  "installCommand": "npm ci",
+  "installCommand": "npm ci --workspace=@openhouse/unified-portal --workspace=@openhouse/api --workspace=@openhouse/db --workspace=@openhouse/core --workspace=@openhouse/auth --workspace=@openhouse/ui --workspace=@openhouse/workers --include-workspace-root=false",
   "framework": "nextjs",
   "outputDirectory": "apps/unified-portal/.next",
   "crons": [
