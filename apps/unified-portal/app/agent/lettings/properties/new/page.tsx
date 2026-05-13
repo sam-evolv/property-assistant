@@ -6,6 +6,7 @@ import Script from 'next/script';
 import { useRouter } from 'next/navigation';
 import AgentShell from '../../../_components/AgentShell';
 import { uploadLeasePdf } from '@/lib/agent/lettings/leasePdfHandoff';
+import { useNonce } from '@/lib/security/nonce-provider';
 
 // Minimal shape of the bits of the Google Places JS API we touch. We don't
 // take a dep on @types/google.maps just for two interfaces.
@@ -55,6 +56,7 @@ function normaliseEircode(input: string): string | null {
 
 export default function AddPropertyPage() {
   const router = useRouter();
+  const nonce = useNonce();
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ?? '';
   const hasApiKey = apiKey.length > 0;
 
@@ -197,6 +199,7 @@ export default function AddPropertyPage() {
           src={`https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`}
           strategy="afterInteractive"
           onLoad={initService}
+          nonce={nonce}
         />
       )}
 

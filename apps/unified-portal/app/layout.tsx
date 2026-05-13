@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import Script from 'next/script';
 import './globals.css';
 import { LayoutClient } from './layout-client';
+import { NonceProvider } from '@/lib/security/nonce-provider';
 
 export const metadata: Metadata = {
   title: 'OpenHouse AI - Unified Portal',
@@ -44,6 +46,11 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // CSP nonce set by middleware.ts on the request. Threaded through
+  // <Script nonce={nonce}> tags and the NonceProvider so descendant client
+  // components can read it too.
+  const nonce = headers().get('x-nonce') ?? undefined;
+
   return (
     <html lang="en">
       <head>
@@ -67,10 +74,13 @@ export default function RootLayout({
           id="google-maps-preload"
           src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
           strategy="afterInteractive"
+          nonce={nonce}
         />
-        <LayoutClient>
-          {children}
-        </LayoutClient>
+        <NonceProvider nonce={nonce}>
+          <LayoutClient>
+            {children}
+          </LayoutClient>
+        </NonceProvider>
       </body>
     </html>
   );
