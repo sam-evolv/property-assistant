@@ -1,0 +1,72 @@
+name: Mobile quality
+
+on:
+  pull_request:
+    paths:
+      - "apps/openhouse-select/**"
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - ".github/workflows/mobile-quality.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/openhouse-select/**"
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - ".github/workflows/mobile-quality.yml"
+
+jobs:
+  openhouse-select:
+    name: Expo app checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/openhouse-select
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: apps/openhouse-select/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Expo config validation
+        run: npx expo config --type public
+
+      - name: Expo dependency health
+        run: npx expo-doctor
+
+  wrapper-metadata:
+    name: Native wrapper metadata checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify Android release hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="apps/unified-portal/android/app/src/main/AndroidManifest.xml"
+          grep -q 'android:usesCleartextTraffic="false"' "$manifest"
+          grep -q 'android:allowBackup="false"' "$manifest"
+          grep -q 'android:screenOrientation="portrait"' "$manifest"
+
+      - name: Verify iOS portrait orientation
+        shell: bash
+        run: |
+          set -euo pipefail
+          plist="apps/unified-portal/ios/App/App/Info.plist"
+          grep -q 'UIInterfaceOrientationPortrait' "$plist"
+          ! grep -q 'UIInterfaceOrientationLandscapeLeft' "$plist"
+          ! grep -q 'UIInterfaceOrientationLandscapeRight' "$plist"
