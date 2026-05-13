@@ -29,16 +29,16 @@ const WELCOME_KEY = 'oh_select_welcomed';
 function TabsScreen() {
   const [activeTab, setActiveTab] = useState(0);
 
+  const handleActiveTabChange = useCallback((index: number) => {
+    setActiveTab(current => (current === index ? current : index));
+  }, []);
+
   return (
     <View style={styles.root}>
       <Tab.Navigator
-        tabBar={(props: any) => {
-          const idx = props.state.index;
-          if (idx !== activeTab) {
-            setTimeout(() => setActiveTab(idx), 0);
-          }
-          return <TabBar {...props} />;
-        }}
+        tabBar={(props: any) => (
+          <TabBar {...props} onActiveIndexChange={handleActiveTabChange} />
+        )}
         screenOptions={{
           headerShown: false,
         }}
