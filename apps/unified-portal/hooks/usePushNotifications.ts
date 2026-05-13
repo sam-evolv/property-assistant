@@ -8,6 +8,22 @@ interface UsePushNotificationsParams {
   enabled?: boolean;
 }
 
+let capacitorCache: any | undefined;
+
+async function getCapacitor(): Promise<any | null> {
+  if (capacitorCache !== undefined) return capacitorCache;
+  try {
+    const capacitorCore = '@capacitor/core';
+    // @ts-ignore - optional native dependency, dynamically imported
+    const { Capacitor } = await import(/* webpackIgnore: true */ capacitorCore);
+    capacitorCache = Capacitor ?? null;
+    return capacitorCache;
+  } catch {
+    capacitorCache = null;
+    return null;
+  }
+}
+
 /**
  * Hook to initialize push notifications.
  *
@@ -45,19 +61,18 @@ export function usePushNotifications({ unitUid, token, enabled = true }: UsePush
 
 async function tryCapacitorPush(unitUid: string, token: string): Promise<boolean> {
   try {
-    // Dynamically import Capacitor to avoid build errors when not installed
-    // Use variables to prevent webpack from statically analyzing the imports
-    const capacitorCore = '@capacitor/core';
-    const capacitorPush = '@capacitor/push-notifications';
-    // @ts-ignore - @capacitor/core is an optional dependency, dynamically imported
-    const { Capacitor } = await import(/* webpackIgnore: true */ capacitorCore);
-
-    if (!Capacitor.isNativePlatform()) {
+    const Capacitor = await getCapacitor();
+    if (!Capacitor || !Capacitor.isNativePlatform()) {
       return false;
     }
 
-    // @ts-ignore - @capacitor/push-notifications is an optional dependency, dynamically imported
-    const { PushNotifications } = await import(/* webpackIgnore: true */ capacitorPush);
+    // The native shell may not include the push plugin in every build. Read it
+    // from Capacitor's registered plugins instead of importing a bare module at
+    // runtime, which can become an unresolved WebView fetch in PWA shells.
+    const PushNotifications = Capacitor.Plugins?.PushNotifications;
+    if (!PushNotifications) {
+      return true;
+    }
 
     // Request permission
     const permResult = await PushNotifications.requestPermissions();

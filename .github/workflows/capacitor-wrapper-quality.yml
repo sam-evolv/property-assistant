@@ -1,0 +1,67 @@
+name: Capacitor wrapper quality
+
+on:
+  pull_request:
+    paths:
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - "apps/unified-portal/public/manifest.json"
+      - "apps/unified-portal/public/sw.js"
+      - "apps/unified-portal/public/.well-known/**"
+      - "apps/unified-portal/app/layout.tsx"
+      - "apps/unified-portal/app/care/sw-register.tsx"
+      - "apps/unified-portal/hooks/usePushNotifications.ts"
+      - "apps/unified-portal/lib/capacitor-native.ts"
+      - "apps/unified-portal/scripts/pwa-capacitor-audit.mjs"
+      - "apps/unified-portal/package.json"
+      - ".github/workflows/capacitor-wrapper-quality.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - "apps/unified-portal/public/manifest.json"
+      - "apps/unified-portal/public/sw.js"
+      - "apps/unified-portal/public/.well-known/**"
+      - "apps/unified-portal/app/layout.tsx"
+      - "apps/unified-portal/app/care/sw-register.tsx"
+      - "apps/unified-portal/hooks/usePushNotifications.ts"
+      - "apps/unified-portal/lib/capacitor-native.ts"
+      - "apps/unified-portal/scripts/pwa-capacitor-audit.mjs"
+      - "apps/unified-portal/package.json"
+      - ".github/workflows/capacitor-wrapper-quality.yml"
+
+jobs:
+  pwa-capacitor-audit:
+    name: PWA and Capacitor audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/unified-portal
+    steps:
+      - name: Checkout audited files
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/unified-portal/android/app/src/main/AndroidManifest.xml
+            apps/unified-portal/ios/App/App/Info.plist
+            apps/unified-portal/public/manifest.json
+            apps/unified-portal/public/sw.js
+            apps/unified-portal/public/.well-known/assetlinks.json
+            apps/unified-portal/public/.well-known/apple-app-site-association
+            apps/unified-portal/app/layout.tsx
+            apps/unified-portal/app/care/sw-register.tsx
+            apps/unified-portal/hooks/usePushNotifications.ts
+            apps/unified-portal/lib/capacitor-native.ts
+            apps/unified-portal/scripts/pwa-capacitor-audit.mjs
+            apps/unified-portal/package.json
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Run PWA/Capacitor audit
+        run: npm run audit:pwa-capacitor
