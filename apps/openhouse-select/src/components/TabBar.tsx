@@ -10,7 +10,6 @@ import {
   StyleSheet,
   Animated,
   Dimensions,
-  Platform,
 } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -25,7 +24,11 @@ const TAB_ICONS: Record<string, readonly string[]> = {
   Warranty: IC.shield,
 };
 
-export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
+type TabBarProps = BottomTabBarProps & {
+  onActiveIndexChange?: (index: number) => void;
+};
+
+export function TabBar({ state, descriptors, navigation, onActiveIndexChange }: TabBarProps) {
   const insets = useSafeAreaInsets();
   const tabCount = state.routes.length;
   const screenWidth = Dimensions.get('window').width;
@@ -33,6 +36,10 @@ export function TabBar({ state, descriptors, navigation }: BottomTabBarProps) {
 
   // Animated sliding gold accent bar
   const slideAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    onActiveIndexChange?.(state.index);
+  }, [onActiveIndexChange, state.index]);
 
   useEffect(() => {
     Animated.timing(slideAnim, {

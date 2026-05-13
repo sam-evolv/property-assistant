@@ -1,0 +1,87 @@
+name: Mobile quality
+
+on:
+  pull_request:
+    paths:
+      - "apps/openhouse-select/**"
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - ".github/workflows/mobile-quality.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/openhouse-select/**"
+      - "apps/unified-portal/android/**"
+      - "apps/unified-portal/ios/**"
+      - ".github/workflows/mobile-quality.yml"
+
+jobs:
+  openhouse-select:
+    name: Expo app checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mobile app
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/openhouse-select
+          sparse-checkout-cone-mode: true
+
+      - name: Isolate mobile app
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R apps/openhouse-select "$RUNNER_TEMP/openhouse-select"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        working-directory: ${{ runner.temp }}/openhouse-select
+        run: npm install
+
+      - name: Typecheck
+        working-directory: ${{ runner.temp }}/openhouse-select
+        run: npm run typecheck
+
+      - name: Expo config validation
+        working-directory: ${{ runner.temp }}/openhouse-select
+        run: npx expo config --type public
+
+      - name: Expo dependency health
+        working-directory: ${{ runner.temp }}/openhouse-select
+        run: npm run doctor
+
+  wrapper-metadata:
+    name: Native wrapper metadata checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout wrapper metadata
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            apps/unified-portal/android/app/src/main/AndroidManifest.xml
+            apps/unified-portal/ios/App/App/Info.plist
+          sparse-checkout-cone-mode: false
+
+      - name: Verify Android release hardening
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="apps/unified-portal/android/app/src/main/AndroidManifest.xml"
+          grep -q 'android:usesCleartextTraffic="false"' "$manifest"
+          grep -q 'android:allowBackup="false"' "$manifest"
+          grep -q 'android:screenOrientation="portrait"' "$manifest"
+
+      - name: Verify iOS portrait orientation
+        shell: bash
+        run: |
+          set -euo pipefail
+          plist="apps/unified-portal/ios/App/App/Info.plist"
+          grep -q 'UIInterfaceOrientationPortrait' "$plist"
+          ! grep -q 'UIInterfaceOrientationLandscapeLeft' "$plist"
+          ! grep -q 'UIInterfaceOrientationLandscapeRight' "$plist"
