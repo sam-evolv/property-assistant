@@ -7,6 +7,7 @@ import { getResendClient } from '@/lib/resend';
 import { resolveRecipient } from '@/lib/agent-intelligence/drafts';
 import { isStatutoryDraftType } from '@/lib/agent-intelligence/autonomy';
 import { authorizeDraftMutation } from '@/lib/agent-intelligence/draft-auth';
+import { resolveSessionWorkspace } from '@/lib/agent-intelligence/workspace-resolution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -62,6 +63,19 @@ export async function POST(request: NextRequest) {
     // draft id slip through to the service-role admin client.
     const authResult = await authorizeDraftMutation(supabase, user, draft);
     if (!authResult.ok) return authResult.response;
+
+    // Workspace scope. A Lettings session must not be able to send a
+    // Sales draft — even with a valid draftId and matching tenant. We
+    // resolve the caller's active workspace and compare against the
+    // draft's stamped workspace_id. Cross-workspace sends 404 by design
+    // (existence of the draft id is itself information the other
+    // workspace shouldn't be able to confirm).
+    if (user?.id) {
+      const session = await resolveSessionWorkspace(supabase, user.id, null);
+      if (!session || draft.workspace_id !== session.workspaceId) {
+        return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      }
+    }
     console.log('[send-draft] entry', {
       draftId,
       userId: draft.user_id,

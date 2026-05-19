@@ -776,7 +776,15 @@ function IntelligencePageInner() {
         const res = await fetch('/api/agent/intelligence/execute-actions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ actions, transcript: msg.voice.transcript }),
+          body: JSON.stringify({
+            actions,
+            transcript: msg.voice.transcript,
+            // Pass the active workspace mode so the server stamps the
+            // correct workspace_id on every draft it writes. Without
+            // this, voice-action drafts default to the sales workspace
+            // and surface in the wrong inbox.
+            mode: activeWorkspace?.mode ?? 'sales',
+          }),
         });
 
         if (!res.ok) throw new Error('execute failed');
@@ -876,6 +884,7 @@ function IntelligencePageInner() {
             actions: [action],
             batchId: msg.voice.batchId,
             sharedContext: msg.voice.sharedContext,
+            mode: activeWorkspace?.mode ?? 'sales',
           }),
         });
         if (!res.ok) throw new Error('retry failed');

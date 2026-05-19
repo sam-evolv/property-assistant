@@ -125,6 +125,7 @@ describe('draftMessageSkill (Session 6D)', () => {
       userId: SKILL_CTX.userId,
       tenantId: 'tenant-1',
       skill: envelope.skill,
+      workspaceId: 'workspace-test',
     });
     expect(persisted.drafts[0].id).not.toBe(envelope.drafts[0].id); // rewritten
   });

@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import OpenAI from 'openai';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { resolveSessionWorkspace } from '@/lib/agent-intelligence/workspace-resolution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,11 +58,22 @@ export async function POST(request: NextRequest) {
     });
 
     const supabase = getSupabaseAdmin();
+
+    // Workspace scope — only drafts belonging to the caller's active
+    // workspace are rewritable. Drafts from the other workspace are
+    // simply not included in the result (rather than erroring per-id)
+    // so the batch UI can still rewrite the in-scope subset cleanly.
+    const session = await resolveSessionWorkspace(supabase, user.id, null);
+    if (!session) {
+      return NextResponse.json({ error: 'No active workspace' }, { status: 404 });
+    }
+
     const { data: rows, error: fetchErr } = await supabase
       .from('pending_drafts')
-      .select('id, content_json, user_id')
+      .select('id, content_json, user_id, workspace_id')
       .in('id', draftIds)
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .eq('workspace_id', session.workspaceId);
 
     if (fetchErr) {
       return NextResponse.json({ error: fetchErr.message }, { status: 500 });
@@ -128,7 +140,8 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         }, { count: 'exact' })
         .eq('id', draft.id)
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .eq('workspace_id', session.workspaceId);
       if (updErr) {
         console.error('[tweak-all] update failed', { id: draft.id, message: updErr.message });
         failures.push({ id: draft.id, reason: updErr.message });

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AgenticSkillDraft, AgenticSkillEnvelope } from './envelope';
 import type { AgentContext } from './types';
+import { resolveWriteWorkspace } from './workspace-resolution';
 
 /**
  * Session 5A — single path that writes agentic-skill drafts to `pending_drafts`.
@@ -78,6 +79,14 @@ export interface SkillPersistContext {
   userId: string;
   tenantId: string | null;
   skill: string;
+  /**
+   * The workspace the draft belongs to. Stamped at write time from the
+   * active session's workspace (resolved via resolveWriteWorkspace in the
+   * convenience wrapper below), never inferred later from the originating
+   * record. NULL is intentionally disallowed — every new draft has a
+   * workspace decision attached at creation.
+   */
+  workspaceId: string;
 }
 
 /**
@@ -218,6 +227,7 @@ export async function persistDraftsForEnvelope(
       .insert({
         user_id: ctx.userId,
         tenant_id: ctx.tenantId,
+        workspace_id: ctx.workspaceId,
         skin: 'agent',
         draft_type: draftType,
         recipient_id: recipientId,
@@ -268,15 +278,30 @@ export async function persistDraftsForEnvelope(
  * Convenience wrapper used by the tools/registry adapter. Takes a full
  * AgentContext (what the chat route already has) and resolves the skill name
  * automatically from the envelope.
+ *
+ * Resolves the workspace_id at write time from `agentContext.mode` (the
+ * mode the client sent with the request — the active workspace pill in
+ * the header). resolveWriteWorkspace throws when no matching workspace
+ * exists for the user; that's an upstream bug we'd rather see surfaced
+ * than write a NULL workspace_id and have the row flagged for manual
+ * review.
  */
 export async function persistSkillEnvelope(
   supabase: SupabaseClient,
   envelope: AgenticSkillEnvelope,
   agentContext: AgentContext,
 ): Promise<AgenticSkillEnvelope> {
+  if (!envelope.drafts.length) return envelope;
+  const mode = agentContext.mode ?? 'sales';
+  const workspaceId = await resolveWriteWorkspace(
+    supabase,
+    agentContext.authUserId,
+    mode,
+  );
   return persistDraftsForEnvelope(supabase, envelope, {
     userId: agentContext.authUserId,
     tenantId: agentContext.tenantId,
     skill: envelope.skill,
+    workspaceId,
   });
 }

@@ -31,6 +31,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AgentContext, ToolResult } from '../types';
 import { matchDevelopment, type Development } from '../property-matcher';
 import { scrubFollowUpBody } from './voice-capture-tools';
+import { resolveWriteWorkspace } from '../workspace-resolution';
 
 export type BroadcastTone = 'warm' | 'professional' | 'urgent';
 
@@ -774,6 +775,24 @@ export async function confirmBroadcast(
     };
   }
 
+  // Resolve the workspace_id up-front so a broadcast can't be sent
+  // between workspaces. Broadcast is sales-or-lettings specific (an
+  // agent broadcasts to applicants in a single product context), so
+  // the active workspace is the correct scope.
+  const mode = agentContext.mode ?? 'sales';
+  let workspaceId: string;
+  try {
+    workspaceId = await resolveWriteWorkspace(supabase, agentContext.authUserId, mode);
+  } catch (err: any) {
+    console.error('[broadcast-tools] workspace resolution failed', { message: err?.message });
+    return {
+      status: 'error',
+      broadcast_id: null,
+      drafts_written: 0,
+      error: 'No active workspace for this user; cannot stage a broadcast.',
+    };
+  }
+
   const { data: auditRow, error: auditError } = await supabase
     .from('broadcast_audit_log')
     .insert({
@@ -801,6 +820,7 @@ export async function confirmBroadcast(
   const draftRows = input.emails.map((e) => ({
     user_id: agentContext.authUserId,
     tenant_id: agentContext.tenantId,
+    workspace_id: workspaceId,
     skin: 'agent',
     draft_type: 'broadcast_email',
     recipient_id: e.applicant_id ?? null,

@@ -11,6 +11,7 @@ import {
   type SendHistoryRow,
 } from '@/lib/agent-intelligence/autonomy';
 import { resolveRecipient } from '@/lib/agent-intelligence/drafts';
+import { resolveWriteWorkspace, type WorkspaceMode } from '@/lib/agent-intelligence/workspace-resolution';
 import type {
   ExtractedAction,
   ExecutedAction,
@@ -88,6 +89,30 @@ export async function POST(request: NextRequest) {
     const userId = user?.id || agentProfile.user_id;
     const timezone = agentProfile.timezone || 'Europe/Dublin';
 
+    // Workspace resolution. The client passes `mode` so we can stamp
+    // workspace_id at write time from the active session, not infer it
+    // from the originating record after the fact. If the client didn't
+    // pass mode (legacy callers), fall back to sales — the historical
+    // default for the voice-action pipeline, which originated in the
+    // sales flow.
+    const modeFromBody: WorkspaceMode =
+      body?.mode === 'lettings' ? 'lettings' : 'sales';
+    let workspaceId: string | null = null;
+    try {
+      workspaceId = await resolveWriteWorkspace(supabase, userId, modeFromBody);
+    } catch (err: any) {
+      // Hard fail: drafts shouldn't be written without a workspace.
+      console.error('[execute-actions] workspace resolution failed', {
+        userId,
+        mode: modeFromBody,
+        message: err?.message,
+      });
+      return NextResponse.json(
+        { error: 'No active workspace for this user; cannot execute draft actions.' },
+        { status: 400 },
+      );
+    }
+
     // Sequential execution needs a shared context so each action can reference
     // ids produced by earlier actions in the same batch. Client can also pass
     // a prior shared context back when retrying a failed subset.
@@ -126,6 +151,7 @@ export async function POST(request: NextRequest) {
         userId,
         tenantId: agentProfile.tenant_id,
         agentId: agentProfile.id,
+        workspaceId,
         timezone,
         autonomy,
         recentByType,
@@ -192,6 +218,13 @@ interface ExecCtx {
   userId: string;
   tenantId: string;
   agentId: string;
+  /**
+   * The workspace_id the action's drafts must be written into. Resolved
+   * once per request from the client-supplied mode + the agent's
+   * workspaces. Every draft insertion in this file MUST pass this value
+   * through to the pending_drafts row.
+   */
+  workspaceId: string;
   timezone: string;
   autonomy: Awaited<ReturnType<typeof loadAutonomyPreferences>>;
   recentByType: Map<string, SendHistoryRow[]>;
@@ -365,6 +398,7 @@ async function execDraftVendorUpdate(
     .insert({
       user_id: userId,
       tenant_id: tenantId,
+      workspace_id: ctx.workspaceId,
       skin: 'agent',
       draft_type: draftType,
       recipient_id: f.vendor_id ? String(f.vendor_id) : null,
@@ -466,6 +500,7 @@ async function insertDraftAndMaybeAutoSend(
     .insert({
       user_id: userId,
       tenant_id: tenantId,
+      workspace_id: ctx.workspaceId,
       skin: 'agent',
       draft_type: opts.draftType,
       recipient_id: opts.recipientId,
@@ -689,6 +724,7 @@ async function execDraftPriceReductionNotice(
       .insert({
         user_id: userId,
         tenant_id: tenantId,
+        workspace_id: ctx.workspaceId,
         skin: 'agent',
         draft_type: 'price_reduction_notice',
         recipient_id: recipientId,
