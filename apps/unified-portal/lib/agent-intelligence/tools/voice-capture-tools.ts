@@ -24,6 +24,7 @@ import {
   type MarkStatus,
 } from './viewing-tools';
 import { formatViewingTime, DEFAULT_TZ } from '../viewing-resolver';
+import { resolveWriteWorkspace } from '../workspace-resolution';
 
 export type PostViewingOutcome =
   | 'high_interest'
@@ -705,11 +706,18 @@ export async function executePostViewingCapture(
     const cleanBody = scrubFollowUpBody(extraction.suggested_follow_up.body);
     const subject = extraction.suggested_follow_up.subject.trim();
     try {
+      // Stamp the workspace at write time from the active session's
+      // mode. Voice capture runs from inside the chat route or
+      // intelligence drawer, so agentContext.mode is set by the chat
+      // route's request body (active workspace pill).
+      const mode = agentContext.mode ?? 'sales';
+      const workspaceId = await resolveWriteWorkspace(supabase, agentContext.authUserId, mode);
       const { data, error } = await supabase
         .from('pending_drafts')
         .insert({
           user_id: agentContext.authUserId,
           tenant_id: agentContext.tenantId,
+          workspace_id: workspaceId,
           skin: 'agent',
           draft_type: 'viewing_followup',
           recipient_id: viewing.applicant_id ?? null,

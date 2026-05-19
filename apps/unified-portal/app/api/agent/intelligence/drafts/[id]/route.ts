@@ -7,17 +7,35 @@ import {
   toDraftRecord,
 } from '@/lib/agent-intelligence/drafts';
 import { authorizeDraftMutation } from '@/lib/agent-intelligence/draft-auth';
+import { resolveSessionWorkspace } from '@/lib/agent-intelligence/workspace-resolution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/agent/intelligence/drafts/:id
- * Returns the full draft (subject, body, recipient, context chips).
+ *
+ * Returns the full draft. Workspace-scoped: a Sales draft is invisible to
+ * a Lettings session (and vice versa) — the route returns 404 rather than
+ * the draft so direct URL navigation can't reveal a draft from the other
+ * workspace.
  */
 export async function GET(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = getSupabaseAdmin();
+    const cookieStore = cookies();
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+
+    if (!user?.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
+    const session = await resolveSessionWorkspace(supabase, user.id, null);
+    if (!session) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
+
     const { data: row, error } = await supabase
       .from('pending_drafts')
       .select('*')
@@ -26,6 +44,13 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    // Cross-workspace fetches return 404 — not 403, not the draft. The
+    // existence of a draft id is itself information a different workspace
+    // shouldn't be able to confirm.
+    if (row.workspace_id !== session.workspaceId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     const recipient = await resolveRecipient(supabase, row.draft_type, row.recipient_id);
     return NextResponse.json({ draft: toDraftRecord(row, recipient) });
@@ -37,9 +62,9 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 /**
  * PATCH /api/agent/intelligence/drafts/:id
  * Body: { subject?, body?, sendMethod?, recipientId? }
- * Saves edits back into content_json. Any save implicitly means the user
- * touched the draft — the send route reads this flag off a later diff rather
- * than tracking it here, to keep this route dumb.
+ *
+ * Cross-workspace mutations return 404 by design — the route refuses to
+ * acknowledge a draft from a different workspace.
  */
 export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -58,11 +83,16 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     if (getErr) return NextResponse.json({ error: getErr.message }, { status: 500 });
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // Auth + tenant guard. See `lib/agent-intelligence/draft-auth.ts` —
-    // closes the falsy-bypass that let unauthenticated PATCH requests
-    // slip through to the service-role admin client.
     const authResult = await authorizeDraftMutation(supabase, user, existing);
     if (!authResult.ok) return authResult.response;
+
+    // Workspace scope check — defense beyond the user/tenant check.
+    if (user?.id) {
+      const session = await resolveSessionWorkspace(supabase, user.id, null);
+      if (!session || existing.workspace_id !== session.workspaceId) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+    }
 
     const nextContent = { ...(existing.content_json || {}) };
     if (typeof body.subject === 'string') nextContent.subject = body.subject;
@@ -93,16 +123,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
 
 /**
  * DELETE /api/agent/intelligence/drafts/:id
- * Hard-deletes — drafts are disposable by design. The recent_actions row from
- * Session 1 is removed too so the Session 1 undo pill can't resurrect a draft
- * the user explicitly discarded.
  *
- * TODO: when discarding a viewing_proposal draft, also delete the matching
- * pending agent_viewings row by (unit_id, viewing_date, viewing_time). The
- * viewing-scheduler audit accepted orphan PENDING viewings as agent-facing-
- * only for the promo recording; once the join key shape is decided, wire
- * this DELETE to clean up the matching slot so the agent's viewings list
- * doesn't accumulate stale "PENDING" entries from discarded proposals.
+ * Cross-workspace deletes return 404. Same reasoning as GET — confirming
+ * a draft id from another workspace is itself a leak.
  */
 export async function DELETE(_request: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -113,17 +136,21 @@ export async function DELETE(_request: NextRequest, { params }: { params: { id: 
 
     const { data: existing } = await supabase
       .from('pending_drafts')
-      .select('user_id, tenant_id')
+      .select('user_id, tenant_id, workspace_id')
       .eq('id', params.id)
       .maybeSingle();
 
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    // Auth + tenant guard. See `lib/agent-intelligence/draft-auth.ts` —
-    // closes the falsy-bypass that let unauthenticated DELETE requests
-    // slip through to the service-role admin client.
     const authResult = await authorizeDraftMutation(supabase, user, existing);
     if (!authResult.ok) return authResult.response;
+
+    if (user?.id) {
+      const session = await resolveSessionWorkspace(supabase, user.id, null);
+      if (!session || existing.workspace_id !== session.workspaceId) {
+        return NextResponse.json({ error: 'Not found' }, { status: 404 });
+      }
+    }
 
     await supabase
       .from('recent_actions')

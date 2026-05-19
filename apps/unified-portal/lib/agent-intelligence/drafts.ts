@@ -73,44 +73,15 @@ const BUYER_DRAFT_TYPES: readonly string[] = [
   'chain_update_to_buyer',
 ];
 
-// Workspace-mode partition for the drafts list filter. `buyer_followup` is
-// produced by both `draft_message` and `draft_buyer_followups`, both of
-// which are reachable from sales AND lettings flows (the lettings system
-// prompt at system-prompt.ts:645 and the registry's lettings recipient_type
-// branch). Keep it visible in BOTH modes — the alternative is hiding real
-// lettings drafts from the lettings inbox, which is worse than minor
-// cross-pollination.
-export const SALES_DRAFT_TYPES: readonly string[] = [
-  'solicitor_chase',
-  'viewing_followup',
-  'viewing_proposal',
-  'viewing_record',
-  'weekly_briefing',
-  'intelligence_report',
-  'intelligence_answer',
-  'intelligence_draft',
-  'schedule_viewing',
-  'vendor_update',
-  'offer_response',
-  'price_reduction_notice',
-  'chain_update_to_buyer',
-];
-
-export const LETTINGS_DRAFT_TYPES: readonly string[] = [
-  'lease_renewal',
-  'application_invitation',
-  'landlord_statement',
-];
-
-export const SHARED_DRAFT_TYPES: readonly string[] = [
-  'buyer_followup',
-];
-
-export function draftTypesForMode(mode: 'sales' | 'lettings'): string[] {
-  return mode === 'lettings'
-    ? [...LETTINGS_DRAFT_TYPES, ...SHARED_DRAFT_TYPES]
-    : [...SALES_DRAFT_TYPES, ...SHARED_DRAFT_TYPES];
-}
+// The SALES_DRAFT_TYPES / LETTINGS_DRAFT_TYPES / SHARED_DRAFT_TYPES
+// constants and the draftTypesForMode helper that lived here were the
+// previous workspace partition for the drafts inbox query — drafts were
+// filtered by `draft_type` and the SHARED bucket (buyer_followup)
+// surfaced in BOTH workspace inboxes. That's exactly the bleed that
+// migration 060 closes. The inbox query now filters on workspace_id
+// directly; the per-type lists are no longer needed at runtime. If a
+// future caller wants to know which draft types belong to which mode,
+// the backfill SQL in migrations/062 is the canonical reference.
 
 export async function resolveRecipient(
   supabase: SupabaseClient,

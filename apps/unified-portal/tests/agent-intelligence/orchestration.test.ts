@@ -31,6 +31,8 @@ interface MockState {
   pending_drafts: Row[];
   viewing_audit_log: Row[];
   developments?: Row[];
+  agent_profiles?: Row[];
+  agent_workspaces?: Row[];
   /** Tables that should throw on any write. */
   failingTables?: Set<string>;
 }
@@ -44,6 +46,17 @@ function makeSupabase(state: MockState) {
     pending_drafts: state.pending_drafts,
     viewing_audit_log: state.viewing_audit_log,
     developments: state.developments ?? [],
+    // Default workspace seed so resolveWriteWorkspace inside the voice-
+    // capture write path succeeds. Tests can override by supplying their
+    // own rows; otherwise auth-1 owns one sales workspace + one lettings
+    // workspace under tenant-1.
+    agent_profiles: state.agent_profiles ?? [
+      { id: 'profile-1', user_id: 'auth-1', tenant_id: 'tenant-1', last_active_workspace_id: 'ws-sales-1' },
+    ],
+    agent_workspaces: state.agent_workspaces ?? [
+      { id: 'ws-sales-1', agent_id: 'profile-1', tenant_id: 'tenant-1', mode: 'sales', is_default: true },
+      { id: 'ws-lettings-1', agent_id: 'profile-1', tenant_id: 'tenant-1', mode: 'lettings', is_default: false },
+    ],
   };
 
   function qb(table: string) {

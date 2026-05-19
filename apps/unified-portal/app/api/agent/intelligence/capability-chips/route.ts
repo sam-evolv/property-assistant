@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { FALLBACK_CAPABILITY_CHIPS } from '@/lib/agent-intelligence/capability-chips';
+import { resolveSessionWorkspace } from '@/lib/agent-intelligence/workspace-resolution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -41,9 +42,15 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const mode = url.searchParams.get('mode') === 'lettings' ? 'lettings' : 'sales';
 
+    // Resolve the session's workspace_id so the drafts count below is
+    // scoped to the current workspace, not all of the agent's workspaces.
+    const session = user?.id
+      ? await resolveSessionWorkspace(supabase, user.id, mode)
+      : null;
+
     const chips = mode === 'lettings'
       ? await composeLettingsChips(supabase, profile.id)
-      : await composeChips(supabase, profile.id);
+      : await composeChips(supabase, profile.id, session?.workspaceId ?? null);
     return NextResponse.json<ChipResponse>({ chips });
   } catch {
     return NextResponse.json<ChipResponse>({ chips: [...FALLBACK_CAPABILITY_CHIPS] });
@@ -141,7 +148,21 @@ async function composeLettingsChips(
 async function composeChips(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   agentId: string,
+  workspaceId: string | null,
 ): Promise<string[]> {
+  // The drafts count is workspace-scoped so a lettings session doesn't
+  // see "Review my drafts" surfaced because sales has pending items
+  // (and vice versa). When no workspace can be resolved, drafts count
+  // defaults to zero rather than leaking a count across workspaces.
+  const draftsCountQuery = workspaceId
+    ? supabase
+        .from('pending_drafts')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('skin', 'agent')
+        .eq('status', 'pending_review')
+    : Promise.resolve({ count: 0, error: null } as any);
+
   const [
     assignmentsRes,
     draftsCountRes,
@@ -151,12 +172,7 @@ async function composeChips(
       .select('development_id')
       .eq('agent_id', agentId)
       .eq('is_active', true),
-    supabase
-      .from('pending_drafts')
-      .select('id', { count: 'exact', head: true })
-      .eq('user_id', agentId)
-      .eq('skin', 'agent')
-      .eq('status', 'pending_review'),
+    draftsCountQuery,
   ]);
 
   const developmentIds = Array.from(
