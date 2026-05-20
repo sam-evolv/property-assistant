@@ -43,6 +43,8 @@ export interface ConfidenceScore {
   portalFeatureMentioned: boolean;
   unattestedNumericClaims: string[];
   piiDetected: boolean;
+  /** True when user asked for creative content (draft/letter) but got a different response type */
+  intentMisreadDetected: boolean;
 }
 
 const STOP_WORDS = new Set([
@@ -156,7 +158,8 @@ const CREATIVE_OBJECTS = /\b(letter|email|document|report|message|text|note|memo
 
 export function scoreConfidence(
   response: string,
-  context: GuardrailContext
+  context: GuardrailContext,
+  requiresCreativeResponse: boolean = false
 ): ConfidenceScore {
   const dimensions = {
     grounding: scoreGrounding(response, context.retrievedChunks),
@@ -267,6 +270,13 @@ export function scoreConfidence(
     recommendation = 'block';
   }
 
+  // === Detection Layer 12: Intent Misread (creative response expected) ===
+  const intentMisreadDetected = detectIntentMisread(requiresCreativeResponse, response, context.query);
+  if (intentMisreadDetected) {
+    dimensions.completeness = Math.max(0, dimensions.completeness - 0.4);
+    riskFactors.push('intent_misread');
+  }
+
   return {
     overall,
     dimensions,
@@ -281,6 +291,7 @@ export function scoreConfidence(
     portalFeatureMentioned: portalResult.featureMentioned,
     unattestedNumericClaims: unattestedClaims,
     piiDetected: piiResult.hasPII,
+    intentMisreadDetected,
   };
 }
 
@@ -558,4 +569,36 @@ function detectPIILeak(response: string, query: string): { hasPII: boolean; deta
   }
 
   return { hasPII: false, details: '' };
+}
+
+// === Detection Layer 12: Intent Misread ===
+function detectIntentMisread(
+  requiresCreativeResponse: boolean,
+  response: string,
+  query: string
+): boolean {
+  if (!requiresCreativeResponse) return false;
+
+  // User asked for creative content (draft/letter/email)
+  // Check if the response actually provides creative content
+  const hasCreativeContent = /^(Dear|To Whom|Hi |Hello |I am writing|I wish to|I would like|Please accept|I am contacting|I am writing to|Further to|With reference to|I am dissatisfied|I am unhappy|I wish to complain|I am disappointed|I am concerned)/i.test(response.trim());
+
+  // Check if response is a maintenance/snagging redirect (common misread)
+  const isSnaggingRedirect = /(snag(ging)?|defect|issue|report(ing)?|maintenance|repair|fault|broken|not working)/i.test(response) && /(tab|section|page|portal|feature|report a)/i.test(response);
+
+  // Check if response is a generic info response (not creative)
+  const isGenericInfo = response.length < 150 && !hasCreativeContent;
+
+  // Check if response contains actual letter/email content
+  const hasLetterStructure = /(Sincerely|Regards|Yours faithfully|Yours sincerely|Best regards|Kind regards|Thank you|Thanks in advance)/i.test(response);
+
+  if (requiresCreativeResponse && !hasCreativeContent && !hasLetterStructure) {
+    return true;  // Intent was misread
+  }
+
+  if (isSnaggingRedirect && requiresCreativeResponse) {
+    return true;  // "draft a complaint letter" was routed to snagging
+  }
+
+  return false;
 }

@@ -55,6 +55,7 @@ export interface GuardrailLogPayload {
   portalFeatureMentioned?: boolean;
   unattestedNumericClaims?: string[];
   piiDetected?: boolean;
+  intentMisreadDetected?: boolean;
 }
 
 // Simple hash for dedup / grouping
@@ -109,6 +110,7 @@ export async function logGuardrailEvaluation(
       portal_feature_mentioned: payload.portalFeatureMentioned ?? false,
       unattested_numeric_claims: payload.unattestedNumericClaims ?? [],
       pii_detected: payload.piiDetected ?? false,
+      intent_misread_detected: payload.intentMisreadDetected ?? false,
     });
   } catch (err: any) {
     // Best-effort: never break the chat flow

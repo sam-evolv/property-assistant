@@ -101,6 +101,8 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
           portalFeatureAvailable: false,
           portalFeatureMentioned: false,
           unattestedNumericClaims: [],
+          piiDetected: false,
+          intentMisreadDetected: false,
         },
         conversationState: updatedState,
         clarification,
@@ -111,7 +113,7 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
   }
 
   // Step 4: Score confidence
-  const confidence = scoreConfidence(finalResponse, context);
+  const confidence = scoreConfidence(finalResponse, context, input.requiresCreativeResponse || false);
 
   guardrailLog.push({
     guardrail: 'confidenceScorer',
@@ -208,6 +210,16 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
     clarificationTriggered: clarification.needsClarification,
     ambiguousTerms: clarification.ambiguousTerms,
     responseLength: finalResponse.length,
+    isCorrectRefusal: confidence.isCorrectRefusal,
+    isFaithfulRepetition: confidence.isFaithfulRepetition,
+    hasFalsePremise: confidence.hasFalsePremise,
+    falsePremiseDetails: confidence.falsePremiseDetails,
+    isOffTopic: confidence.isOffTopic,
+    portalFeatureAvailable: confidence.portalFeatureAvailable,
+    portalFeatureMentioned: confidence.portalFeatureMentioned,
+    unattestedNumericClaims: confidence.unattestedNumericClaims,
+    piiDetected: confidence.piiDetected,
+    intentMisreadDetected: confidence.intentMisreadDetected,
   };
 
   // Fire-and-forget: don't await, don't block the response
