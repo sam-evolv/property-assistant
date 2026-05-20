@@ -133,6 +133,11 @@ import {
 import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
+import { runGuardrails } from '@/lib/assistant/guardrails';
+import type { ConversationState } from '@/lib/assistant/guardrails';
+
+// Conversation state store — in production, use Redis or Supabase
+const conversationStateStore = new Map<string, ConversationState>();
 import { globalCache } from '@/lib/cache/ttl-cache';
 // SEAI grants interceptor removed — RAG pipeline handles all questions now
 // Utility wizard interceptor removed — RAG pipeline handles all questions now
@@ -4016,6 +4021,45 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       
       // MARKDOWN CLEANUP: Remove any remaining markdown tokens
       fullAnswer = cleanForDisplay(fullAnswer);
+
+      // ENHANCED GUARDRAILS (shadow mode): confidence scoring, conversation tracking
+      const guardrailIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+      const enhancedResult = runGuardrails({
+        response: fullAnswer,
+        query: message,
+        intent: guardrailIntent,
+        context: {
+          query: message,
+          intent: guardrailIntent,
+          schemeFacts: '',
+          retrievedChunks: (chunks || []).map((c: any) => ({
+            content: c.content || '',
+            metadata: c.metadata,
+            similarity: c.similarity,
+          })),
+          conversationHistory: (conversationHistory || []).map((m: any) => ({
+            role: m.userMessage ? 'user' : 'assistant',
+            content: m.userMessage || m.aiMessage || '',
+          })),
+          language: selectedLanguage || 'en',
+          unitInfo: userUnitDetails?.unitInfo || null,
+          responseSource: responseSource || 'unknown',
+        },
+        conversationState: conversationStateStore.get(requestId) || null,
+        shadowMode: process.env.GUARDRAIL_SHADOW_MODE !== 'false',
+      });
+
+      conversationStateStore.set(requestId, enhancedResult.conversationState);
+
+      for (const entry of enhancedResult.guardrailLog) {
+        if (entry.action !== 'pass') {
+          console.log(`[Guardrail] ${entry.guardrail}: ${entry.action} — ${entry.reason} requestId=${requestId}`);
+        }
+      }
+
+      if (process.env.GUARDRAIL_SHADOW_MODE === 'false' && enhancedResult.wasModified) {
+        fullAnswer = enhancedResult.finalResponse;
+      }
       
       // Save to database
       await persistMessageSafely({
