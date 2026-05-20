@@ -46,6 +46,15 @@ export interface GuardrailLogPayload {
   clarificationTriggered: boolean;
   ambiguousTerms: string[];
   responseLength: number;
+  isCorrectRefusal?: boolean;
+  isFaithfulRepetition?: boolean;
+  hasFalsePremise?: boolean;
+  falsePremiseDetails?: string;
+  isOffTopic?: boolean;
+  portalFeatureAvailable?: boolean;
+  portalFeatureMentioned?: boolean;
+  unattestedNumericClaims?: string[];
+  piiDetected?: boolean;
 }
 
 // Simple hash for dedup / grouping
@@ -91,6 +100,15 @@ export async function logGuardrailEvaluation(
       clarification_triggered: payload.clarificationTriggered,
       ambiguous_terms: payload.ambiguousTerms,
       response_length: payload.responseLength,
+      is_correct_refusal: payload.isCorrectRefusal ?? false,
+      is_faithful_repetition: payload.isFaithfulRepetition ?? false,
+      has_false_premise: payload.hasFalsePremise ?? false,
+      false_premise_details: payload.falsePremiseDetails ?? '',
+      is_off_topic: payload.isOffTopic ?? false,
+      portal_feature_available: payload.portalFeatureAvailable ?? false,
+      portal_feature_mentioned: payload.portalFeatureMentioned ?? false,
+      unattested_numeric_claims: payload.unattestedNumericClaims ?? [],
+      pii_detected: payload.piiDetected ?? false,
     });
   } catch (err: any) {
     // Best-effort: never break the chat flow
