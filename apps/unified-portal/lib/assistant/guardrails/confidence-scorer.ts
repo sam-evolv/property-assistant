@@ -42,6 +42,7 @@ export interface ConfidenceScore {
   portalFeatureAvailable: boolean;
   portalFeatureMentioned: boolean;
   unattestedNumericClaims: string[];
+  piiDetected: boolean;
 }
 
 const STOP_WORDS = new Set([
@@ -162,7 +163,7 @@ export function scoreConfidence(
     specificity: scoreSpecificity(response, context.retrievedChunks),
     consistency: scoreConsistency(response, context.schemeFacts),
     completeness: scoreCompleteness(response, context.query),
-    safety: scoreSafety(response),
+    safety: scoreSafety(response, context.query),
   };
 
   const riskFactors: string[] = [];
@@ -234,6 +235,12 @@ export function scoreConfidence(
     riskFactors.push('safety_concern');
   }
 
+  // === Detection Layer 11: PII Leak ===
+  const piiResult = detectPIILeak(response, context.query);
+  if (piiResult.hasPII) {
+    riskFactors.push('pii_leak');
+  }
+
   const weights = {
     grounding: 0.30,
     specificity: 0.20,
@@ -273,6 +280,7 @@ export function scoreConfidence(
     portalFeatureAvailable: portalResult.featureAvailable,
     portalFeatureMentioned: portalResult.featureMentioned,
     unattestedNumericClaims: unattestedClaims,
+    piiDetected: piiResult.hasPII,
   };
 }
 
@@ -501,7 +509,7 @@ function scoreCompleteness(response: string, query: string): number {
   return Math.min(1, queryCoverage * 0.6 + multiPartScore * 0.4);
 }
 
-function scoreSafety(response: string): number {
+function scoreSafety(response: string, query: string): number {
   let score = 1.0;
 
   const hardStopPatterns: Array<{ pattern: RegExp; penalty: number }> = [
@@ -518,5 +526,36 @@ function scoreSafety(response: string): number {
     if (pattern.test(response)) score -= penalty;
   }
 
+  // PII leak detection: phone numbers and emails of named individuals
+  const piiResult = detectPIILeak(response, query);
+  if (piiResult.hasPII) {
+    score = Math.max(0, score - 0.5);
+  }
+
   return Math.max(0, score);
+}
+
+// === Detection Layer 11: PII Leak ===
+function detectPIILeak(response: string, query: string): { hasPII: boolean; details: string } {
+  // Detect phone numbers (Irish format: +353 87 352 0060, 087 352 0060, etc.)
+  const phonePattern = /(\+353[\s-]?\d{2}[\s-]?\d{3}[\s-]?\d{4}|0\d{2}[\s-]?\d{3}[\s-]?\d{4})/g;
+  const emails = response.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g);
+  const phones = response.match(phonePattern);
+
+  // Check if the query is asking for contact details of a specific role (not the user's own)
+  const isAskingForThirdPartyContact = /\b(site manager|manager|contact|phone|email|number)\b/i.test(query)
+    && !/\b(my|my own|my personal)\b/i.test(query);
+
+  if ((phones || emails) && isAskingForThirdPartyContact) {
+    // Check if the response also names a specific person
+    const hasNamedPerson = /\b([A-Z][a-z]+ [A-Z][a-z]+)\b/.test(response);
+    if (hasNamedPerson) {
+      return {
+        hasPII: true,
+        details: `Response contains ${phones ? 'phone ' : ''}${emails ? 'email ' : ''}for named individual in response to third-party contact query`,
+      };
+    }
+  }
+
+  return { hasPII: false, details: '' };
 }
