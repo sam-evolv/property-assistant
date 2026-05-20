@@ -81,6 +81,12 @@ import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy
 import { cleanForDisplay, sanitizeForChat } from '@/lib/assistant/formatting';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { globalCache } from '@/lib/cache/ttl-cache';
+import { runGuardrails } from '@/lib/assistant/guardrails';
+import type { ConversationState } from '@/lib/assistant/guardrails';
+
+// Conversation state store — in production, use Redis or Supabase
+// For now, a simple in-memory Map keyed by requestId
+const conversationStateStore = new Map<string, ConversationState>();
 
 function getClientIP(request: NextRequest): string {
   const xff = request.headers.get('x-forwarded-for');
@@ -3603,6 +3609,49 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
       
       // MARKDOWN CLEANUP: Remove any remaining markdown tokens
       fullAnswer = cleanForDisplay(fullAnswer);
+
+      // ENHANCED GUARDRAILS: Confidence scoring, conversation tracking, proactive clarification
+      // Shadow mode (default): logs only, does not modify responses
+      const guardrailIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+      const enhancedResult = runGuardrails({
+        response: fullAnswer,
+        query: message,
+        intent: guardrailIntent,
+        context: {
+          query: message,
+          intent: guardrailIntent,
+          schemeFacts: '',
+          retrievedChunks: (chunks || []).map((c: any) => ({
+            content: c.content || '',
+            metadata: c.metadata,
+            similarity: c.similarity,
+          })),
+          conversationHistory: (conversationHistory || []).map((m: any) => ({
+            role: m.userMessage ? 'user' : 'assistant',
+            content: m.userMessage || m.aiMessage || '',
+          })),
+          language: selectedLanguage || 'en',
+          unitInfo: userUnitDetails?.unitInfo || null,
+          responseSource: responseSource || 'unknown',
+        },
+        conversationState: conversationStateStore.get(requestId) || null,
+        shadowMode: process.env.GUARDRAIL_SHADOW_MODE !== 'false',
+      });
+
+      // Store conversation state for next turn
+      conversationStateStore.set(requestId, enhancedResult.conversationState);
+
+      // Log non-pass guardrail decisions
+      for (const entry of enhancedResult.guardrailLog) {
+        if (entry.action !== 'pass') {
+          console.log(`[Guardrail] ${entry.guardrail}: ${entry.action} — ${entry.reason} requestId=${requestId}`);
+        }
+      }
+
+      // In active mode, use the potentially modified response
+      if (process.env.GUARDRAIL_SHADOW_MODE === 'false' && enhancedResult.wasModified) {
+        fullAnswer = enhancedResult.finalResponse;
+      }
       
       // Save to database
       await persistMessageSafely({
@@ -3934,6 +3983,41 @@ CRITICAL - GDPR PRIVACY PROTECTION (LEGAL REQUIREMENT):
           
           // MARKDOWN CLEANUP: Remove any remaining markdown tokens from stored response
           fullAnswer = cleanForDisplay(fullAnswer);
+
+          // ENHANCED GUARDRAILS (streaming path): Shadow mode logging
+          const streamGuardrailIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+          const streamEnhancedResult = runGuardrails({
+            response: fullAnswer,
+            query: message,
+            intent: streamGuardrailIntent,
+            context: {
+              query: message,
+              intent: streamGuardrailIntent,
+              schemeFacts: '',
+              retrievedChunks: (chunks || []).map((c: any) => ({
+                content: c.content || '',
+                metadata: c.metadata,
+                similarity: c.similarity,
+              })),
+              conversationHistory: (conversationHistory || []).map((m: any) => ({
+                role: m.userMessage ? 'user' : 'assistant',
+                content: m.userMessage || m.aiMessage || '',
+              })),
+              language: selectedLanguage || 'en',
+              unitInfo: userUnitDetails?.unitInfo || null,
+              responseSource: 'streaming',
+            },
+            conversationState: conversationStateStore.get(requestId) || null,
+            shadowMode: true, // Streaming path always shadow mode (response already sent)
+          });
+
+          conversationStateStore.set(requestId, streamEnhancedResult.conversationState);
+
+          for (const entry of streamEnhancedResult.guardrailLog) {
+            if (entry.action !== 'pass') {
+              console.log(`[Guardrail:Stream] ${entry.guardrail}: ${entry.action} — ${entry.reason} requestId=${requestId}`);
+            }
+          }
 
           // STREAMING HALLUCINATION CHECK: Detect and log fabricated venue names in streamed responses
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
