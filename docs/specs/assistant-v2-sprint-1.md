@@ -520,11 +520,20 @@ When the send button is pressed with attached media:
 ```
 
 Status messages rotate through:
+- "Preparing photos"
 - "Uploading photos"
 - "Reviewing your home information"
 - "Preparing the response"
 
-Each step transitions when the corresponding network call resolves. Do not show fake progress.
+Each step transitions when its phase actually starts. Do not show fake progress.
+
+"Preparing photos" covers the client-side compression step. iPhone photos
+are typically 10 to 15 MB and Vercel's serverless body cap is roughly
+4.5 MB, so the client resizes each photo to at most 2000 pixels on the
+longest edge and re-encodes as JPEG at quality 0.85 before the upload
+network call begins. Files already below 1.5 MB skip the step entirely.
+The longer-term plan is direct-to-Supabase signed upload URLs, which
+removes the need for the client-side step.
 
 2. Call `POST /api/assistant/media/upload` to upload all files. Collect returned media IDs.
 3. Call `POST /api/assistant/chat/multimodal` with the message text and media IDs.

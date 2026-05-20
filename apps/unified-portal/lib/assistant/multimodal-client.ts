@@ -4,14 +4,18 @@
  * Client side orchestration for sending a chat message that includes
  * attached images. Sprint 1 of Assistant V2, section 7.3 of the spec.
  *
- * Two network calls, in order:
- *   1. POST /api/assistant/media/upload  (multipart, one to six files)
- *   2. POST /api/assistant/chat/multimodal  (json, message text + media ids)
+ * Pipeline:
+ *   1. Compress each selected file via the canvas resize step (only
+ *      kicks in for files larger than the threshold). Required because
+ *      Vercel's serverless body cap is 4.5 MB and iPhone photos sail
+ *      past that; see attachments.ts for the architectural notes.
+ *   2. POST /api/assistant/media/upload  (multipart, one to six files)
+ *   3. POST /api/assistant/chat/multimodal  (json, message text + media ids)
  *
  * The caller passes an onStatus callback so the UI can swap the rotating
- * status strip ("Uploading photos" then "Reviewing your home information"
- * then "Preparing the response"). Each label transitions only when the
- * corresponding network call resolves. No fake progress.
+ * status strip ("Preparing photos" then "Uploading photos" then
+ * "Reviewing your home information" then "Preparing the response"). Each
+ * label transitions only when its phase actually starts. No fake progress.
  *
  * Errors:
  *   - Any 4xx or 5xx surfaces a SendMultimodalError with a resident-facing
@@ -19,9 +23,10 @@
  *     7.5 of the spec.
  */
 
-import type { SelectedAttachment } from './attachments';
+import { compressSelectionsForUpload, type SelectedAttachment } from './attachments';
 
 export type MultimodalStatus =
+  | 'compressing'
   | 'uploading'
   | 'reviewing'
   | 'preparing';
@@ -67,12 +72,18 @@ const CHAT_FAILED_MESSAGE =
 export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMultimodalResult> {
   const { conversationId, unitId, qrToken, messageText, selections, onStatus } = input;
 
+  onStatus?.('compressing');
+  // compressSelectionsForUpload is a no-op for files already under the
+  // threshold and for browsers that cannot decode the source format
+  // (HEIC on Chrome and Firefox), so this is always safe to call.
+  const compressed = await compressSelectionsForUpload(selections);
+
   onStatus?.('uploading');
 
   const form = new FormData();
   form.set('conversation_id', conversationId);
   form.set('unit_id', unitId);
-  for (const sel of selections) {
+  for (const sel of compressed) {
     form.append('files', sel.file, sel.file.name);
   }
 
@@ -164,6 +175,8 @@ export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMu
 
 export function statusToLabel(status: MultimodalStatus): string {
   switch (status) {
+    case 'compressing':
+      return 'Preparing photos';
     case 'uploading':
       return 'Uploading photos';
     case 'reviewing':
