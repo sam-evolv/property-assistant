@@ -4415,6 +4415,43 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // MARKDOWN CLEANUP: Remove any remaining markdown tokens from stored response
           fullAnswer = cleanForDisplay(fullAnswer);
 
+          // ENHANCED GUARDRAILS (shadow mode): confidence scoring, conversation tracking
+          console.log(`[Guardrail] Running guardrails for requestId=${requestId}, shadowMode=${process.env.GUARDRAIL_SHADOW_MODE !== 'false'}`);
+          const streamGuardrailIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
+          const streamEnhancedResult = runGuardrails({
+            response: fullAnswer,
+            query: message,
+            intent: streamGuardrailIntent,
+            context: {
+              query: message,
+              intent: streamGuardrailIntent,
+              schemeFacts: '',
+              retrievedChunks: (chunks || []).map((c: any) => ({
+                content: c.content || '',
+                metadata: c.metadata,
+                similarity: c.similarity,
+              })),
+              conversationHistory: (conversationHistory || []).map((m: any) => ({
+                role: m.userMessage ? 'user' : 'assistant',
+                content: m.userMessage || m.aiMessage || '',
+              })),
+              language: selectedLanguage || 'en',
+              unitInfo: userUnitDetails?.unitInfo || null,
+              responseSource: streamResponseSource || 'unknown',
+              requestId: requestId,
+            },
+            conversationState: conversationStateStore.get(requestId) || null,
+            shadowMode: process.env.GUARDRAIL_SHADOW_MODE !== 'false',
+          });
+
+          conversationStateStore.set(requestId, streamEnhancedResult.conversationState);
+
+          for (const entry of streamEnhancedResult.guardrailLog) {
+            if (entry.action !== 'pass') {
+              console.log(`[Guardrail] ${entry.guardrail}: ${entry.action} — ${entry.reason} requestId=${requestId}`);
+            }
+          }
+
           // STREAMING HALLUCINATION CHECK: Detect and log fabricated venue names in streamed responses
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
           // The POI path returns early, so if we're here, never bypass validation
