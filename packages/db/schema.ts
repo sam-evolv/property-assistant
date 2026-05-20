@@ -2284,3 +2284,33 @@ export const pipelineNotes = unitPipelineNotes;
 export const fieldMappings = integrationFieldMappings;
 export const syncLog = integrationSyncLog;
 export const syncConflicts = integrationConflicts;
+
+// Guardrail evaluation logging — stores every guardrail run for analysis and auto-research
+export const guardrailEvaluations = pgTable('guardrail_evaluations', {
+  id: uuid('id').primaryKey().default(sql`gen_random_uuid()`),
+  request_id: text('request_id'),
+  query_hash: text('query_hash'),
+  query_preview: text('query_preview'),
+  intent: text('intent'),
+  confidence_overall: doublePrecision('confidence_overall'),
+  confidence_grounding: doublePrecision('confidence_grounding'),
+  confidence_specificity: doublePrecision('confidence_specificity'),
+  confidence_consistency: doublePrecision('confidence_consistency'),
+  confidence_completeness: doublePrecision('confidence_completeness'),
+  confidence_safety: doublePrecision('confidence_safety'),
+  risk_factors: jsonb('risk_factors').default(sql`'[]'::jsonb`),
+  guardrail_log: jsonb('guardrail_log').default(sql`'[]'::jsonb`),
+  was_modified: boolean('was_modified').default(false),
+  was_blocked: boolean('was_blocked').default(false),
+  shadow_mode: boolean('shadow_mode').default(true),
+  turn_count: integer('turn_count').default(1),
+  escalation_level: integer('escalation_level').default(0),
+  clarification_triggered: boolean('clarification_triggered').default(false),
+  ambiguous_terms: jsonb('ambiguous_terms').default(sql`'[]'::jsonb`),
+  response_length: integer('response_length'),
+  created_at: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+}, (table) => ({
+  createdIdx: index('idx_guardrail_eval_created').on(table.created_at),
+  intentIdx: index('idx_guardrail_eval_intent').on(table.intent),
+  confidenceIdx: index('idx_guardrail_eval_confidence').on(table.confidence_overall),
+}));

@@ -4044,6 +4044,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           language: selectedLanguage || 'en',
           unitInfo: userUnitDetails?.unitInfo || null,
           responseSource: responseSource || 'unknown',
+          requestId: requestId,
         },
         conversationState: conversationStateStore.get(requestId) || null,
         shadowMode: process.env.GUARDRAIL_SHADOW_MODE !== 'false',

@@ -23,6 +23,7 @@ import {
 } from './conversation-tracker';
 import { checkNeedsClarification, ClarificationResult } from './proactive-clarifier';
 import { getAdaptiveConfig, AdaptiveConfig } from './adaptive-thresholds';
+import { logGuardrailEvaluation } from './guardrail-logger';
 
 export interface GuardrailLogEntry {
   guardrail: string;
@@ -179,6 +180,28 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
       timestamp: Date.now(),
     });
   }
+
+  // Log to Supabase for analysis (async, best-effort, never blocks response)
+  const logPayload = {
+    requestId: context.requestId,
+    query: query,
+    intent: intent,
+    confidenceOverall: confidence.overall,
+    confidenceDimensions: confidence.dimensions,
+    riskFactors: confidence.riskFactors,
+    guardrailLog: guardrailLog,
+    wasModified: wasModified,
+    wasBlocked: wasBlocked,
+    shadowMode: shadowMode,
+    turnCount: updatedState.turnCount,
+    escalationLevel: updatedState.escalationLevel,
+    clarificationTriggered: clarification.needsClarification,
+    ambiguousTerms: clarification.ambiguousTerms,
+    responseLength: finalResponse.length,
+  };
+
+  // Fire-and-forget: don't await, don't block the response
+  logGuardrailEvaluation(logPayload).catch(() => {});
 
   return {
     finalResponse,

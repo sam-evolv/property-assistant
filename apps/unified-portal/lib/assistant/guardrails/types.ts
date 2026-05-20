@@ -23,6 +23,7 @@ export interface GuardrailContext {
   language: string;
   unitInfo: UnitInfo | null;
   responseSource: string;
+  requestId?: string;
 }
 
 export interface MessageEntry {
