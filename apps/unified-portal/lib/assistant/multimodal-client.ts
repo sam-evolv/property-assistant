@@ -1,0 +1,174 @@
+'use client';
+
+/**
+ * Client side orchestration for sending a chat message that includes
+ * attached images. Sprint 1 of Assistant V2, section 7.3 of the spec.
+ *
+ * Two network calls, in order:
+ *   1. POST /api/assistant/media/upload  (multipart, one to six files)
+ *   2. POST /api/assistant/chat/multimodal  (json, message text + media ids)
+ *
+ * The caller passes an onStatus callback so the UI can swap the rotating
+ * status strip ("Uploading photos" then "Reviewing your home information"
+ * then "Preparing the response"). Each label transitions only when the
+ * corresponding network call resolves. No fake progress.
+ *
+ * Errors:
+ *   - Any 4xx or 5xx surfaces a SendMultimodalError with a resident-facing
+ *     message. The exact string for an upload failure comes from section
+ *     7.5 of the spec.
+ */
+
+import type { SelectedAttachment } from './attachments';
+
+export type MultimodalStatus =
+  | 'uploading'
+  | 'reviewing'
+  | 'preparing';
+
+export interface SendMultimodalInput {
+  conversationId: string;
+  unitId: string;
+  qrToken: string;
+  messageText: string;
+  selections: SelectedAttachment[];
+  onStatus?: (status: MultimodalStatus) => void;
+}
+
+export interface UploadedMedia {
+  media_id: string;
+  signed_url: string;
+  thumbnail_url: string;
+  width: number | null;
+  height: number | null;
+}
+
+export interface SendMultimodalResult {
+  messageId: string;
+  conversationId: string;
+  media: UploadedMedia[];
+  assistantMessage: string;
+  analysisId: string;
+  action: string;
+}
+
+export class SendMultimodalError extends Error {
+  constructor(public residentMessage: string, public stage: 'upload' | 'chat') {
+    super(residentMessage);
+    this.name = 'SendMultimodalError';
+  }
+}
+
+const UPLOAD_FAILED_MESSAGE =
+  "Couldn't upload that photo. Try again or come back to it later.";
+const CHAT_FAILED_MESSAGE =
+  "Couldn't send the message. Try again or come back to it later.";
+
+export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMultimodalResult> {
+  const { conversationId, unitId, qrToken, messageText, selections, onStatus } = input;
+
+  onStatus?.('uploading');
+
+  const form = new FormData();
+  form.set('conversation_id', conversationId);
+  form.set('unit_id', unitId);
+  for (const sel of selections) {
+    form.append('files', sel.file, sel.file.name);
+  }
+
+  let uploadJson: {
+    message_id?: string;
+    media?: UploadedMedia[];
+  };
+  try {
+    const uploadRes = await fetch('/api/assistant/media/upload', {
+      method: 'POST',
+      headers: { 'x-qr-token': qrToken },
+      body: form,
+    });
+    if (!uploadRes.ok) {
+      let serverMessage = UPLOAD_FAILED_MESSAGE;
+      try {
+        const errJson = await uploadRes.json();
+        if (typeof errJson?.error === 'string' && errJson.error.length > 0 && errJson.error.length < 200) {
+          serverMessage = errJson.error;
+        }
+      } catch {
+        // ignore json parse failure
+      }
+      throw new SendMultimodalError(serverMessage, 'upload');
+    }
+    uploadJson = await uploadRes.json();
+  } catch (err) {
+    if (err instanceof SendMultimodalError) throw err;
+    throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
+  }
+
+  const media = Array.isArray(uploadJson.media) ? uploadJson.media : [];
+  if (media.length === 0) {
+    throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
+  }
+
+  onStatus?.('reviewing');
+
+  let chatJson: {
+    message?: string;
+    analysis_id?: string;
+    action?: string;
+    message_id?: string;
+    conversation_id?: string;
+  };
+  try {
+    onStatus?.('preparing');
+    const chatRes = await fetch('/api/assistant/chat/multimodal', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-qr-token': qrToken,
+      },
+      body: JSON.stringify({
+        conversation_id: conversationId,
+        unit_id: unitId,
+        message_text: messageText,
+        media_ids: media.map((m) => m.media_id),
+        message_id: uploadJson.message_id,
+      }),
+    });
+    if (!chatRes.ok) {
+      let serverMessage = CHAT_FAILED_MESSAGE;
+      try {
+        const errJson = await chatRes.json();
+        if (typeof errJson?.error === 'string' && errJson.error.length > 0 && errJson.error.length < 200) {
+          serverMessage = errJson.error;
+        }
+      } catch {
+        // ignore
+      }
+      throw new SendMultimodalError(serverMessage, 'chat');
+    }
+    chatJson = await chatRes.json();
+  } catch (err) {
+    if (err instanceof SendMultimodalError) throw err;
+    throw new SendMultimodalError(CHAT_FAILED_MESSAGE, 'chat');
+  }
+
+  return {
+    messageId: chatJson.message_id ?? uploadJson.message_id ?? '',
+    conversationId: chatJson.conversation_id ?? conversationId,
+    media,
+    assistantMessage: typeof chatJson.message === 'string' ? chatJson.message : '',
+    analysisId: typeof chatJson.analysis_id === 'string' ? chatJson.analysis_id : '',
+    action: typeof chatJson.action === 'string' ? chatJson.action : 'answer_only',
+  };
+}
+
+export function statusToLabel(status: MultimodalStatus): string {
+  switch (status) {
+    case 'uploading':
+      return 'Uploading photos';
+    case 'reviewing':
+      return 'Reviewing your home information';
+    case 'preparing':
+      return 'Preparing the response';
+  }
+}
