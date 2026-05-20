@@ -201,7 +201,10 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
   };
 
   // Fire-and-forget: don't await, don't block the response
-  logGuardrailEvaluation(logPayload).catch(() => {});
+  console.log(`[Guardrail] Logging to Supabase: requestId=${context.requestId}, confidence=${confidence.overall.toFixed(2)}, shadow=${shadowMode}`);
+  logGuardrailEvaluation(logPayload).catch((err: any) => {
+    console.error('[Guardrail] Supabase log failed:', err?.message || err);
+  });
 
   return {
     finalResponse,

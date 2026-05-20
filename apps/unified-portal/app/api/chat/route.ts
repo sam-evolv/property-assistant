@@ -4023,6 +4023,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       fullAnswer = cleanForDisplay(fullAnswer);
 
       // ENHANCED GUARDRAILS (shadow mode): confidence scoring, conversation tracking
+      console.log(`[Guardrail] Running guardrails for requestId=${requestId}, shadowMode=${process.env.GUARDRAIL_SHADOW_MODE !== 'false'}`);
       const guardrailIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
       const enhancedResult = runGuardrails({
         response: fullAnswer,
