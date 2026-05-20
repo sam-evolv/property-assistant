@@ -24,6 +24,14 @@ export interface GuardrailContext {
   unitInfo: UnitInfo | null;
   responseSource: string;
   requestId?: string;
+  /** Known development facts for false premise detection */
+  knownFacts?: {
+    totalUnits?: number;
+    hasPhases?: boolean;
+    maxPhase?: number;
+    developerName?: string;
+    location?: string;
+  };
 }
 
 export interface MessageEntry {

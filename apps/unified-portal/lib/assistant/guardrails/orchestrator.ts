@@ -51,6 +51,8 @@ export interface OrchestratorInput {
   conversationState: ConversationState | null;
   /** If true, only log — don't modify responses (shadow mode) */
   shadowMode?: boolean;
+  /** Whether the query requires a creative response (draft, write, compose) */
+  requiresCreativeResponse?: boolean;
 }
 
 export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
@@ -91,6 +93,14 @@ export function runGuardrails(input: OrchestratorInput): OrchestratorResult {
           dimensions: { grounding: 1, specificity: 1, consistency: 1, completeness: 0.3, safety: 1 },
           riskFactors: [],
           recommendation: 'pass',
+          isCorrectRefusal: false,
+          isFaithfulRepetition: false,
+          hasFalsePremise: false,
+          falsePremiseDetails: '',
+          isOffTopic: false,
+          portalFeatureAvailable: false,
+          portalFeatureMentioned: false,
+          unattestedNumericClaims: [],
         },
         conversationState: updatedState,
         clarification,

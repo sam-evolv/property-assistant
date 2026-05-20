@@ -3,12 +3,18 @@
  *
  * When a query is ambiguous, it's better to ask a clarifying question
  * than to guess and potentially give a wrong answer.
+ *
+ * Also detects creative/action verb patterns where the user wants
+ * something written/composed — if the response ignores this intent,
+ * the confidence scorer will penalise completeness.
  */
 
 export interface ClarificationResult {
   needsClarification: boolean;
   clarificationQuestion?: string;
   ambiguousTerms: string[];
+  /** True when the user is asking for creative content (draft, write, compose) */
+  requiresCreativeResponse: boolean;
 }
 
 interface AmbiguityPattern {
@@ -51,6 +57,10 @@ const AMBIGUITY_PATTERNS: AmbiguityPattern[] = [
 
 const SKIP_INTENTS = ['greeting', 'farewell', 'acknowledgment', 'humor', 'yes', 'no'];
 
+// Creative/action verb patterns for intent detection
+const CREATIVE_VERBS = /\b(draft|write|compose|create|generate|prepare|make|pen)\b/i;
+const CREATIVE_OBJECTS = /\b(letter|email|document|report|message|text|note|memo|complaint|response|reply)\b/i;
+
 export function checkNeedsClarification(
   query: string,
   conversationHistory: string[],
@@ -61,7 +71,7 @@ export function checkNeedsClarification(
 
   // Skip clarification for certain intents
   if (SKIP_INTENTS.some(i => intent.toLowerCase().includes(i))) {
-    return { needsClarification: false, ambiguousTerms: [] };
+    return { needsClarification: false, ambiguousTerms: [], requiresCreativeResponse: false };
   }
 
   for (const { pattern, check, question } of AMBIGUITY_PATTERNS) {
@@ -78,9 +88,13 @@ export function checkNeedsClarification(
     clarificationQuestion = 'Could you provide more details about what you\'re looking for?';
   }
 
+  // Detect creative/action verb patterns
+  const requiresCreativeResponse = CREATIVE_VERBS.test(query) && CREATIVE_OBJECTS.test(query);
+
   return {
     needsClarification: ambiguousTerms.length > 0,
     clarificationQuestion,
     ambiguousTerms,
+    requiresCreativeResponse,
   };
 }

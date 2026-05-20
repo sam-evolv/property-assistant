@@ -4439,9 +4439,17 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
               unitInfo: userUnitDetails?.unitInfo || null,
               responseSource: streamResponseSource || 'unknown',
               requestId: requestId,
+              knownFacts: {
+                totalUnits: 75,
+                hasPhases: false,
+                maxPhase: 1,
+                developerName: 'Longview Estates Limited',
+                location: 'Ballyvolane, Cork City',
+              },
             },
             conversationState: conversationStateStore.get(requestId) || null,
             shadowMode: process.env.GUARDRAIL_SHADOW_MODE !== 'false',
+            requiresCreativeResponse: /\b(draft|write|compose|create|generate|prepare)\b/i.test(message) && /\b(letter|email|document|report|message|note|memo|complaint)\b/i.test(message),
           });
 
           conversationStateStore.set(requestId, streamEnhancedResult.conversationState);
