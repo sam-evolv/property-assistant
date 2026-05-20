@@ -1,27 +1,50 @@
 /**
  * Tenant verification for Assistant V2 media routes (Sprint 1).
  *
- * Two caller types are supported and must be told apart from the request
- * itself. Never trust a client-supplied tenant_id.
+ * Three caller paths are supported. They are evaluated in this order and
+ * each is named below so a future reader does not have to reverse-engineer
+ * the control flow.
  *
- * 1. Homeowner (resident). Authenticates with an x-qr-token header. We
- *    validate the signed QR token, derive the units.id from it, then look
- *    up tenant_id and development_id from the units row. The caller-supplied
- *    unit_id (if any) must match the token-bound unit, otherwise 403.
+ * ━━ Path A: signed QR token ━━
+ * The caller sends `x-qr-token` and the token is a cryptographically valid
+ * signed QR token (see packages/api/src/qr-tokens.ts). The unit id is
+ * authoritative because it comes from the signed payload. If the request
+ * body also supplies a `unit_id`, it must match the token's unit; mismatch
+ * is 403.
  *
- * 2. Installer / developer / admin. Authenticates with a Supabase admin
- *    session cookie. We resolve tenant_id from the admins row. The caller-
- *    supplied unit_id (if any) must belong to that tenant, otherwise 403.
+ * ━━ Path A': purchaser unit-uid capability ━━
+ * The caller sends `x-qr-token` but it is NOT a signed token. We accept
+ * the unit UUID itself as the credential, matching the trust model the
+ * production text-only chat already uses (apps/unified-portal/app/api/
+ * chat/route.ts, lines 1685 onward: validate the signed token first, then
+ * fall back to `clientUnitUid`). The unit UUID is an unguessable v4 UUID,
+ * so possession of it is the capability.
  *
- * Both code paths return the same MediaAuthContext shape so route handlers
- * stay short. Routes that need a unit_id (uploads, multimodal chat) ask
- * for it explicitly; routes that don't (signed-url) skip the unit check.
+ * To match validatePurchaserToken's allow-list exactly (packages/api/src/
+ * qr-tokens.ts:244), we accept the token in one of two shapes:
+ *   - `<unit_uuid>`                              showhouse / continued session
+ *   - `<unit_uuid>:<projectId>:<ts>:<nonce>:<sig>`  expired-but-issued token
  *
- * This is deliberately a thin, additive helper. It does not replace the
- * existing care-session or admin-session helpers. It exists because the
- * three new assistant routes need a single auth boundary that handles both
- * homeowner and admin callers, and embedding that logic in each route
- * would invite drift.
+ * If the request body supplied a `unit_id`, the token shape must match
+ * that exact unit. Mismatch is 403. If the request did not supply a
+ * `unit_id`, the unit id is extracted from the token itself (the entire
+ * token if it has no colon, or the segment before the first colon
+ * otherwise). The extracted candidate is then looked up in the units
+ * table; a non-existent unit is 404, not 401, so REST semantics do not
+ * leak existence.
+ *
+ * Tenant_id and development_id always come from the units row, never from
+ * the client, regardless of which path resolves the caller.
+ *
+ * ━━ Path B: admin session ━━
+ * No `x-qr-token` header. We resolve the caller via the Supabase admin
+ * session cookie (installer / developer / super_admin). Tenant comes from
+ * the admins row. If a `unit_id` was supplied, it must belong to that
+ * tenant; mismatch is 403.
+ *
+ * Cross-tenant enforcement on the media row itself (media.tenant_id !==
+ * caller.tenant_id) stays in the signed-url route. This helper only
+ * resolves who the caller is.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -74,11 +97,28 @@ async function loadUnit(unitId: string): Promise<UnitRow | null> {
 }
 
 /**
+ * For Path A' only. The token is the raw unit UUID, or a colon-delimited
+ * structure whose first segment is the unit UUID. Both shapes are accepted
+ * by validatePurchaserToken (qr-tokens.ts:244) and by /api/chat in
+ * practice. Returns the candidate unit id, or null if the token cannot
+ * be interpreted as a purchaser capability.
+ */
+function extractPurchaserCandidate(token: string): string | null {
+  if (UUID_RE.test(token)) return token;
+  if (token.includes(':')) {
+    const first = token.split(':')[0];
+    if (UUID_RE.test(first)) return first;
+  }
+  return null;
+}
+
+/**
  * Resolve and verify the caller. If a unit_id is provided, the returned
- * context's tenant_id and development_id are taken from the unit (cross-
+ * context's tenant_id and development_id are taken from the unit (cross
  * checked against the caller's verified tenant). If no unit_id is given,
  * tenant_id falls back to the caller's verified tenant and development_id
- * is null.
+ * is null on the admin path; on the homeowner path the unit id is
+ * extracted from the QR token itself.
  *
  * Throws MediaAuthError; the route should convert to a response via
  * mediaAuthErrorToResponse.
@@ -96,24 +136,49 @@ export async function resolveMediaAuth(
   const qrToken = request.headers.get('x-qr-token');
 
   if (qrToken) {
-    const payload = await validateQRToken(qrToken).catch(() => null);
-    if (!payload?.supabaseUnitId) {
-      throw new MediaAuthError('unauthenticated');
+    // ━━ Path A: signed QR token ━━
+    const signedPayload = await validateQRToken(qrToken).catch(() => null);
+    let candidateUnitId: string | null = null;
+
+    if (signedPayload?.supabaseUnitId) {
+      candidateUnitId = signedPayload.supabaseUnitId;
+    } else {
+      // ━━ Path A': purchaser unit-uid capability ━━
+      // Token is not a signed JWT-style token. Treat it as a unit
+      // capability per the trust model used by /api/chat. If the request
+      // also supplied a unit_id, that unit must match the token shape
+      // (token === unit_id OR token starts with `unit_id:`). If no
+      // unit_id was supplied, extract the candidate from the token
+      // itself; this lets the signed-url route work for homeowners
+      // whose token has not been refreshed and who only supply
+      // media_id.
+      if (requestedUnitId) {
+        const tokenMatchesUnit =
+          qrToken === requestedUnitId ||
+          (qrToken.includes(':') && qrToken.split(':')[0] === requestedUnitId);
+        if (!tokenMatchesUnit) {
+          throw new MediaAuthError('unauthenticated');
+        }
+        candidateUnitId = requestedUnitId;
+      } else {
+        candidateUnitId = extractPurchaserCandidate(qrToken);
+        if (!candidateUnitId) {
+          throw new MediaAuthError('unauthenticated');
+        }
+      }
     }
 
-    const unit = await loadUnit(payload.supabaseUnitId);
-    if (!unit || !unit.tenant_id) {
-      throw new MediaAuthError('invalid_unit');
-    }
-
-    if (requestedUnitId && requestedUnitId !== unit.id) {
+    // Common tail for both A and A'. Tenant and development come from
+    // the units row, never from the client.
+    if (requestedUnitId && requestedUnitId !== candidateUnitId) {
       throw new MediaAuthError('cross_tenant_unit');
     }
-
-    if (requireUnit && !unit.id) {
+    const unit = await loadUnit(candidateUnitId);
+    if (!unit || !unit.tenant_id) {
+      // Non-existent unit returns 404 via mediaAuthErrorToResponse,
+      // not 401, so REST semantics do not leak existence by contrast.
       throw new MediaAuthError('invalid_unit');
     }
-
     return {
       callerType: 'homeowner',
       tenantId: unit.tenant_id,
@@ -124,6 +189,7 @@ export async function resolveMediaAuth(
     };
   }
 
+  // ━━ Path B: admin session ━━
   const session = await getServerSession();
   if (!session) {
     throw new MediaAuthError('unauthenticated');
@@ -167,7 +233,9 @@ export async function resolveMediaAuth(
 /**
  * Map a MediaAuthError to a NextResponse. Cross-tenant attempts are
  * surfaced as 403 (not 404) because the spec's acceptance criteria
- * require an explicit 403 to confirm tenant isolation.
+ * require an explicit 403 to confirm tenant isolation. Non-existent
+ * units surface as 404 so the response distinguishes "I do not know
+ * who you are" from "I know who you are but that unit does not exist".
  */
 export function mediaAuthErrorToResponse(err: MediaAuthError): NextResponse {
   if (err.code === 'unauthenticated') {
