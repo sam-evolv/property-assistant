@@ -7,8 +7,52 @@ import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
+import { isAssistantImageUploadEnabled } from '@/lib/feature-flags';
+import {
+  ASSISTANT_MEDIA_MAX_FILES,
+  normalizeFiles,
+  rejectionMessage,
+  revokeSelections,
+  type SelectedAttachment,
+} from '@/lib/assistant/attachments';
+import {
+  sendMultimodal,
+  statusToLabel,
+  SendMultimodalError,
+  type MultimodalStatus,
+} from '@/lib/assistant/multimodal-client';
+import { AttachmentButton } from '@/components/assistant/AttachmentButton';
+import { MediaPreviewRow } from '@/components/assistant/MediaPreviewRow';
+import { MediaThumbnailGrid } from '@/components/assistant/MediaThumbnailGrid';
+import { MediaLightbox } from '@/components/assistant/MediaLightbox';
+import type { ChatMediaAttachment } from '@/components/assistant/chat-media-types';
 
 const SUGGESTED_PILLS_V2_ENABLED = process.env.NEXT_PUBLIC_SUGGESTED_PILLS_V2 === 'true';
+
+function generateConversationId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  // Fallback v4 uuid for older WebViews. crypto.getRandomValues is available
+  // wherever Capacitor runs, so this branch is unreachable on supported
+  // mobile shells, but it keeps the build safe under prerender.
+  const rng = (typeof crypto !== 'undefined' && crypto.getRandomValues)
+    ? (n: number) => {
+        const arr = new Uint8Array(n);
+        crypto.getRandomValues(arr);
+        return arr;
+      }
+    : (n: number) => {
+        const arr = new Uint8Array(n);
+        for (let i = 0; i < n; i += 1) arr[i] = Math.floor(Math.random() * 256);
+        return arr;
+      };
+  const b = rng(16);
+  b[6] = (b[6] & 0x0f) | 0x40;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const hex = Array.from(b, (n) => n.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 // Animation styles for typing indicator, logo hover, and message animations
 const ANIMATION_STYLES = `
@@ -729,6 +773,11 @@ interface Message {
     phone: string | null;
     email: string | null;
   } | null;
+  /**
+   * Assistant V2 Sprint 1. Optional media attached to a user message.
+   * Always undefined for assistant messages today.
+   */
+  media?: ChatMediaAttachment[];
 }
 
 interface PurchaserChatTabProps {
@@ -950,6 +999,70 @@ export default function PurchaserChatTab({
   
   const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED, developmentId);
   const [lastIntentKey, setLastIntentKey] = useState<string | null>(null);
+
+  // Assistant V2 Sprint 1. Image upload state. All gated on the feature flag.
+  const imageUploadEnabled = isAssistantImageUploadEnabled();
+  const [selectedAttachments, setSelectedAttachments] = useState<SelectedAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [multimodalStatus, setMultimodalStatus] = useState<MultimodalStatus | null>(null);
+  const [lightboxMediaId, setLightboxMediaId] = useState<string | null>(null);
+  const [lastMultimodalError, setLastMultimodalError] = useState<string | null>(null);
+  const conversationIdRef = useRef<string | null>(null);
+  const getOrCreateConversationId = useCallback(() => {
+    if (!conversationIdRef.current) {
+      conversationIdRef.current = generateConversationId();
+    }
+    return conversationIdRef.current;
+  }, []);
+  const hasAttachments = selectedAttachments.length > 0;
+  const isProcessingMedia = multimodalStatus !== null;
+
+  // Release object URLs when the component unmounts so we don't leak
+  // memory between sessions.
+  useEffect(() => {
+    return () => {
+      revokeSelections(selectedAttachments);
+    };
+    // We intentionally do not depend on selectedAttachments here; the
+    // removal handler revokes individual URLs as files come and go.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const handleAttachmentSelected = useCallback((files: File[]) => {
+    if (!imageUploadEnabled) return;
+    setAttachmentError(null);
+    setSelectedAttachments((prev) => {
+      const capacity = ASSISTANT_MEDIA_MAX_FILES - prev.length;
+      const result = normalizeFiles(files, capacity);
+      if (result.rejected.length > 0) {
+        setAttachmentError(rejectionMessage(result.rejected[0].reason));
+      }
+      return [...prev, ...result.accepted];
+    });
+  }, [imageUploadEnabled]);
+
+  const handleAttachmentRemoved = useCallback((id: string) => {
+    setSelectedAttachments((prev) => {
+      const removed = prev.find((a) => a.id === id);
+      if (removed) revokeSelections([removed]);
+      return prev.filter((a) => a.id !== id);
+    });
+  }, []);
+
+  const clearAttachmentsAfterSend = useCallback(() => {
+    setSelectedAttachments((prev) => {
+      revokeSelections(prev);
+      return [];
+    });
+    setAttachmentError(null);
+  }, []);
+
+  const openLightbox = useCallback((mediaId: string) => {
+    setLightboxMediaId(mediaId);
+  }, []);
+  const closeLightbox = useCallback(() => {
+    setLightboxMediaId(null);
+  }, []);
 
   // Home Notes integration — save AI answers
   const { notes: savedNotes, addNote: addHomeNote, deleteNote: deleteHomeNote } = useHomeNotes({
@@ -1255,6 +1368,71 @@ export default function PurchaserChatTab({
 
     setIsTyping(false);
   }, []);
+
+  const sendMessageWithMedia = useCallback(async () => {
+    if (!imageUploadEnabled) return;
+    if (selectedAttachments.length === 0) return;
+    if (isProcessingMedia) return;
+    if (!token) {
+      const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
+      setMessages((prev) => [...prev, { role: 'assistant', content: t.sessionExpired }]);
+      return;
+    }
+
+    const textForMessage = input.trim();
+    const conversationId = getOrCreateConversationId();
+    setLastMultimodalError(null);
+    setShowHome(false);
+    setInput('');
+    setMultimodalStatus('uploading');
+
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(15);
+    }
+
+    try {
+      const result = await sendMultimodal({
+        conversationId,
+        unitId: unitUid,
+        qrToken: token,
+        messageText: textForMessage,
+        selections: selectedAttachments,
+        onStatus: setMultimodalStatus,
+      });
+
+      const userMedia: ChatMediaAttachment[] = result.media.map((m) => ({
+        id: m.media_id,
+        signed_url: m.signed_url,
+        thumbnail_url: m.thumbnail_url || m.signed_url,
+      }));
+
+      setMessages((prev) => [
+        ...prev,
+        { role: 'user', content: textForMessage, media: userMedia },
+        { role: 'assistant', content: result.assistantMessage },
+      ]);
+      clearAttachmentsAfterSend();
+    } catch (err) {
+      const message = err instanceof SendMultimodalError
+        ? err.residentMessage
+        : "Couldn't send the message. Try again or come back to it later.";
+      setLastMultimodalError(message);
+      // Restore the text so the homeowner doesn't lose what they typed.
+      setInput(textForMessage);
+    } finally {
+      setMultimodalStatus(null);
+    }
+  }, [
+    imageUploadEnabled,
+    selectedAttachments,
+    isProcessingMedia,
+    token,
+    selectedLanguage,
+    input,
+    getOrCreateConversationId,
+    unitUid,
+    clearAttachmentsAfterSend,
+  ]);
 
   const sendMessage = async (messageText?: string, intentMetadata?: IntentMetadata) => {
     const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
@@ -1772,6 +1950,7 @@ export default function PurchaserChatTab({
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
+                  const hasMedia = !!(msg.media && msg.media.length > 0);
                   return (
                     <div key={`msg-${idx}`} className="flex justify-end">
                       {/* User bubble - iMessage inspired, asymmetric rounded */}
@@ -1780,7 +1959,17 @@ export default function PurchaserChatTab({
                           ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
                           : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
                       }`}>
-                        <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
+                        <div className="space-y-2">
+                          {hasMedia && (
+                            <MediaThumbnailGrid
+                              media={msg.media!}
+                              onOpenLightbox={openLightbox}
+                            />
+                          )}
+                          {msg.content && (
+                            <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );
@@ -2054,14 +2243,56 @@ export default function PurchaserChatTab({
           transform: 'translateY(calc(-1 * var(--vv-offset, 0px)))'
         }}
       >
+        {imageUploadEnabled && (
+          <div className="mx-auto max-w-3xl">
+            {selectedAttachments.length > 0 && (
+              <MediaPreviewRow
+                selections={selectedAttachments}
+                onRemove={handleAttachmentRemoved}
+                disabled={isProcessingMedia}
+              />
+            )}
+            {attachmentError && (
+              <p className="px-4 pb-2 text-body-sm text-neutral-500">
+                {attachmentError}
+              </p>
+            )}
+            {lastMultimodalError && (
+              <div className="mx-4 mb-2 rounded-lg border border-red-200 bg-red-50 p-3 text-body-sm text-red-700 flex items-start justify-between gap-3">
+                <span className="flex-1">{lastMultimodalError}</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLastMultimodalError(null);
+                    sendMessageWithMedia();
+                  }}
+                  className="shrink-0 inline-flex items-center font-medium text-red-700 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 active:scale-[0.98] transition-all duration-150"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {imageUploadEnabled && isProcessingMedia ? (
+          <div className="mx-auto max-w-3xl mb-3">
+            <div className="px-4 py-3 bg-neutral-50 rounded-lg flex items-center gap-3 mx-4">
+              <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-body-sm text-neutral-700" aria-live="polite">
+                {statusToLabel(multimodalStatus!)}
+              </p>
+            </div>
+          </div>
+        ) : (
         <div className="mx-auto flex max-w-3xl items-center gap-2">
           {/* Home button - only show when in chat mode */}
           {messages.length > 0 && (
             <button
               onClick={handleHomeClick}
               className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
-                isDarkMode 
-                  ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200' 
+                isDarkMode
+                  ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200'
                   : 'text-gray-500 hover:bg-black/5 hover:text-gray-700'
               }`}
               aria-label="Back to home"
@@ -2076,6 +2307,13 @@ export default function PurchaserChatTab({
               ? 'bg-[#1A1A1A] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04),0_1px_3px_0_rgba(0,0,0,0.12)]'
               : 'bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)]'
           }`}>
+            {imageUploadEnabled && (
+              <AttachmentButton
+                remaining={ASSISTANT_MEDIA_MAX_FILES - selectedAttachments.length}
+                disabled={sending}
+                onSelected={handleAttachmentSelected}
+              />
+            )}
             <input
               type="text"
               value={input}
@@ -2083,7 +2321,11 @@ export default function PurchaserChatTab({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();
-                  sendMessage();
+                  if (hasAttachments) {
+                    sendMessageWithMedia();
+                  } else {
+                    sendMessage();
+                  }
                 }
               }}
               placeholder={t.placeholder}
@@ -2108,10 +2350,16 @@ export default function PurchaserChatTab({
               </button>
             )}
 
-            {input.trim() && (
+            {(input.trim() || hasAttachments) && (
               <button
-                onClick={() => sendMessage()}
-                disabled={sending}
+                onClick={() => {
+                  if (hasAttachments) {
+                    sendMessageWithMedia();
+                  } else {
+                    sendMessage();
+                  }
+                }}
+                disabled={sending || isProcessingMedia}
                 className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-lg shadow-gold-500/25 transition-all duration-150 hover:shadow-gold-500/40 active:scale-95 disabled:opacity-50"
                 aria-label="Send message"
               >
@@ -2120,6 +2368,7 @@ export default function PurchaserChatTab({
             )}
           </div>
         </div>
+        )}
         <p className={`mt-2 text-center text-[10px] leading-tight ${isDarkMode ? 'text-[#808080]' : 'text-gray-400'}`}>
           {t.powered} •{' '}
           <a
@@ -2132,6 +2381,21 @@ export default function PurchaserChatTab({
           </a>
         </p>
       </div>
+      {imageUploadEnabled && lightboxMediaId && (
+        <MediaLightbox
+          mediaId={lightboxMediaId}
+          qrToken={token}
+          thumbnailUrl={(() => {
+            for (const m of messages) {
+              if (m.role !== 'user' || !m.media) continue;
+              const hit = m.media.find((mm) => mm.id === lightboxMediaId);
+              if (hit) return hit.thumbnail_url;
+            }
+            return null;
+          })()}
+          onClose={closeLightbox}
+        />
+      )}
     </div>
   );
 }
