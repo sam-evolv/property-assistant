@@ -40,11 +40,33 @@ export function isAssistantImageUploadEnabled(): boolean {
   );
 }
 
+/**
+ * Assistant V2 builder-side snag app (Sprint 2).
+ *
+ * Default off. When false:
+ *   - the /snag and /admin/snaggers routes render as 404 (Session 3)
+ *   - all /api/snag/* server routes return 404 before any auth or DB work
+ *
+ * Server reads FEATURE_BUILDER_SNAG_APP. Client reads
+ * NEXT_PUBLIC_FEATURE_BUILDER_SNAG_APP (must be set separately for the
+ * bundler to inline the value at build time).
+ */
+export function isBuilderSnagAppEnabled(): boolean {
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_FEATURE_BUILDER_SNAG_APP === 'true';
+  }
+  return (
+    process.env.FEATURE_BUILDER_SNAG_APP === 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_BUILDER_SNAG_APP === 'true'
+  );
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
     purchaserVideos: isPurchaserVideosFeatureEnabled(),
     assistantOS: isAssistantOSEnabled(),
     assistantImageUpload: isAssistantImageUploadEnabled(),
+    builderSnagApp: isBuilderSnagAppEnabled(),
   };
 }
