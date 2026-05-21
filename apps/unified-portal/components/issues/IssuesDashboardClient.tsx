@@ -161,10 +161,10 @@ export function IssuesDashboardClient({ initial, initialFilters }: IssuesDashboa
     return () => document.removeEventListener('visibilitychange', handler);
   }, [refreshAll]);
 
-  const searchTerm = filters.search.trim().toLowerCase();
-  const filteredRows = searchTerm
-    ? rows.filter((r) => r.title.toLowerCase().includes(searchTerm))
-    : rows;
+  const hasActiveSearch = filters.search.trim().length > 0;
+  const emptyMessage = hasActiveSearch
+    ? 'No issues match this search and filters.'
+    : 'No issues match these filters.';
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
@@ -193,14 +193,14 @@ export function IssuesDashboardClient({ initial, initialFilters }: IssuesDashboa
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-body-sm text-red-700">
           {error}
         </div>
-      ) : filteredRows.length === 0 ? (
+      ) : rows.length === 0 ? (
         <div className="bg-white border border-neutral-200 rounded-lg px-4 py-10 text-center text-body-sm text-neutral-500">
-          No issues match these filters.
+          {emptyMessage}
         </div>
       ) : (
         <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden">
           <ul>
-            {filteredRows.map((row) => (
+            {rows.map((row) => (
               <li key={row.id}>
                 <IssueListRow row={row} onOpen={openIssue} />
               </li>

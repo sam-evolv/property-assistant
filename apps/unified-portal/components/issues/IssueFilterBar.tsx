@@ -8,9 +8,9 @@
  * options for that filter; the Flagged chip is a single toggle.
  *
  * Search is a free text input that filters by title. The server route
- * (/api/issues/list) does not currently accept a search param, so the
- * input applies client-side over the loaded rows. A future enhancement
- * could push the term server-side as ILIKE on title.
+ * (/api/issues/list) accepts the term as a `q` query param and applies
+ * an ILIKE on title. Input is debounced 300ms so each keystroke does
+ * not hit the API.
  *
  * Filter state lives in the parent (IssuesDashboardClient) and the URL.
  * The bar is purely presentational and emits onChange events.
@@ -55,13 +55,34 @@ const SOURCE_OPTIONS: IssueSource[] = [
   'snagger_external',
 ];
 
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function IssueFilterBar({ filters, developments, onChange }: IssueFilterBarProps) {
   const [openSheet, setOpenSheet] = useState<OpenSheet>(null);
   const [searchDraft, setSearchDraft] = useState(filters.search);
+  const filtersRef = useRef(filters);
+  const onChangeRef = useRef(onChange);
+  const lastCommittedRef = useRef(filters.search);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+    onChangeRef.current = onChange;
+  });
 
   useEffect(() => {
     setSearchDraft(filters.search);
+    lastCommittedRef.current = filters.search;
   }, [filters.search]);
+
+  useEffect(() => {
+    const normalized = searchDraft.trim();
+    if (normalized === lastCommittedRef.current.trim()) return;
+    const handle = window.setTimeout(() => {
+      lastCommittedRef.current = normalized;
+      onChangeRef.current({ ...filtersRef.current, search: normalized });
+    }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(handle);
+  }, [searchDraft]);
 
   const setStatus = (next: IssueStatus[]) => {
     onChange({ ...filters, status: next.length > 0 ? next : ['open', 'reopened'] });
@@ -70,13 +91,9 @@ export function IssueFilterBar({ filters, developments, onChange }: IssueFilterB
   const setSource = (next: IssueSource[]) => onChange({ ...filters, source: next });
   const setDevelopment = (id: string | null) => onChange({ ...filters, development_id: id });
   const toggleFlagged = () => onChange({ ...filters, flagged: !filters.flagged });
-  const commitSearch = () => {
-    if (searchDraft !== filters.search) {
-      onChange({ ...filters, search: searchDraft });
-    }
-  };
   const clearSearch = () => {
     setSearchDraft('');
+    lastCommittedRef.current = '';
     onChange({ ...filters, search: '' });
   };
 
@@ -158,16 +175,13 @@ export function IssueFilterBar({ filters, developments, onChange }: IssueFilterB
             type="search"
             value={searchDraft}
             onChange={(e) => setSearchDraft(e.target.value)}
-            onBlur={commitSearch}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                commitSearch();
-              } else if (e.key === 'Escape') {
+              if (e.key === 'Escape') {
                 e.preventDefault();
                 clearSearch();
               }
             }}
+            maxLength={200}
             placeholder="Search by title"
             aria-label="Search by title"
             className="w-full h-9 pl-9 pr-9 bg-white border border-neutral-200 rounded-full text-body-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
