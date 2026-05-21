@@ -10,8 +10,9 @@ import {
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone, HardDrive, LogOut, UserPlus
+  Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList
 } from 'lucide-react';
+import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled } from '@/lib/feature-flags';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -29,57 +30,78 @@ interface NavSection {
   }>;
 }
 
-const btsNavSections: NavSection[] = [
-  {
-    title: 'Main',
-    items: [
-      { label: 'Overview', href: '/developer', icon: Home },
-      { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
-      { label: 'OpenHouse Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
-    ],
-  },
-  {
-    title: 'Developer Tools',
-    items: [
-      { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
-      { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
-      { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
-      { label: 'Communications', href: '/developer/communications', icon: Mail },
-    ],
-  },
-  {
-    title: 'Management',
-    items: [
-      { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
-      { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
-      { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
-      { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
-    ],
-  },
-  {
-    title: 'Communication',
-    items: [
-      { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
-      { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
-      { label: 'Moderation', href: '/developer/moderation', icon: Shield },
-    ],
-  },
-  {
-    title: 'Insights',
-    items: [
-      { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
-      { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
-      { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
-    ],
-  },
-  {
-    title: 'Settings',
-    items: [
-      { label: 'Integrations', href: '/developer/integrations', icon: Plug },
-      { label: 'Snagging Team', href: '/developer/snaggers', icon: UserPlus },
-    ],
-  },
-];
+function buildBtsNavSections(): NavSection[] {
+  const dashboardOn = isDeveloperDashboardEnabled();
+  const snagAppOn = isBuilderSnagAppEnabled();
+
+  const snaggingItems: NavSection['items'] = [];
+  if (dashboardOn) {
+    snaggingItems.push({ label: 'Issues', href: '/developer/issues', icon: ClipboardList });
+  }
+  if (snagAppOn) {
+    snaggingItems.push({ label: 'Team', href: '/developer/snaggers', icon: UserPlus });
+  }
+
+  const sections: NavSection[] = [
+    {
+      title: 'Main',
+      items: [
+        { label: 'Overview', href: '/developer', icon: Home },
+        { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
+        { label: 'OpenHouse Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
+      ],
+    },
+  ];
+
+  if (snaggingItems.length > 0) {
+    sections.push({ title: 'Snagging', items: snaggingItems });
+  }
+
+  sections.push(
+    {
+      title: 'Developer Tools',
+      items: [
+        { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
+        { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
+        { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
+        { label: 'Communications', href: '/developer/communications', icon: Mail },
+      ],
+    },
+    {
+      title: 'Management',
+      items: [
+        { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
+        { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
+        { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
+        { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
+      ],
+    },
+    {
+      title: 'Communication',
+      items: [
+        { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
+        { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
+        { label: 'Moderation', href: '/developer/moderation', icon: Shield },
+      ],
+    },
+    {
+      title: 'Insights',
+      items: [
+        { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
+        { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
+        { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
+      ],
+    },
+    {
+      title: 'Settings',
+      items: [
+        { label: 'Integrations', href: '/developer/integrations', icon: Plug },
+      ],
+    },
+  );
+
+  return sections;
+}
 
 function getBtrNavSections(developmentId: string): NavSection[] {
   return [
@@ -138,7 +160,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const effectiveProjectType = contextProjectType || fetchedProjectType || 'bts';
 
   const navSections = useMemo(() => {
-    const sections = [...btsNavSections];
+    const sections = buildBtsNavSections();
     if (developmentId && (effectiveProjectType === 'btr' || effectiveProjectType === 'mixed')) {
       sections.push(...getBtrNavSections(developmentId));
     }
