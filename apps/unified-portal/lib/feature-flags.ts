@@ -61,6 +61,27 @@ export function isBuilderSnagAppEnabled(): boolean {
   );
 }
 
+/**
+ * Assistant V2 developer dashboard for snag intelligence (Sprint 3).
+ *
+ * Default off. When false:
+ *   - the /developer/issues routes render as 404 (Session 3)
+ *   - all /api/issues/* server routes return 404 before any auth or DB work
+ *
+ * Server reads FEATURE_DEVELOPER_DASHBOARD. Client reads
+ * NEXT_PUBLIC_FEATURE_DEVELOPER_DASHBOARD (must be set separately for the
+ * bundler to inline the value at build time).
+ */
+export function isDeveloperDashboardEnabled(): boolean {
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_FEATURE_DEVELOPER_DASHBOARD === 'true';
+  }
+  return (
+    process.env.FEATURE_DEVELOPER_DASHBOARD === 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_DEVELOPER_DASHBOARD === 'true'
+  );
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
@@ -68,5 +89,6 @@ export function getFeatureFlags() {
     assistantOS: isAssistantOSEnabled(),
     assistantImageUpload: isAssistantImageUploadEnabled(),
     builderSnagApp: isBuilderSnagAppEnabled(),
+    developerDashboard: isDeveloperDashboardEnabled(),
   };
 }
