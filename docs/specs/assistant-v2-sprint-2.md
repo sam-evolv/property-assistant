@@ -383,7 +383,8 @@ All builder-facing copy in this sprint:
 * Submit error: "Couldn't log that snag. Try again."
 Same rules as Sprint 1: no em dashes, no emoji, no AI language, calm and direct.
 8. Admin UI - Invite snaggers
-Small addition to the existing developer admin area. Single page at `/admin/snaggers`.
+Small addition to the existing developer admin area. Single page at `/developer/snaggers`.
+Implementation note (Session 3, Sprint 2 UI): the original spec listed this path as `/admin/snaggers`. It moved to `/developer/snaggers` so the page lives inside the existing developer sidebar layout and the URL stays consistent with the rest of the developer area. Admins keep their nav when invited.
 Shows:
 
 * A list of current site_team_members for the tenant
@@ -489,7 +490,7 @@ Implement section 7 and section 8 of docs/specs/assistant-v2-sprint-2.md.
 
 Two new routes in apps/unified-portal:
 - /snag - the phone-first snag capture form for site team and snaggers
-- /admin/snaggers - the admin invite UI
+- /developer/snaggers - the admin invite UI (Session 3 moved from /admin/snaggers)
 
 Reuse existing components where they overlap with Sprint 1:
 - attachments.ts compression pipeline

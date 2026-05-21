@@ -10,7 +10,7 @@ import {
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone, HardDrive, LogOut
+  Plug, Megaphone, HardDrive, LogOut, UserPlus
 } from 'lucide-react';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
@@ -76,6 +76,7 @@ const btsNavSections: NavSection[] = [
     title: 'Settings',
     items: [
       { label: 'Integrations', href: '/developer/integrations', icon: Plug },
+      { label: 'Snagging Team', href: '/developer/snaggers', icon: UserPlus },
     ],
   },
 ];
