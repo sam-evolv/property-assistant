@@ -21,6 +21,21 @@
  * server (POST /api/assistant/media/upload). We pre-filter so the homeowner
  * sees a fast inline error before a 5 MB upload, but the server is the
  * source of truth.
+ *
+ * Client-side compression. The upload route runs on Vercel serverless,
+ * which caps the request body at roughly 4.5 MB regardless of our
+ * application code. iPhone photos are typically 10 to 15 MB, which
+ * triggers a 413 Payload Too Large from the platform before our handler
+ * even runs. The fix here is a client-side resize and re-encode:
+ * decode the image, draw to a canvas sized to at most 2000 pixels on
+ * the longest edge, export as JPEG at quality 0.85. This keeps the
+ * post-compression body comfortably under the 4.5 MB cap while leaving
+ * enough resolution for the Sprint 1b multimodal analysis pass.
+ *
+ * The longer-term plan is direct-to-Supabase signed upload URLs, which
+ * lets the homeowner bypass our serverless function entirely and push
+ * the original bytes to storage. Until that lands, compression is the
+ * pragmatic fix. See compressForUpload below for the implementation.
  */
 
 import { nanoid } from 'nanoid';
@@ -129,6 +144,133 @@ export function rejectionMessage(reason: AttachmentRejectionReason): string {
     default:
       return "That photo could not be added.";
   }
+}
+
+/**
+ * Compression threshold. Files at or below this size go to the upload
+ * route as-is. Anything larger gets routed through the canvas resize
+ * step. 1.5 MB is comfortably under Vercel's 4.5 MB body cap with
+ * headroom for the multipart envelope, and below this size most photos
+ * are already optimised (screenshots, social-app exports).
+ */
+const COMPRESSION_THRESHOLD_BYTES = 1_500_000;
+
+/**
+ * Resize target. 2000 px on the longest edge is plenty for the Sprint 1b
+ * multimodal analysis pass and produces JPEG outputs in the 500 KB to
+ * 1.5 MB range for a typical iPhone photo.
+ */
+const COMPRESSION_MAX_EDGE = 2000;
+const COMPRESSION_JPEG_QUALITY = 0.85;
+
+/**
+ * Decode a file into an HTMLImageElement. Throws if the browser cannot
+ * decode the bytes (HEIC on Chrome and Firefox is the known case). The
+ * caller is responsible for catching and falling back to the original
+ * upload.
+ */
+function decodeImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('decode_failed'));
+    };
+    img.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob(resolve, type, quality);
+  });
+}
+
+function replaceExtension(name: string, newExt: string): string {
+  const dot = name.lastIndexOf('.');
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  return `${base}.${newExt}`;
+}
+
+/**
+ * Compress a single file for upload. Skips the resize when the original
+ * is already under the threshold or when the browser cannot decode the
+ * format (HEIC on Chrome and Firefox). In the no-op cases the original
+ * File object is returned unchanged so the rest of the pipeline can
+ * stay file-shaped.
+ *
+ * On a decode failure the original is still returned; the server allow
+ * list and the 25 MB cap remain the safety net. If the original exceeds
+ * Vercel's body cap the upload will fail with a 413, which surfaces as
+ * the generic "Couldn't upload that photo" error rather than crashing
+ * the client.
+ */
+export async function compressForUpload(file: File): Promise<File> {
+  if (file.size <= COMPRESSION_THRESHOLD_BYTES) return file;
+  if (typeof document === 'undefined') return file;
+
+  let img: HTMLImageElement;
+  try {
+    img = await decodeImage(file);
+  } catch {
+    // HEIC on non-Safari browsers, or any other undecodable input.
+    // Fall back to the original; the server will validate and the
+    // upload will either succeed or surface the generic error.
+    return file;
+  }
+
+  const naturalWidth = img.naturalWidth || img.width;
+  const naturalHeight = img.naturalHeight || img.height;
+  if (!naturalWidth || !naturalHeight) return file;
+
+  const longestEdge = Math.max(naturalWidth, naturalHeight);
+  const scale = longestEdge > COMPRESSION_MAX_EDGE ? COMPRESSION_MAX_EDGE / longestEdge : 1;
+  const targetWidth = Math.max(1, Math.round(naturalWidth * scale));
+  const targetHeight = Math.max(1, Math.round(naturalHeight * scale));
+
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return file;
+  ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+  const blob = await canvasToBlob(canvas, 'image/jpeg', COMPRESSION_JPEG_QUALITY);
+  if (!blob || blob.size >= file.size) {
+    // The re-encode came out larger than the original (rare, but can
+    // happen for already heavily-compressed sources). Keep the
+    // original.
+    return file;
+  }
+
+  const newName = replaceExtension(file.name, 'jpg');
+  return new File([blob], newName, { type: 'image/jpeg', lastModified: file.lastModified });
+}
+
+/**
+ * Compress an array of selections sequentially. Sequential rather than
+ * parallel because decoding multiple 12 MP photos at once on a low-end
+ * Android WebView can spike memory enough to OOM the tab. The wall-clock
+ * cost is modest (typically under three seconds for six photos).
+ */
+export async function compressSelectionsForUpload(
+  selections: SelectedAttachment[],
+): Promise<SelectedAttachment[]> {
+  const out: SelectedAttachment[] = [];
+  for (const sel of selections) {
+    const compressed = await compressForUpload(sel.file);
+    if (compressed === sel.file) {
+      out.push(sel);
+    } else {
+      out.push({ ...sel, file: compressed });
+    }
+  }
+  return out;
 }
 
 /**
