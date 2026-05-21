@@ -289,6 +289,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
       for (const key of Object.keys(sanitizedBody)) {
         changedFields[key] = { old_value: null, new_value: sanitizedBody[key] };
       }
+      // TODO: This fire-and-forget fetch may be terminated by Vercel
+      // before completion. Wrap in waitUntil from @vercel/functions
+      // when this code path is next touched. See PR #158 for
+      // the pattern used in snag enrichment.
       triggerOutboundSync(id, 'units', subId, changedFields).catch(() => {});
 
       return NextResponse.json({ unit: data });
@@ -319,6 +323,10 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
       for (const key of Object.keys(sanitizedBody)) {
         pipelineChanges[key] = { old_value: null, new_value: sanitizedBody[key] };
       }
+      // TODO: This fire-and-forget fetch may be terminated by Vercel
+      // before completion. Wrap in waitUntil from @vercel/functions
+      // when this code path is next touched. See PR #158 for
+      // the pattern used in snag enrichment.
       triggerOutboundSync(id, 'unit_sales_pipeline', subId, pipelineChanges).catch(() => {});
 
       return NextResponse.json({ pipeline: data });
