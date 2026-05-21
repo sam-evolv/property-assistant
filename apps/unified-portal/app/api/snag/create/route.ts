@@ -26,6 +26,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { isBuilderSnagAppEnabled } from '@/lib/feature-flags';
 import {
@@ -76,9 +77,19 @@ function resolveOrigin(request: NextRequest): string {
 }
 
 /**
- * Fire-and-forget. Never throws into the request handler. If the
- * INTERNAL_ENRICHMENT_KEY is unset the call is skipped with a single
- * warning so local dev still works.
+ * Background enrichment. Returns immediately to the caller; the actual
+ * fetch is kept alive by waitUntil so Vercel does not terminate the
+ * serverless function before the request reaches /api/snag/enrich.
+ *
+ * Originally written as a bare `void fetch(...)`; that pattern returned
+ * a promise but Vercel was tearing the lambda down as soon as the
+ * response went out, so the outbound request never landed. Confirmed
+ * in production runtime logs after the Sprint 2 deploy. waitUntil tells
+ * the runtime to keep the function alive until the registered promise
+ * settles, without delaying the HTTP response to the caller.
+ *
+ * If INTERNAL_ENRICHMENT_KEY is unset (typical for fresh local dev),
+ * the call is skipped with one warning so the snag still gets created.
  */
 function triggerEnrichment(request: NextRequest, issueReportId: string): void {
   const internalKey = process.env.INTERNAL_ENRICHMENT_KEY;
@@ -94,20 +105,32 @@ function triggerEnrichment(request: NextRequest, issueReportId: string): void {
   const url = `${origin}/api/snag/enrich/${encodeURIComponent(issueReportId)}`;
 
   try {
-    void fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-internal-key': internalKey,
-      },
-      body: JSON.stringify({}),
-    }).catch((err) => {
-      console.warn(
-        '[snag-create] enrichment_fetch_rejected issue=%s reason=%s',
-        issueReportId,
-        err instanceof Error ? err.message : String(err),
-      );
-    });
+    waitUntil(
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-key': internalKey,
+        },
+        body: JSON.stringify({}),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.warn(
+              '[snag-create] enrichment_fetch_non_ok issue=%s status=%s',
+              issueReportId,
+              res.status,
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn(
+            '[snag-create] enrichment_fetch_rejected issue=%s reason=%s',
+            issueReportId,
+            err instanceof Error ? err.message : String(err),
+          );
+        }),
+    );
   } catch (err) {
     console.warn(
       '[snag-create] enrichment_fetch_threw issue=%s reason=%s',

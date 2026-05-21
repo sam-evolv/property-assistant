@@ -327,6 +327,12 @@ export async function captureInferredAlias(
   // (missing table, RLS issue) and crash the caller. This function is
   // called fire-and-forget from the chat route, but any exception
   // still shows up in the Next.js error stream.
+  //
+  // TODO: This fire-and-forget fetch may be terminated by Vercel
+  // before completion. The caller (agent-intelligence/chat/route.ts)
+  // should wrap this invocation in waitUntil from @vercel/functions
+  // when that code path is next touched. See PR #158 for the
+  // pattern used in snag enrichment.
   try {
     const countRes = await supabase
       .from('development_aliases')
