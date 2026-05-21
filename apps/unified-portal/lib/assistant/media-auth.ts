@@ -1,18 +1,23 @@
 /**
- * Tenant verification for Assistant V2 media routes (Sprint 1).
+ * Tenant verification for Assistant V2 media routes.
  *
- * Three caller paths are supported. They are evaluated in this order and
+ * Four caller paths are supported. They are evaluated in this order and
  * each is named below so a future reader does not have to reverse-engineer
  * the control flow.
  *
- * ━━ Path A: signed QR token ━━
+ * Path A:  signed QR token             (Sprint 1, homeowner)
+ * Path A': purchaser unit-uid token    (Sprint 1, homeowner / showhouse)
+ * Path B:  admins session              (Sprint 1, developer portal admins)
+ * Path C:  site_team_members session   (Sprint 2, builder-side snaggers)
+ *
+ * ====  Path A: signed QR token  ====
  * The caller sends `x-qr-token` and the token is a cryptographically valid
  * signed QR token (see packages/api/src/qr-tokens.ts). The unit id is
  * authoritative because it comes from the signed payload. If the request
  * body also supplies a `unit_id`, it must match the token's unit; mismatch
  * is 403.
  *
- * ━━ Path A': purchaser unit-uid capability ━━
+ * ====  Path A': purchaser unit-uid capability  ====
  * The caller sends `x-qr-token` but it is NOT a signed token. We accept
  * the unit UUID itself as the credential, matching the trust model the
  * production text-only chat already uses (apps/unified-portal/app/api/
@@ -36,11 +41,24 @@
  * Tenant_id and development_id always come from the units row, never from
  * the client, regardless of which path resolves the caller.
  *
- * ━━ Path B: admin session ━━
- * No `x-qr-token` header. We resolve the caller via the Supabase admin
- * session cookie (installer / developer / super_admin). Tenant comes from
- * the admins row. If a `unit_id` was supplied, it must belong to that
- * tenant; mismatch is 403.
+ * ====  Path B: admins session (developer portal)  ====
+ * No `x-qr-token` header. We resolve the caller via the Supabase session
+ * cookie and look them up in the `admins` table (installer / developer /
+ * super_admin). Tenant comes from the admins row. If a `unit_id` was
+ * supplied, it must belong to that tenant; mismatch is 403.
+ *
+ * ====  Path C: site_team_members session (builder-side, Sprint 2)  ====
+ * No `x-qr-token` header AND no admins row. The user is authenticated
+ * via the same Supabase session cookie, but their identity for builder
+ * routes lives in `site_team_members` instead of `admins`. This is the
+ * path used by site team staff and accepted external snaggers when they
+ * upload photos for /api/snag/create. Tenant comes from the membership
+ * row. For role 'snagger_external' we also enforce the membership's
+ * `expires_at`, and any supplied unit_id must belong to a development
+ * in the membership's `development_ids` (null means all developments in
+ * the tenant, used by 'admin' and 'site_team'). Sprint 1 callers never
+ * reach this path because they either send `x-qr-token` (Path A or A')
+ * or have an admins row (Path B).
  *
  * Cross-tenant enforcement on the media row itself (media.tenant_id !==
  * caller.tenant_id) stays in the signed-url route. This helper only
@@ -49,10 +67,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { validateQRToken } from '@openhouse/api/qr-tokens';
-import { getSupabaseAdmin, getServerSession } from '@/lib/supabase-server';
+import { getSupabaseAdmin, getServerSession, createServerSupabaseClient } from '@/lib/supabase-server';
 import type { AdminSession } from '@/lib/supabase-server';
 
-export type MediaCallerType = 'homeowner' | 'admin';
+export type MediaCallerType = 'homeowner' | 'admin' | 'snag';
 
 export interface MediaAuthContext {
   callerType: MediaCallerType;
@@ -136,14 +154,14 @@ export async function resolveMediaAuth(
   const qrToken = request.headers.get('x-qr-token');
 
   if (qrToken) {
-    // ━━ Path A: signed QR token ━━
+    // ====  Path A: signed QR token  ====
     const signedPayload = await validateQRToken(qrToken).catch(() => null);
     let candidateUnitId: string | null = null;
 
     if (signedPayload?.supabaseUnitId) {
       candidateUnitId = signedPayload.supabaseUnitId;
     } else {
-      // ━━ Path A': purchaser unit-uid capability ━━
+      // ====  Path A': purchaser unit-uid capability  ====
       // Token is not a signed JWT-style token. Treat it as a unit
       // capability per the trust model used by /api/chat. If the request
       // also supplied a unit_id, that unit must match the token shape
@@ -189,12 +207,81 @@ export async function resolveMediaAuth(
     };
   }
 
-  // ━━ Path B: admin session ━━
+  // ====  Path B: admins session (developer portal)  ====
   const session = await getServerSession();
-  if (!session) {
+  if (session) {
+    if (!session.tenantId) {
+      throw new MediaAuthError('forbidden');
+    }
+
+    if (!requestedUnitId) {
+      if (requireUnit) {
+        throw new MediaAuthError('invalid_unit');
+      }
+      return {
+        callerType: 'admin',
+        tenantId: session.tenantId,
+        developmentId: null,
+        unitId: null,
+        userId: session.id,
+        adminSession: session,
+      };
+    }
+
+    const unit = await loadUnit(requestedUnitId);
+    if (!unit || !unit.tenant_id) {
+      throw new MediaAuthError('invalid_unit');
+    }
+    if (unit.tenant_id !== session.tenantId) {
+      throw new MediaAuthError('cross_tenant_unit');
+    }
+
+    return {
+      callerType: 'admin',
+      tenantId: unit.tenant_id,
+      developmentId: unit.development_id,
+      unitId: unit.id,
+      userId: session.id,
+      adminSession: session,
+    };
+  }
+
+  // ====  Path C: site_team_members session (builder-side, Sprint 2)  ====
+  // getServerSession returned null. That can mean either no Supabase
+  // session at all, or a session whose user is not in the admins table.
+  // The Sprint 2 snag UI is the second case: the user is signed in via
+  // Supabase but their identity for builder routes lives in
+  // site_team_members. We try that lookup before failing.
+  const supabaseSsr = await createServerSupabaseClient();
+  const { data: { user: snagUser } } = await supabaseSsr.auth.getUser();
+  if (!snagUser?.id) {
     throw new MediaAuthError('unauthenticated');
   }
-  if (!session.tenantId) {
+
+  const supabaseAdmin = getSupabaseAdmin();
+  const { data: memberRows, error: memberErr } = await supabaseAdmin
+    .from('site_team_members')
+    .select('id, tenant_id, role, development_ids, active, expires_at')
+    .eq('user_id', snagUser.id)
+    .eq('active', true)
+    .order('invited_at', { ascending: true });
+
+  if (memberErr) {
+    console.error('[media-auth] site_team_members_lookup_failed reason=%s', memberErr.message);
+    throw new MediaAuthError('unauthenticated');
+  }
+  if (!memberRows || memberRows.length === 0) {
+    throw new MediaAuthError('unauthenticated');
+  }
+
+  const nowMs = Date.now();
+  const membership = memberRows.find((r) => {
+    if (r.role === 'snagger_external' && r.expires_at) {
+      return new Date(r.expires_at as string).getTime() > nowMs;
+    }
+    return true;
+  });
+  if (!membership) {
     throw new MediaAuthError('forbidden');
   }
 
@@ -203,30 +290,37 @@ export async function resolveMediaAuth(
       throw new MediaAuthError('invalid_unit');
     }
     return {
-      callerType: 'admin',
-      tenantId: session.tenantId,
+      callerType: 'snag',
+      tenantId: membership.tenant_id as string,
       developmentId: null,
       unitId: null,
-      userId: session.id,
-      adminSession: session,
+      userId: snagUser.id,
+      adminSession: null,
     };
   }
 
-  const unit = await loadUnit(requestedUnitId);
-  if (!unit || !unit.tenant_id) {
+  const snagUnit = await loadUnit(requestedUnitId);
+  if (!snagUnit || !snagUnit.tenant_id) {
     throw new MediaAuthError('invalid_unit');
   }
-  if (unit.tenant_id !== session.tenantId) {
+  if (snagUnit.tenant_id !== membership.tenant_id) {
     throw new MediaAuthError('cross_tenant_unit');
   }
 
+  if (membership.role === 'snagger_external') {
+    const scope = Array.isArray(membership.development_ids) ? (membership.development_ids as string[]) : [];
+    if (!snagUnit.development_id || !scope.includes(snagUnit.development_id)) {
+      throw new MediaAuthError('cross_tenant_unit');
+    }
+  }
+
   return {
-    callerType: 'admin',
-    tenantId: unit.tenant_id,
-    developmentId: unit.development_id,
-    unitId: unit.id,
-    userId: session.id,
-    adminSession: session,
+    callerType: 'snag',
+    tenantId: snagUnit.tenant_id,
+    developmentId: snagUnit.development_id,
+    unitId: snagUnit.id,
+    userId: snagUser.id,
+    adminSession: null,
   };
 }
 

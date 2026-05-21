@@ -69,8 +69,13 @@ interface SiteTeamMemberRow {
  * Sprint 2. If a user belongs to multiple tenants, the first active row
  * wins; downstream routes can still apply tenant-specific checks via
  * assertCanAccessTenant.
+ *
+ * The `_request` parameter is unused: identity comes from the Supabase
+ * session cookie via createServerSupabaseClient. It is optional so the
+ * same function can be called from server components (which have no
+ * NextRequest) without a casting workaround.
  */
-export async function resolveSnagAuth(_request: NextRequest): Promise<SnagAuthContext> {
+export async function resolveSnagAuth(_request?: NextRequest): Promise<SnagAuthContext> {
   const supabase = await createServerSupabaseClient();
   const { data: { user }, error: userErr } = await supabase.auth.getUser();
 
