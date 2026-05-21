@@ -331,7 +331,7 @@ export async function captureInferredAlias(
   // TODO: This fire-and-forget fetch may be terminated by Vercel
   // before completion. The caller (agent-intelligence/chat/route.ts)
   // should wrap this invocation in waitUntil from @vercel/functions
-  // when that code path is next touched. See PR #PLACEHOLDER for the
+  // when that code path is next touched. See PR #158 for the
   // pattern used in snag enrichment.
   try {
     const countRes = await supabase

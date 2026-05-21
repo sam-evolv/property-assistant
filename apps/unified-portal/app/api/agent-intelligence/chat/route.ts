@@ -754,7 +754,7 @@ export async function POST(request: NextRequest) {
         if (resolvedDevId) {
           // TODO: This fire-and-forget fetch may be terminated by Vercel
           // before completion. Wrap in waitUntil from @vercel/functions
-          // when this code path is next touched. See PR #PLACEHOLDER for
+          // when this code path is next touched. See PR #158 for
           // the pattern used in snag enrichment.
           captureInferredAlias(supabase, resolvedDevId, previousMiss).catch(() => {});
         }
