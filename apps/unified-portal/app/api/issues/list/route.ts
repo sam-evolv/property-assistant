@@ -12,6 +12,8 @@
  *   - severity        comma-separated: low,medium,high,urgent
  *   - source          comma-separated: homeowner_assistant,site_team_snag,snagger_external
  *   - flagged         boolean; if 'true' returns only developer-flagged rows
+ *   - q               case-insensitive title substring match; trimmed,
+ *                     non-empty after trim, max 200 chars
  *   - sort            'created_at_desc' (default), 'severity_desc', 'created_at_asc'
  *   - limit           default 50, max 200
  *   - offset          default 0
@@ -47,6 +49,11 @@ const VALID_STATUSES = new Set(['open', 'reopened', 'resolved', 'closed']);
 const VALID_SEVERITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const VALID_SOURCES = new Set(['homeowner_assistant', 'site_team_snag', 'snagger_external']);
 const VALID_SORTS = new Set(['created_at_desc', 'severity_desc', 'created_at_asc']);
+const MAX_SEARCH_LEN = 200;
+
+function escapeIlikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (m) => `\\${m}`);
+}
 
 function parseCsv(value: string | null, allowed: Set<string>): string[] | null {
   if (!value) return null;
@@ -90,6 +97,7 @@ export async function GET(request: NextRequest) {
   const severityParam = url.searchParams.get('severity');
   const sourceParam = url.searchParams.get('source');
   const flaggedParam = url.searchParams.get('flagged');
+  const qParam = url.searchParams.get('q');
   const sortParam = url.searchParams.get('sort') ?? 'created_at_desc';
   const limitParam = url.searchParams.get('limit');
   const offsetParam = url.searchParams.get('offset');
@@ -111,6 +119,18 @@ export async function GET(request: NextRequest) {
   }
   if (!VALID_SORTS.has(sortParam)) {
     return NextResponse.json({ error: 'invalid sort' }, { status: 400 });
+  }
+
+  let searchTerm: string | null = null;
+  if (qParam !== null) {
+    const trimmed = qParam.trim();
+    if (trimmed.length === 0) {
+      return NextResponse.json({ error: 'q must not be empty' }, { status: 400 });
+    }
+    if (trimmed.length > MAX_SEARCH_LEN) {
+      return NextResponse.json({ error: 'q exceeds 200 characters' }, { status: 400 });
+    }
+    searchTerm = trimmed;
   }
 
   let limit = limitParam ? parseInt(limitParam, 10) : DEFAULT_LIMIT;
@@ -143,6 +163,9 @@ export async function GET(request: NextRequest) {
   }
   if (flaggedParam === 'true') {
     query = query.eq('developer_flagged', true);
+  }
+  if (searchTerm) {
+    query = query.ilike('title', `%${escapeIlikePattern(searchTerm)}%`);
   }
 
   if (sortParam === 'created_at_asc') {

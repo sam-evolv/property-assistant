@@ -51,7 +51,7 @@ export function parseFiltersFromSearchParams(
   const developmentRaw = get('development_id');
   const development_id = developmentRaw && UUID_RE.test(developmentRaw) ? developmentRaw : null;
   const flagged = get('flagged') === 'true';
-  const search = (get('search') ?? '').slice(0, 200);
+  const search = (get('q') ?? '').slice(0, 200);
   const sortRaw = get('sort');
   const sort = sortRaw && (VALID_SORTS as string[]).includes(sortRaw)
     ? (sortRaw as IssueFilters['sort'])
@@ -92,8 +92,9 @@ export function buildFilterQuery(filters: IssueFilters): URLSearchParams {
   if (filters.flagged) {
     params.set('flagged', 'true');
   }
-  if (filters.search) {
-    params.set('search', filters.search);
+  const trimmedSearch = filters.search.trim();
+  if (trimmedSearch) {
+    params.set('q', trimmedSearch);
   }
   if (filters.sort !== DEFAULT_FILTERS.sort) {
     params.set('sort', filters.sort);
@@ -120,8 +121,9 @@ export function buildListApiQuery(filters: IssueFilters, limit: number, offset: 
   if (filters.flagged) {
     params.set('flagged', 'true');
   }
-  if (filters.search) {
-    params.set('search', filters.search);
+  const trimmedSearch = filters.search.trim();
+  if (trimmedSearch) {
+    params.set('q', trimmedSearch);
   }
   if (filters.sort) {
     params.set('sort', filters.sort);
