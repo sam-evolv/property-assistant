@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db/client';
 import { sql } from 'drizzle-orm';
+import { isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,7 +24,7 @@ async function getAcknowledgedUnits(): Promise<Map<string, number>> {
     // Get the latest docs_version for each unit from purchaser_agreements
     const result = await db.execute(sql`
       SELECT DISTINCT ON (unit_id) unit_id, docs_version
-      FROM purchaser_agreements 
+      FROM purchaser_agreements
       WHERE unit_id IS NOT NULL
       ORDER BY unit_id, agreed_at DESC
     `);
@@ -33,6 +34,48 @@ async function getAcknowledgedUnits(): Promise<Map<string, number>> {
     }
     return map;
   } catch (error) {
+    return new Map();
+  }
+}
+
+/**
+ * Per-unit count of homeowner_new issues. Used by the list-card
+ * pending indicator (Sprint 3.5a section 6.2). Returns an empty map
+ * if FEATURE_HOMEOWNER_ISSUES is off so the indicator never renders.
+ *
+ * The query uses the partial index issue_reports_homeowner_new_idx
+ * and a single tenant_id equality filter, then group-by unit_id, so
+ * the cost stays cheap as the tenant grows.
+ */
+async function getHomeownerNewCounts(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  tenantId: string,
+): Promise<Map<string, number>> {
+  if (!isHomeownerIssuesEnabled()) {
+    return new Map();
+  }
+  try {
+    const { data, error } = await supabase
+      .from('issue_reports')
+      .select('unit_id')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'homeowner_new');
+    if (error) {
+      console.error('[homeowners-page] homeowner_new_counts_failed reason=%s', error.message);
+      return new Map();
+    }
+    const counts = new Map<string, number>();
+    for (const row of data ?? []) {
+      const id = row.unit_id as string | null;
+      if (!id) continue;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return counts;
+  } catch (err) {
+    console.error(
+      '[homeowners-page] homeowner_new_counts_threw reason=%s',
+      err instanceof Error ? err.message : String(err),
+    );
     return new Map();
   }
 }
@@ -121,19 +164,24 @@ export default async function HomeownersPage({
     
     // Fetch acknowledged unit data from purchaser_agreements table
     const acknowledgedUnits = await getAcknowledgedUnits();
-    
+
+    // Sprint 3.5a: per-unit count of homeowner_new issues for the
+    // list-card pending indicator. Returns empty map when the flag is
+    // off so the indicator never renders.
+    const homeownerNewCounts = await getHomeownerNewCounts(supabaseAdmin, tenantId);
+
     // Enrich units with development info, acknowledgement status, and purchaser name from pipeline
     unitsData = unitsData.map((u: any) => {
       // Get purchaser name from unit_sales_pipeline if available
-      const pipelineData = Array.isArray(u.unit_sales_pipeline) 
-        ? u.unit_sales_pipeline[0] 
+      const pipelineData = Array.isArray(u.unit_sales_pipeline)
+        ? u.unit_sales_pipeline[0]
         : u.unit_sales_pipeline;
-      
+
       const pipelinePurchaserName = pipelineData?.purchaser_name || null;
-      const isSocialHousing = pipelineData?.sale_type === 'social' || 
-        (pipelinePurchaserName?.toLowerCase().includes('clúid') || 
+      const isSocialHousing = pipelineData?.sale_type === 'social' ||
+        (pipelinePurchaserName?.toLowerCase().includes('clúid') ||
          pipelinePurchaserName?.toLowerCase().includes('cluid'));
-      
+
       return {
         ...u,
         development: projectsMap.get(u.development_id) || projectsMap.get(u.project_id) || null,
@@ -146,6 +194,7 @@ export default async function HomeownersPage({
         handover_date: pipelineData?.handover_date || u.handover_date,
         // Set acknowledged status from purchaser_agreements table with actual docs_version
         important_docs_agreed_version: acknowledgedUnits.get(u.id) || u.important_docs_agreed_version || 0,
+        homeowner_new_issue_count: homeownerNewCounts.get(u.id) ?? 0,
       };
     });
     

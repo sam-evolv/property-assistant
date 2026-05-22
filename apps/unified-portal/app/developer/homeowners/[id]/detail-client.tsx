@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  QrCode,
   Download,
   Copy,
   ExternalLink,
@@ -26,12 +25,11 @@ import {
   Edit3,
   Save,
   X,
-  TrendingUp,
-  TrendingDown,
-  Minus,
   Key,
   CalendarCheck
 } from 'lucide-react';
+import { isHomeownerIssuesEnabled } from '@/lib/feature-flags';
+import { HomeownerIssuesCard } from '@/components/homeowners/HomeownerIssuesCard';
 
 interface HomeownerDetails {
   homeowner: {
@@ -227,22 +225,37 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     }
   }
 
-  function getEngagementIcon(level: string) {
+  function getEngagementPill(level: string): { label: string; className: string } {
     switch (level) {
-      case 'high': return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'medium': return <Minus className="w-4 h-4 text-amber-600" />;
-      case 'low': return <TrendingDown className="w-4 h-4 text-red-600" />;
-      default: return <Minus className="w-4 h-4 text-gray-400" />;
+      case 'high':
+        return { label: 'High', className: 'bg-emerald-100 text-emerald-700' };
+      case 'medium':
+        return { label: 'Medium', className: 'bg-gray-100 text-gray-700' };
+      case 'low':
+        return { label: 'Low', className: 'bg-gray-100 text-gray-700' };
+      default:
+        return { label: 'None', className: 'bg-gray-100 text-gray-500' };
     }
   }
 
-  function getEngagementLabel(level: string) {
-    switch (level) {
-      case 'high': return { text: 'High Engagement', color: 'text-green-600 bg-green-50' };
-      case 'medium': return { text: 'Medium Engagement', color: 'text-amber-600 bg-amber-50' };
-      case 'low': return { text: 'Low Engagement', color: 'text-red-600 bg-red-50' };
-      default: return { text: 'No Activity', color: 'text-gray-500 bg-gray-50' };
-    }
+  function formatRelativeTime(iso: string | null): string {
+    if (!iso) return 'Never';
+    const now = Date.now();
+    const then = new Date(iso).getTime();
+    const diff = Math.max(0, now - then);
+    const minute = 60 * 1000;
+    const hour = 60 * minute;
+    const day = 24 * hour;
+    const week = 7 * day;
+    if (diff < minute) return 'Just now';
+    if (diff < hour) return `${Math.floor(diff / minute)}m ago`;
+    if (diff < day) return `${Math.floor(diff / hour)}h ago`;
+    if (diff < week) return `${Math.floor(diff / day)}d ago`;
+    return new Date(iso).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   }
 
   if (loading) {
@@ -271,39 +284,40 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
   }
 
   const { homeowner, activity, acknowledgement, noticeboard_terms } = data;
-  const engagement = getEngagementLabel(activity.engagement_level);
+  const engagement = getEngagementPill(activity.engagement_level);
+  const homeownerIssuesOn = isHomeownerIssuesEnabled();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Header */}
+      {/* Header strip (Sprint 3.5a compact treatment) */}
       <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <Link href="/developer/homeowners" className="text-gold-500 hover:text-gold-600 flex items-center gap-1 mb-3 text-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <Link href="/developer/homeowners" className="text-gold-500 hover:text-gold-600 flex items-center gap-1 mb-2 text-sm">
             <ArrowLeft className="w-4 h-4" />
             Back to Homeowners
           </Link>
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-gradient-to-br from-gold-100 to-gold-50 rounded-xl">
-                <User className="w-8 h-8 text-gold-600" />
+            <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-base shadow-sm">
+                {(homeowner.name || 'U').trim().charAt(0).toUpperCase()}
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">{homeowner.name}</h1>
-                <div className="flex items-center gap-2 mt-1 text-sm text-gray-500">
-                  <Building2 className="w-4 h-4" />
+                <h1 className="text-xl font-bold text-gray-900 leading-tight">{homeowner.name}</h1>
+                <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500">
+                  <Building2 className="w-3.5 h-3.5" />
                   {homeowner.development?.name || 'Unknown Development'}
                 </div>
               </div>
             </div>
             <div className="flex items-center gap-2">
               {acknowledgement ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-sm font-medium rounded-full">
-                  <CheckCircle2 className="w-4 h-4" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
                   Documents Acknowledged
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 text-sm font-medium rounded-full">
-                  <Clock className="w-4 h-4" />
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
+                  <Clock className="w-3.5 h-3.5" />
                   Pending Acknowledgement
                 </span>
               )}
@@ -574,104 +588,41 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
             </div>
           </div>
 
-          {/* Right Column - Activity & Acknowledgement */}
+          {/* Right Column - Reported Issues + Activity + Acknowledgement */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Activity Stats */}
+            {homeownerIssuesOn && (
+              <HomeownerIssuesCard homeownerId={homeownerId} homeownerName={homeowner.name} />
+            )}
+
+            {/* Homeowner Activity (Sprint 3.5a, replaces Chat Activity & Engagement
+                and the Recent Conversations card. Aggregate stats only, no verbatim
+                chat text per the privacy fix in section 1 of the spec.) */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
               <div className="p-5 border-b border-gray-100">
                 <h2 className="font-semibold text-gray-900 flex items-center gap-2">
                   <Activity className="w-5 h-5 text-gold-500" />
-                  Chat Activity & Engagement
+                  Homeowner Activity
                 </h2>
               </div>
               <div className="p-5">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  <div className="bg-gray-50 rounded-lg p-4 text-center">
-                    <p className="text-3xl font-bold text-gray-900">{activity.total_messages}</p>
-                    <p className="text-xs text-gray-500 mt-1">Total Messages</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500 mb-1">Total messages</p>
+                    <p className="text-2xl font-bold text-gray-900">{activity.total_messages}</p>
                   </div>
-                  <div className="bg-blue-50 rounded-lg p-4 text-center">
-                    <p className="text-3xl font-bold text-blue-600">{activity.user_messages}</p>
-                    <p className="text-xs text-gray-500 mt-1">User Questions</p>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500 mb-1">Engagement level</p>
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${engagement.className}`}>
+                      {engagement.label}
+                    </span>
                   </div>
-                  <div className="bg-purple-50 rounded-lg p-4 text-center">
-                    <p className="text-3xl font-bold text-purple-600">{activity.assistant_messages}</p>
-                    <p className="text-xs text-gray-500 mt-1">AI Responses</p>
-                  </div>
-                  <div className={`rounded-lg p-4 text-center ${engagement.color}`}>
-                    <div className="flex items-center justify-center gap-2">
-                      {getEngagementIcon(activity.engagement_level)}
-                      <p className="text-lg font-bold">{engagement.text.split(' ')[0]}</p>
-                    </div>
-                    <p className="text-xs mt-1">Engagement Level</p>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <p className="text-xs text-gray-500 mb-1">Last active</p>
+                    <p className="text-sm font-medium text-gray-900">{formatRelativeTime(activity.last_message)}</p>
                   </div>
                 </div>
-
-                {activity.first_message && (
-                  <div className="flex items-center gap-6 text-sm text-gray-600 border-t border-gray-100 pt-4">
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <span>First message: {new Date(activity.first_message).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    </div>
-                    {activity.last_message && (
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <span>Last active: {new Date(activity.last_message).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                      </div>
-                    )}
-                    {activity.is_active_this_week && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                        Active This Week
-                      </span>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
-
-            {/* Recent Messages */}
-            {activity.recent_messages.length > 0 && (
-              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-                <div className="p-5 border-b border-gray-100">
-                  <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-gold-500" />
-                    Recent Conversations
-                  </h2>
-                </div>
-                <div className="divide-y divide-gray-100">
-                  {activity.recent_messages.map((message) => (
-                    <div key={message.id} className="p-4 hover:bg-gray-50 transition-colors">
-                      <div className="flex items-start gap-3">
-                        <div className={`p-2 rounded-lg ${message.role === 'user' ? 'bg-blue-100' : 'bg-purple-100'}`}>
-                          {message.role === 'user' ? (
-                            <User className="w-4 h-4 text-blue-600" />
-                          ) : (
-                            <MessageSquare className="w-4 h-4 text-purple-600" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-medium text-gray-900">
-                              {message.role === 'user' ? 'Homeowner' : 'AI Assistant'}
-                            </span>
-                            <span className="text-xs text-gray-400">
-                              {new Date(message.created_at).toLocaleDateString('en-GB', { 
-                                day: 'numeric', 
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-gray-600">{message.content}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {/* Community Noticeboard Terms */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
