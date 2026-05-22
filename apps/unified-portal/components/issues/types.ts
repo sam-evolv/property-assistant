@@ -38,6 +38,26 @@ export interface IssueListResponse {
   offset: number;
 }
 
+export interface IssueUnitGroup {
+  unit_id: string;
+  unit_display_name: string;
+  development_id: string | null;
+  development_name: string | null;
+  open_count: number;
+  urgent_high_count: number;
+  worst_severity: IssueSeverity | null;
+  issues: IssueListRow[];
+}
+
+export interface IssueUnitListResponse {
+  units: IssueUnitGroup[];
+  total_units: number;
+  limit: number;
+  offset: number;
+}
+
+export type IssueDashboardView = 'unit' | 'activity';
+
 export interface IssueOverviewCounts {
   open: number;
   high_priority: number;
