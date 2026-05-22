@@ -2,12 +2,17 @@
  * GET /api/issues/list
  *
  * Assistant V2 Sprint 3. Paginated list of issues for the developer
- * dashboard.
+ * dashboard. Sprint 3.1 added optional unit grouping.
  *
- * Spec: docs/specs/assistant-v2-sprint-3.md section 5.2.
+ * Spec:
+ *   docs/specs/assistant-v2-sprint-3.md   section 5.2 (base flat list)
+ *   docs/specs/assistant-v2-sprint-3-1.md section 4   (unit grouping)
  *
  * Query params (all optional):
  *   - development_id  uuid, single
+ *   - unit_id         uuid, single. Filters the flat list to one unit.
+ *                     Also valid alongside group_by_unit=true (still
+ *                     scopes the matching set).
  *   - status          comma-separated, defaults to 'open,reopened'
  *   - severity        comma-separated: low,medium,high,urgent
  *   - source          comma-separated: homeowner_assistant,site_team_snag,snagger_external
@@ -15,12 +20,21 @@
  *   - q               case-insensitive title substring match; trimmed,
  *                     non-empty after trim, max 200 chars
  *   - sort            'created_at_desc' (default), 'severity_desc', 'created_at_asc'
+ *   - group_by_unit   boolean; if 'true' returns the unit-grouped shape
+ *                     (units array). Pagination then operates at the unit
+ *                     level instead of at the row level.
  *   - limit           default 50, max 200
  *   - offset          default 0
  *
- * Each row joins unit display_name and development name so the dashboard
- * does not need extra fetches per row. Media URLs are NOT included; media
- * is fetched on the detail view.
+ * Grouping semantics (when group_by_unit=true):
+ *   - All filters apply to the matching set per unit. A unit appears in
+ *     the response only if it has at least one matching issue.
+ *   - The per-unit chips and sort metadata (open_count, urgent_high_count,
+ *     worst_severity) describe the unit's true open + reopened state,
+ *     regardless of the filters. The chips describe the unit, the filter
+ *     shapes the grid.
+ *   - issues[] for each unit holds the top 3 most recent matching issues.
+ *   - Issues with unit_id NULL are excluded from the grouped view.
  *
  * Scoped to the caller's tenant. snagger_external is rejected with 403
  * before any DB work because the dashboard is developer-side only.
@@ -50,6 +64,15 @@ const VALID_SEVERITIES = new Set(['low', 'medium', 'high', 'urgent']);
 const VALID_SOURCES = new Set(['homeowner_assistant', 'site_team_snag', 'snagger_external']);
 const VALID_SORTS = new Set(['created_at_desc', 'severity_desc', 'created_at_asc']);
 const MAX_SEARCH_LEN = 200;
+const TOP_ISSUES_PER_UNIT = 3;
+const MAX_MATCHING_ROWS = 5000;
+
+const SEVERITY_RANK: Record<string, number> = {
+  urgent: 4,
+  high: 3,
+  medium: 2,
+  low: 1,
+};
 
 function escapeIlikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (m) => `\\${m}`);
@@ -75,6 +98,56 @@ function deriveUnitDisplayName(u: {
   return u.unit_code ?? u.unit_number ?? u.address_line_1 ?? 'Unit';
 }
 
+type IssueRow = {
+  id: string;
+  tenant_id: string;
+  development_id: string;
+  unit_id: string | null;
+  title: string | null;
+  source: string | null;
+  severity_label: string | null;
+  severity_score: number | null;
+  status: string | null;
+  priority: string | null;
+  room: string | null;
+  developer_flagged: boolean | null;
+  logged_by_role: string | null;
+  created_at: string;
+  resolved_at: string | null;
+};
+
+type RowSelectFields =
+  'id, tenant_id, development_id, unit_id, title, source, severity_label, severity_score, status, priority, room, developer_flagged, logged_by_role, created_at, resolved_at';
+const ROW_SELECT: RowSelectFields =
+  'id, tenant_id, development_id, unit_id, title, source, severity_label, severity_score, status, priority, room, developer_flagged, logged_by_role, created_at, resolved_at';
+
+function buildResponseRow(
+  r: IssueRow,
+  unitDisplayName: string | null,
+  developmentName: string | null,
+  mediaCount: number,
+  noteCount: number,
+) {
+  return {
+    id: r.id,
+    title: r.title,
+    source: r.source,
+    severity_label: r.severity_label,
+    severity_score: r.severity_score,
+    status: r.status,
+    priority: r.priority,
+    room: r.room,
+    unit_display_name: unitDisplayName,
+    development_name: developmentName,
+    media_count: mediaCount,
+    note_count: noteCount,
+    developer_flagged: r.developer_flagged,
+    created_at: r.created_at,
+    resolved_at: r.resolved_at,
+    logged_by_role: r.logged_by_role,
+  };
+}
+
 export async function GET(request: NextRequest) {
   if (!isDeveloperDashboardEnabled()) {
     return snagFeatureDisabledResponse();
@@ -93,17 +166,22 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const developmentIdParam = url.searchParams.get('development_id');
+  const unitIdParam = url.searchParams.get('unit_id');
   const statusParam = url.searchParams.get('status');
   const severityParam = url.searchParams.get('severity');
   const sourceParam = url.searchParams.get('source');
   const flaggedParam = url.searchParams.get('flagged');
   const qParam = url.searchParams.get('q');
   const sortParam = url.searchParams.get('sort') ?? 'created_at_desc';
+  const groupByUnitParam = url.searchParams.get('group_by_unit');
   const limitParam = url.searchParams.get('limit');
   const offsetParam = url.searchParams.get('offset');
 
   if (developmentIdParam && !UUID_RE.test(developmentIdParam)) {
     return NextResponse.json({ error: 'development_id must be a uuid' }, { status: 400 });
+  }
+  if (unitIdParam && !UUID_RE.test(unitIdParam)) {
+    return NextResponse.json({ error: 'unit_id must be a uuid' }, { status: 400 });
   }
   const statuses = statusParam ? parseCsv(statusParam, VALID_STATUSES) : DEFAULT_STATUS;
   if (statusParam && !statuses) {
@@ -139,18 +217,36 @@ export async function GET(request: NextRequest) {
   if (limit > MAX_LIMIT) limit = MAX_LIMIT;
   if (!Number.isFinite(offset) || offset < 0) offset = 0;
 
+  const groupByUnit = groupByUnitParam === 'true';
+
   const supabase = getSupabaseAdmin();
+
+  if (groupByUnit) {
+    return await handleGrouped({
+      supabase,
+      tenantId: auth.tenantId,
+      developmentId: developmentIdParam,
+      unitId: unitIdParam,
+      statuses,
+      severities,
+      sources,
+      flagged: flaggedParam === 'true',
+      searchTerm,
+      limit,
+      offset,
+    });
+  }
 
   let query = supabase
     .from('issue_reports')
-    .select(
-      'id, tenant_id, development_id, unit_id, title, source, severity_label, severity_score, status, priority, room, developer_flagged, logged_by_role, created_at, resolved_at',
-      { count: 'exact' },
-    )
+    .select(ROW_SELECT, { count: 'exact' })
     .eq('tenant_id', auth.tenantId);
 
   if (developmentIdParam) {
     query = query.eq('development_id', developmentIdParam);
+  }
+  if (unitIdParam) {
+    query = query.eq('unit_id', unitIdParam);
   }
   if (statuses && statuses.length > 0) {
     query = query.in('status', statuses);
@@ -184,14 +280,14 @@ export async function GET(request: NextRequest) {
     console.error('[issues-list] list_failed reason=%s', listErr.message);
     return NextResponse.json({ error: 'Could not load issues' }, { status: 500 });
   }
-  const reportRows = rows ?? [];
-  const issueIds = reportRows.map((r) => r.id as string);
+  const reportRows = (rows ?? []) as IssueRow[];
+  const issueIds = reportRows.map((r) => r.id);
 
   const unitIds = Array.from(
-    new Set(reportRows.map((r) => r.unit_id as string | null).filter((v): v is string => !!v)),
+    new Set(reportRows.map((r) => r.unit_id).filter((v): v is string => !!v)),
   );
   const developmentIds = Array.from(
-    new Set(reportRows.map((r) => r.development_id as string).filter((v): v is string => !!v)),
+    new Set(reportRows.map((r) => r.development_id).filter((v): v is string => !!v)),
   );
 
   const unitsById = new Map<string, { display_name: string }>();
@@ -230,58 +326,318 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const mediaCounts = new Map<string, number>();
-  const noteCounts = new Map<string, number>();
-  if (issueIds.length > 0) {
-    const [mediaRes, notesRes] = await Promise.all([
-      supabase.from('issue_report_media').select('issue_report_id').in('issue_report_id', issueIds),
-      supabase.from('issue_notes').select('issue_report_id').in('issue_report_id', issueIds),
-    ]);
-    if (mediaRes.error) {
-      console.error('[issues-list] media_count_failed reason=%s', mediaRes.error.message);
-    } else {
-      for (const j of mediaRes.data ?? []) {
-        const k = j.issue_report_id as string;
-        mediaCounts.set(k, (mediaCounts.get(k) ?? 0) + 1);
-      }
-    }
-    if (notesRes.error) {
-      console.error('[issues-list] note_count_failed reason=%s', notesRes.error.message);
-    } else {
-      for (const j of notesRes.data ?? []) {
-        const k = j.issue_report_id as string;
-        noteCounts.set(k, (noteCounts.get(k) ?? 0) + 1);
-      }
-    }
-  }
+  const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, issueIds);
 
   return NextResponse.json({
     rows: reportRows.map((r) => {
-      const unitId = r.unit_id as string | null;
-      const devId = r.development_id as string;
-      const unit = unitId ? unitsById.get(unitId) ?? null : null;
-      const dev = developmentsById.get(devId) ?? null;
-      return {
-        id: r.id,
-        title: r.title,
-        source: r.source,
-        severity_label: r.severity_label,
-        severity_score: r.severity_score,
-        status: r.status,
-        priority: r.priority,
-        room: r.room,
-        unit_display_name: unit?.display_name ?? null,
-        development_name: dev?.name ?? null,
-        media_count: mediaCounts.get(r.id as string) ?? 0,
-        note_count: noteCounts.get(r.id as string) ?? 0,
-        developer_flagged: r.developer_flagged,
-        created_at: r.created_at,
-        resolved_at: r.resolved_at,
-        logged_by_role: r.logged_by_role,
-      };
+      const unit = r.unit_id ? unitsById.get(r.unit_id) ?? null : null;
+      const dev = developmentsById.get(r.development_id) ?? null;
+      return buildResponseRow(
+        r,
+        unit?.display_name ?? null,
+        dev?.name ?? null,
+        mediaCounts.get(r.id) ?? 0,
+        noteCounts.get(r.id) ?? 0,
+      );
     }),
     total: count ?? reportRows.length,
     limit,
     offset,
   });
+}
+
+type GroupedParams = {
+  supabase: ReturnType<typeof getSupabaseAdmin>;
+  tenantId: string;
+  developmentId: string | null;
+  unitId: string | null;
+  statuses: string[] | null;
+  severities: string[] | null;
+  sources: string[] | null;
+  flagged: boolean;
+  searchTerm: string | null;
+  limit: number;
+  offset: number;
+};
+
+async function handleGrouped(params: GroupedParams) {
+  const {
+    supabase,
+    tenantId,
+    developmentId,
+    unitId,
+    statuses,
+    severities,
+    sources,
+    flagged,
+    searchTerm,
+    limit,
+    offset,
+  } = params;
+
+  let matching = supabase
+    .from('issue_reports')
+    .select(ROW_SELECT)
+    .eq('tenant_id', tenantId)
+    .not('unit_id', 'is', null)
+    .order('created_at', { ascending: false })
+    .limit(MAX_MATCHING_ROWS);
+
+  if (developmentId) {
+    matching = matching.eq('development_id', developmentId);
+  }
+  if (unitId) {
+    matching = matching.eq('unit_id', unitId);
+  }
+  if (statuses && statuses.length > 0) {
+    matching = matching.in('status', statuses);
+  }
+  if (severities && severities.length > 0) {
+    matching = matching.in('severity_label', severities);
+  }
+  if (sources && sources.length > 0) {
+    matching = matching.in('source', sources);
+  }
+  if (flagged) {
+    matching = matching.eq('developer_flagged', true);
+  }
+  if (searchTerm) {
+    matching = matching.ilike('title', `%${escapeIlikePattern(searchTerm)}%`);
+  }
+
+  const { data: matchingRowsRaw, error: matchingErr } = await matching;
+  if (matchingErr) {
+    console.error('[issues-list] grouped_match_failed reason=%s', matchingErr.message);
+    return NextResponse.json({ error: 'Could not load issues' }, { status: 500 });
+  }
+  const matchingRows = (matchingRowsRaw ?? []) as IssueRow[];
+
+  const matchingByUnit = new Map<string, IssueRow[]>();
+  for (const r of matchingRows) {
+    if (!r.unit_id) continue;
+    let bucket = matchingByUnit.get(r.unit_id);
+    if (!bucket) {
+      bucket = [];
+      matchingByUnit.set(r.unit_id, bucket);
+    }
+    bucket.push(r);
+  }
+  const unitIdsWithMatches = Array.from(matchingByUnit.keys());
+
+  if (unitIdsWithMatches.length === 0) {
+    return NextResponse.json({ units: [], total_units: 0, limit, offset });
+  }
+
+  let openStatsQuery = supabase
+    .from('issue_reports')
+    .select('unit_id, severity_label')
+    .eq('tenant_id', tenantId)
+    .in('status', ['open', 'reopened'])
+    .in('unit_id', unitIdsWithMatches);
+  const { data: openStatsRaw, error: openStatsErr } = await openStatsQuery;
+  if (openStatsErr) {
+    console.error('[issues-list] grouped_open_stats_failed reason=%s', openStatsErr.message);
+    return NextResponse.json({ error: 'Could not load issues' }, { status: 500 });
+  }
+  const openStatsRows = (openStatsRaw ?? []) as Array<{
+    unit_id: string | null;
+    severity_label: string | null;
+  }>;
+
+  type UnitStats = {
+    open_count: number;
+    urgent_high_count: number;
+    worst_severity: string | null;
+    has_urgent: boolean;
+    has_high: boolean;
+  };
+  const statsByUnit = new Map<string, UnitStats>();
+  for (const id of unitIdsWithMatches) {
+    statsByUnit.set(id, {
+      open_count: 0,
+      urgent_high_count: 0,
+      worst_severity: null,
+      has_urgent: false,
+      has_high: false,
+    });
+  }
+  for (const row of openStatsRows) {
+    const uid = row.unit_id;
+    if (!uid) continue;
+    const s = statsByUnit.get(uid);
+    if (!s) continue;
+    s.open_count += 1;
+    const sev = row.severity_label;
+    if (sev === 'urgent' || sev === 'high') {
+      s.urgent_high_count += 1;
+      if (sev === 'urgent') s.has_urgent = true;
+      else s.has_high = true;
+    }
+    if (sev) {
+      const currentRank = s.worst_severity ? SEVERITY_RANK[s.worst_severity] ?? 0 : 0;
+      const newRank = SEVERITY_RANK[sev] ?? 0;
+      if (newRank > currentRank) s.worst_severity = sev;
+    }
+  }
+
+  const { data: unitRowsRaw, error: unitErr } = await supabase
+    .from('units')
+    .select('id, unit_code, unit_number, address_line_1, development_id')
+    .in('id', unitIdsWithMatches);
+  if (unitErr) {
+    console.error('[issues-list] grouped_unit_lookup_failed reason=%s', unitErr.message);
+    return NextResponse.json({ error: 'Could not load issues' }, { status: 500 });
+  }
+  const unitInfoById = new Map<
+    string,
+    {
+      display_name: string;
+      development_id: string | null;
+    }
+  >();
+  for (const u of unitRowsRaw ?? []) {
+    unitInfoById.set(u.id as string, {
+      display_name: deriveUnitDisplayName({
+        unit_code: (u.unit_code as string | null) ?? null,
+        unit_number: (u.unit_number as string | null) ?? null,
+        address_line_1: (u.address_line_1 as string | null) ?? null,
+      }),
+      development_id: (u.development_id as string | null) ?? null,
+    });
+  }
+
+  const developmentIds = Array.from(
+    new Set(
+      Array.from(unitInfoById.values())
+        .map((u) => u.development_id)
+        .filter((v): v is string => !!v),
+    ),
+  );
+  const developmentsById = new Map<string, { name: string | null }>();
+  if (developmentIds.length > 0) {
+    const { data: devRows, error: devErr } = await supabase
+      .from('developments')
+      .select('id, name')
+      .in('id', developmentIds);
+    if (devErr) {
+      console.error('[issues-list] grouped_development_lookup_failed reason=%s', devErr.message);
+    } else {
+      for (const d of devRows ?? []) {
+        developmentsById.set(d.id as string, { name: (d.name as string | null) ?? null });
+      }
+    }
+  }
+
+  type SortableUnit = {
+    unit_id: string;
+    unit_display_name: string;
+    development_id: string | null;
+    development_name: string | null;
+    stats: UnitStats;
+  };
+  const sortableUnits: SortableUnit[] = unitIdsWithMatches.map((id) => {
+    const info = unitInfoById.get(id);
+    const display = info?.display_name ?? 'Unit';
+    const devId = info?.development_id ?? null;
+    const devName = devId ? developmentsById.get(devId)?.name ?? null : null;
+    const stats = statsByUnit.get(id) ?? {
+      open_count: 0,
+      urgent_high_count: 0,
+      worst_severity: null,
+      has_urgent: false,
+      has_high: false,
+    };
+    return {
+      unit_id: id,
+      unit_display_name: display,
+      development_id: devId,
+      development_name: devName,
+      stats,
+    };
+  });
+
+  sortableUnits.sort((a, b) => {
+    const tierA = a.stats.has_urgent ? 0 : a.stats.has_high ? 1 : 2;
+    const tierB = b.stats.has_urgent ? 0 : b.stats.has_high ? 1 : 2;
+    if (tierA !== tierB) return tierA - tierB;
+    if (a.stats.open_count !== b.stats.open_count) {
+      return b.stats.open_count - a.stats.open_count;
+    }
+    return a.unit_display_name.localeCompare(b.unit_display_name);
+  });
+
+  const totalUnits = sortableUnits.length;
+  const paginated = sortableUnits.slice(offset, offset + limit);
+
+  const topIssueIds: string[] = [];
+  const topRowsByUnit = new Map<string, IssueRow[]>();
+  for (const u of paginated) {
+    const all = matchingByUnit.get(u.unit_id) ?? [];
+    const top = all.slice(0, TOP_ISSUES_PER_UNIT);
+    topRowsByUnit.set(u.unit_id, top);
+    for (const r of top) topIssueIds.push(r.id);
+  }
+
+  const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, topIssueIds);
+
+  const units = paginated.map((u) => {
+    const topRows = topRowsByUnit.get(u.unit_id) ?? [];
+    return {
+      unit_id: u.unit_id,
+      unit_display_name: u.unit_display_name,
+      development_id: u.development_id,
+      development_name: u.development_name,
+      open_count: u.stats.open_count,
+      urgent_high_count: u.stats.urgent_high_count,
+      worst_severity: u.stats.worst_severity,
+      issues: topRows.map((r) =>
+        buildResponseRow(
+          r,
+          u.unit_display_name,
+          u.development_name,
+          mediaCounts.get(r.id) ?? 0,
+          noteCounts.get(r.id) ?? 0,
+        ),
+      ),
+    };
+  });
+
+  return NextResponse.json({
+    units,
+    total_units: totalUnits,
+    limit,
+    offset,
+  });
+}
+
+async function fetchAuxCounts(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  issueIds: string[],
+): Promise<{ mediaCounts: Map<string, number>; noteCounts: Map<string, number> }> {
+  const mediaCounts = new Map<string, number>();
+  const noteCounts = new Map<string, number>();
+  if (issueIds.length === 0) {
+    return { mediaCounts, noteCounts };
+  }
+  const [mediaRes, notesRes] = await Promise.all([
+    supabase.from('issue_report_media').select('issue_report_id').in('issue_report_id', issueIds),
+    supabase.from('issue_notes').select('issue_report_id').in('issue_report_id', issueIds),
+  ]);
+  if (mediaRes.error) {
+    console.error('[issues-list] media_count_failed reason=%s', mediaRes.error.message);
+  } else {
+    for (const j of mediaRes.data ?? []) {
+      const k = j.issue_report_id as string;
+      mediaCounts.set(k, (mediaCounts.get(k) ?? 0) + 1);
+    }
+  }
+  if (notesRes.error) {
+    console.error('[issues-list] note_count_failed reason=%s', notesRes.error.message);
+  } else {
+    for (const j of notesRes.data ?? []) {
+      const k = j.issue_report_id as string;
+      noteCounts.set(k, (noteCounts.get(k) ?? 0) + 1);
+    }
+  }
+  return { mediaCounts, noteCounts };
 }
