@@ -10,8 +10,9 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X } from 'lucide-react';
+import { ArrowRight, CheckCircle2, X } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 
 const MAX_LEN = 2000;
@@ -44,7 +45,39 @@ export function EscalateModal({ open, onClose, issueId, onResolved }: EscalateMo
         const data = await res.json().catch(() => ({}));
         throw new Error(data?.error ?? 'Could not escalate issue');
       }
-      toast.success('Escalated to snag list.');
+      toast.custom(
+        (t) => (
+          <div
+            className={`bg-white rounded-xl border border-gray-200 shadow-lg p-4 flex items-start gap-3 min-w-[320px] max-w-[440px] ${
+              t.visible ? 'animate-in slide-in-from-right-full fade-in' : 'animate-out fade-out'
+            }`}
+          >
+            <CheckCircle2 className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900">
+                Escalated to snag list. Now visible in Issues dashboard.
+              </p>
+              <Link
+                href={`/developer/issues?issue=${issueId}`}
+                onClick={() => toast.dismiss(t.id)}
+                className="inline-flex items-center gap-1 text-xs font-medium text-gold-700 hover:text-gold-800 mt-2"
+              >
+                View in Issues dashboard
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+            <button
+              type="button"
+              onClick={() => toast.dismiss(t.id)}
+              className="p-1 rounded-lg hover:bg-black/5 transition-colors flex-shrink-0"
+              aria-label="Dismiss"
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </button>
+          </div>
+        ),
+        { duration: 8000 },
+      );
       setNote('');
       onResolved();
       onClose();

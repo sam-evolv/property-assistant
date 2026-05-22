@@ -60,19 +60,26 @@ export function HomeownerIssueRow({ issue, homeownerName, onRefetch }: Homeowner
   return (
     <>
       <div
-        className={`rounded-lg border transition-colors ${
+        className={`relative rounded-lg border overflow-hidden transition-colors ${
           isHomeownerNew
             ? 'border-amber-200 bg-amber-50/40'
             : isResolved
               ? 'border-gray-200 bg-white'
               : 'border-blue-200 bg-white'
         }`}
-        style={isHomeownerNew ? { borderLeft: '3px solid #d97706' } : undefined}
       >
+        {isHomeownerNew && (
+          <span
+            aria-hidden
+            className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-l-lg"
+          />
+        )}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className="w-full text-left p-3 flex items-start gap-3 hover:bg-black/[0.02] rounded-lg transition-colors"
+          className={`w-full text-left flex items-start gap-3 hover:bg-black/[0.02] transition-colors ${
+            isHomeownerNew ? 'pl-4 pr-3 py-5' : 'p-3 py-5'
+          }`}
           aria-expanded={expanded}
         >
           <div className="flex-shrink-0">
@@ -84,7 +91,7 @@ export function HomeownerIssueRow({ issue, homeownerName, onRefetch }: Homeowner
                 aria-label="Issue photo"
               />
             ) : (
-              <div className="w-12 h-12 rounded-md bg-gray-100 border border-gray-200 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-md bg-neutral-100 border border-gray-200 flex items-center justify-center">
                 <ImageIcon className="w-5 h-5 text-gray-400" />
               </div>
             )}
@@ -93,10 +100,10 @@ export function HomeownerIssueRow({ issue, homeownerName, onRefetch }: Homeowner
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <p className={`text-sm font-medium truncate ${isResolved ? 'text-gray-600' : 'text-gray-900'}`}>
+                <p className={`text-sm font-semibold truncate ${isResolved ? 'text-gray-600' : 'text-gray-900'}`}>
                   {issue.title}
                 </p>
-                <div className="flex items-center gap-2 mt-0.5 text-xs text-gray-500">
+                <div className="flex items-center gap-2 mt-0.5 text-xs text-neutral-500">
                   {issue.room && (
                     <>
                       <span className="truncate">{issue.room}</span>
@@ -126,96 +133,106 @@ export function HomeownerIssueRow({ issue, homeownerName, onRefetch }: Homeowner
         </button>
 
         {expanded && (
-          <div className="px-3 pb-3 border-t border-gray-100">
-            {fullImage && (
-              <button
-                type="button"
-                onClick={() => setShowLightbox(true)}
-                className="block mt-3 w-full rounded-md overflow-hidden border border-gray-200 bg-gray-50 hover:opacity-95 transition-opacity"
-                aria-label="View full photo"
-              >
-                <img
-                  src={fullImage}
-                  alt={issue.title}
-                  className="w-full max-h-72 object-contain bg-black/5"
-                />
-              </button>
-            )}
-
-            {issue.description && (
-              <div className="mt-3 text-sm text-gray-700 whitespace-pre-wrap">
-                {issue.description}
-              </div>
-            )}
-
-            <div className="mt-3 rounded-md border border-gray-200 bg-white">
-              <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
-                <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
-                  AI assessment
-                </span>
-                {placeholderAnalysis && (
-                  <span className="text-[10px] text-gray-400">Assessment pending</span>
+          <div
+            className={`border-t border-gray-100 divide-y divide-gray-100 ${
+              isHomeownerNew ? 'pl-4 pr-3' : 'px-3'
+            }`}
+          >
+            {(fullImage || issue.description) && (
+              <div className="py-4 space-y-3">
+                {fullImage && (
+                  <button
+                    type="button"
+                    onClick={() => setShowLightbox(true)}
+                    className="block w-full rounded-md overflow-hidden border border-gray-200 bg-gray-50 hover:opacity-95 transition-opacity"
+                    aria-label="View full photo"
+                  >
+                    <img
+                      src={fullImage}
+                      alt={issue.title}
+                      className="w-full max-h-72 object-contain bg-black/5"
+                    />
+                  </button>
                 )}
-              </div>
-              <div className="p-3 text-sm text-gray-700">
-                {placeholderAnalysis ? (
-                  <p className="text-gray-500">
-                    Full analysis is not enabled yet. A member of the team can review this manually.
-                  </p>
-                ) : (
-                  <div className="space-y-2">
-                    {issue.analysis?.developer_summary && (
-                      <p>{issue.analysis.developer_summary}</p>
-                    )}
-                    {(issue.analysis?.severity_label ||
-                      issue.analysis?.likely_trade ||
-                      issue.analysis?.likely_system) && (
-                      <div className="flex flex-wrap gap-3 pt-1 text-xs text-gray-500">
-                        {issue.analysis?.severity_label && (
-                          <span className="inline-flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3" />
-                            Severity: {issue.analysis.severity_label}
-                          </span>
-                        )}
-                        {issue.analysis?.likely_trade && (
-                          <span className="inline-flex items-center gap-1">
-                            <Hammer className="w-3 h-3" />
-                            {issue.analysis.likely_trade}
-                          </span>
-                        )}
-                        {issue.analysis?.safety_risk && (
-                          <span className="inline-flex items-center gap-1 text-red-600">
-                            <Shield className="w-3 h-3" />
-                            Safety risk
-                          </span>
-                        )}
-                      </div>
-                    )}
+
+                {issue.description && (
+                  <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                    {issue.description}
                   </div>
                 )}
+              </div>
+            )}
+
+            <div className="py-4">
+              <div className="rounded-md border border-gray-200 bg-white">
+                <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    AI assessment
+                  </span>
+                  {placeholderAnalysis && (
+                    <span className="text-[10px] text-gray-400">Assessment pending</span>
+                  )}
+                </div>
+                <div className="p-3 text-sm text-gray-700">
+                  {placeholderAnalysis ? (
+                    <p className="text-gray-500">
+                      Full analysis is not enabled yet. A member of the team can review this manually.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {issue.analysis?.developer_summary && (
+                        <p>{issue.analysis.developer_summary}</p>
+                      )}
+                      {(issue.analysis?.severity_label ||
+                        issue.analysis?.likely_trade ||
+                        issue.analysis?.likely_system) && (
+                        <div className="flex flex-wrap gap-3 pt-1 text-xs text-gray-500">
+                          {issue.analysis?.severity_label && (
+                            <span className="inline-flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              Severity: {issue.analysis.severity_label}
+                            </span>
+                          )}
+                          {issue.analysis?.likely_trade && (
+                            <span className="inline-flex items-center gap-1">
+                              <Hammer className="w-3 h-3" />
+                              {issue.analysis.likely_trade}
+                            </span>
+                          )}
+                          {issue.analysis?.safety_risk && (
+                            <span className="inline-flex items-center gap-1 text-red-600">
+                              <Shield className="w-3 h-3" />
+                              Safety risk
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             {showActions && (
-              <div className="mt-4 flex flex-wrap gap-2 justify-end">
+              <div className="py-4 flex flex-wrap gap-2 justify-end items-center">
                 <button
                   type="button"
                   onClick={() => setActiveModal('warranty')}
-                  className="px-3 py-2 text-sm font-medium text-gray-700 border border-gray-300 bg-white hover:bg-gray-50 rounded-lg transition"
+                  className="px-3 py-2 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition"
                 >
                   Mark for warranty
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveModal('escalate')}
-                  className="px-3 py-2 text-sm font-medium text-gold-700 border border-gold-300 bg-gold-50 hover:bg-gold-100 rounded-lg transition"
+                  className="px-3 py-2 text-sm font-medium text-gold-700 border border-gold-400 bg-transparent hover:bg-gold-50 rounded-lg transition"
                 >
                   Escalate to snag list
                 </button>
                 <button
                   type="button"
                   onClick={() => setActiveModal('reply')}
-                  className="px-3 py-2 text-sm font-medium text-white bg-gold-500 hover:bg-gold-600 rounded-lg transition inline-flex items-center gap-1.5"
+                  className="px-3 py-2 text-sm font-medium text-white bg-gold-500 hover:bg-gold-600 rounded-lg transition inline-flex items-center gap-1.5 shadow-sm"
                 >
                   <CheckCircle2 className="w-4 h-4" />
                   Reply and resolve

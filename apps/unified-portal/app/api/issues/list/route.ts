@@ -127,6 +127,7 @@ function buildResponseRow(
   developmentName: string | null,
   mediaCount: number,
   noteCount: number,
+  newlyEscalated: boolean,
 ) {
   return {
     id: r.id,
@@ -145,7 +146,35 @@ function buildResponseRow(
     created_at: r.created_at,
     resolved_at: r.resolved_at,
     logged_by_role: r.logged_by_role,
+    newly_escalated: newlyEscalated,
   };
+}
+
+// Sprint 3.5a.1: returns the set of issue IDs that had an
+// 'escalated_from_homeowner' event within the last 24 hours, so the
+// dashboard can surface a "From homeowner" marker on those rows.
+// Only queries issues whose source is currently 'homeowner_escalated',
+// which is the only set that can match.
+async function fetchNewlyEscalatedIds(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  rows: IssueRow[],
+): Promise<Set<string>> {
+  const candidateIds = rows
+    .filter((r) => r.source === 'homeowner_escalated')
+    .map((r) => r.id);
+  if (candidateIds.length === 0) return new Set();
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await supabase
+    .from('issue_events')
+    .select('issue_report_id')
+    .eq('event_type', 'escalated_from_homeowner')
+    .gte('created_at', cutoff)
+    .in('issue_report_id', candidateIds);
+  if (error) {
+    console.error('[issues-list] newly_escalated_lookup_failed reason=%s', error.message);
+    return new Set();
+  }
+  return new Set((data ?? []).map((r) => r.issue_report_id as string));
 }
 
 export async function GET(request: NextRequest) {
@@ -327,6 +356,7 @@ export async function GET(request: NextRequest) {
   }
 
   const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, issueIds);
+  const newlyEscalatedIds = await fetchNewlyEscalatedIds(supabase, reportRows);
 
   return NextResponse.json({
     rows: reportRows.map((r) => {
@@ -338,6 +368,7 @@ export async function GET(request: NextRequest) {
         dev?.name ?? null,
         mediaCounts.get(r.id) ?? 0,
         noteCounts.get(r.id) ?? 0,
+        newlyEscalatedIds.has(r.id),
       );
     }),
     total: count ?? reportRows.length,
@@ -579,6 +610,10 @@ async function handleGrouped(params: GroupedParams) {
   }
 
   const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, topIssueIds);
+  const allTopRows = paginated.flatMap(
+    (u) => topRowsByUnit.get(u.unit_id) ?? [],
+  );
+  const newlyEscalatedIds = await fetchNewlyEscalatedIds(supabase, allTopRows);
 
   const units = paginated.map((u) => {
     const topRows = topRowsByUnit.get(u.unit_id) ?? [];
@@ -597,6 +632,7 @@ async function handleGrouped(params: GroupedParams) {
           u.development_name,
           mediaCounts.get(r.id) ?? 0,
           noteCounts.get(r.id) ?? 0,
+          newlyEscalatedIds.has(r.id),
         ),
       ),
     };
