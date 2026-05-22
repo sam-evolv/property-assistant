@@ -115,12 +115,12 @@ Behaviour:
 3. Return { count: number }.
 Lightweight, called on every dashboard page load.
 5.3 GET /api/homeowners/[id]/issues
-Returns all issues for a given homeowner (purchaser_agreement record).
+Returns all issues for a given unit (the [id] is the unit's UUID, matching the established convention used by every other /api/homeowners/[id]/* route). The original draft of this spec said purchaser_agreement.id; that was inconsistent with the codebase and was corrected during implementation. issue_reports.unit_id is the natural join key, so no purchaser_agreement lookup is needed.
 Behaviour:
 
 1. Verify caller. Reject snagger_external with 403.
-2. Look up the purchaser_agreement by id. Verify caller can access the unit's tenant via assertCanAccessTenant.
-3. Return issues where unit_id matches the purchaser_agreement's unit_id, ordered by status priority (homeowner_new first, then open, then reopened, then resolved) and then created_at desc.
+2. Look up the unit by id (units table). Verify caller can access the unit's tenant via assertCanAccessTenant.
+3. Return issues where unit_id matches the supplied id and tenant_id matches the caller's tenant, ordered by status priority (homeowner_new first, then open, then reopened, then resolved) and then created_at desc.
 4. Each issue includes the standard list row shape, plus the AI assessment if present, and a small media preview (first photo signed URL with one-hour expiry).
 This is the data feed for the Reported Issues card on the homeowner detail page.
 5.4 POST /api/homeowners/issues/[issue_id]/resolve

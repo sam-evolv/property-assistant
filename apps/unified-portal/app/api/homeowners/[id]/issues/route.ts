@@ -8,11 +8,14 @@
  *
  * Spec: docs/specs/assistant-v2-sprint-3-5a.md section 5.3.
  *
- * The [id] path parameter is a purchaser_agreement.id, NOT an
- * issue_report.id. We look up the purchaser_agreement, derive the
- * unit_id, look up the unit to confirm it belongs to the caller's
- * tenant via assertCanAccessTenant, and then query issue_reports
- * scoped to that unit and tenant.
+ * The [id] path parameter is the unit's UUID. This matches the
+ * established convention used by every other /api/homeowners/[id]/*
+ * route in the codebase (the /developer/homeowners/[id] URL surfaces
+ * the unit id, not the purchaser_agreement id). The original spec
+ * called for purchaser_agreement.id; that was inconsistent and the
+ * route was updated to follow the codebase convention. The data model
+ * supports this cleanly because issue_reports.unit_id is the natural
+ * join key.
  *
  * Result ordering: status priority first (homeowner_new, then open,
  * then reopened, then resolved), then created_at desc within each
@@ -60,8 +63,8 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     return snagFeatureDisabledResponse();
   }
 
-  const purchaserAgreementId = params.id;
-  if (!UUID_RE.test(purchaserAgreementId)) {
+  const unitId = params.id;
+  if (!UUID_RE.test(unitId)) {
     return NextResponse.json({ error: 'id must be a uuid' }, { status: 400 });
   }
 
@@ -77,24 +80,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   }
 
   const supabase = getSupabaseAdmin();
-
-  const { data: agreement, error: agreementErr } = await supabase
-    .from('purchaser_agreements')
-    .select('id, unit_id, development_id')
-    .eq('id', purchaserAgreementId)
-    .maybeSingle();
-  if (agreementErr) {
-    console.error('[homeowners-issues] agreement_lookup_failed reason=%s', agreementErr.message);
-    return NextResponse.json({ error: 'Could not load homeowner' }, { status: 500 });
-  }
-  if (!agreement) {
-    return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
-  }
-
-  const unitId = agreement.unit_id as string | null;
-  if (!unitId) {
-    return NextResponse.json({ error: 'Homeowner is not linked to a unit' }, { status: 400 });
-  }
 
   const { data: unit, error: unitErr } = await supabase
     .from('units')
@@ -279,7 +264,6 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
   );
 
   return NextResponse.json({
-    purchaser_agreement_id: purchaserAgreementId,
     unit_id: unitId,
     issues,
   });
