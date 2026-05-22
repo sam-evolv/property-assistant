@@ -1,39 +1,60 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+/**
+ * Sprint 3.5a.3 homeowner detail page. Single scrolling profile.
+ *
+ * Layout, top to bottom:
+ *   1. Hero strip: rounded-square gold avatar tile, name, subtitle,
+ *      three info tags (house type, handover, docs). Right side has
+ *      a Message button and a kebab menu.
+ *   2. Reported Issues card (gated on FEATURE_HOMEOWNER_ISSUES). All
+ *      amber-on-amber text inside the card now reads against
+ *      WCAG AA after the 3.5a.3 readability pass.
+ *   3. Two-by-two grid of compact cards: Contact, House, Access,
+ *      Documents.
+ *   4. Activity stat strip: four columns (messages, engagement,
+ *      last active, open issues).
+ *   5. Danger Zone (delete homeowner).
+ *
+ * Editing is no longer inline. The Edit link on the Contact card
+ * routes to the dedicated edit page under /edit on this same route
+ * family, which keeps detail-client free of form state.
+ */
+
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   User,
-  Building2,
+  Home,
+  Key,
+  Folder,
   MessageSquare,
+  MoreHorizontal,
+  Copy,
+  QrCode,
+  ExternalLink,
   CheckCircle2,
   AlertCircle,
   Clock,
-  Download,
-  Copy,
-  ExternalLink,
-  FileText,
+  AlertTriangle,
+  BarChart3,
   Activity,
-  Shield,
-  Globe,
-  Monitor,
   Trash2,
-  Edit3,
-  Save,
-  X,
-  Key,
-  CalendarCheck,
-  ChevronRight,
+  Check,
+  FileText,
 } from 'lucide-react';
 import { isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 import { HomeownerIssuesCard } from '@/components/homeowners/HomeownerIssuesCard';
+import { HomeownerIssue } from '@/components/homeowners/types';
 
 interface HomeownerDetails {
   homeowner: {
     id: string;
     name: string;
+    email?: string | null;
+    phone?: string | null;
     house_type: string | null;
     address: string | null;
     unique_qr_token: string;
@@ -43,6 +64,8 @@ interface HomeownerDetails {
     portal_type: 'pre_handover' | 'property_assistant';
     development_id: string;
     created_at: string;
+    floor_area?: string | null;
+    ber_rating?: string | null;
     development: {
       id: string;
       name: string;
@@ -57,12 +80,6 @@ interface HomeownerDetails {
     last_message: string | null;
     is_active_this_week: boolean;
     engagement_level: 'high' | 'medium' | 'low' | 'none';
-    recent_messages: {
-      id: string;
-      content: string;
-      role: string;
-      created_at: string;
-    }[];
   };
   acknowledgement: {
     agreed_at: string;
@@ -77,100 +94,43 @@ interface HomeownerDetails {
   } | null;
 }
 
-interface EditFormData {
-  name: string;
-  house_type: string;
-  address: string;
-  development_id: string;
-}
-
-interface Development {
-  id: string;
-  name: string;
-  address: string;
-}
-
 export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) {
   const router = useRouter();
   const [data, setData] = useState<HomeownerDetails | null>(null);
-  const [developments, setDevelopments] = useState<Development[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState<EditFormData>({
-    name: '',
-    house_type: '',
-    address: '',
-    development_id: '',
-  });
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'code' | 'url' | null>(null);
+  const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [docsOpen, setDocsOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetchHomeownerDetails();
-    fetchDevelopments();
+    let alive = true;
+    (async () => {
+      try {
+        const response = await fetch(`/api/homeowners/${homeownerId}/details`);
+        if (!alive) return;
+        if (response.ok) {
+          const result = await response.json();
+          setData(result);
+        } else {
+          setError('Failed to load homeowner details');
+        }
+      } catch {
+        if (alive) setError('An error occurred while loading homeowner details');
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
   }, [homeownerId]);
 
-  async function fetchHomeownerDetails() {
-    try {
-      const response = await fetch(`/api/homeowners/${homeownerId}/details`);
-      if (response.ok) {
-        const result = await response.json();
-        setData(result);
-        setEditForm({
-          name: result.homeowner.name || '',
-          house_type: result.homeowner.house_type || '',
-          address: result.homeowner.address || '',
-          development_id: result.homeowner.development_id || '',
-        });
-      } else {
-        setError('Failed to load homeowner details');
-      }
-    } catch {
-      setError('An error occurred while loading homeowner details');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function fetchDevelopments() {
-    try {
-      const response = await fetch('/api/developments');
-      if (response.ok) {
-        const result = await response.json();
-        setDevelopments(result.developments || []);
-      }
-    } catch {
-      // failed to fetch developments
-    }
-  }
-
-  async function handleSave() {
-    setSaving(true);
-    try {
-      const response = await fetch(`/api/homeowners/${homeownerId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editForm),
-      });
-
-      if (response.ok) {
-        await fetchHomeownerDetails();
-        setIsEditing(false);
-      } else {
-        const errorData = await response.json();
-        alert(errorData.error || 'Failed to save changes');
-      }
-    } catch {
-      alert('An error occurred while saving');
-    } finally {
-      setSaving(false);
-    }
-  }
+  const handleIssuesLoaded = useCallback((issues: HomeownerIssue[]) => {
+    const open = issues.filter((i) => i.status !== 'resolved').length;
+    setOpenIssuesCount(open);
+  }, []);
 
   async function handleDelete() {
     setDeleting(true);
@@ -178,7 +138,6 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
       const response = await fetch(`/api/homeowners/${homeownerId}`, {
         method: 'DELETE',
       });
-
       if (response.ok) {
         router.push('/developer/homeowners');
       } else {
@@ -193,10 +152,10 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     }
   }
 
-  function copyToClipboard(text: string) {
+  function copyToClipboard(text: string, which: 'code' | 'url') {
     navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setCopied(which);
+    setTimeout(() => setCopied(null), 2000);
   }
 
   function getQRPortalUrl() {
@@ -206,36 +165,13 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     return '';
   }
 
-  async function downloadQRCode() {
-    try {
-      const response = await fetch(`/api/qr/generate?unitId=${homeownerId}&format=png`);
-      if (response.ok) {
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `qr-${data?.homeowner.name.replace(/\s+/g, '-').toLowerCase()}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
-      }
-    } catch {
-      // failed to download QR code
-    }
-  }
-
-  function getEngagementPill(level: string): { label: string; className: string } {
-    switch (level) {
-      case 'high':
-        return { label: 'High', className: 'bg-emerald-100 text-emerald-700' };
-      case 'medium':
-        return { label: 'Medium', className: 'bg-gray-100 text-gray-700' };
-      case 'low':
-        return { label: 'Low', className: 'bg-gray-100 text-gray-700' };
-      default:
-        return { label: 'None', className: 'bg-gray-100 text-gray-500' };
-    }
+  function formatDate(iso: string | null | undefined): string {
+    if (!iso) return 'Not recorded';
+    return new Date(iso).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+    });
   }
 
   function formatRelativeTime(iso: string | null): string {
@@ -258,6 +194,38 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     });
   }
 
+  function engagementPill(level: string) {
+    if (level === 'high') {
+      return (
+        <span
+          className="inline-flex items-center font-semibold bg-emerald-50 text-emerald-700"
+          style={{
+            fontSize: '12px',
+            padding: '3px 9px',
+            borderRadius: '999px',
+            letterSpacing: '-0.01em',
+          }}
+        >
+          High
+        </span>
+      );
+    }
+    const label = level === 'medium' ? 'Medium' : level === 'low' ? 'Low' : 'None';
+    return (
+      <span
+        className="inline-flex items-center font-semibold bg-neutral-100 text-neutral-700"
+        style={{
+          fontSize: '12px',
+          padding: '3px 9px',
+          borderRadius: '999px',
+          letterSpacing: '-0.01em',
+        }}
+      >
+        {label}
+      </span>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
@@ -276,23 +244,28 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600">{error || 'Homeowner not found'}</p>
           <Link href="/developer/homeowners" className="text-gold-600 hover:text-gold-700 mt-4 inline-block">
-            ← Back to Homeowners
+            Back to Homeowners
           </Link>
         </div>
       </div>
     );
   }
 
-  const { homeowner, activity, acknowledgement, noticeboard_terms } = data;
-  const engagement = getEngagementPill(activity.engagement_level);
+  const { homeowner, activity, acknowledgement } = data;
   const homeownerIssuesOn = isHomeownerIssuesEnabled();
+
+  const initial = (homeowner.name || 'U').trim().charAt(0).toUpperCase();
+  const subtitleSegments = [homeowner.address, homeowner.development?.name].filter(
+    (s): s is string => Boolean(s),
+  );
+  const portalUrl = getQRPortalUrl();
+
+  const docsList = acknowledgement?.documents_acknowledged ?? [];
+  const docsTotal = docsList.length;
+  const docsToShow = docsList.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Sprint 3.5a.2 tight header strip. The Back to Homeowners link
-          sits above the strip as a small separate element. The strip
-          itself (data-testid="homeowner-header") holds only the avatar,
-          name + development, and status pill, measured to <= 80px. */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <Link
           href="/developer/homeowners"
@@ -301,513 +274,537 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Homeowners
         </Link>
+
+        {/* Hero strip. Avatar tile, name, subtitle, three info tags. */}
         <div
           data-testid="homeowner-header"
-          className="flex items-center justify-between gap-4 mb-6"
+          className="flex items-start justify-between gap-4"
+          style={{ paddingBottom: '20px' }}
         >
-          <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-start gap-3 min-w-0">
             <div
               data-testid="homeowner-header-avatar"
-              className="w-10 h-10 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-sm shadow-sm flex-shrink-0"
+              className="flex-shrink-0 flex items-center justify-center text-white font-semibold"
+              style={{
+                width: '52px',
+                height: '52px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #D4AF37, #B8934C)',
+                fontSize: '19px',
+                fontWeight: 600,
+              }}
             >
-              {(homeowner.name || 'U').trim().charAt(0).toUpperCase()}
+              {initial}
             </div>
             <div className="flex flex-col min-w-0">
               <h1
                 data-testid="homeowner-header-name"
-                className="text-xl font-semibold leading-tight text-gray-900 truncate"
+                className="text-neutral-900"
+                style={{
+                  fontSize: '22px',
+                  fontWeight: 600,
+                  letterSpacing: '-0.015em',
+                  lineHeight: 1.15,
+                }}
               >
                 {homeowner.name}
               </h1>
-              <p className="text-sm text-gray-500 leading-tight truncate">
-                {homeowner.development?.name || 'Unknown Development'}
-              </p>
+              {subtitleSegments.length > 0 && (
+                <p className="text-sm text-neutral-500 mt-0.5 truncate flex items-center gap-1.5">
+                  {subtitleSegments.map((segment, idx) => (
+                    <span key={idx} className="inline-flex items-center gap-1.5 truncate">
+                      {idx > 0 && <span aria-hidden className="text-neutral-300">·</span>}
+                      <span className="truncate">{segment}</span>
+                    </span>
+                  ))}
+                </p>
+              )}
+              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                {homeowner.house_type && (
+                  <InfoTag>{homeowner.house_type}</InfoTag>
+                )}
+                <InfoTag>{homeowner.is_handed_over ? 'Handed over' : 'Pre-handover'}</InfoTag>
+                {acknowledgement ? (
+                  <InfoTag variant="docs-acknowledged">
+                    <Check className="w-3 h-3 text-emerald-500" />
+                    Docs acknowledged
+                  </InfoTag>
+                ) : (
+                  <InfoTag>Docs pending</InfoTag>
+                )}
+              </div>
             </div>
           </div>
+
           <div className="flex items-center gap-2 flex-shrink-0">
-            {acknowledgement ? (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
-                <CheckCircle2 className="w-3 h-3" />
-                Documents Acknowledged
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
-                <Clock className="w-3 h-3" />
-                Pending Acknowledgement
-              </span>
-            )}
+            <button
+              type="button"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Message
+            </button>
+            <button
+              type="button"
+              aria-label="More actions"
+              className="p-2 text-neutral-500 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
-        {/* Sprint 3.5a.1: explicit 4/8 split out of 12 so the Reported
-            Issues column on the right is the visual centre. Mobile stacks. */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Left column - 33% on desktop */}
-          <div className="lg:col-span-4 space-y-6">
-            {/* Profile Details - Sprint 3.5a.2 compact treatment. Title
-                drops the User icon and uses text-base. Edit is an inline
-                link with no border. The dl uses divide-y with py-2 rows
-                so the card hits the 200px height target. */}
-            <div
-              data-testid="profile-details-card"
-              className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-            >
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-                <h2
-                  data-testid="profile-details-title"
-                  className="text-base font-semibold text-gray-900"
-                >
-                  Profile Details
-                </h2>
-                {!isEditing ? (
-                  <button
-                    type="button"
-                    onClick={() => setIsEditing(true)}
-                    data-testid="profile-details-edit"
-                    className="text-sm text-gold-600 hover:text-gold-700 hover:underline"
-                  >
-                    Edit
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      onClick={handleSave}
-                      disabled={saving}
-                      className="text-sm text-green-600 hover:text-green-700 hover:underline disabled:opacity-50 inline-flex items-center gap-1"
-                    >
-                      <Save className="w-3.5 h-3.5" />
-                      {saving ? 'Saving...' : 'Save'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsEditing(false);
-                        setEditForm({
-                          name: homeowner.name || '',
-                          house_type: homeowner.house_type || '',
-                          address: homeowner.address || '',
-                          development_id: homeowner.development_id || '',
-                        });
-                      }}
-                      className="text-sm text-gray-500 hover:text-gray-700 hover:underline inline-flex items-center gap-1"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      Cancel
-                    </button>
-                  </div>
-                )}
-              </div>
-              <div className="px-5 py-2">
-                {isEditing ? (
-                  <div className="space-y-3 py-2">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
-                      <input
-                        type="text"
-                        value={editForm.name}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">House Type</label>
-                      <input
-                        type="text"
-                        value={editForm.house_type}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, house_type: e.target.value }))}
-                        placeholder="e.g., BS01, BD03"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
-                      <input
-                        type="text"
-                        value={editForm.address}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
-                        placeholder="Unit address"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 mb-1">Development</label>
-                      <select
-                        value={editForm.development_id}
-                        onChange={(e) => setEditForm(prev => ({ ...prev, development_id: e.target.value }))}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
-                      >
-                        {developments.map(dev => (
-                          <option key={dev.id} value={dev.id}>{dev.name}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                ) : (
-                  <dl className="divide-y divide-gray-100 text-sm">
-                    <div className="flex justify-between gap-3 py-2">
-                      <dt className="text-gray-500">House Type</dt>
-                      <dd className="font-medium text-gray-900 text-right">{homeowner.house_type || 'Not specified'}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3 py-2">
-                      <dt className="text-gray-500">Address</dt>
-                      <dd className="font-medium text-gray-900 text-right">{homeowner.address || 'Not specified'}</dd>
-                    </div>
-                    <div className="flex justify-between gap-3 py-2">
-                      <dt className="text-gray-500">Added</dt>
-                      <dd className="font-medium text-gray-900 text-right">
-                        {new Date(homeowner.created_at).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </dd>
-                    </div>
-                  </dl>
-                )}
-              </div>
-            </div>
+        {/* Reported Issues card. Gated on FEATURE_HOMEOWNER_ISSUES.
+            Surfaces homeowner_new items first, with the readability
+            fixes from this sprint applied to its inner pills. */}
+        {homeownerIssuesOn && (
+          <div className="mb-3">
+            <HomeownerIssuesCard
+              homeownerId={homeownerId}
+              homeownerName={homeowner.name}
+              onIssuesLoaded={handleIssuesLoaded}
+            />
+          </div>
+        )}
 
-            {/* Access Code & Portal - Sprint 3.5a.2 compact. The handover
-                status moves into the header as a single-line pill so the
-                body only carries the access code, URL, and the two
-                size-sm action buttons. Card height target: <= 280px. */}
-            <div
-              data-testid="access-code-card"
-              className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
-            >
-              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
-                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <Key className="w-4 h-4 text-gold-500" />
-                  Access Code & Portal
-                </h2>
-                {homeowner.is_handed_over ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full border border-green-200 whitespace-nowrap">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Handed Over
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200 whitespace-nowrap">
-                    <Clock className="w-3 h-3" />
-                    Pre-Handover
-                  </span>
-                )}
-              </div>
-              <div className="p-3 space-y-2">
-                {homeowner.access_code && (
-                  <div className="bg-gold-50 rounded-lg p-2 border border-gold-200">
-                    <p className="text-xs text-gold-700 font-medium mb-1">Access Code</p>
-                    <div className="flex items-center gap-2">
-                      <code
-                        data-testid="access-code-value"
-                        className="text-sm font-semibold bg-white px-2.5 py-1.5 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800"
-                      >
-                        {homeowner.access_code}
-                      </code>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(homeowner.access_code || '')}
-                        className="p-1.5 hover:bg-gold-100 rounded transition-colors"
-                        title="Copy Access Code"
-                      >
-                        {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-gold-600" />}
-                      </button>
-                    </div>
-                  </div>
-                )}
+        {/* 2x2 grid of compact cards. Stacks on mobile. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Contact card */}
+          <CompactCard
+            icon={<User className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Contact"
+            action={
+              <Link
+                href={`/developer/homeowners/${homeownerId}/edit`}
+                className="font-medium hover:underline"
+                style={{ color: '#B8934C', fontSize: '11px' }}
+              >
+                Edit
+              </Link>
+            }
+          >
+            <KVRow label="Email" value={homeowner.email || 'Not provided'} />
+            <KVRow label="Phone" value={homeowner.phone || 'Not provided'} />
+            <KVRow label="Added" value={formatDate(homeowner.created_at)} />
+            <KVRow
+              label="Docs"
+              value={acknowledgement ? 'Acknowledged' : 'Pending'}
+              valueClassName={acknowledgement ? 'text-emerald-700' : 'text-neutral-900'}
+            />
+          </CompactCard>
 
-                <div className="bg-gray-50 rounded-lg p-2">
-                  <p className="text-xs text-gray-500 mb-1">Portal URL</p>
-                  <div className="flex items-center gap-2">
-                    <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 flex-1 truncate">
-                      {getQRPortalUrl()}
-                    </code>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(getQRPortalUrl())}
-                      className="p-1.5 hover:bg-gray-200 rounded transition-colors"
-                      title="Copy URL"
-                    >
-                      {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-gray-600" />}
-                    </button>
-                  </div>
-                  {homeowner.handover_date && (
-                    <p className="text-xs text-gray-500 mt-1.5 inline-flex items-center gap-1">
-                      <CalendarCheck className="w-3 h-3" />
-                      Handover: {new Date(homeowner.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </p>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={downloadQRCode}
-                    data-testid="access-code-download-qr"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition text-xs font-medium"
-                  >
-                    <Download className="w-3.5 h-3.5" />
-                    Download QR
-                  </button>
-                  <a
-                    href={getQRPortalUrl()}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    data-testid="access-code-open-portal"
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-xs font-medium text-gray-700"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Open Portal
-                  </a>
-                </div>
-              </div>
-            </div>
-
-            {/* Sprint 3.5a.1 Documents & Acceptance collapsible. Wraps the
-                two acknowledgement cards that used to live in the right
-                column. Closed by default; the header surfaces the overall
-                acknowledgement status. */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* House card */}
+          <CompactCard
+            icon={<Home className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="House"
+            action={
               <button
                 type="button"
-                onClick={() => setDocsOpen((v) => !v)}
-                className="w-full flex items-center justify-between gap-2 px-5 py-4 hover:bg-gray-50 transition-colors"
-                aria-expanded={docsOpen}
+                className="font-medium hover:underline"
+                style={{ color: '#B8934C', fontSize: '11px' }}
               >
-                <div className="flex items-center gap-2">
-                  <ChevronRight
-                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ease-out ${
-                      docsOpen ? 'rotate-90' : ''
-                    }`}
-                  />
-                  <span className="text-base font-semibold text-gray-900">Documents & Acceptance</span>
-                </div>
-                {acknowledgement ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
-                    <CheckCircle2 className="w-3 h-3" />
-                    Acknowledged
-                  </span>
+                View plans
+              </button>
+            }
+          >
+            <KVRow label="Address" value={homeowner.address || 'Not specified'} />
+            <KVRow label="Type" value={homeowner.house_type || 'Not specified'} />
+            <KVRow label="Floor area" value={homeowner.floor_area || 'Not specified'} />
+            <KVRow label="BER rating" value={homeowner.ber_rating || 'Not specified'} />
+          </CompactCard>
+
+          {/* Access card */}
+          <CompactCard
+            icon={<Key className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Access"
+            action={
+              <a
+                href={portalUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium hover:underline"
+                style={{ color: '#B8934C', fontSize: '11px' }}
+              >
+                Open portal
+              </a>
+            }
+          >
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <div
+                className="font-mono text-neutral-800 text-center bg-neutral-50"
+                style={{
+                  border: '1px dashed #E5E7EB',
+                  padding: '7px 11px',
+                  borderRadius: '6px',
+                  fontSize: '12.5px',
+                  letterSpacing: '0.06em',
+                  fontWeight: 500,
+                  minWidth: '120px',
+                }}
+              >
+                {homeowner.access_code || 'No code'}
+              </div>
+              <button
+                type="button"
+                aria-label="Copy access code"
+                onClick={() => copyToClipboard(homeowner.access_code || '', 'code')}
+                className="p-1.5 rounded border border-neutral-200 hover:bg-neutral-50 text-neutral-600 transition-colors"
+              >
+                {copied === 'code' ? (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
-                    <Clock className="w-3 h-3" />
-                    Pending
-                  </span>
+                  <Copy className="w-3.5 h-3.5" />
                 )}
               </button>
-              {docsOpen && (
-                <div className="border-t border-gray-100 divide-y divide-gray-100">
-                  {/* Community Noticeboard Terms - nested, reduced chrome */}
-                  <div className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <MessageSquare className="w-4 h-4 text-gold-500" />
-                      <h3 className="text-sm font-semibold text-gray-900">Community Noticeboard Terms</h3>
-                    </div>
-                    {noticeboard_terms ? (
-                      <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-green-800">Guidelines Accepted</p>
-                          <p className="text-xs text-green-700">
-                            Agreed on {new Date(noticeboard_terms.accepted_at).toLocaleDateString('en-GB', {
-                              day: 'numeric',
-                              month: 'long',
-                              year: 'numeric',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-                        <Clock className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-700">Not Yet Accepted</p>
-                          <p className="text-xs text-gray-500">
-                            They will be prompted to accept the community noticeboard guidelines before their first post.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Must-Read Document Acknowledgement - nested, reduced chrome */}
-                  <div className="p-5">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Shield className="w-4 h-4 text-gold-500" />
-                      <h3 className="text-sm font-semibold text-gray-900">Must-Read Document Acknowledgement</h3>
-                    </div>
-                    {acknowledgement ? (
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
-                          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-green-800">Documents Acknowledged</p>
-                            <p className="text-xs text-green-700">
-                              Agreed on {new Date(acknowledgement.agreed_at).toLocaleDateString('en-GB', {
-                                day: 'numeric',
-                                month: 'long',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2">
-                          <div className="flex items-start gap-2 text-xs">
-                            <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <span className="text-gray-500">Acknowledged by </span>
-                              <span className="text-gray-900 font-medium">{acknowledgement.purchaser_name || 'Unknown'}</span>
-                            </div>
-                          </div>
-                          <div className="flex items-start gap-2 text-xs">
-                            <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-                            <div className="min-w-0">
-                              <span className="text-gray-500">IP </span>
-                              <span className="text-gray-900 font-mono">{acknowledgement.ip_address || 'Not recorded'}</span>
-                            </div>
-                          </div>
-                          {acknowledgement.user_agent && (
-                            <div className="flex items-start gap-2 text-xs">
-                              <Monitor className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
-                              <div className="min-w-0 flex-1">
-                                <p className="text-gray-500">Device</p>
-                                <p className="text-gray-700 truncate">{acknowledgement.user_agent}</p>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-
-                        {acknowledgement.documents_acknowledged.length > 0 && (
-                          <div>
-                            <p className="text-xs font-medium text-gray-700 mb-2">Documents ({acknowledgement.documents_acknowledged.length})</p>
-                            <ul className="space-y-1">
-                              {acknowledgement.documents_acknowledged.map((doc, index) => (
-                                <li key={doc.id || index} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded text-xs">
-                                  <FileText className="w-3.5 h-3.5 text-gold-500 flex-shrink-0" />
-                                  <span className="text-gray-700 truncate">{doc.title}</span>
-                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0 ml-auto" />
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
-                        <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">No Acknowledgement Recorded</p>
-                          <p className="text-xs text-gray-600">
-                            This homeowner has not yet acknowledged the must-read documents. They will be prompted on first access.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
+              <button
+                type="button"
+                aria-label="Download QR code"
+                onClick={async () => {
+                  try {
+                    const response = await fetch(`/api/qr/generate?unitId=${homeownerId}&format=png`);
+                    if (response.ok) {
+                      const blob = await response.blob();
+                      const url = window.URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `qr-${(homeowner.name || 'homeowner').replace(/\s+/g, '-').toLowerCase()}.png`;
+                      document.body.appendChild(a);
+                      a.click();
+                      document.body.removeChild(a);
+                      window.URL.revokeObjectURL(url);
+                    }
+                  } catch {
+                    // download failed silently
+                  }
+                }}
+                className="p-1.5 rounded border border-neutral-200 hover:bg-neutral-50 text-neutral-600 transition-colors"
+              >
+                <QrCode className="w-3.5 h-3.5" />
+              </button>
             </div>
+            <p
+              className="text-center text-neutral-400 mt-2"
+              style={{ fontSize: '11.5px' }}
+            >
+              Grants pre-handover portal access
+            </p>
+          </CompactCard>
 
-            {/* Danger Zone */}
-            <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-red-100 bg-red-50">
-                <h2 className="text-sm font-semibold text-red-700 flex items-center gap-2">
-                  <Trash2 className="w-4 h-4" />
-                  Danger Zone
-                </h2>
-              </div>
-              <div className="p-5">
-                {!showDeleteConfirm ? (
-                  <button
-                    onClick={() => setShowDeleteConfirm(true)}
-                    className="w-full px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
-                  >
-                    Delete Homeowner
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm text-red-600">
-                      Are you sure? This action cannot be undone.
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={handleDelete}
-                        disabled={deleting}
-                        className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
-                      >
-                        {deleting ? 'Deleting...' : 'Confirm Delete'}
-                      </button>
-                      <button
-                        onClick={() => setShowDeleteConfirm(false)}
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
-                      >
-                        Cancel
-                      </button>
+          {/* Documents card */}
+          <CompactCard
+            icon={<Folder className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Documents"
+            action={
+              <button
+                type="button"
+                className="font-medium hover:underline"
+                style={{ color: '#B8934C', fontSize: '11px' }}
+              >
+                View all ({docsTotal})
+              </button>
+            }
+          >
+            {docsToShow.length === 0 ? (
+              <p className="text-neutral-400 py-2" style={{ fontSize: '12.5px' }}>
+                No documents shared yet.
+              </p>
+            ) : (
+              <div className="space-y-1">
+                {docsToShow.map((doc) => (
+                  <div key={doc.id} className="flex items-center gap-2.5 py-1">
+                    <div
+                      className="flex-shrink-0 flex items-center justify-center bg-gold-50"
+                      style={{
+                        width: '30px',
+                        height: '30px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      <FileText className="text-gold-700" style={{ width: 14, height: 14 }} />
                     </div>
+                    <div className="flex-1 min-w-0">
+                      <p
+                        className="text-neutral-900 truncate"
+                        style={{ fontSize: '12.5px', fontWeight: 500 }}
+                      >
+                        {doc.title}
+                      </p>
+                      <p
+                        className="text-neutral-400"
+                        style={{ fontSize: '10.5px' }}
+                      >
+                        Acknowledged
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Open document"
+                      className="p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-50 rounded transition-colors flex-shrink-0"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </button>
                   </div>
-                )}
+                ))}
               </div>
-            </div>
-          </div>
-
-          {/* Right column - 67% on desktop, anchored by the Reported Issues card. */}
-          <div className="lg:col-span-8 space-y-6">
-            {homeownerIssuesOn && (
-              <HomeownerIssuesCard homeownerId={homeownerId} homeownerName={homeowner.name} />
             )}
+          </CompactCard>
+        </div>
 
-            {/* Homeowner Activity - Sprint 3.5a.1 icon-led stat blocks. */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-3 border-b border-gray-100">
-                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-gold-500" />
-                  Homeowner Activity
-                </h2>
-              </div>
-              <div className="p-5">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
-                      <MessageSquare className="w-4 h-4 text-gold-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-2xl font-semibold text-gray-900 leading-tight">{activity.total_messages}</p>
-                      <p className="text-[13px] text-gray-600">Total messages</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
-                      <Activity className="w-4 h-4 text-gold-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="leading-tight">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${engagement.className}`}>
-                          {engagement.label}
-                        </span>
-                      </div>
-                      <p className="text-[13px] text-gray-600 mt-1">Engagement level</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
-                      <Clock className="w-4 h-4 text-gold-700" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-base font-semibold text-gray-900 leading-tight truncate">{formatRelativeTime(activity.last_message)}</p>
-                      <p className="text-[13px] text-gray-600">Last active</p>
-                    </div>
-                  </div>
+        {/* Activity stat strip. */}
+        <div
+          className="bg-white overflow-hidden mt-3"
+          style={{
+            border: '1px solid #E5E7EB',
+            borderRadius: '10px',
+            padding: '14px 16px',
+          }}
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-1.5">
+              <BarChart3 className="text-neutral-400" style={{ width: 13, height: 13 }} />
+              <span
+                className="uppercase font-bold text-neutral-500"
+                style={{
+                  fontSize: '11px',
+                  letterSpacing: '0.06em',
+                }}
+              >
+                Activity
+              </span>
+            </div>
+            <button
+              type="button"
+              className="font-medium hover:underline"
+              style={{ color: '#B8934C', fontSize: '11px' }}
+            >
+              View timeline
+            </button>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <StatBlock
+              icon={<MessageSquare className="text-neutral-300" style={{ width: 12, height: 12 }} />}
+              label="Messages"
+              value={String(activity.total_messages)}
+            />
+            <StatBlock
+              icon={<Activity className="text-neutral-300" style={{ width: 12, height: 12 }} />}
+              label="Engagement"
+              valueNode={engagementPill(activity.engagement_level)}
+            />
+            <StatBlock
+              icon={<Clock className="text-neutral-300" style={{ width: 12, height: 12 }} />}
+              label="Last active"
+              value={formatRelativeTime(activity.last_message)}
+            />
+            <StatBlock
+              icon={<AlertTriangle className="text-neutral-300" style={{ width: 12, height: 12 }} />}
+              label="Open issues"
+              value={openIssuesCount === null ? '...' : String(openIssuesCount)}
+            />
+          </div>
+        </div>
+
+        {/* Danger Zone. Kept tucked at the bottom of the single-scroll
+            profile so the delete affordance stays accessible without
+            crowding the primary detail surfaces. */}
+        <div
+          className="bg-white overflow-hidden mt-6"
+          style={{
+            border: '1px solid #FECACA',
+            borderRadius: '10px',
+          }}
+        >
+          <div
+            className="bg-red-50 border-b"
+            style={{ borderBottom: '1px solid #FEE2E2', padding: '11px 14px' }}
+          >
+            <h2
+              className="text-red-700 flex items-center gap-2 font-semibold"
+              style={{ fontSize: '13px' }}
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Danger Zone
+            </h2>
+          </div>
+          <div style={{ padding: '14px' }}>
+            {!showDeleteConfirm ? (
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="w-full px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+              >
+                Delete Homeowner
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-red-600">
+                  Are you sure? This action cannot be undone.
+                </p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+                  >
+                    {deleting ? 'Deleting...' : 'Confirm Delete'}
+                  </button>
+                  <button
+                    onClick={() => setShowDeleteConfirm(false)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                  >
+                    Cancel
+                  </button>
                 </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function InfoTag({
+  children,
+  variant = 'default',
+}: {
+  children: React.ReactNode;
+  variant?: 'default' | 'docs-acknowledged';
+}) {
+  const isDocs = variant === 'docs-acknowledged';
+  return (
+    <span
+      className="inline-flex items-center gap-1"
+      style={{
+        background: isDocs ? '#ECFDF5' : '#F9FAFB',
+        border: `1px solid ${isDocs ? '#D1FAE5' : '#F3F4F6'}`,
+        color: isDocs ? '#047857' : '#4B5563',
+        fontSize: '11px',
+        padding: '3px 8px',
+        borderRadius: '6px',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function CompactCard({
+  icon,
+  title,
+  action,
+  children,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  action?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="bg-white overflow-hidden"
+      style={{
+        border: '1px solid #E5E7EB',
+        borderRadius: '10px',
+      }}
+    >
+      <div
+        className="flex items-center justify-between"
+        style={{ padding: '11px 14px 0' }}
+      >
+        <div className="flex items-center gap-1.5">
+          {icon}
+          <span
+            className="uppercase font-bold text-neutral-500"
+            style={{
+              fontSize: '11px',
+              letterSpacing: '0.06em',
+            }}
+          >
+            {title}
+          </span>
+        </div>
+        {action}
+      </div>
+      <div style={{ padding: '10px 14px 14px' }}>{children}</div>
+    </div>
+  );
+}
+
+function KVRow({
+  label,
+  value,
+  valueClassName,
+}: {
+  label: string;
+  value: string;
+  valueClassName?: string;
+}) {
+  return (
+    <div
+      className="flex justify-between gap-3 border-t first:border-t-0"
+      style={{
+        borderTopColor: '#F9FAFB',
+        padding: '7px 0',
+      }}
+    >
+      <dt
+        className="text-neutral-500 flex-shrink-0"
+        style={{ fontSize: '12.5px' }}
+      >
+        {label}
+      </dt>
+      <dd
+        className={`text-right truncate font-medium ${valueClassName ?? 'text-neutral-900'}`}
+        style={{ fontSize: '13px' }}
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+function StatBlock({
+  icon,
+  label,
+  value,
+  valueNode,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value?: string;
+  valueNode?: React.ReactNode;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-1.5" style={{ marginBottom: '4px' }}>
+        {icon}
+        <span
+          className="uppercase font-semibold text-neutral-400"
+          style={{
+            fontSize: '10.5px',
+            letterSpacing: '0.06em',
+          }}
+        >
+          {label}
+        </span>
+      </div>
+      {valueNode ? (
+        <div className="flex items-center">{valueNode}</div>
+      ) : (
+        <div
+          className="text-neutral-900 font-semibold truncate"
+          style={{
+            fontSize: '20px',
+            letterSpacing: '-0.01em',
+            lineHeight: 1.1,
+          }}
+        >
+          {value}
+        </div>
+      )}
     </div>
   );
 }

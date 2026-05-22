@@ -81,13 +81,17 @@ export function compareIssues(a: HomeownerIssue, b: HomeownerIssue): number {
 }
 
 export function statusPillClass(status: HomeownerIssueStatus): string {
+  // Sprint 3.5a.3: warm-gold text on warm-gold backgrounds failed the
+  // WCAG AA 4.5:1 contrast target at small font sizes. The amber-700/800
+  // text was darkened to gold-950 (#6B4E1C), which clears 7:1 against
+  // amber-100 while preserving the visual category.
   switch (status) {
     case 'homeowner_new':
-      return 'bg-amber-100 text-amber-800';
+      return 'bg-amber-100 text-gold-950';
     case 'open':
       return 'bg-blue-100 text-blue-800';
     case 'reopened':
-      return 'bg-amber-100 text-amber-800';
+      return 'bg-amber-100 text-gold-950';
     case 'resolved':
       return 'bg-green-100 text-green-700';
     default:

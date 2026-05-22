@@ -25,9 +25,13 @@ import { HomeownerIssue, HomeownerIssuesResponse, compareIssues } from './types'
 interface HomeownerIssuesCardProps {
   homeownerId: string;
   homeownerName: string;
+  // Sprint 3.5a.3: notify the parent detail page when the issue list
+  // resolves so the Activity strip can show an "Open issues" count
+  // without making a duplicate fetch.
+  onIssuesLoaded?: (issues: HomeownerIssue[]) => void;
 }
 
-export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIssuesCardProps) {
+export function HomeownerIssuesCard({ homeownerId, homeownerName, onIssuesLoaded }: HomeownerIssuesCardProps) {
   const [issues, setIssues] = useState<HomeownerIssue[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -40,19 +44,22 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
       if (!res.ok) {
         setError('Could not load issues for this homeowner.');
         setIssues([]);
+        onIssuesLoaded?.([]);
         return;
       }
       const data = (await res.json()) as HomeownerIssuesResponse;
       const sorted = [...(data.issues ?? [])].sort(compareIssues);
       setIssues(sorted);
       setError(null);
+      onIssuesLoaded?.(sorted);
     } catch {
       setError('Could not load issues for this homeowner.');
       setIssues([]);
+      onIssuesLoaded?.([]);
     } finally {
       setLoading(false);
     }
-  }, [homeownerId]);
+  }, [homeownerId, onIssuesLoaded]);
 
   useEffect(() => {
     fetchIssues();
@@ -80,7 +87,7 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
             </h2>
           </div>
           {awaitingReview > 0 && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-gold-950">
               {awaitingReview} awaiting review
             </span>
           )}

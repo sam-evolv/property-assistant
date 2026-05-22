@@ -52,7 +52,7 @@ export function IssueUnitCardHeader({
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
         {newlyEscalated ? (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-medium">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-gold-950 text-[11px] font-medium">
             Newly escalated
           </span>
         ) : null}
