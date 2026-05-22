@@ -60,25 +60,21 @@ export function HomeownerIssueRow({ issue, homeownerName, onRefetch }: Homeowner
   return (
     <>
       <div
-        className={`relative rounded-lg border overflow-hidden transition-colors ${
+        data-testid="homeowner-issue-row"
+        data-issue-status={issue.status}
+        className={`rounded-lg overflow-hidden transition-colors ${
           isHomeownerNew
-            ? 'border-amber-200 bg-amber-50/40'
+            ? 'border border-l-4 border-amber-200 border-l-amber-500 bg-amber-50/40'
             : isResolved
-              ? 'border-gray-200 bg-white'
-              : 'border-blue-200 bg-white'
+              ? 'border border-gray-200 bg-white'
+              : 'border border-blue-200 bg-white'
         }`}
       >
-        {isHomeownerNew && (
-          <span
-            aria-hidden
-            className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-l-lg"
-          />
-        )}
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className={`w-full text-left flex items-start gap-3 hover:bg-black/[0.02] transition-colors ${
-            isHomeownerNew ? 'pl-4 pr-3 py-5' : 'p-3 py-5'
+          className={`w-full text-left flex items-start gap-3 hover:bg-black/[0.02] transition-colors py-5 ${
+            isHomeownerNew ? 'pl-4 pr-3' : 'px-3'
           }`}
           aria-expanded={expanded}
         >

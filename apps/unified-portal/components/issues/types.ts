@@ -10,7 +10,8 @@ export type IssueStatus = 'open' | 'reopened' | 'resolved' | 'closed';
 export type IssueSource =
   | 'homeowner_assistant'
   | 'site_team_snag'
-  | 'snagger_external';
+  | 'snagger_external'
+  | 'homeowner_escalated';
 
 export interface IssueListRow {
   id: string;
@@ -34,6 +35,12 @@ export interface IssueListRow {
   // Used to render a "From homeowner" marker on dashboard rows. Older
   // server responses without this field fall through as undefined.
   newly_escalated?: boolean;
+  // Sprint 3.5a.2: timestamp of the most recent
+  // 'escalated_from_homeowner' event for this issue (null when source
+  // is not 'homeowner_escalated' or no event found). Drives the 7-day
+  // sort-to-top behaviour. Older server responses fall through as
+  // undefined.
+  latest_escalation_at?: string | null;
 }
 
 export interface IssueListResponse {
@@ -51,6 +58,10 @@ export interface IssueUnitGroup {
   open_count: number;
   urgent_high_count: number;
   worst_severity: IssueSeverity | null;
+  // Sprint 3.5a.2: latest 'escalated_from_homeowner' event timestamp
+  // across the unit's issues. Drives the 7-day sort-to-top behaviour
+  // and the "Newly escalated" pill on the unit card header (24h).
+  latest_escalation_at?: string | null;
   issues: IssueListRow[];
 }
 
@@ -235,6 +246,8 @@ export function statusLabel(status: IssueStatus): string {
 export function sourceLabel(source: IssueSource): string {
   switch (source) {
     case 'homeowner_assistant':
+      return 'Homeowner';
+    case 'homeowner_escalated':
       return 'Homeowner';
     case 'site_team_snag':
       return 'Site team';
