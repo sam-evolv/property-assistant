@@ -604,6 +604,16 @@ export function HomeownersList({
                             {unit.address && (
                               <p className="text-xs text-grey-500 truncate">{unit.address}</p>
                             )}
+                            {/* Sprint 3.5a pending indicator. Renders only when at least one
+                                homeowner_new issue exists for this unit. */}
+                            {(unit.homeowner_new_issue_count ?? 0) > 0 && (
+                              <p className="flex items-center gap-1.5 text-xs font-medium text-amber-700">
+                                <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden />
+                                {unit.homeowner_new_issue_count === 1
+                                  ? '1 issue awaiting review'
+                                  : `${unit.homeowner_new_issue_count} issues awaiting review`}
+                              </p>
+                            )}
                           </div>
                         </div>
 
