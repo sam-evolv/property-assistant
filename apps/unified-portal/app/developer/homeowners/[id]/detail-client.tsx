@@ -289,78 +289,100 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Sprint 3.5a.1 compact header strip. Back link sits above the
-          avatar row so the strip itself stays around 80px tall once the
-          page is scrolled. No bottom border; the cards below provide the
-          visual edge. */}
-      <div className="bg-white/80 backdrop-blur-sm sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
-          <Link href="/developer/homeowners" className="text-gold-500 hover:text-gold-600 inline-flex items-center gap-1 mb-2 text-xs">
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Homeowners
-          </Link>
-          <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-base shadow-sm flex-shrink-0">
-                {(homeowner.name || 'U').trim().charAt(0).toUpperCase()}
-              </div>
-              <div className="min-w-0">
-                <h1 className="text-lg font-bold text-gray-900 leading-tight truncate">{homeowner.name}</h1>
-                <p className="text-xs text-gray-500 truncate leading-tight mt-0.5">
-                  {homeowner.development?.name || 'Unknown Development'}
-                </p>
-              </div>
+      {/* Sprint 3.5a.2 tight header strip. The Back to Homeowners link
+          sits above the strip as a small separate element. The strip
+          itself (data-testid="homeowner-header") holds only the avatar,
+          name + development, and status pill, measured to <= 80px. */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+        <Link
+          href="/developer/homeowners"
+          className="text-gold-600 hover:text-gold-700 inline-flex items-center gap-1 text-xs mb-3"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back to Homeowners
+        </Link>
+        <div
+          data-testid="homeowner-header"
+          className="flex items-center justify-between gap-4 mb-6"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div
+              data-testid="homeowner-header-avatar"
+              className="w-10 h-10 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-sm shadow-sm flex-shrink-0"
+            >
+              {(homeowner.name || 'U').trim().charAt(0).toUpperCase()}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {acknowledgement ? (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Documents Acknowledged
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
-                  <Clock className="w-3 h-3" />
-                  Pending Acknowledgement
-                </span>
-              )}
+            <div className="flex flex-col min-w-0">
+              <h1
+                data-testid="homeowner-header-name"
+                className="text-xl font-semibold leading-tight text-gray-900 truncate"
+              >
+                {homeowner.name}
+              </h1>
+              <p className="text-sm text-gray-500 leading-tight truncate">
+                {homeowner.development?.name || 'Unknown Development'}
+              </p>
             </div>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {acknowledgement ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+                <CheckCircle2 className="w-3 h-3" />
+                Documents Acknowledged
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
+                <Clock className="w-3 h-3" />
+                Pending Acknowledgement
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         {/* Sprint 3.5a.1: explicit 4/8 split out of 12 so the Reported
             Issues column on the right is the visual centre. Mobile stacks. */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Left column - 33% on desktop */}
           <div className="lg:col-span-4 space-y-6">
-            {/* Profile Details - compact, no field icons. Edit becomes a
-                small inline link in the header. */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
-                  <User className="w-4 h-4 text-gold-500" />
+            {/* Profile Details - Sprint 3.5a.2 compact treatment. Title
+                drops the User icon and uses text-base. Edit is an inline
+                link with no border. The dl uses divide-y with py-2 rows
+                so the card hits the 200px height target. */}
+            <div
+              data-testid="profile-details-card"
+              className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2
+                  data-testid="profile-details-title"
+                  className="text-base font-semibold text-gray-900"
+                >
                   Profile Details
                 </h2>
                 {!isEditing ? (
                   <button
+                    type="button"
                     onClick={() => setIsEditing(true)}
-                    className="text-xs text-gold-600 hover:text-gold-700 inline-flex items-center gap-1"
+                    data-testid="profile-details-edit"
+                    className="text-sm text-gold-600 hover:text-gold-700 hover:underline"
                   >
-                    <Edit3 className="w-3.5 h-3.5" />
                     Edit
                   </button>
                 ) : (
                   <div className="flex items-center gap-3">
                     <button
+                      type="button"
                       onClick={handleSave}
                       disabled={saving}
-                      className="text-xs text-green-600 hover:text-green-700 inline-flex items-center gap-1 disabled:opacity-50"
+                      className="text-sm text-green-600 hover:text-green-700 hover:underline disabled:opacity-50 inline-flex items-center gap-1"
                     >
                       <Save className="w-3.5 h-3.5" />
                       {saving ? 'Saving...' : 'Save'}
                     </button>
                     <button
+                      type="button"
                       onClick={() => {
                         setIsEditing(false);
                         setEditForm({
@@ -370,7 +392,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                           development_id: homeowner.development_id || '',
                         });
                       }}
-                      className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+                      className="text-sm text-gray-500 hover:text-gray-700 hover:underline inline-flex items-center gap-1"
                     >
                       <X className="w-3.5 h-3.5" />
                       Cancel
@@ -378,9 +400,9 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                   </div>
                 )}
               </div>
-              <div className="p-5">
+              <div className="px-5 py-2">
                 {isEditing ? (
-                  <div className="space-y-3">
+                  <div className="space-y-3 py-2">
                     <div>
                       <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
                       <input
@@ -424,16 +446,16 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                     </div>
                   </div>
                 ) : (
-                  <dl className="space-y-3 text-sm">
-                    <div className="flex justify-between gap-3">
+                  <dl className="divide-y divide-gray-100 text-sm">
+                    <div className="flex justify-between gap-3 py-2">
                       <dt className="text-gray-500">House Type</dt>
                       <dd className="font-medium text-gray-900 text-right">{homeowner.house_type || 'Not specified'}</dd>
                     </div>
-                    <div className="flex justify-between gap-3">
+                    <div className="flex justify-between gap-3 py-2">
                       <dt className="text-gray-500">Address</dt>
                       <dd className="font-medium text-gray-900 text-right">{homeowner.address || 'Not specified'}</dd>
                     </div>
-                    <div className="flex justify-between gap-3">
+                    <div className="flex justify-between gap-3 py-2">
                       <dt className="text-gray-500">Added</dt>
                       <dd className="font-medium text-gray-900 text-right">
                         {new Date(homeowner.created_at).toLocaleDateString('en-GB', {
@@ -448,23 +470,44 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
               </div>
             </div>
 
-            {/* Access Code & Portal - compact treatment */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
+            {/* Access Code & Portal - Sprint 3.5a.2 compact. The handover
+                status moves into the header as a single-line pill so the
+                body only carries the access code, URL, and the two
+                size-sm action buttons. Card height target: <= 280px. */}
+            <div
+              data-testid="access-code-card"
+              className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden"
+            >
+              <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between gap-2">
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <Key className="w-4 h-4 text-gold-500" />
                   Access Code & Portal
                 </h2>
+                {homeowner.is_handed_over ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full border border-green-200 whitespace-nowrap">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Handed Over
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full border border-blue-200 whitespace-nowrap">
+                    <Clock className="w-3 h-3" />
+                    Pre-Handover
+                  </span>
+                )}
               </div>
-              <div className="p-5 space-y-3">
+              <div className="p-3 space-y-2">
                 {homeowner.access_code && (
-                  <div className="bg-gold-50 rounded-lg p-3 border border-gold-200">
-                    <p className="text-xs text-gold-700 font-medium mb-1.5">Access Code</p>
+                  <div className="bg-gold-50 rounded-lg p-2 border border-gold-200">
+                    <p className="text-xs text-gold-700 font-medium mb-1">Access Code</p>
                     <div className="flex items-center gap-2">
-                      <code className="text-sm font-semibold bg-white px-2.5 py-1 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800">
+                      <code
+                        data-testid="access-code-value"
+                        className="text-sm font-semibold bg-white px-2.5 py-1.5 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800"
+                      >
                         {homeowner.access_code}
                       </code>
                       <button
+                        type="button"
                         onClick={() => copyToClipboard(homeowner.access_code || '')}
                         className="p-1.5 hover:bg-gold-100 rounded transition-colors"
                         title="Copy Access Code"
@@ -475,40 +518,14 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                   </div>
                 )}
 
-                <div className={`rounded-lg p-3 ${homeowner.is_handed_over ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-center gap-1.5 mb-1">
-                    {homeowner.is_handed_over ? (
-                      <>
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                        <span className="text-xs font-medium text-green-700">Property Handed Over</span>
-                      </>
-                    ) : (
-                      <>
-                        <Clock className="w-3.5 h-3.5 text-blue-600" />
-                        <span className="text-xs font-medium text-blue-700">Pre-Handover</span>
-                      </>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    {homeowner.is_handed_over
-                      ? 'Access code grants Property Assistant portal access'
-                      : 'Access code grants Pre-Handover Portal access'}
-                  </p>
-                  {homeowner.handover_date && (
-                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
-                      <CalendarCheck className="w-3 h-3" />
-                      Handover: {new Date(homeowner.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1.5">Portal URL</p>
+                <div className="bg-gray-50 rounded-lg p-2">
+                  <p className="text-xs text-gray-500 mb-1">Portal URL</p>
                   <div className="flex items-center gap-2">
                     <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 flex-1 truncate">
                       {getQRPortalUrl()}
                     </code>
                     <button
+                      type="button"
                       onClick={() => copyToClipboard(getQRPortalUrl())}
                       className="p-1.5 hover:bg-gray-200 rounded transition-colors"
                       title="Copy URL"
@@ -516,11 +533,19 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                       {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-gray-600" />}
                     </button>
                   </div>
+                  {homeowner.handover_date && (
+                    <p className="text-xs text-gray-500 mt-1.5 inline-flex items-center gap-1">
+                      <CalendarCheck className="w-3 h-3" />
+                      Handover: {new Date(homeowner.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </p>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <button
+                    type="button"
                     onClick={downloadQRCode}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition text-xs font-medium"
+                    data-testid="access-code-download-qr"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition text-xs font-medium"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Download QR
@@ -529,7 +554,8 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                     href={getQRPortalUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-xs font-medium text-gray-700"
+                    data-testid="access-code-open-portal"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 h-9 px-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-xs font-medium text-gray-700"
                   >
                     <ExternalLink className="w-3.5 h-3.5" />
                     Open Portal
@@ -555,7 +581,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                       docsOpen ? 'rotate-90' : ''
                     }`}
                   />
-                  <span className="text-heading-sm text-gray-900">Documents & Acceptance</span>
+                  <span className="text-base font-semibold text-gray-900">Documents & Acceptance</span>
                 </div>
                 {acknowledgement ? (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
@@ -737,8 +763,8 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
 
             {/* Homeowner Activity - Sprint 3.5a.1 icon-led stat blocks. */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100">
-                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
+              <div className="px-5 py-3 border-b border-gray-100">
+                <h2 className="text-base font-semibold text-gray-900 flex items-center gap-2">
                   <Activity className="w-4 h-4 text-gold-500" />
                   Homeowner Activity
                 </h2>

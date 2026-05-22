@@ -30,10 +30,18 @@ interface IssueUnitCardProps {
 }
 
 const EXPANDED_PAGE_SIZE = 200;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 function extractUnitNumber(displayName: string): string | null {
   const match = displayName.match(/\d+[A-Za-z]?$/);
   return match ? match[0] : null;
+}
+
+function withinLast24h(iso: string | null | undefined): boolean {
+  if (!iso) return false;
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return false;
+  return Date.now() - t < TWENTY_FOUR_HOURS_MS;
 }
 
 export function IssueUnitCard({ unit, filters, onOpenIssue }: IssueUnitCardProps) {
@@ -101,6 +109,7 @@ export function IssueUnitCard({ unit, filters, onOpenIssue }: IssueUnitCardProps
           openCount={unit.open_count}
           urgentHighCount={unit.urgent_high_count}
           worstSeverity={unit.worst_severity}
+          newlyEscalated={withinLast24h(unit.latest_escalation_at)}
         />
       </div>
 
