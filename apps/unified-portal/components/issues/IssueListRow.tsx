@@ -66,7 +66,7 @@ export function IssueListRow({ row, onOpen }: IssueListRowProps) {
           </div>
           <div className="text-body-sm text-neutral-500 mt-0.5 flex items-center gap-2 min-w-0">
             {row.source === 'homeowner_escalated' ? (
-              <span className="inline-flex items-center gap-1 text-caption font-medium text-amber-700 flex-shrink-0">
+              <span className="inline-flex items-center gap-1 text-caption font-medium text-gold-950 flex-shrink-0">
                 <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 From homeowner
               </span>
@@ -83,7 +83,7 @@ export function IssueListRow({ row, onOpen }: IssueListRowProps) {
             </span>
           ) : null}
           {row.newly_escalated ? (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-medium flex-shrink-0">
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-gold-950 text-[11px] font-medium flex-shrink-0">
               Newly escalated
             </span>
           ) : null}
