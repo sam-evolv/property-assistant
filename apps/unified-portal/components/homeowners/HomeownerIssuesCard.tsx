@@ -64,12 +64,20 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
   const resolvedIssues = issues?.filter((i) => i.status === 'resolved') ?? [];
 
   return (
-    <div className="bg-white rounded-xl border-[1.5px] border-gray-200 shadow-card overflow-hidden">
+    <div
+      data-testid="reported-issues-card"
+      className="bg-white rounded-xl border-2 border-gold-200 shadow-card overflow-hidden"
+    >
       <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <FileWarning className="w-4 h-4 text-gold-500" />
-            <h2 className="text-heading-sm text-gray-900">Reported Issues</h2>
+            <h2
+              data-testid="reported-issues-title"
+              className="text-lg font-semibold text-gray-900"
+            >
+              Reported Issues
+            </h2>
           </div>
           {awaitingReview > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
@@ -95,14 +103,17 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
             {error}
           </div>
         ) : (issues?.length ?? 0) === 0 ? (
-          <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div
+            data-testid="reported-issues-empty"
+            className="flex flex-col items-center justify-center py-12 text-center"
+          >
             <div className="w-16 h-16 rounded-full bg-gold-50 flex items-center justify-center mb-4">
-              <Inbox className="w-8 h-8 text-gold-500" />
+              <Inbox className="w-8 h-8 text-gold-600" />
             </div>
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-base font-medium text-gray-700">
               No issues raised by this homeowner yet.
             </p>
-            <p className="text-xs text-gray-500 mt-1 max-w-xs">
+            <p className="text-sm text-gray-500 mt-1 max-w-xs">
               Issues raised through the assistant chat or escalated by site team will appear here.
             </p>
           </div>

@@ -98,6 +98,9 @@ function deriveUnitDisplayName(u: {
   return u.unit_code ?? u.unit_number ?? u.address_line_1 ?? 'Unit';
 }
 
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+
 type IssueRow = {
   id: string;
   tenant_id: string;
@@ -128,6 +131,7 @@ function buildResponseRow(
   mediaCount: number,
   noteCount: number,
   newlyEscalated: boolean,
+  latestEscalationAt: string | null,
 ) {
   return {
     id: r.id,
@@ -147,34 +151,55 @@ function buildResponseRow(
     resolved_at: r.resolved_at,
     logged_by_role: r.logged_by_role,
     newly_escalated: newlyEscalated,
+    latest_escalation_at: latestEscalationAt,
   };
 }
 
-// Sprint 3.5a.1: returns the set of issue IDs that had an
-// 'escalated_from_homeowner' event within the last 24 hours, so the
-// dashboard can surface a "From homeowner" marker on those rows.
-// Only queries issues whose source is currently 'homeowner_escalated',
-// which is the only set that can match.
-async function fetchNewlyEscalatedIds(
+// Sprint 3.5a.2: returns the timestamp of the most recent
+// 'escalated_from_homeowner' event per issue id (no age cutoff). Powers
+// both the 7-day sort-to-top behaviour and the 24-hour "Newly
+// escalated" pill. Only queries issues whose source is currently
+// 'homeowner_escalated', which is the only set that can match.
+async function fetchLatestEscalationTimestamps(
   supabase: ReturnType<typeof getSupabaseAdmin>,
   rows: IssueRow[],
-): Promise<Set<string>> {
+): Promise<Map<string, string>> {
   const candidateIds = rows
     .filter((r) => r.source === 'homeowner_escalated')
     .map((r) => r.id);
-  if (candidateIds.length === 0) return new Set();
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  if (candidateIds.length === 0) return new Map();
   const { data, error } = await supabase
     .from('issue_events')
-    .select('issue_report_id')
+    .select('issue_report_id, created_at')
     .eq('event_type', 'escalated_from_homeowner')
-    .gte('created_at', cutoff)
-    .in('issue_report_id', candidateIds);
+    .in('issue_report_id', candidateIds)
+    .order('created_at', { ascending: false });
   if (error) {
-    console.error('[issues-list] newly_escalated_lookup_failed reason=%s', error.message);
-    return new Set();
+    console.error('[issues-list] latest_escalation_lookup_failed reason=%s', error.message);
+    return new Map();
   }
-  return new Set((data ?? []).map((r) => r.issue_report_id as string));
+  const latest = new Map<string, string>();
+  for (const row of data ?? []) {
+    const id = row.issue_report_id as string;
+    if (!latest.has(id)) {
+      latest.set(id, row.created_at as string);
+    }
+  }
+  return latest;
+}
+
+function isFreshlyEscalated(latestEscalationAt: string | null, nowMs: number): boolean {
+  if (!latestEscalationAt) return false;
+  const t = new Date(latestEscalationAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t < SEVEN_DAYS_MS;
+}
+
+function isNewlyEscalated(latestEscalationAt: string | null, nowMs: number): boolean {
+  if (!latestEscalationAt) return false;
+  const t = new Date(latestEscalationAt).getTime();
+  if (!Number.isFinite(t)) return false;
+  return nowMs - t < TWENTY_FOUR_HOURS_MS;
 }
 
 export async function GET(request: NextRequest) {
@@ -266,9 +291,12 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  // Sprint 3.5a.2: fetch up to MAX_MATCHING_ROWS so freshly-escalated
+  // items can float to the top regardless of where the existing sort
+  // would have placed them. Sort and pagination happen in memory below.
   let query = supabase
     .from('issue_reports')
-    .select(ROW_SELECT, { count: 'exact' })
+    .select(ROW_SELECT)
     .eq('tenant_id', auth.tenantId);
 
   if (developmentIdParam) {
@@ -292,31 +320,28 @@ export async function GET(request: NextRequest) {
   if (searchTerm) {
     query = query.ilike('title', `%${escapeIlikePattern(searchTerm)}%`);
   }
+  query = query.limit(MAX_MATCHING_ROWS);
 
-  if (sortParam === 'created_at_asc') {
-    query = query.order('created_at', { ascending: true });
-  } else if (sortParam === 'severity_desc') {
-    query = query
-      .order('severity_score', { ascending: false, nullsFirst: false })
-      .order('created_at', { ascending: false });
-  } else {
-    query = query.order('created_at', { ascending: false });
-  }
-  query = query.range(offset, offset + limit - 1);
-
-  const { data: rows, error: listErr, count } = await query;
+  const { data: rows, error: listErr } = await query;
   if (listErr) {
     console.error('[issues-list] list_failed reason=%s', listErr.message);
     return NextResponse.json({ error: 'Could not load issues' }, { status: 500 });
   }
   const reportRows = (rows ?? []) as IssueRow[];
-  const issueIds = reportRows.map((r) => r.id);
+
+  const latestEscalationByIssue = await fetchLatestEscalationTimestamps(supabase, reportRows);
+  const nowMs = Date.now();
+  const sortedRows = sortFlatRows(reportRows, latestEscalationByIssue, sortParam, nowMs);
+
+  const totalCount = sortedRows.length;
+  const pagedRows = sortedRows.slice(offset, offset + limit);
+  const issueIds = pagedRows.map((r) => r.id);
 
   const unitIds = Array.from(
-    new Set(reportRows.map((r) => r.unit_id).filter((v): v is string => !!v)),
+    new Set(pagedRows.map((r) => r.unit_id).filter((v): v is string => !!v)),
   );
   const developmentIds = Array.from(
-    new Set(reportRows.map((r) => r.development_id).filter((v): v is string => !!v)),
+    new Set(pagedRows.map((r) => r.development_id).filter((v): v is string => !!v)),
   );
 
   const unitsById = new Map<string, { display_name: string }>();
@@ -356,25 +381,74 @@ export async function GET(request: NextRequest) {
   }
 
   const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, issueIds);
-  const newlyEscalatedIds = await fetchNewlyEscalatedIds(supabase, reportRows);
 
   return NextResponse.json({
-    rows: reportRows.map((r) => {
+    rows: pagedRows.map((r) => {
       const unit = r.unit_id ? unitsById.get(r.unit_id) ?? null : null;
       const dev = developmentsById.get(r.development_id) ?? null;
+      const escAt = latestEscalationByIssue.get(r.id) ?? null;
       return buildResponseRow(
         r,
         unit?.display_name ?? null,
         dev?.name ?? null,
         mediaCounts.get(r.id) ?? 0,
         noteCounts.get(r.id) ?? 0,
-        newlyEscalatedIds.has(r.id),
+        isNewlyEscalated(escAt, nowMs),
+        escAt,
       );
     }),
-    total: count ?? reportRows.length,
+    total: totalCount,
     limit,
     offset,
   });
+}
+
+function sortFlatRows(
+  rows: IssueRow[],
+  latestEscalationByIssue: Map<string, string>,
+  sortParam: string,
+  nowMs: number,
+): IssueRow[] {
+  type Decorated = {
+    row: IssueRow;
+    escAt: string | null;
+    fresh: boolean;
+    resolved: boolean;
+    createdMs: number;
+  };
+  const decorated: Decorated[] = rows.map((r) => {
+    const escAt = latestEscalationByIssue.get(r.id) ?? null;
+    return {
+      row: r,
+      escAt,
+      fresh: isFreshlyEscalated(escAt, nowMs),
+      resolved: r.status === 'resolved' || r.status === 'closed',
+      createdMs: new Date(r.created_at).getTime(),
+    };
+  });
+  decorated.sort((a, b) => {
+    const groupA = a.fresh ? 0 : a.resolved ? 2 : 1;
+    const groupB = b.fresh ? 0 : b.resolved ? 2 : 1;
+    if (groupA !== groupB) return groupA - groupB;
+
+    if (groupA === 0) {
+      const ta = new Date(a.escAt as string).getTime();
+      const tb = new Date(b.escAt as string).getTime();
+      if (tb !== ta) return tb - ta;
+    }
+
+    if (sortParam === 'severity_desc') {
+      const aSev = a.row.severity_score ?? -1;
+      const bSev = b.row.severity_score ?? -1;
+      if (aSev !== bSev) return bSev - aSev;
+      return b.createdMs - a.createdMs;
+    }
+    if (sortParam === 'created_at_asc') {
+      return a.createdMs - b.createdMs;
+    }
+    return b.createdMs - a.createdMs;
+  });
+  return decorated.map((d) => d.row);
 }
 
 type GroupedParams = {
@@ -559,12 +633,33 @@ async function handleGrouped(params: GroupedParams) {
     }
   }
 
+  // Sprint 3.5a.2: compute latest_escalation_at per issue and per unit
+  // so units with a freshly-escalated homeowner issue (within 7 days)
+  // sort above all other units.
+  const latestEscalationByIssue = await fetchLatestEscalationTimestamps(
+    supabase,
+    matchingRows,
+  );
+  const latestEscalationByUnit = new Map<string, string>();
+  for (const r of matchingRows) {
+    if (!r.unit_id) continue;
+    const escAt = latestEscalationByIssue.get(r.id);
+    if (!escAt) continue;
+    const current = latestEscalationByUnit.get(r.unit_id);
+    if (!current || new Date(escAt).getTime() > new Date(current).getTime()) {
+      latestEscalationByUnit.set(r.unit_id, escAt);
+    }
+  }
+  const nowMs = Date.now();
+
   type SortableUnit = {
     unit_id: string;
     unit_display_name: string;
     development_id: string | null;
     development_name: string | null;
     stats: UnitStats;
+    latest_escalation_at: string | null;
+    fresh: boolean;
   };
   const sortableUnits: SortableUnit[] = unitIdsWithMatches.map((id) => {
     const info = unitInfoById.get(id);
@@ -578,16 +673,28 @@ async function handleGrouped(params: GroupedParams) {
       has_urgent: false,
       has_high: false,
     };
+    const escAt = latestEscalationByUnit.get(id) ?? null;
     return {
       unit_id: id,
       unit_display_name: display,
       development_id: devId,
       development_name: devName,
       stats,
+      latest_escalation_at: escAt,
+      fresh: isFreshlyEscalated(escAt, nowMs),
     };
   });
 
   sortableUnits.sort((a, b) => {
+    if (a.fresh && b.fresh) {
+      const ta = new Date(a.latest_escalation_at as string).getTime();
+      const tb = new Date(b.latest_escalation_at as string).getTime();
+      if (tb !== ta) return tb - ta;
+    } else if (a.fresh) {
+      return -1;
+    } else if (b.fresh) {
+      return 1;
+    }
     const tierA = a.stats.has_urgent ? 0 : a.stats.has_high ? 1 : 2;
     const tierB = b.stats.has_urgent ? 0 : b.stats.has_high ? 1 : 2;
     if (tierA !== tierB) return tierA - tierB;
@@ -610,10 +717,6 @@ async function handleGrouped(params: GroupedParams) {
   }
 
   const { mediaCounts, noteCounts } = await fetchAuxCounts(supabase, topIssueIds);
-  const allTopRows = paginated.flatMap(
-    (u) => topRowsByUnit.get(u.unit_id) ?? [],
-  );
-  const newlyEscalatedIds = await fetchNewlyEscalatedIds(supabase, allTopRows);
 
   const units = paginated.map((u) => {
     const topRows = topRowsByUnit.get(u.unit_id) ?? [];
@@ -625,16 +728,19 @@ async function handleGrouped(params: GroupedParams) {
       open_count: u.stats.open_count,
       urgent_high_count: u.stats.urgent_high_count,
       worst_severity: u.stats.worst_severity,
-      issues: topRows.map((r) =>
-        buildResponseRow(
+      latest_escalation_at: u.latest_escalation_at,
+      issues: topRows.map((r) => {
+        const escAt = latestEscalationByIssue.get(r.id) ?? null;
+        return buildResponseRow(
           r,
           u.unit_display_name,
           u.development_name,
           mediaCounts.get(r.id) ?? 0,
           noteCounts.get(r.id) ?? 0,
-          newlyEscalatedIds.has(r.id),
-        ),
-      ),
+          isNewlyEscalated(escAt, nowMs),
+          escAt,
+        );
+      }),
     };
   });
 

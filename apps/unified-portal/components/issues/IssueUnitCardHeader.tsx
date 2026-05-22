@@ -21,6 +21,7 @@ interface IssueUnitCardHeaderProps {
   openCount: number;
   urgentHighCount: number;
   worstSeverity: IssueSeverity | null;
+  newlyEscalated?: boolean;
 }
 
 function urgentChipLabel(severity: IssueSeverity | null): string {
@@ -35,6 +36,7 @@ export function IssueUnitCardHeader({
   openCount,
   urgentHighCount,
   worstSeverity,
+  newlyEscalated = false,
 }: IssueUnitCardHeaderProps) {
   return (
     <div className="flex items-start gap-3">
@@ -49,6 +51,11 @@ export function IssueUnitCardHeader({
         ) : null}
       </div>
       <div className="flex items-center gap-1.5 flex-shrink-0">
+        {newlyEscalated ? (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 text-[11px] font-medium">
+            Newly escalated
+          </span>
+        ) : null}
         <IssueUnitCountChip
           variant="open"
           count={openCount}
