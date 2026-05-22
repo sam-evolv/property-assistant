@@ -82,6 +82,38 @@ export function isDeveloperDashboardEnabled(): boolean {
   );
 }
 
+/**
+ * Assistant V2 homeowner issues surface (Sprint 3.5a).
+ *
+ * Default off. When false:
+ *   - the /developer/homeowners Reported Issues card does not render
+ *   - the sidebar Homeowners notification badge does not render
+ *   - the homeowner list page card pending indicator does not render
+ *   - the /developer/settings/notifications page returns 404
+ *   - all new /api/homeowners/* routes added by Sprint 3.5a return 404
+ *     before any auth or DB work
+ *   - the /api/settings/notifications routes return 404 before any auth
+ *     or DB work
+ *   - the aftercare email notification on new homeowner-raised issues
+ *     does not fire
+ *
+ * The Recent Conversations card removal is a privacy fix that ships
+ * regardless of this flag.
+ *
+ * Server reads FEATURE_HOMEOWNER_ISSUES. Client reads
+ * NEXT_PUBLIC_FEATURE_HOMEOWNER_ISSUES (must be set separately for the
+ * bundler to inline the value at build time).
+ */
+export function isHomeownerIssuesEnabled(): boolean {
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_FEATURE_HOMEOWNER_ISSUES === 'true';
+  }
+  return (
+    process.env.FEATURE_HOMEOWNER_ISSUES === 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_HOMEOWNER_ISSUES === 'true'
+  );
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
@@ -90,5 +122,6 @@ export function getFeatureFlags() {
     assistantImageUpload: isAssistantImageUploadEnabled(),
     builderSnagApp: isBuilderSnagAppEnabled(),
     developerDashboard: isDeveloperDashboardEnabled(),
+    homeownerIssues: isHomeownerIssuesEnabled(),
   };
 }

@@ -356,7 +356,7 @@ The sprint is done when all of the following pass on Vercel preview:
 1. Sprints 1, 2, 3, and 3.1 flows are unchanged. No regression on the homeowner chat, snagger /snag form, snagger /snag/[id] view, the issues dashboard, or the unit grouped view.
 2. The Recent Conversations card no longer renders on the homeowner detail page. This is true regardless of feature flag state.
 3. With FEATURE_HOMEOWNER_ISSUES=true, the Reported Issues card renders on the homeowner detail page below or alongside the redesigned Homeowner Activity card.
-4. A homeowner uploading a photo via the assistant chat creates an issue_reports row with status = 'homeowner_new' and source = 'homeowner_assistant'.
+4. When mediaAnalysisService returns action='create_issue_report', the multimodal route creates an issue_reports row with status = 'homeowner_new' and source = 'homeowner_assistant'. Until Sprint 1b replaces the placeholder analysis, this gate does not fire under normal homeowner uploads; testing the homeowner-side workflow requires manually inserting a test issue via Supabase.
 5. The sidebar badge next to Homeowners shows the correct count of homeowner_new items across the tenant, and refreshes within 60 seconds.
 6. The list view card shows a "N issues awaiting review" line beneath the address for any homeowner with at least one homeowner_new issue.
 7. Tapping Reply and resolve captures the reply text as an issue_notes row and moves the issue to status = 'resolved', resolution_type = 'direct_reply'.

@@ -4,7 +4,8 @@
  * Assistant V2 Sprint 1. Entry point for chat messages that include
  * media. The existing text-only chat route (/api/chat) stays untouched.
  *
- * Spec: docs/specs/assistant-v2-sprint-1.md section 5.3.
+ * Spec: docs/specs/assistant-v2-sprint-1.md section 5.3,
+ * docs/specs/assistant-v2-sprint-3-5a.md section 5.1 and 5.8.
  *
  * Sprint 1 scope:
  *   1. Verify the caller's tenant via lib/assistant/media-auth.
@@ -17,14 +18,24 @@
  *   4. Return { message, analysis_id, action }. The decision engine and
  *      issue-report creation are explicitly deferred to Sprint 1b.
  *
+ * Sprint 3.5a addition:
+ *   5. When analyse returns action = 'create_issue_report', insert an
+ *      issue_reports row with source = 'homeowner_assistant' and
+ *      status = 'homeowner_new' (per spec section 5.1), link the
+ *      analysis to it, and fire a non-blocking notification to the
+ *      tenant's aftercare email. Currently the placeholder analysis
+ *      never returns this action, so this path is dormant until Sprint
+ *      1b replaces the placeholder with real multimodal reasoning.
+ *
  * Gated on FEATURE_ASSISTANT_IMAGE_UPLOAD. With the flag off this route
  * returns 404 before any work happens.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
-import { isAssistantImageUploadEnabled } from '@/lib/feature-flags';
+import { isAssistantImageUploadEnabled, isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 import {
   resolveMediaAuth,
   mediaAuthErrorToResponse,
@@ -55,6 +66,78 @@ function isUuidArray(v: unknown): v is string[] {
     v.length > 0 &&
     v.every((s) => typeof s === 'string' && UUID_RE.test(s))
   );
+}
+
+function resolveOrigin(request: NextRequest): string {
+  const host = request.headers.get('host');
+  if (host) {
+    const proto = request.headers.get('x-forwarded-proto') ?? 'https';
+    return `${proto}://${host}`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  return 'http://localhost:3000';
+}
+
+/**
+ * Fire-and-forget notification of an aftercare email for a new
+ * homeowner-raised issue. Mirrors the enrichment trigger pattern in
+ * /api/snag/create: kept alive by waitUntil so the lambda is not torn
+ * down before the outbound fetch leaves, but never blocks the response
+ * to the homeowner. The INTERNAL_ENRICHMENT_KEY env var is reused so
+ * there is one internal secret to rotate, not two.
+ *
+ * If INTERNAL_ENRICHMENT_KEY is unset the call is skipped with a single
+ * warning so the issue still gets created.
+ */
+function triggerHomeownerIssueNotification(request: NextRequest, issueReportId: string): void {
+  const internalKey = process.env.INTERNAL_ENRICHMENT_KEY;
+  if (!internalKey) {
+    console.warn(
+      '[assistant-chat-multimodal] notification_skipped reason=INTERNAL_ENRICHMENT_KEY_unset issue=%s',
+      issueReportId,
+    );
+    return;
+  }
+
+  const origin = resolveOrigin(request);
+  const url = `${origin}/api/notifications/homeowner-issue`;
+
+  try {
+    waitUntil(
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-internal-key': internalKey,
+        },
+        body: JSON.stringify({ issue_report_id: issueReportId }),
+      })
+        .then((res) => {
+          if (!res.ok) {
+            console.warn(
+              '[assistant-chat-multimodal] notification_fetch_non_ok issue=%s status=%s',
+              issueReportId,
+              res.status,
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn(
+            '[assistant-chat-multimodal] notification_fetch_rejected issue=%s reason=%s',
+            issueReportId,
+            err instanceof Error ? err.message : String(err),
+          );
+        }),
+    );
+  } catch (err) {
+    console.warn(
+      '[assistant-chat-multimodal] notification_fetch_threw issue=%s reason=%s',
+      issueReportId,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -188,11 +271,94 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // Sprint 3.5a section 5.1. When the AI determines the upload represents
+  // an actual issue (not a curiosity question, not "look at my kitchen"),
+  // create an issue_reports row in the homeowner_new state and fire the
+  // aftercare email notification. The placeholder mediaAnalysisService
+  // currently never returns 'create_issue_report', so this branch is
+  // dormant until Sprint 1b replaces the placeholder with real reasoning.
+  let createdIssueReportId: string | null = null;
+  if (result.action === 'create_issue_report' && auth.unitId && auth.developmentId) {
+    const titleSource =
+      result.structured.developer_summary?.trim() ||
+      result.structured.issue_type?.trim() ||
+      'Photo from homeowner';
+    const title = titleSource.length > 200 ? `${titleSource.slice(0, 197)}...` : titleSource;
+
+    const { data: issueRow, error: issueErr } = await supabase
+      .from('issue_reports')
+      .insert({
+        tenant_id: auth.tenantId,
+        development_id: auth.developmentId,
+        unit_id: auth.unitId,
+        user_id: auth.userId,
+        title,
+        description: messageText || result.structured.developer_summary || null,
+        room: result.structured.room ?? null,
+        status: 'homeowner_new',
+        priority: 'normal',
+        source: 'homeowner_assistant',
+        severity_label: result.structured.severity_label,
+        severity_score: result.structured.severity_score,
+        safety_risk: result.structured.safety_risk,
+        likely_trade: result.structured.likely_trade,
+        likely_system: result.structured.likely_system,
+        linked_analysis_id: result.analysisId,
+        logged_by_user_id: auth.userId,
+        logged_by_role: 'homeowner',
+      })
+      .select('id')
+      .single();
+
+    if (issueErr || !issueRow) {
+      console.error(
+        '[assistant-chat-multimodal] issue_insert_failed reason=%s',
+        issueErr?.message ?? 'no row',
+      );
+    } else {
+      createdIssueReportId = issueRow.id as string;
+
+      const mediaJoinRows = mediaIds.map((mediaId) => ({
+        tenant_id: auth.tenantId,
+        issue_report_id: createdIssueReportId,
+        media_id: mediaId,
+      }));
+      const { error: joinErr } = await supabase.from('issue_report_media').insert(mediaJoinRows);
+      if (joinErr) {
+        console.error(
+          '[assistant-chat-multimodal] issue_media_join_failed reason=%s',
+          joinErr.message,
+        );
+      }
+
+      const { error: eventErr } = await supabase.from('issue_events').insert({
+        tenant_id: auth.tenantId,
+        issue_report_id: createdIssueReportId,
+        event_type: 'homeowner_issue_created',
+        actor_type: 'homeowner',
+        actor_id: auth.userId,
+        metadata: {
+          source: 'homeowner_assistant',
+          analysis_id: result.analysisId,
+          media_count: mediaIds.length,
+        },
+      });
+      if (eventErr) {
+        console.error('[assistant-chat-multimodal] event_insert_failed reason=%s', eventErr.message);
+      }
+
+      if (isHomeownerIssuesEnabled()) {
+        triggerHomeownerIssueNotification(request, createdIssueReportId);
+      }
+    }
+  }
+
   return NextResponse.json({
     message: result.residentMessage,
     analysis_id: result.analysisId,
     action: result.action,
     message_id: messageId,
     conversation_id: conversationId,
+    issue_report_id: createdIssueReportId,
   });
 }
