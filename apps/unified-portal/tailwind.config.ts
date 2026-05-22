@@ -44,6 +44,19 @@ const config: Config = {
           900: '#8B6428',  // Dark gold
           950: '#6B4E1C',  // Very dark gold
         },
+        brand: {
+          50: '#FDF8E8',   // Very light gold tint
+          100: '#FAF0D1',  // Light gold cream
+          200: '#F5E2AA',  // Soft gold
+          300: '#EED07C',  // Warm gold
+          400: '#E5BC4E',  // Medium gold
+          500: '#D4AF37',  // Primary premium gold
+          600: '#C9A961',  // Darker gold
+          700: '#B8934C',  // Deep gold
+          800: '#A67C3A',  // Rich gold
+          900: '#8B6428',  // Dark gold
+          950: '#6B4E1C',  // Very dark gold
+        },
         grey: {
           50: '#F9FAFB',
           100: '#F3F4F6',
