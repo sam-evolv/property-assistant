@@ -12,10 +12,12 @@ import {
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
   Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList
 } from 'lucide-react';
-import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled } from '@/lib/feature-flags';
+import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled, isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
+import { HomeownersBadge } from '@/components/developer/HomeownersBadge';
 import { useCurrentContext } from '@/contexts/CurrentContext';
+import { useSafeAuth } from '@/contexts/AuthContext';
 
 interface SidebarMenuProps {
   children: React.ReactNode;
@@ -27,12 +29,14 @@ interface NavSection {
     label: string;
     href: string;
     icon: any;
+    rightAccessory?: 'homeowners_badge';
   }>;
 }
 
-function buildBtsNavSections(): NavSection[] {
+function buildBtsNavSections(opts: { isAdmin: boolean }): NavSection[] {
   const dashboardOn = isDeveloperDashboardEnabled();
   const snagAppOn = isBuilderSnagAppEnabled();
+  const homeownerIssuesOn = isHomeownerIssuesEnabled();
 
   const snaggingItems: NavSection['items'] = [];
   if (dashboardOn) {
@@ -40,6 +44,15 @@ function buildBtsNavSections(): NavSection[] {
   }
   if (snagAppOn) {
     snaggingItems.push({ label: 'Team', href: '/developer/snaggers', icon: UserPlus });
+  }
+
+  const homeownersItem: NavSection['items'][number] = {
+    label: 'Homeowners',
+    href: '/developer/homeowners',
+    icon: Users,
+  };
+  if (homeownerIssuesOn) {
+    homeownersItem.rightAccessory = 'homeowners_badge';
   }
 
   const sections: NavSection[] = [
@@ -57,6 +70,17 @@ function buildBtsNavSections(): NavSection[] {
     sections.push({ title: 'Snagging', items: snaggingItems });
   }
 
+  const settingsItems: NavSection['items'] = [
+    { label: 'Integrations', href: '/developer/integrations', icon: Plug },
+  ];
+  if (homeownerIssuesOn && opts.isAdmin) {
+    settingsItems.push({
+      label: 'Notifications',
+      href: '/developer/settings/notifications',
+      icon: Mail,
+    });
+  }
+
   sections.push(
     {
       title: 'Developer Tools',
@@ -70,7 +94,7 @@ function buildBtsNavSections(): NavSection[] {
     {
       title: 'Management',
       items: [
-        { label: 'Homeowners', href: '/developer/homeowners', icon: Users },
+        homeownersItem,
         { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
         { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
         { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
@@ -94,9 +118,7 @@ function buildBtsNavSections(): NavSection[] {
     },
     {
       title: 'Settings',
-      items: [
-        { label: 'Integrations', href: '/developer/integrations', icon: Plug },
-      ],
+      items: settingsItems,
     },
   );
 
@@ -128,6 +150,8 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const [signingOut, setSigningOut] = useState(false);
   const { developmentId, projectType: contextProjectType } = useCurrentContext();
   const [fetchedProjectType, setFetchedProjectType] = useState<string | null>(null);
+  const { userRole } = useSafeAuth();
+  const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
   useEffect(() => {
     if (!developmentId) {
@@ -160,12 +184,12 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const effectiveProjectType = contextProjectType || fetchedProjectType || 'bts';
 
   const navSections = useMemo(() => {
-    const sections = buildBtsNavSections();
+    const sections = buildBtsNavSections({ isAdmin });
     if (developmentId && (effectiveProjectType === 'btr' || effectiveProjectType === 'mixed')) {
       sections.push(...getBtrNavSections(developmentId));
     }
     return sections;
-  }, [developmentId, effectiveProjectType]);
+  }, [developmentId, effectiveProjectType, isAdmin]);
 
   const isActive = (href: string) => {
     if (href === '/developer') {
@@ -218,6 +242,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
                     >
                       <Icon className="w-4 h-4 flex-shrink-0" />
                       <span>{item.label}</span>
+                      {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
                     </Link>
                   );
                 })}
@@ -302,6 +327,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
                       >
                         <Icon className="w-4 h-4 flex-shrink-0" />
                         <span>{item.label}</span>
+                        {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
                       </Link>
                     );
                   })}
