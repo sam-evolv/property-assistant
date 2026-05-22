@@ -29,6 +29,11 @@ export interface IssueListRow {
   created_at: string;
   resolved_at: string | null;
   logged_by_role: string | null;
+  // Sprint 3.5a.1: true when source is 'homeowner_escalated' and the
+  // most recent 'escalated_from_homeowner' event landed within 24h.
+  // Used to render a "From homeowner" marker on dashboard rows. Older
+  // server responses without this field fall through as undefined.
+  newly_escalated?: boolean;
 }
 
 export interface IssueListResponse {

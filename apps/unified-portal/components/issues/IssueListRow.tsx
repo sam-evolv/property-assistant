@@ -64,8 +64,14 @@ export function IssueListRow({ row, onOpen }: IssueListRowProps) {
               />
             ) : null}
           </div>
-          <div className="text-body-sm text-neutral-500 truncate mt-0.5">
-            {subtitle || 'No location'}
+          <div className="text-body-sm text-neutral-500 mt-0.5 flex items-center gap-2 min-w-0">
+            {row.newly_escalated ? (
+              <span className="inline-flex items-center gap-1 text-caption font-medium text-amber-700 flex-shrink-0">
+                <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                From homeowner
+              </span>
+            ) : null}
+            <span className="truncate">{subtitle || 'No location'}</span>
           </div>
         </div>
 
