@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useEffect, useState } from 'react';
-import { AlertCircle, FileWarning } from 'lucide-react';
+import { AlertCircle, FileWarning, Inbox } from 'lucide-react';
 import { HomeownerIssueRow } from './HomeownerIssueRow';
 import { HomeownerIssue, HomeownerIssuesResponse, compareIssues } from './types';
 
@@ -64,20 +64,22 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
   const resolvedIssues = issues?.filter((i) => i.status === 'resolved') ?? [];
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-      <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <FileWarning className="w-5 h-5 text-gold-500" />
-          <h2 className="font-semibold text-gray-900">Reported Issues</h2>
+    <div className="bg-white rounded-xl border-[1.5px] border-gray-200 shadow-card overflow-hidden">
+      <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <FileWarning className="w-4 h-4 text-gold-500" />
+            <h2 className="text-heading-sm text-gray-900">Reported Issues</h2>
+          </div>
           {awaitingReview > 0 && (
-            <span className="text-sm font-normal text-amber-700">
-              ({awaitingReview} awaiting review)
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+              {awaitingReview} awaiting review
             </span>
           )}
         </div>
       </div>
 
-      <div className="p-5">
+      <div className="p-6">
         {loading ? (
           <div className="space-y-2" aria-busy="true">
             {[0, 1].map((i) => (
@@ -93,8 +95,16 @@ export function HomeownerIssuesCard({ homeownerId, homeownerName }: HomeownerIss
             {error}
           </div>
         ) : (issues?.length ?? 0) === 0 ? (
-          <div className="text-center py-10 text-sm text-gray-600">
-            No issues raised by this homeowner yet.
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-16 h-16 rounded-full bg-gold-50 flex items-center justify-center mb-4">
+              <Inbox className="w-8 h-8 text-gold-500" />
+            </div>
+            <p className="text-sm font-medium text-gray-900">
+              No issues raised by this homeowner yet.
+            </p>
+            <p className="text-xs text-gray-500 mt-1 max-w-xs">
+              Issues raised through the assistant chat or escalated by site team will appear here.
+            </p>
           </div>
         ) : (
           <div className="space-y-3">

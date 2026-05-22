@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   User,
-  Home,
   Building2,
   MessageSquare,
   CheckCircle2,
@@ -17,7 +16,6 @@ import {
   ExternalLink,
   FileText,
   Activity,
-  Calendar,
   Shield,
   Globe,
   Monitor,
@@ -26,7 +24,8 @@ import {
   Save,
   X,
   Key,
-  CalendarCheck
+  CalendarCheck,
+  ChevronRight,
 } from 'lucide-react';
 import { isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 import { HomeownerIssuesCard } from '@/components/homeowners/HomeownerIssuesCard';
@@ -109,6 +108,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [docsOpen, setDocsOpen] = useState(false);
 
   useEffect(() => {
     fetchHomeownerDetails();
@@ -289,35 +289,37 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      {/* Header strip (Sprint 3.5a compact treatment) */}
-      <div className="bg-white/80 backdrop-blur-sm border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <Link href="/developer/homeowners" className="text-gold-500 hover:text-gold-600 flex items-center gap-1 mb-2 text-sm">
-            <ArrowLeft className="w-4 h-4" />
+      {/* Sprint 3.5a.1 compact header strip. Back link sits above the
+          avatar row so the strip itself stays around 80px tall once the
+          page is scrolled. No bottom border; the cards below provide the
+          visual edge. */}
+      <div className="bg-white/80 backdrop-blur-sm sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-3">
+          <Link href="/developer/homeowners" className="text-gold-500 hover:text-gold-600 inline-flex items-center gap-1 mb-2 text-xs">
+            <ArrowLeft className="w-3.5 h-3.5" />
             Back to Homeowners
           </Link>
           <div className="flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-base shadow-sm">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-gold-500 to-gold-600 text-white flex items-center justify-center font-semibold text-base shadow-sm flex-shrink-0">
                 {(homeowner.name || 'U').trim().charAt(0).toUpperCase()}
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 leading-tight">{homeowner.name}</h1>
-                <div className="flex items-center gap-1.5 mt-0.5 text-xs text-gray-500">
-                  <Building2 className="w-3.5 h-3.5" />
+              <div className="min-w-0">
+                <h1 className="text-lg font-bold text-gray-900 leading-tight truncate">{homeowner.name}</h1>
+                <p className="text-xs text-gray-500 truncate leading-tight mt-0.5">
                   {homeowner.development?.name || 'Unknown Development'}
-                </div>
+                </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               {acknowledgement ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-50 text-green-700 text-xs font-medium rounded-full">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+                  <CheckCircle2 className="w-3 h-3" />
                   Documents Acknowledged
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
-                  <Clock className="w-3.5 h-3.5" />
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
+                  <Clock className="w-3 h-3" />
                   Pending Acknowledgement
                 </span>
               )}
@@ -326,33 +328,36 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
         </div>
       </div>
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Profile & QR */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Profile Card */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-12">
+        {/* Sprint 3.5a.1: explicit 4/8 split out of 12 so the Reported
+            Issues column on the right is the visual centre. Mobile stacks. */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* Left column - 33% on desktop */}
+          <div className="lg:col-span-4 space-y-6">
+            {/* Profile Details - compact, no field icons. Edit becomes a
+                small inline link in the header. */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-gray-100 flex items-center justify-between">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <User className="w-5 h-5 text-gold-500" />
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
+                  <User className="w-4 h-4 text-gold-500" />
                   Profile Details
                 </h2>
                 {!isEditing ? (
                   <button
                     onClick={() => setIsEditing(true)}
-                    className="text-sm text-gold-600 hover:text-gold-700 flex items-center gap-1"
+                    className="text-xs text-gold-600 hover:text-gold-700 inline-flex items-center gap-1"
                   >
-                    <Edit3 className="w-4 h-4" />
+                    <Edit3 className="w-3.5 h-3.5" />
                     Edit
                   </button>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={handleSave}
                       disabled={saving}
-                      className="text-sm text-green-600 hover:text-green-700 flex items-center gap-1 disabled:opacity-50"
+                      className="text-xs text-green-600 hover:text-green-700 inline-flex items-center gap-1 disabled:opacity-50"
                     >
-                      <Save className="w-4 h-4" />
+                      <Save className="w-3.5 h-3.5" />
                       {saving ? 'Saving...' : 'Save'}
                     </button>
                     <button
@@ -365,192 +370,328 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                           development_id: homeowner.development_id || '',
                         });
                       }}
-                      className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
+                      className="text-xs text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
                     >
-                      <X className="w-4 h-4" />
+                      <X className="w-3.5 h-3.5" />
                       Cancel
                     </button>
                   </div>
                 )}
               </div>
-              <div className="p-5 space-y-4">
+              <div className="p-5">
                 {isEditing ? (
-                  <>
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
                       <input
                         type="text"
                         value={editForm.name}
                         onChange={(e) => setEditForm(prev => ({ ...prev, name: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">House Type</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">House Type</label>
                       <input
                         type="text"
                         value={editForm.house_type}
                         onChange={(e) => setEditForm(prev => ({ ...prev, house_type: e.target.value }))}
                         placeholder="e.g., BS01, BD03"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Address</label>
                       <input
                         type="text"
                         value={editForm.address}
                         onChange={(e) => setEditForm(prev => ({ ...prev, address: e.target.value }))}
                         placeholder="Unit address"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Development</label>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Development</label>
                       <select
                         value={editForm.development_id}
                         onChange={(e) => setEditForm(prev => ({ ...prev, development_id: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-gold-500"
                       >
                         {developments.map(dev => (
                           <option key={dev.id} value={dev.id}>{dev.name}</option>
                         ))}
                       </select>
                     </div>
-                  </>
+                  </div>
                 ) : (
-                  <>
-                    <div className="flex items-start gap-3">
-                      <Home className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">House Type</p>
-                        <p className="font-medium text-gray-900">{homeowner.house_type || 'Not specified'}</p>
-                      </div>
+                  <dl className="space-y-3 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">House Type</dt>
+                      <dd className="font-medium text-gray-900 text-right">{homeowner.house_type || 'Not specified'}</dd>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <Building2 className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Address</p>
-                        <p className="font-medium text-gray-900">{homeowner.address || 'Not specified'}</p>
-                      </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">Address</dt>
+                      <dd className="font-medium text-gray-900 text-right">{homeowner.address || 'Not specified'}</dd>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <Calendar className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Added</p>
-                        <p className="font-medium text-gray-900">
-                          {new Date(homeowner.created_at).toLocaleDateString('en-GB', {
-                            day: 'numeric',
-                            month: 'long',
-                            year: 'numeric'
-                          })}
-                        </p>
-                      </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-gray-500">Added</dt>
+                      <dd className="font-medium text-gray-900 text-right">
+                        {new Date(homeowner.created_at).toLocaleDateString('en-GB', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric'
+                        })}
+                      </dd>
                     </div>
-                  </>
+                  </dl>
                 )}
               </div>
             </div>
 
-            {/* Access Code & Portal Card */}
+            {/* Access Code & Portal - compact treatment */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Key className="w-5 h-5 text-gold-500" />
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
+                  <Key className="w-4 h-4 text-gold-500" />
                   Access Code & Portal
                 </h2>
               </div>
-              <div className="p-5 space-y-4">
-                {/* Access Code */}
+              <div className="p-5 space-y-3">
                 {homeowner.access_code && (
-                  <div className="bg-gradient-to-r from-gold-50 to-amber-50 rounded-lg p-4 border border-gold-200">
-                    <p className="text-xs text-gold-700 font-medium mb-2">Access Code</p>
+                  <div className="bg-gold-50 rounded-lg p-3 border border-gold-200">
+                    <p className="text-xs text-gold-700 font-medium mb-1.5">Access Code</p>
                     <div className="flex items-center gap-2">
-                      <code className="text-lg font-bold bg-white px-3 py-1.5 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800">
+                      <code className="text-sm font-semibold bg-white px-2.5 py-1 rounded border border-gold-300 flex-1 text-center tracking-wider text-gold-800">
                         {homeowner.access_code}
                       </code>
                       <button
                         onClick={() => copyToClipboard(homeowner.access_code || '')}
-                        className="p-2 hover:bg-gold-100 rounded-lg transition-colors"
+                        className="p-1.5 hover:bg-gold-100 rounded transition-colors"
                         title="Copy Access Code"
                       >
-                        {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gold-600" />}
+                        {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-gold-600" />}
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* Portal Type Status */}
-                <div className={`rounded-lg p-4 ${homeowner.is_handed_over ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
-                  <div className="flex items-center gap-2 mb-2">
+                <div className={`rounded-lg p-3 ${homeowner.is_handed_over ? 'bg-green-50 border border-green-200' : 'bg-blue-50 border border-blue-200'}`}>
+                  <div className="flex items-center gap-1.5 mb-1">
                     {homeowner.is_handed_over ? (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        <span className="text-sm font-medium text-green-700">Property Handed Over</span>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                        <span className="text-xs font-medium text-green-700">Property Handed Over</span>
                       </>
                     ) : (
                       <>
-                        <Clock className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-700">Pre-Handover</span>
+                        <Clock className="w-3.5 h-3.5 text-blue-600" />
+                        <span className="text-xs font-medium text-blue-700">Pre-Handover</span>
                       </>
                     )}
                   </div>
                   <p className="text-xs text-gray-600">
-                    {homeowner.is_handed_over 
+                    {homeowner.is_handed_over
                       ? 'Access code grants Property Assistant portal access'
-                      : 'Access code grants Pre-Handover Portal access'
-                    }
+                      : 'Access code grants Pre-Handover Portal access'}
                   </p>
                   {homeowner.handover_date && (
-                    <div className="flex items-center gap-1.5 mt-2 text-xs text-gray-500">
-                      <CalendarCheck className="w-3.5 h-3.5" />
+                    <div className="flex items-center gap-1.5 mt-1.5 text-xs text-gray-500">
+                      <CalendarCheck className="w-3 h-3" />
                       Handover: {new Date(homeowner.handover_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </div>
                   )}
                 </div>
 
-                {/* Portal URL */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-xs text-gray-500 mb-2">Portal URL</p>
+                <div className="bg-gray-50 rounded-lg p-3">
+                  <p className="text-xs text-gray-500 mb-1.5">Portal URL</p>
                   <div className="flex items-center gap-2">
                     <code className="text-xs bg-white px-2 py-1 rounded border border-gray-200 flex-1 truncate">
                       {getQRPortalUrl()}
                     </code>
                     <button
                       onClick={() => copyToClipboard(getQRPortalUrl())}
-                      className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                      className="p-1.5 hover:bg-gray-200 rounded transition-colors"
                       title="Copy URL"
                     >
-                      {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4 text-gray-600" />}
+                      {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5 text-gray-600" />}
                     </button>
                   </div>
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={downloadQRCode}
-                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-gold-500 to-gold-600 text-white rounded-lg hover:from-gold-600 hover:to-gold-700 transition-all text-sm font-medium"
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition text-xs font-medium"
                   >
-                    <Download className="w-4 h-4" />
+                    <Download className="w-3.5 h-3.5" />
                     Download QR
                   </button>
                   <a
                     href={getQRPortalUrl()}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium text-gray-700"
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition text-xs font-medium text-gray-700"
                   >
-                    <ExternalLink className="w-4 h-4" />
+                    <ExternalLink className="w-3.5 h-3.5" />
                     Open Portal
                   </a>
                 </div>
               </div>
             </div>
 
+            {/* Sprint 3.5a.1 Documents & Acceptance collapsible. Wraps the
+                two acknowledgement cards that used to live in the right
+                column. Closed by default; the header surfaces the overall
+                acknowledgement status. */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDocsOpen((v) => !v)}
+                className="w-full flex items-center justify-between gap-2 px-5 py-4 hover:bg-gray-50 transition-colors"
+                aria-expanded={docsOpen}
+              >
+                <div className="flex items-center gap-2">
+                  <ChevronRight
+                    className={`w-4 h-4 text-gray-400 transition-transform duration-200 ease-out ${
+                      docsOpen ? 'rotate-90' : ''
+                    }`}
+                  />
+                  <span className="text-heading-sm text-gray-900">Documents & Acceptance</span>
+                </div>
+                {acknowledgement ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+                    <CheckCircle2 className="w-3 h-3" />
+                    Acknowledged
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-700 text-xs font-medium rounded-full">
+                    <Clock className="w-3 h-3" />
+                    Pending
+                  </span>
+                )}
+              </button>
+              {docsOpen && (
+                <div className="border-t border-gray-100 divide-y divide-gray-100">
+                  {/* Community Noticeboard Terms - nested, reduced chrome */}
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <MessageSquare className="w-4 h-4 text-gold-500" />
+                      <h3 className="text-sm font-semibold text-gray-900">Community Noticeboard Terms</h3>
+                    </div>
+                    {noticeboard_terms ? (
+                      <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                        <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-green-800">Guidelines Accepted</p>
+                          <p className="text-xs text-green-700">
+                            Agreed on {new Date(noticeboard_terms.accepted_at).toLocaleDateString('en-GB', {
+                              day: 'numeric',
+                              month: 'long',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <Clock className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Not Yet Accepted</p>
+                          <p className="text-xs text-gray-500">
+                            They will be prompted to accept the community noticeboard guidelines before their first post.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Must-Read Document Acknowledgement - nested, reduced chrome */}
+                  <div className="p-5">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Shield className="w-4 h-4 text-gold-500" />
+                      <h3 className="text-sm font-semibold text-gray-900">Must-Read Document Acknowledgement</h3>
+                    </div>
+                    {acknowledgement ? (
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3 p-3 bg-green-50 rounded-lg border border-green-200">
+                          <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-green-800">Documents Acknowledged</p>
+                            <p className="text-xs text-green-700">
+                              Agreed on {new Date(acknowledgement.agreed_at).toLocaleDateString('en-GB', {
+                                day: 'numeric',
+                                month: 'long',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <div className="flex items-start gap-2 text-xs">
+                            <User className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <span className="text-gray-500">Acknowledged by </span>
+                              <span className="text-gray-900 font-medium">{acknowledgement.purchaser_name || 'Unknown'}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-start gap-2 text-xs">
+                            <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                            <div className="min-w-0">
+                              <span className="text-gray-500">IP </span>
+                              <span className="text-gray-900 font-mono">{acknowledgement.ip_address || 'Not recorded'}</span>
+                            </div>
+                          </div>
+                          {acknowledgement.user_agent && (
+                            <div className="flex items-start gap-2 text-xs">
+                              <Monitor className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />
+                              <div className="min-w-0 flex-1">
+                                <p className="text-gray-500">Device</p>
+                                <p className="text-gray-700 truncate">{acknowledgement.user_agent}</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+
+                        {acknowledgement.documents_acknowledged.length > 0 && (
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-2">Documents ({acknowledgement.documents_acknowledged.length})</p>
+                            <ul className="space-y-1">
+                              {acknowledgement.documents_acknowledged.map((doc, index) => (
+                                <li key={doc.id || index} className="flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 rounded text-xs">
+                                  <FileText className="w-3.5 h-3.5 text-gold-500 flex-shrink-0" />
+                                  <span className="text-gray-700 truncate">{doc.title}</span>
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-green-500 flex-shrink-0 ml-auto" />
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex items-start gap-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+                        <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-sm font-medium text-gray-900">No Acknowledgement Recorded</p>
+                          <p className="text-xs text-gray-600">
+                            This homeowner has not yet acknowledged the must-read documents. They will be prompted on first access.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Danger Zone */}
             <div className="bg-white rounded-xl border border-red-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-red-100 bg-red-50">
-                <h2 className="font-semibold text-red-700 flex items-center gap-2">
-                  <Trash2 className="w-5 h-5" />
+              <div className="px-5 py-4 border-b border-red-100 bg-red-50">
+                <h2 className="text-sm font-semibold text-red-700 flex items-center gap-2">
+                  <Trash2 className="w-4 h-4" />
                   Danger Zone
                 </h2>
               </div>
@@ -558,7 +699,7 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                 {!showDeleteConfirm ? (
                   <button
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="w-full px-4 py-2.5 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
+                    className="w-full px-3 py-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors text-sm font-medium"
                   >
                     Delete Homeowner
                   </button>
@@ -571,13 +712,13 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                       <button
                         onClick={handleDelete}
                         disabled={deleting}
-                        className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
+                        className="flex-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium disabled:opacity-50"
                       >
                         {deleting ? 'Deleting...' : 'Confirm Delete'}
                       </button>
                       <button
                         onClick={() => setShowDeleteConfirm(false)}
-                        className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-sm font-medium"
                       >
                         Cancel
                       </button>
@@ -588,162 +729,55 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
             </div>
           </div>
 
-          {/* Right Column - Reported Issues + Activity + Acknowledgement */}
-          <div className="lg:col-span-2 space-y-6">
+          {/* Right column - 67% on desktop, anchored by the Reported Issues card. */}
+          <div className="lg:col-span-8 space-y-6">
             {homeownerIssuesOn && (
               <HomeownerIssuesCard homeownerId={homeownerId} homeownerName={homeowner.name} />
             )}
 
-            {/* Homeowner Activity (Sprint 3.5a, replaces Chat Activity & Engagement
-                and the Recent Conversations card. Aggregate stats only, no verbatim
-                chat text per the privacy fix in section 1 of the spec.) */}
+            {/* Homeowner Activity - Sprint 3.5a.1 icon-led stat blocks. */}
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Activity className="w-5 h-5 text-gold-500" />
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h2 className="text-heading-sm text-gray-900 flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-gold-500" />
                   Homeowner Activity
                 </h2>
               </div>
               <div className="p-5">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500 mb-1">Total messages</p>
-                    <p className="text-2xl font-bold text-gray-900">{activity.total_messages}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
+                      <MessageSquare className="w-4 h-4 text-gold-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-2xl font-semibold text-gray-900 leading-tight">{activity.total_messages}</p>
+                      <p className="text-[13px] text-gray-600">Total messages</p>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500 mb-1">Engagement level</p>
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${engagement.className}`}>
-                      {engagement.label}
-                    </span>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
+                      <Activity className="w-4 h-4 text-gold-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="leading-tight">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${engagement.className}`}>
+                          {engagement.label}
+                        </span>
+                      </div>
+                      <p className="text-[13px] text-gray-600 mt-1">Engagement level</p>
+                    </div>
                   </div>
-                  <div className="bg-gray-50 rounded-lg p-4">
-                    <p className="text-xs text-gray-500 mb-1">Last active</p>
-                    <p className="text-sm font-medium text-gray-900">{formatRelativeTime(activity.last_message)}</p>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-gold-50 flex items-center justify-center flex-shrink-0">
+                      <Clock className="w-4 h-4 text-gold-700" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-base font-semibold text-gray-900 leading-tight truncate">{formatRelativeTime(activity.last_message)}</p>
+                      <p className="text-[13px] text-gray-600">Last active</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-
-            {/* Community Noticeboard Terms */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <MessageSquare className="w-5 h-5 text-gold-500" />
-                  Community Noticeboard Terms
-                </h2>
-              </div>
-              {noticeboard_terms ? (
-                <div className="p-5">
-                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-800">Guidelines Accepted</p>
-                      <p className="text-sm text-green-600">
-                        Agreed on {new Date(noticeboard_terms.accepted_at).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="p-5">
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                    <Clock className="w-6 h-6 text-gray-400" />
-                    <div>
-                      <p className="font-medium text-gray-700">Not Yet Accepted</p>
-                      <p className="text-sm text-gray-500">
-                        This homeowner has not yet accepted the community noticeboard guidelines.
-                        They will be prompted to do so before their first post.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Acknowledgement Details */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-              <div className="p-5 border-b border-gray-100">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Shield className="w-5 h-5 text-gold-500" />
-                  Must-Read Document Acknowledgement
-                </h2>
-              </div>
-              {acknowledgement ? (
-                <div className="p-5 space-y-6">
-                  <div className="flex items-center gap-3 p-4 bg-green-50 rounded-lg border border-green-200">
-                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                    <div>
-                      <p className="font-medium text-green-800">Documents Acknowledged</p>
-                      <p className="text-sm text-green-600">
-                        Agreed on {new Date(acknowledgement.agreed_at).toLocaleDateString('en-GB', {
-                          day: 'numeric',
-                          month: 'long',
-                          year: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Audit Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <User className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-700">Acknowledged By</span>
-                      </div>
-                      <p className="text-gray-900">{acknowledgement.purchaser_name || 'Unknown'}</p>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center gap-2 mb-2">
-                        <Globe className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm font-medium text-gray-700">IP Address</span>
-                      </div>
-                      <p className="text-gray-900 font-mono text-sm">{acknowledgement.ip_address || 'Not recorded'}</p>
-                    </div>
-                    {acknowledgement.user_agent && (
-                      <div className="bg-gray-50 rounded-lg p-4 md:col-span-2">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Monitor className="w-4 h-4 text-gray-400" />
-                          <span className="text-sm font-medium text-gray-700">Device</span>
-                        </div>
-                        <p className="text-gray-600 text-sm truncate">{acknowledgement.user_agent}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Documents List */}
-                  {acknowledgement.documents_acknowledged.length > 0 && (
-                    <div>
-                      <h3 className="text-sm font-medium text-gray-700 mb-3">Documents Acknowledged ({acknowledgement.documents_acknowledged.length})</h3>
-                      <div className="space-y-2">
-                        {acknowledgement.documents_acknowledged.map((doc, index) => (
-                          <div key={doc.id || index} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                            <FileText className="w-4 h-4 text-gold-500" />
-                            <span className="text-sm text-gray-700">{doc.title}</span>
-                            <CheckCircle2 className="w-4 h-4 text-green-500 ml-auto" />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-8 text-center">
-                  <AlertCircle className="w-12 h-12 text-amber-400 mx-auto mb-4" />
-                  <h3 className="font-medium text-gray-900 mb-2">No Acknowledgement Recorded</h3>
-                  <p className="text-sm text-gray-500 max-w-md mx-auto">
-                    This homeowner has not yet acknowledged the must-read documents. They will be prompted to do so when they access their portal.
-                  </p>
-                </div>
-              )}
             </div>
           </div>
         </div>
