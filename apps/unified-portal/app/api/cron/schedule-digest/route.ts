@@ -8,15 +8,15 @@
  *
  * Spec: docs/specs/assistant-v2-sprint-4.md section 5.7.
  *
- * Auth. Reuses the INTERNAL_ENRICHMENT_KEY env var (same secret used
- * by /api/snag/enrich and /api/notifications/homeowner-issue) to avoid
- * introducing a second internal-only credential. The header check uses
- * crypto.timingSafeEqual. As a secondary acceptable proof, an
- * Authorization: Bearer with the Supabase service-role key is also
- * accepted, mirroring the other internal routes. Vercel Cron's own
- * Bearer CRON_SECRET is intentionally not accepted in V1; the cron
- * entry is there so the Vercel project tracks the schedule, but the
- * acceptance criterion is satisfied by manual curl invocation.
+ * Auth. Two acceptable paths:
+ *   1. Authorization: Bearer <CRON_SECRET> - what Vercel Cron sends
+ *      automatically when triggering scheduled invocations. Same env
+ *      var used by /api/cron/refresh-tokens and
+ *      /api/cron/send-scheduled-broadcasts.
+ *   2. x-internal-key: <INTERNAL_ENRICHMENT_KEY> - for manual curl
+ *      testing, matching the homeowner-issue notification route.
+ * Both comparisons use crypto.timingSafeEqual so the route is not
+ * vulnerable to timing oracles. Any other request returns 401.
  *
  * Iteration. The spec's "tenants with FEATURE_SCHEDULE enabled" gate
  * is global today (env var, not per-tenant). For V1 we iterate every
@@ -88,19 +88,19 @@ function safeEqual(a: string, b: string): boolean {
   return timingSafeEqual(ba, bb);
 }
 
-function isInternalCaller(request: NextRequest): boolean {
+function isAuthorisedCaller(request: NextRequest): boolean {
+  const auth = request.headers.get('authorization');
+  if (auth?.startsWith('Bearer ')) {
+    const token = auth.slice(7);
+    const cronSecret = process.env.CRON_SECRET;
+    if (cronSecret && safeEqual(token, cronSecret)) {
+      return true;
+    }
+  }
   const internalKey = process.env.INTERNAL_ENRICHMENT_KEY;
   const headerKey = request.headers.get('x-internal-key');
   if (internalKey && headerKey && safeEqual(headerKey, internalKey)) {
     return true;
-  }
-  const auth = request.headers.get('authorization');
-  if (auth?.startsWith('Bearer ')) {
-    const token = auth.slice(7);
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (serviceKey && safeEqual(token, serviceKey)) {
-      return true;
-    }
   }
   return false;
 }
@@ -162,8 +162,8 @@ export async function POST(request: NextRequest) {
     return snagFeatureDisabledResponse();
   }
 
-  if (!isInternalCaller(request)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (!isAuthorisedCaller(request)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const supabase = getSupabaseAdmin();

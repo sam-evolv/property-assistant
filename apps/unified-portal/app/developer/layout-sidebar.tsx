@@ -10,9 +10,9 @@ import {
   FolderArchive, MessageSquare, Shield, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList
+  Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList, Calendar
 } from 'lucide-react';
-import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled, isHomeownerIssuesEnabled } from '@/lib/feature-flags';
+import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled, isHomeownerIssuesEnabled, isScheduleEnabled } from '@/lib/feature-flags';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { HomeownersBadge } from '@/components/developer/HomeownersBadge';
@@ -37,6 +37,7 @@ function buildBtsNavSections(opts: { isAdmin: boolean }): NavSection[] {
   const dashboardOn = isDeveloperDashboardEnabled();
   const snagAppOn = isBuilderSnagAppEnabled();
   const homeownerIssuesOn = isHomeownerIssuesEnabled();
+  const scheduleOn = isScheduleEnabled();
 
   const snaggingItems: NavSection['items'] = [];
   if (dashboardOn) {
@@ -95,6 +96,9 @@ function buildBtsNavSections(opts: { isAdmin: boolean }): NavSection[] {
       title: 'Management',
       items: [
         homeownersItem,
+        ...(scheduleOn
+          ? [{ label: 'Schedule', href: '/developer/schedule', icon: Calendar }]
+          : []),
         { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
         { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
         { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
