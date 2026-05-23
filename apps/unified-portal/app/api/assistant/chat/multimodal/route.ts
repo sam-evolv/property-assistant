@@ -39,6 +39,7 @@ import {
   isAssistantImageUploadEnabled,
   isHomeownerIssuesEnabled,
   isHousingReasoningV1Enabled,
+  isOpenhouseAgentV1Enabled,
 } from '@/lib/feature-flags';
 import {
   resolveMediaAuth,
@@ -54,6 +55,12 @@ import {
 import { analyseMessage } from '@/lib/housing-reasoning/v1/service';
 import { HOUSING_REASONING_V1_PROMPT_VERSION } from '@/lib/housing-reasoning/v1/prompt';
 import type { HousingReasoningResult, IssueSeverity } from '@/lib/housing-reasoning/v1/types';
+import { callAgent } from '@/lib/openhouse-agent/v1/service';
+import { OPENHOUSE_AGENT_V1_PROMPT_VERSION } from '@/lib/openhouse-agent/v1/prompt';
+import type {
+  OpenhouseAgentResult,
+  OpenhouseAgentHouseContext,
+} from '@/lib/openhouse-agent/v1/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -274,17 +281,232 @@ export async function POST(request: NextRequest) {
     (mediaRows[0]?.message_id as string | null | undefined) ??
     randomUUID();
 
-  // Media analysis is feature-gated. With FEATURE_HOUSING_REASONING_V1 on, run
-  // the OpenAI gpt-4o housing-reasoning service (Sprint 1b). With it off, fall
-  // back to the unchanged Sprint 1 placeholder. The flag is read per-request,
-  // so rollback is a config change (set the env var false, redeploy) with no
-  // code revert. See lib/housing-reasoning/v1/service.ts.
+  // Media analysis is feature-gated with three tiers, in priority order:
+  //   1. FEATURE_OPENHOUSE_AGENT_V1   -> OpenHouse Assistant general home agent
+  //                                      (Sprint 2). See lib/openhouse-agent/v1.
+  //   2. FEATURE_HOUSING_REASONING_V1 -> OpenAI gpt-4o snag-triage service
+  //                                      (Sprint 1b). See lib/housing-reasoning/v1.
+  //   3. neither                      -> unchanged Sprint 1 placeholder.
+  // Each flag is read per-request, so rollback is a config change (unset the env
+  // var, redeploy) with no code revert. The first two paths are byte-compatible
+  // at the response boundary below.
   let residentMessage: string;
-  let analysisId: string;
+  let analysisId: string | null = null;
   let responseAction: AssistantAction;
   let createdIssueReportId: string | null = null;
 
-  if (isHousingReasoningV1Enabled()) {
+  if (isOpenhouseAgentV1Enabled()) {
+    // ===================================================================
+    // OpenHouse Assistant v1 (Sprint 2). General home agent, highest
+    // priority. callAgent() returns { message, issue_report? } with NO action
+    // enum; this route derives the existing AssistantAction and the
+    // issue_reports columns from it, keeping the response shape identical to
+    // the housing-reasoning path. Boundary mapping lives here; the service
+    // stays pure. userType is always 'homeowner' on this surface.
+    // See docs/prompts/openhouse-assistant-v1.md.
+    // ===================================================================
+
+    // Resolve each media row to a short-lived signed URL (same createSignedUrl +
+    // assistant-media bucket pattern as the housing-reasoning path below).
+    const imageUrls: string[] = [];
+    for (const m of mediaRows) {
+      const path = (m as { storage_path: string | null }).storage_path;
+      if (!path) continue;
+      const { data: signed, error: signErr } = await supabase.storage
+        .from(ASSISTANT_MEDIA_BUCKET)
+        .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+      if (signErr || !signed?.signedUrl) {
+        console.warn(
+          '[assistant-chat-multimodal] sign_failed media_id=%s reason=%s',
+          m.id,
+          signErr?.message ?? 'no url',
+        );
+        continue;
+      }
+      imageUrls.push(signed.signedUrl);
+    }
+
+    // Pass only the house context the route already loads. resolveMediaAuth
+    // returns ids only. FLAG (follow-up): the route does NOT currently load the
+    // development name, unit name/number, room dimensions, floor plan refs, or
+    // snag history that the prompt is designed to use. Wiring those in needs new
+    // queries and is intentionally out of scope here (no new data plumbing).
+    const houseContext: OpenhouseAgentHouseContext = {
+      developmentId: auth.developmentId,
+      unitId: auth.unitId,
+    };
+
+    const startedAt = Date.now();
+    let agentResult: OpenhouseAgentResult;
+    try {
+      agentResult = await callAgent({
+        userType: 'homeowner',
+        text: messageText,
+        images: imageUrls,
+        // Voice notes are not delivered to this route yet (the body carries
+        // media_ids only). When that plumbing exists, transcribe upstream via
+        // lib/agent-intelligence/transcription.ts and pass the transcript as
+        // the `audio` param.
+        houseContext,
+      });
+    } catch (err) {
+      console.error(
+        '[assistant-chat-multimodal] openhouse_agent_failed reason=%s',
+        err instanceof Error ? err.message : String(err),
+      );
+      return NextResponse.json(
+        { error: 'Could not analyse the photo. Try again.' },
+        { status: 500 },
+      );
+    }
+
+    residentMessage = agentResult.message;
+    const ir = agentResult.issue_report ?? null;
+
+    if (!ir) {
+      // Ordinary chat turn. Nothing to analyse from a snag perspective: no
+      // assistant_media_analysis row and no issue_reports row are created.
+      // analysisId and createdIssueReportId both stay null.
+      responseAction = 'answer_only';
+    } else {
+      // Something should be logged. Persist exactly as the v1 path does: one
+      // assistant_media_analysis row, then the issue_reports row, the media
+      // join, the event, and the aftercare notification. The agent has no
+      // escalate/warranty action, so safety/escalation/warranty flags are false
+      // and severity maps minor/moderate/major -> low/medium/high.
+      responseAction = 'create_issue_report';
+      const severityLabel: SeverityLabel = SEVERITY_LABEL_BY_V1_SEVERITY[ir.severity];
+
+      const { data: analysisRow, error: analysisErr } = await supabase
+        .from('assistant_media_analysis')
+        .insert({
+          tenant_id: auth.tenantId,
+          development_id: auth.developmentId,
+          unit_id: auth.unitId,
+          user_id: auth.userId,
+          conversation_id: conversationId,
+          message_id: messageId,
+          analysis_scope: 'single_message',
+          input_media_ids: mediaIds,
+          issue_type: ir.category,
+          issue_category: ir.category,
+          room: ir.area ?? null,
+          visible_features: [],
+          severity_score: null,
+          severity_label: severityLabel,
+          confidence_score: null,
+          safety_risk: false,
+          safety_risk_type: null,
+          likely_trade: null,
+          likely_system: null,
+          potential_causes: [],
+          recommended_action: 'CREATE_ISSUE_REPORT',
+          resident_guidance: null,
+          needs_more_info: false,
+          more_info_requested: [],
+          should_create_issue: true,
+          should_escalate: false,
+          escalation_level: 'none',
+          requires_human_review: false,
+          warranty_relevant: false,
+          similar_issue_check_required: false,
+          developer_summary: ir.title,
+          raw_model_output: agentResult as unknown as Record<string, unknown>,
+          model_provider: 'openai',
+          model_name: 'gpt-4o',
+          model_version: null,
+          prompt_version: OPENHOUSE_AGENT_V1_PROMPT_VERSION,
+          processing_time_ms: Date.now() - startedAt,
+        })
+        .select('id')
+        .single();
+
+      if (analysisErr || !analysisRow) {
+        console.error(
+          '[assistant-chat-multimodal] analysis_insert_failed reason=%s',
+          analysisErr?.message ?? 'no row',
+        );
+        return NextResponse.json(
+          { error: 'Could not analyse the photo. Try again.' },
+          { status: 500 },
+        );
+      }
+      analysisId = analysisRow.id as string;
+
+      if (auth.unitId && auth.developmentId) {
+        const title = ir.title.length > 200 ? `${ir.title.slice(0, 197)}...` : ir.title;
+
+        const { data: issueRow, error: issueErr } = await supabase
+          .from('issue_reports')
+          .insert({
+            tenant_id: auth.tenantId,
+            development_id: auth.developmentId,
+            unit_id: auth.unitId,
+            user_id: auth.userId,
+            title,
+            description: ir.description || messageText || null,
+            room: ir.area ?? null,
+            issue_category: ir.category,
+            status: 'homeowner_new',
+            priority: 'normal',
+            source: 'homeowner_assistant',
+            severity_label: severityLabel,
+            severity_score: null,
+            safety_risk: false,
+            likely_trade: null,
+            likely_system: null,
+            linked_analysis_id: analysisId,
+            logged_by_user_id: auth.userId,
+            logged_by_role: 'homeowner',
+          })
+          .select('id')
+          .single();
+
+        if (issueErr || !issueRow) {
+          console.error(
+            '[assistant-chat-multimodal] issue_insert_failed reason=%s',
+            issueErr?.message ?? 'no row',
+          );
+        } else {
+          createdIssueReportId = issueRow.id as string;
+
+          const mediaJoinRows = mediaIds.map((mediaId) => ({
+            tenant_id: auth.tenantId,
+            issue_report_id: createdIssueReportId,
+            media_id: mediaId,
+          }));
+          const { error: joinErr } = await supabase.from('issue_report_media').insert(mediaJoinRows);
+          if (joinErr) {
+            console.error(
+              '[assistant-chat-multimodal] issue_media_join_failed reason=%s',
+              joinErr.message,
+            );
+          }
+
+          const { error: eventErr } = await supabase.from('issue_events').insert({
+            tenant_id: auth.tenantId,
+            issue_report_id: createdIssueReportId,
+            event_type: 'homeowner_issue_created',
+            actor_type: 'homeowner',
+            actor_id: auth.userId,
+            metadata: {
+              source: 'homeowner_assistant',
+              analysis_id: analysisId,
+              media_count: mediaIds.length,
+              openhouse_agent: true,
+            },
+          });
+          if (eventErr) {
+            console.error('[assistant-chat-multimodal] event_insert_failed reason=%s', eventErr.message);
+          }
+
+          if (isHomeownerIssuesEnabled()) {
+            triggerHomeownerIssueNotification(request, createdIssueReportId);
+          }
+        }
+      }
+    }
+  } else if (isHousingReasoningV1Enabled()) {
     // ===================================================================
     // Housing Reasoning v0.1 (Sprint 1b). BOUNDARY MAPPING LIVES HERE, by
     // design — analyseMessage() returns the locked v0.1 shape verbatim
