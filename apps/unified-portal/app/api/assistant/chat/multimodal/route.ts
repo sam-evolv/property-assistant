@@ -61,6 +61,8 @@ import type {
   OpenhouseAgentResult,
   OpenhouseAgentHouseContext,
 } from '@/lib/openhouse-agent/v1/types';
+import { logTurn } from '@/lib/assistant-analytics/logger';
+import type { AttachedMediaItem, LogInput } from '@/lib/assistant-analytics/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -84,6 +86,24 @@ const SEVERITY_LABEL_BY_V1_SEVERITY: Record<IssueSeverity, SeverityLabel> = {
   moderate: 'medium',
   major: 'high',
 };
+
+// ── Anonymous per-turn analytics ──────────────────────────────────────────
+// Flag-path labels stored in assistant_analytics_anonymous.flag_path.
+const ANALYTICS_FLAG_OPENHOUSE_AGENT = 'openhouse_agent_v1';
+const ANALYTICS_FLAG_HOUSING_REASONING = 'housing_reasoning_v1';
+const ANALYTICS_FLAG_PLACEHOLDER = 'placeholder';
+
+// gpt-4o pricing in USD per 1M tokens, hardcoded (NOT a live feed — update by
+// hand if pricing changes). Cost is stored in micro-USD (millionths of a
+// dollar), so one input token costs GPT4O_USD_PER_1M_INPUT micro-USD and the
+// total is simply in*rate_in + out*rate_out.
+const GPT4O_USD_PER_1M_INPUT = 2.5;
+const GPT4O_USD_PER_1M_OUTPUT = 10.0;
+
+function computeCostUsdMicro(tokensIn: number | null, tokensOut: number | null): number | null {
+  if (tokensIn == null && tokensOut == null) return null;
+  return Math.round((tokensIn ?? 0) * GPT4O_USD_PER_1M_INPUT + (tokensOut ?? 0) * GPT4O_USD_PER_1M_OUTPUT);
+}
 
 interface MultimodalBody {
   conversation_id?: unknown;
@@ -295,6 +315,47 @@ export async function POST(request: NextRequest) {
   let responseAction: AssistantAction;
   let createdIssueReportId: string | null = null;
 
+  // ── Anonymous analytics setup (fire-and-forget) ───────────────────────────
+  // userRole is coarse and non-identifying. userName (admin display name only;
+  // homeowners on the QR path have none) is for redaction only. developmentId
+  // is for development_type derivation only. Neither userName nor developmentId
+  // is stored. Attachments on this route are images; we only know the count, so
+  // we pass count-accurate placeholders to classifyImage (real mime/dimensions
+  // are not fetched yet — a follow-up for when classification is wired).
+  const analyticsUserRole: string | null = auth.adminSession?.role ?? auth.callerType;
+  const analyticsUserName: string | null = auth.adminSession?.displayName ?? null;
+  const analyticsAttachedMedia: AttachedMediaItem[] = mediaRows.map(() => ({
+    mime: 'image/unknown',
+    size: 0,
+  }));
+
+  // Path-level analytics fields, set inside the matched branch and read by the
+  // success log just before the response is returned.
+  let logFlagPath = ANALYTICS_FLAG_PLACEHOLDER;
+  let logPromptVersion: string | null = null;
+  let logModelUsed: string | null = null;
+  let logTokensIn: number | null = null;
+  let logTokensOut: number | null = null;
+  let logLatencyMs: number | null = null;
+  let logSeverityReturned: string | null = null;
+  let logCategoryReturned: string | null = null;
+
+  // Fire one anonymous analytics row WITHOUT blocking or delaying the response.
+  // waitUntil keeps the lambda alive until the insert completes (same pattern
+  // as triggerHomeownerIssueNotification); logTurn itself never throws.
+  const fireAnalytics = (fields: Partial<LogInput> & { flagPath: string }): void => {
+    const input: LogInput = {
+      userRole: analyticsUserRole,
+      userName: analyticsUserName,
+      developmentId: auth.developmentId,
+      messageText,
+      attachedMedia: analyticsAttachedMedia,
+      audioTranscript: null,
+      ...fields,
+    };
+    waitUntil(logTurn(input).catch(() => {}));
+  };
+
   if (isOpenhouseAgentV1Enabled()) {
     // ===================================================================
     // OpenHouse Assistant v1 (Sprint 2). General home agent, highest
@@ -350,10 +411,19 @@ export async function POST(request: NextRequest) {
         houseContext,
       });
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       console.error(
         '[assistant-chat-multimodal] openhouse_agent_failed reason=%s',
-        err instanceof Error ? err.message : String(err),
+        reason,
       );
+      fireAnalytics({
+        flagPath: ANALYTICS_FLAG_OPENHOUSE_AGENT,
+        promptVersion: OPENHOUSE_AGENT_V1_PROMPT_VERSION,
+        modelUsed: 'gpt-4o',
+        latencyMs: Date.now() - startedAt,
+        errored: true,
+        errorType: `model_call_failed: ${reason}`,
+      });
       return NextResponse.json(
         { error: 'Could not analyse the photo. Try again.' },
         { status: 500 },
@@ -361,6 +431,12 @@ export async function POST(request: NextRequest) {
     }
 
     residentMessage = agentResult.message;
+    logFlagPath = ANALYTICS_FLAG_OPENHOUSE_AGENT;
+    logPromptVersion = OPENHOUSE_AGENT_V1_PROMPT_VERSION;
+    logModelUsed = 'gpt-4o';
+    logTokensIn = agentResult.usage?.input_tokens ?? null;
+    logTokensOut = agentResult.usage?.output_tokens ?? null;
+    logLatencyMs = Date.now() - startedAt;
     const ir = agentResult.issue_report ?? null;
 
     if (!ir) {
@@ -376,6 +452,8 @@ export async function POST(request: NextRequest) {
       // and severity maps minor/moderate/major -> low/medium/high.
       responseAction = 'create_issue_report';
       const severityLabel: SeverityLabel = SEVERITY_LABEL_BY_V1_SEVERITY[ir.severity];
+      logSeverityReturned = severityLabel;
+      logCategoryReturned = ir.category;
 
       const { data: analysisRow, error: analysisErr } = await supabase
         .from('assistant_media_analysis')
@@ -426,6 +504,20 @@ export async function POST(request: NextRequest) {
           '[assistant-chat-multimodal] analysis_insert_failed reason=%s',
           analysisErr?.message ?? 'no row',
         );
+        fireAnalytics({
+          flagPath: logFlagPath,
+          promptVersion: logPromptVersion,
+          modelUsed: logModelUsed,
+          tokensIn: logTokensIn,
+          tokensOut: logTokensOut,
+          costUsdMicro: computeCostUsdMicro(logTokensIn, logTokensOut),
+          latencyMs: logLatencyMs,
+          responseText: residentMessage,
+          severityReturned: logSeverityReturned,
+          categoryReturned: logCategoryReturned,
+          errored: true,
+          errorType: `analysis_insert_failed: ${analysisErr?.message ?? 'no row'}`,
+        });
         return NextResponse.json(
           { error: 'Could not analyse the photo. Try again.' },
           { status: 500 },
@@ -547,10 +639,19 @@ export async function POST(request: NextRequest) {
         images: imageUrls,
       });
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       console.error(
         '[assistant-chat-multimodal] housing_reasoning_failed reason=%s',
-        err instanceof Error ? err.message : String(err),
+        reason,
       );
+      fireAnalytics({
+        flagPath: ANALYTICS_FLAG_HOUSING_REASONING,
+        promptVersion: HOUSING_REASONING_V1_PROMPT_VERSION,
+        modelUsed: 'gpt-4o',
+        latencyMs: Date.now() - startedAt,
+        errored: true,
+        errorType: `model_call_failed: ${reason}`,
+      });
       return NextResponse.json(
         { error: 'Could not analyse the photo. Try again.' },
         { status: 500 },
@@ -558,6 +659,12 @@ export async function POST(request: NextRequest) {
     }
 
     residentMessage = reasoning.message;
+    logFlagPath = ANALYTICS_FLAG_HOUSING_REASONING;
+    logPromptVersion = HOUSING_REASONING_V1_PROMPT_VERSION;
+    logModelUsed = 'gpt-4o';
+    logTokensIn = reasoning.usage?.input_tokens ?? null;
+    logTokensOut = reasoning.usage?.output_tokens ?? null;
+    logLatencyMs = Date.now() - startedAt;
 
     // --- Boundary mapping (action + severity) ---
     // ANSWER_ONLY          -> no issue created, just return the answer text.
@@ -583,6 +690,8 @@ export async function POST(request: NextRequest) {
       : isEscalation
         ? 'urgent'
         : SEVERITY_LABEL_BY_V1_SEVERITY[ir.severity];
+    logSeverityReturned = severityLabel;
+    logCategoryReturned = ir?.category ?? null;
 
     // Response keeps the existing AssistantAction vocabulary so the client
     // contract is unchanged. ESCALATE and WARRANTY both create an issue.
@@ -644,6 +753,20 @@ export async function POST(request: NextRequest) {
         '[assistant-chat-multimodal] analysis_insert_failed reason=%s',
         analysisErr?.message ?? 'no row',
       );
+      fireAnalytics({
+        flagPath: logFlagPath,
+        promptVersion: logPromptVersion,
+        modelUsed: logModelUsed,
+        tokensIn: logTokensIn,
+        tokensOut: logTokensOut,
+        costUsdMicro: computeCostUsdMicro(logTokensIn, logTokensOut),
+        latencyMs: logLatencyMs,
+        responseText: residentMessage,
+        severityReturned: logSeverityReturned,
+        categoryReturned: logCategoryReturned,
+        errored: true,
+        errorType: `analysis_insert_failed: ${analysisErr?.message ?? 'no row'}`,
+      });
       return NextResponse.json(
         { error: 'Could not analyse the photo. Try again.' },
         { status: 500 },
@@ -726,7 +849,8 @@ export async function POST(request: NextRequest) {
       }
     }
   } else {
-    // ===== Sprint 1 placeholder path. Unchanged. =====
+    // ===== Sprint 1 placeholder path. Unchanged (analytics aside). =====
+    const placeholderStartedAt = Date.now();
     let result;
     try {
       result = await analyse({
@@ -740,10 +864,18 @@ export async function POST(request: NextRequest) {
         mediaIds,
       });
     } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
       console.error(
         '[assistant-chat-multimodal] analyse_failed reason=%s',
-        err instanceof Error ? err.message : String(err),
+        reason,
       );
+      fireAnalytics({
+        flagPath: ANALYTICS_FLAG_PLACEHOLDER,
+        modelUsed: 'placeholder',
+        latencyMs: Date.now() - placeholderStartedAt,
+        errored: true,
+        errorType: `analyse_failed: ${reason}`,
+      });
       return NextResponse.json(
         { error: 'Could not analyse the photo. Try again.' },
         { status: 500 },
@@ -753,6 +885,11 @@ export async function POST(request: NextRequest) {
     residentMessage = result.residentMessage;
     analysisId = result.analysisId;
     responseAction = result.action;
+    logFlagPath = ANALYTICS_FLAG_PLACEHOLDER;
+    logModelUsed = 'placeholder';
+    logLatencyMs = Date.now() - placeholderStartedAt;
+    logSeverityReturned = result.structured?.severity_label ?? null;
+    logCategoryReturned = result.structured?.issue_type ?? null;
 
     // Sprint 3.5a section 5.1. When the AI determines the upload represents
     // an actual issue (not a curiosity question, not "look at my kitchen"),
@@ -835,6 +972,25 @@ export async function POST(request: NextRequest) {
       }
     }
   }
+
+  // Anonymous analytics for the successful turn. Fired after the response is
+  // built and never awaited (waitUntil inside fireAnalytics), so it cannot add
+  // latency to the user's reply.
+  fireAnalytics({
+    flagPath: logFlagPath,
+    promptVersion: logPromptVersion,
+    modelUsed: logModelUsed,
+    tokensIn: logTokensIn,
+    tokensOut: logTokensOut,
+    costUsdMicro: computeCostUsdMicro(logTokensIn, logTokensOut),
+    latencyMs: logLatencyMs,
+    responseText: residentMessage,
+    actionReturned: responseAction,
+    issueCreated: !!createdIssueReportId,
+    severityReturned: logSeverityReturned,
+    categoryReturned: logCategoryReturned,
+    errored: false,
+  });
 
   return NextResponse.json({
     message: residentMessage,

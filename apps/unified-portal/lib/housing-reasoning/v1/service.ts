@@ -128,5 +128,12 @@ export async function analyseMessage(
     throw new Error('[housing-reasoning-v1] OpenAI returned no content');
   }
 
-  return JSON.parse(content) as HousingReasoningResult;
+  const parsed = JSON.parse(content) as HousingReasoningResult;
+  // Attach token usage for analytics. Not part of the model JSON; comes from
+  // response.usage (absent when the client is mocked, hence the ?? null).
+  parsed.usage = {
+    input_tokens: response.usage?.prompt_tokens ?? null,
+    output_tokens: response.usage?.completion_tokens ?? null,
+  };
+  return parsed;
 }

@@ -34,6 +34,17 @@ export interface OpenhouseAgentIssueReport {
   status: IssueStatus;
 }
 
+/**
+ * OpenAI token usage for one call. Surfaced by the service so the route can log
+ * cost/usage analytics. Not part of the model's JSON output — the service
+ * attaches it from response.usage after parsing. Fields are null when the
+ * provider does not report usage (e.g. the mocked client in the smoke test).
+ */
+export interface TokenUsage {
+  input_tokens: number | null;
+  output_tokens: number | null;
+}
+
 export interface OpenhouseAgentResult {
   /** Conversational, homeowner-facing reply. Always present. */
   message: string;
@@ -42,6 +53,12 @@ export interface OpenhouseAgentResult {
    * logged for the site team. Null for an ordinary chat turn.
    */
   issue_report?: OpenhouseAgentIssueReport | null;
+  /**
+   * Token usage for this call. Attached by the service after parsing the
+   * model output; never produced by the model itself. Optional so callers
+   * (and the smoke test's canned results) need not supply it.
+   */
+  usage?: TokenUsage;
 }
 
 /**
