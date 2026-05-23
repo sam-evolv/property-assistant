@@ -114,6 +114,30 @@ export function isHomeownerIssuesEnabled(): boolean {
   );
 }
 
+/**
+ * Assistant V2 schedule and calendar surface (Sprint 4).
+ *
+ * Default off. When false:
+ *   - the Schedule sidebar item does not render
+ *   - the /developer/schedule page is hidden
+ *   - all /api/schedule/* server routes return 404 before any auth
+ *     or DB work
+ *   - the daily digest cron at /api/cron/schedule-digest is a no-op
+ *
+ * Server reads FEATURE_SCHEDULE. Client reads
+ * NEXT_PUBLIC_FEATURE_SCHEDULE (must be set separately for the
+ * bundler to inline the value at build time).
+ */
+export function isScheduleEnabled(): boolean {
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_FEATURE_SCHEDULE === 'true';
+  }
+  return (
+    process.env.FEATURE_SCHEDULE === 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_SCHEDULE === 'true'
+  );
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
@@ -123,5 +147,6 @@ export function getFeatureFlags() {
     builderSnagApp: isBuilderSnagAppEnabled(),
     developerDashboard: isDeveloperDashboardEnabled(),
     homeownerIssues: isHomeownerIssuesEnabled(),
+    schedule: isScheduleEnabled(),
   };
 }
