@@ -19,12 +19,13 @@ Out of scope deliberately: external calendar sync (Google/Outlook), recurring ev
 
 ## 2. Who uses this
 
-- **Site managers and developer admins:** see the full schedule for their tenant. Add, edit, cancel events. Receive the daily digest email.
-- **Snaggers (site_team_snag):** see only events that include them as an attendee. No add/edit. Can mark themselves as confirmed/declined on events that include them.
-- **External snaggers (snagger_external):** same as site_team_snag but only see events tied to units they have access to (single-unit access remains scoped).
+**Correction (V1).** An earlier draft of this section described a `site_team_snag` user role. That label is not a role in the codebase; it is the `issue_reports.source` value used to mark snags submitted via the builder-side snag app. The actual user roles on `site_team_members` are `admin`, `site_team`, and `snagger_external`. V1 drops the attendee-only scoping for internal snaggers (there is no role to scope on) and only scopes external snaggers. A sub-role for "internal snagger" can be added in a later sprint if the distinction becomes valuable.
+
+- **Site managers and developer admins (`admin`, `site_team`):** see the full schedule for their tenant. Add, edit, cancel events. Receive the daily digest email.
+- **External snaggers (`snagger_external`):** read-only. See only events in developments they have access to (per the existing `developmentIds` scoping on `site_team_members`) or events where they are listed as an attendee. Can update their own RSVP on events they attend; cannot add/edit/cancel any events.
 - **Homeowners:** no visibility. The schedule is a developer-side tool. Future sprint can expose homeowner-specific events (handover dates, scheduled snag visits) on their portal.
 
-Role enforcement happens server-side via the existing `resolveSnagAuth` helper.
+Role enforcement happens server-side via the existing `resolveSnagAuth` helper. Write permission to create/update/cancel events is gated to `admin` and `site_team`.
 
 ---
 
@@ -160,13 +161,15 @@ Query params:
 - `attendee_user_id` (optional): events that include this user as attendee
 
 Behaviour:
-1. Verify caller via `resolveSnagAuth`. snagger_external is allowed but their results are further filtered server-side to events tied to units they have access to (or events with them as attendee).
-2. site_team_snag (internal) sees events with them as attendee only.
-3. Admin and site_team see all tenant events in the window.
+1. Verify caller via `resolveSnagAuth`.
+2. `admin` and `site_team` see all events in their tenant in the window (subject to optional filters).
+3. `snagger_external` sees the union of: events whose `development_id` is in their `developmentIds`, plus events where they appear in the attendees list. Other tenant events are not returned.
 4. Return events ordered by `starts_at asc`. Each event includes:
    - Standard event fields
    - `attendees: [{user_id?, external_name?, role, rsvp_status}]`
    - `unit_label`, `development_label` (joined for display)
+
+Note: an earlier draft referenced a `site_team_snag` role for attendee-only scoping. That label is an issue source, not a user role. V1 implements scoping only for `snagger_external` as described above. See section 2 for the full correction.
 
 ### 5.2 GET /api/schedule/events/[id]
 
