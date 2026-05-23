@@ -153,6 +153,23 @@ export function isHousingReasoningV1Enabled(): boolean {
   return process.env.FEATURE_HOUSING_REASONING_V1 === 'true';
 }
 
+/**
+ * OpenHouse Assistant v1 (Sprint 2).
+ *
+ * Default off. When true, /api/assistant/chat/multimodal routes the turn
+ * through the OpenHouse Assistant general-home-agent service
+ * (lib/openhouse-agent/v1/service.ts) instead of the housing-reasoning-v1
+ * snag-triage path. Takes priority over FEATURE_HOUSING_REASONING_V1 when both
+ * are set; the housing-reasoning path remains the fallback.
+ *
+ * Server-only: the gating happens entirely in the route handler, so there is
+ * no client-side check and no NEXT_PUBLIC_ variant. Reads
+ * FEATURE_OPENHOUSE_AGENT_V1.
+ */
+export function isOpenhouseAgentV1Enabled(): boolean {
+  return process.env.FEATURE_OPENHOUSE_AGENT_V1 === 'true';
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
@@ -164,5 +181,6 @@ export function getFeatureFlags() {
     homeownerIssues: isHomeownerIssuesEnabled(),
     schedule: isScheduleEnabled(),
     housingReasoningV1: isHousingReasoningV1Enabled(),
+    openhouseAgentV1: isOpenhouseAgentV1Enabled(),
   };
 }
