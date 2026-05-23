@@ -138,6 +138,21 @@ export function isScheduleEnabled(): boolean {
   );
 }
 
+/**
+ * Housing Reasoning v0.1 (Sprint 1b).
+ *
+ * Default off. When true, /api/assistant/chat/multimodal routes media analysis
+ * through the OpenAI gpt-4o housing-reasoning service instead of the
+ * placeholder mediaAnalysisService.
+ *
+ * Server-only: the gating happens entirely in the route handler, so there is
+ * no client-side check and no NEXT_PUBLIC_ variant. Reads
+ * FEATURE_HOUSING_REASONING_V1.
+ */
+export function isHousingReasoningV1Enabled(): boolean {
+  return process.env.FEATURE_HOUSING_REASONING_V1 === 'true';
+}
+
 export function getFeatureFlags() {
   return {
     videos: isVideosFeatureEnabled(),
@@ -148,5 +163,6 @@ export function getFeatureFlags() {
     developerDashboard: isDeveloperDashboardEnabled(),
     homeownerIssues: isHomeownerIssuesEnabled(),
     schedule: isScheduleEnabled(),
+    housingReasoningV1: isHousingReasoningV1Enabled(),
   };
 }
