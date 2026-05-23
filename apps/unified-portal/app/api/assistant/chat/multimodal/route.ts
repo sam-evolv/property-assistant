@@ -444,6 +444,7 @@ export async function POST(request: NextRequest) {
           title,
           description: ir.description || messageText || null,
           room: ir.area ?? null,
+          issue_category: ir.category,
           status: 'homeowner_new',
           priority: 'normal',
           source: 'homeowner_assistant',
