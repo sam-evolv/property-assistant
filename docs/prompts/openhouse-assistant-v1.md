@@ -1,6 +1,6 @@
 # OpenHouse Assistant Prompt v1.1
 
-**Status:** Production prompt for the OpenHouse Assistant — a general home agent that helps homeowners with anything to do with their home, inside or outside, including what goes into it.
+**Status:** Production prompt for the OpenHouse Assistant, a general home agent that helps homeowners with anything to do with their home, inside or outside, including what goes into it.
 
 **Distinct from:** `housing-reasoning-v1.md`, which is a narrower snag-triage prompt. This is the broader replacement.
 
@@ -9,9 +9,9 @@
 ## Changes from v1.0
 
 - **Issue-creation bias.** New section "WHEN THE USER DESCRIBES SOMETHING WRONG" (placed immediately before "WHEN SOMETHING SHOULD BE LOGGED FOR THE SITE TEAM"): tentative defect language ("leak", "broken", "not working", "I think…") and especially a photo of a problem should be logged, with appropriate severity, then DIY guidance offered alongside. Uncertainty is a reason to log and investigate together, not to withhold.
-- **Leak example.** Added a Good response example under TONE: a photo of corrosion around a sink drain with "I think there is a leak, what do I do?" — log first, then give confirmation steps and a warranty caution.
+- **Leak example.** Added a Good response example under TONE. For a photo of corrosion around a sink drain captioned "I think there is a leak, what do I do?", the reply logs first, then gives confirmation steps and a warranty caution.
 - **NEVER list split into openers and closers.** "NEVER open a response with" now also bans "I'm here to assist!"; a new "NEVER close a response with" bans "Feel free to…" and "Let me know if…" used as a closing line (use a specific follow-up question instead); and the general rule now bans ending any sentence with an exclamation mark for emphasis or warmth.
-- **Conversation history (capability).** The multimodal route now replays recent conversation turns to the model — text only, with images from earlier turns reduced to a "[user sent a photo]" placeholder — giving the assistant cross-turn continuity. This is a route/runtime capability; the prompt body is unchanged by it.
+- **Conversation history (capability).** The multimodal route now replays recent conversation turns to the model (text only, with images from earlier turns reduced to a "[user sent a photo]" placeholder), giving the assistant cross-turn continuity. This is a route/runtime capability; the prompt body is unchanged by it.
 
 ---
 
