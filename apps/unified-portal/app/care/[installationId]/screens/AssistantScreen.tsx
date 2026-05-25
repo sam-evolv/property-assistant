@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Home, Mic, Send, Info, ChevronDown, ChevronUp, FileText, Clock, X } from 'lucide-react';
 import Image from 'next/image';
-import { cleanForDisplay } from '@/lib/assistant/formatting';
+import { cleanForDisplay, renderChatMarkdown } from '@/lib/assistant/formatting';
 import { useCareApp } from '../care-app-provider';
 
 /* ── Animation Styles — VERBATIM from PurchaserChatTab + UX Enhancements ──── */
@@ -69,12 +69,12 @@ function getWordDelay(word: string, isAfterParagraph: boolean): number {
 
 /* ── Format assistant response text ───────────────────────────────────────── */
 function formatContent(text: string): string {
-  let html = cleanForDisplay(text);
-  html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>');
-  html = html.replace(/^(\d+)\.\s+/gm, '<span class="text-[#D4AF37] font-semibold mr-1">$1.</span> ');
-  html = html.replace(/^[-•]\s+/gm, '<span class="text-[#D4AF37] mr-1">•</span> ');
-  html = html.replace(/\n/g, '<br/>');
-  return html;
+  // Same markdown rendering as the homeowner bubble (bold, italic, inline code,
+  // h3/h4, lists) so replies look consistent across the product. The sanitiser
+  // runs first, then the shared renderer escapes and styles the result.
+  return renderChatMarkdown(cleanForDisplay(text), {
+    codeClassName: 'bg-black/[0.06] text-gray-800',
+  });
 }
 
 /* ── Typing Indicator — matches Property portal ───────────────────────────── */
