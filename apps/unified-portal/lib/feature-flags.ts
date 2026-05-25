@@ -162,12 +162,21 @@ export function isHousingReasoningV1Enabled(): boolean {
  * snag-triage path. Takes priority over FEATURE_HOUSING_REASONING_V1 when both
  * are set; the housing-reasoning path remains the fallback.
  *
- * Server-only: the gating happens entirely in the route handler, so there is
- * no client-side check and no NEXT_PUBLIC_ variant. Reads
- * FEATURE_OPENHOUSE_AGENT_V1.
+ * Dual server/client (same pattern as isAssistantImageUploadEnabled): the
+ * client needs to know whether the agent is on so PurchaserChatTab can route
+ * text-only turns to the agent route instead of the RAG /api/chat endpoint.
+ * Server reads FEATURE_OPENHOUSE_AGENT_V1. Client reads
+ * NEXT_PUBLIC_FEATURE_OPENHOUSE_AGENT_V1 (must be set separately for the
+ * bundler to inline the value).
  */
 export function isOpenhouseAgentV1Enabled(): boolean {
-  return process.env.FEATURE_OPENHOUSE_AGENT_V1 === 'true';
+  if (typeof window !== 'undefined') {
+    return process.env.NEXT_PUBLIC_FEATURE_OPENHOUSE_AGENT_V1 === 'true';
+  }
+  return (
+    process.env.FEATURE_OPENHOUSE_AGENT_V1 === 'true' ||
+    process.env.NEXT_PUBLIC_FEATURE_OPENHOUSE_AGENT_V1 === 'true'
+  );
 }
 
 export function getFeatureFlags() {

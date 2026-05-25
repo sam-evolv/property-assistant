@@ -22,6 +22,7 @@ import type {
   OpenhouseAgentResult,
   OpenhouseAgentHouseContext,
 } from '../../lib/openhouse-agent/v1/types';
+import { sendMultimodal } from '../../lib/assistant/multimodal-client';
 
 let failures = 0;
 
@@ -365,6 +366,73 @@ async function run(): Promise<void> {
       result.issue_report?.category,
     );
     assertWiring(calls, 'HOMEOWNER', false);
+  }
+
+  // --- Case 9: text-only routing (bug 1) ---
+  // Unit test of the routing logic: with no attachments, sendMultimodal must
+  // skip the media-upload step and POST to /api/assistant/chat/multimodal with
+  // empty media_ids — i.e. a text-only turn reaches the agent route, not the RAG
+  // /api/chat endpoint. PurchaserChatTab takes this path when the agent flag is
+  // on (isOpenhouseAgentV1Enabled); the React component's flag branch itself is
+  // not unit-testable here, so this validates the routing target + the empty-
+  // media contract that the relaxed route guard depends on.
+  {
+    console.log('Case 9: text-only routing — sendMultimodal skips upload, posts to the multimodal route');
+    const calls: Array<{ url: string; body: any }> = [];
+    const originalFetch = (globalThis as any).fetch;
+    (globalThis as any).fetch = async (url: any, init: any) => {
+      let body: any = null;
+      try {
+        body = init?.body ? JSON.parse(init.body) : null;
+      } catch {
+        body = init?.body ?? null;
+      }
+      calls.push({ url: String(url), body });
+      return {
+        ok: true,
+        json: async () => ({
+          message: 'Your main stopcock is usually under the kitchen sink.',
+          analysis_id: null,
+          action: 'answer_only',
+          message_id: 'mid-1',
+          conversation_id: 'conv-1',
+        }),
+      };
+    };
+    try {
+      const result = await sendMultimodal({
+        conversationId: 'conv-1',
+        unitId: 'unit-1',
+        qrToken: 'qr-token',
+        messageText: 'How do I shut off the water?',
+        selections: [],
+      });
+      check('exactly one fetch call (upload step skipped)', calls.length === 1, `got ${calls.length}`);
+      check(
+        'posts to the multimodal agent route',
+        calls.some((c) => c.url.includes('/api/assistant/chat/multimodal')),
+        calls.map((c) => c.url).join(', '),
+      );
+      check(
+        'never calls the media-upload endpoint',
+        !calls.some((c) => c.url.includes('/api/assistant/media/upload')),
+        'upload endpoint was hit',
+      );
+      check(
+        'never calls the RAG /api/chat endpoint',
+        !calls.some((c) => c.url.endsWith('/api/chat')),
+        '/api/chat was hit',
+      );
+      const body = calls[0]?.body;
+      check(
+        'media_ids sent as empty array',
+        Array.isArray(body?.media_ids) && body.media_ids.length === 0,
+        JSON.stringify(body?.media_ids),
+      );
+      check('assistant message returned', result.assistantMessage.length > 0, result.assistantMessage);
+    } finally {
+      (globalThis as any).fetch = originalFetch;
+    }
   }
 
   console.log('');
