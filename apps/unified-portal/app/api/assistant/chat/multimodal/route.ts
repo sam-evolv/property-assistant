@@ -150,6 +150,11 @@ async function loadPriorMessages(
     .eq('tenant_id', tenantId)
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
+    // Both rows of one exchange share created_at (one INSERT, one now()), so add a
+    // deterministic tiebreaker. role ASC puts 'assistant' before 'user' within an
+    // exchange in this DESC fetch, which becomes user-before-assistant after the
+    // reverse() below — the correct chronological order.
+    .order('role', { ascending: true })
     .limit(HISTORY_MAX_TURNS);
 
   if (error || !data) {
