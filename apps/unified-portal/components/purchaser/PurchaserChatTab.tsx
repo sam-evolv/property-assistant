@@ -1977,26 +1977,51 @@ export default function PurchaserChatTab({
           <div className="mx-auto max-w-3xl flex flex-col gap-4">
               {messages.map((msg, idx) => {
                 if (msg.role === 'user') {
-                  const hasMedia = !!(msg.media && msg.media.length > 0);
+                  // iMessage grouping: photo(s) render in their own rounded
+                  // element above the text bubble, both right-aligned and sharing
+                  // one max-width so a caption no longer wraps short inside a
+                  // photo-constrained bubble. A single photo renders larger than
+                  // the multi-photo grid; two or more reuse MediaThumbnailGrid.
+                  const mediaItems = msg.media ?? [];
+                  const singleImage = mediaItems.length === 1;
                   return (
                     <div key={`msg-${idx}`} className="flex justify-end">
-                      {/* User bubble - iMessage inspired, asymmetric rounded */}
-                      <div className={`message-bubble max-w-[75%] rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
-                        isDarkMode
-                          ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
-                          : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
-                      }`}>
-                        <div className="space-y-2">
-                          {hasMedia && (
+                      <div className="flex max-w-[75%] flex-col items-end gap-1.5">
+                        {mediaItems.length > 0 && (
+                          singleImage ? (
+                            <button
+                              type="button"
+                              onClick={() => openLightbox(mediaItems[0].id)}
+                              className={`block overflow-hidden rounded-2xl shadow-sm transition-all duration-150 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 ${
+                                isDarkMode
+                                  ? 'border border-white/10 focus-visible:ring-gold-400'
+                                  : 'border border-black/5 focus-visible:ring-gold-500'
+                              }`}
+                              aria-label="Open photo"
+                            >
+                              <img
+                                src={mediaItems[0].thumbnail_url}
+                                alt=""
+                                className="max-h-[320px] w-auto max-w-[240px] object-cover"
+                              />
+                            </button>
+                          ) : (
                             <MediaThumbnailGrid
-                              media={msg.media!}
+                              media={mediaItems}
                               onOpenLightbox={openLightbox}
                             />
-                          )}
-                          {msg.content && (
+                          )
+                        )}
+                        {msg.content && (
+                          // Text bubble - iMessage inspired, asymmetric rounded
+                          <div className={`message-bubble rounded-[20px] rounded-br-[6px] px-4 py-3 shadow-sm ${
+                            isDarkMode
+                              ? 'bg-gradient-to-br from-gold-500 to-gold-600 text-white shadow-gold-500/10'
+                              : 'bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-gold-500/20'
+                          }`}>
                             <p className="text-[15px] leading-[1.5] whitespace-pre-wrap break-words">{msg.content}</p>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   );
