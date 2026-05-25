@@ -2,10 +2,10 @@
  * OpenHouse Assistant v1 — smoke test (Sprint 2).
  *
  * Plain TypeScript, no test runner. Mocks the OpenAI client (no network, no API
- * key) and exercises callAgent() against five calibration cases, asserting both
+ * key) and exercises callAgent() against eight calibration cases, asserting both
  * the parsed response and the request wiring (model, json_schema, the v1 system
- * prompt, the USER TYPE tag, image inputs, and that houseContext is threaded
- * into the system messages).
+ * prompt, the USER TYPE tag, image inputs, prior-message replay, and that
+ * houseContext is threaded into the system messages).
  *
  * Run:
  *   npx tsx apps/unified-portal/scripts/smoke/openhouse-agent-v1.smoke.ts
@@ -100,6 +100,37 @@ function assertHouseContextSent(calls: Array<Record<string, any>>, needles: stri
   for (const needle of needles) {
     check(`house context carries "${needle}"`, systemBlob.includes(needle), 'not in system messages');
   }
+}
+
+// Extract the prior turns the service inserted between the system messages and
+// the final (current) user message, and assert they match the expected history
+// in order. The last non-system message is the current turn.
+function assertPriorMessages(
+  calls: Array<Record<string, any>>,
+  expected: Array<{ role: string; content: string }>,
+): void {
+  const messages = calls[0]?.messages ?? [];
+  const nonSystem = messages.filter((m: any) => m?.role !== 'system');
+  const history = nonSystem.slice(0, -1);
+  check(
+    `history carries ${expected.length} prior message(s)`,
+    history.length === expected.length,
+    `got ${history.length}`,
+  );
+  for (let i = 0; i < expected.length; i++) {
+    check(
+      `history[${i}] role is ${expected[i].role}`,
+      history[i]?.role === expected[i].role,
+      String(history[i]?.role),
+    );
+    check(
+      `history[${i}] content matches`,
+      history[i]?.content === expected[i].content,
+      String(history[i]?.content),
+    );
+  }
+  const current = nonSystem[nonSystem.length - 1];
+  check('current user turn is last', current?.role === 'user', String(current?.role));
 }
 
 async function run(): Promise<void> {
@@ -232,6 +263,108 @@ async function run(): Promise<void> {
     check('message is populated', result.message.length > 0);
     check('no issue_report', result.issue_report == null, JSON.stringify(result.issue_report));
     assertWiring(calls, 'HOMEOWNER', true);
+  }
+
+  // --- Case 6: text-only request (no images), a recipe question ---
+  // The agent path now answers text-only turns. Expect a message, no issue, no
+  // image block, and (since none was passed) no prior messages in the request.
+  {
+    console.log('Case 6: homeowner — text-only "what can I batch cook on Sunday?"');
+    const canned: OpenhouseAgentResult = {
+      message:
+        'A big pot of chilli stretches across the week and freezes well. Want a version that reheats without drying out?',
+      issue_report: null,
+    };
+    const { client, calls } = mockClient(canned);
+    const result = await callAgent(
+      { userType: 'homeowner', text: 'what can I batch cook on Sunday?', images: [] },
+      { client },
+    );
+    check('message is populated', result.message.length > 0);
+    check('no issue_report', result.issue_report == null, JSON.stringify(result.issue_report));
+    assertWiring(calls, 'HOMEOWNER', false);
+    assertPriorMessages(calls, []);
+  }
+
+  // --- Case 7: multi-turn — two prior exchanges replayed before the new turn ---
+  // Expect callAgent to build the messages array with the full history in order,
+  // between the system messages and the current user message.
+  {
+    console.log('Case 7: homeowner — multi-turn, prior history replayed in order');
+    const priorMessages = [
+      { role: 'user' as const, content: 'one of my radiators is cold at the top' },
+      {
+        role: 'assistant' as const,
+        content:
+          'Sounds like trapped air. You can bleed it with a radiator key. Want me to talk you through it?',
+      },
+      { role: 'user' as const, content: 'yes please' },
+      {
+        role: 'assistant' as const,
+        content:
+          'Turn the heating off, hold a cloth under the valve, and turn the key a quarter until the hissing stops and water appears.',
+      },
+    ];
+    const canned: OpenhouseAgentResult = {
+      message:
+        'Same trick on the other one. If it stays cold after bleeding, the balancing might need a look. Did water come out when you bled the first one?',
+      issue_report: null,
+    };
+    const { client, calls } = mockClient(canned);
+    const result = await callAgent(
+      {
+        userType: 'homeowner',
+        text: 'the other one is cold too now',
+        images: [],
+        priorMessages,
+      },
+      { client },
+    );
+    check('message is populated', result.message.length > 0);
+    assertPriorMessages(calls, priorMessages);
+    const messages = calls[0]?.messages ?? [];
+    const nonSystem = messages.filter((m: any) => m?.role !== 'system');
+    const current = nonSystem[nonSystem.length - 1];
+    const currentText = Array.isArray(current?.content)
+      ? current.content.map((p: any) => p?.text ?? '').join(' ')
+      : String(current?.content ?? '');
+    check(
+      'current user message carries the new text',
+      currentText.includes('the other one is cold too now'),
+      currentText,
+    );
+  }
+
+  // --- Case 8: issue-creation bias — text-only leak description, no photo ---
+  // "I think the radiator is leaking" (hedged, no image). Expect issue_report to
+  // come back populated (v1.1 biases toward logging tentative defect language).
+  {
+    console.log('Case 8: homeowner — text-only "I think the radiator is leaking"');
+    const canned: OpenhouseAgentResult = {
+      message:
+        "I've logged that for the site team to take a look. In the meantime put a towel down and check whether the water is at the valve or the body of the radiator. Can you see where it's wet?",
+      issue_report: {
+        title: 'Investigate reported radiator leak',
+        area: 'living room',
+        severity: 'moderate',
+        category: 'plumbing',
+        description: 'Homeowner reports a suspected leak from a radiator. No photo provided.',
+        status: 'open',
+      },
+    };
+    const { client, calls } = mockClient(canned);
+    const result = await callAgent(
+      { userType: 'homeowner', text: 'I think the radiator is leaking', images: [] },
+      { client },
+    );
+    check('message is populated', result.message.length > 0);
+    check('issue_report is populated', result.issue_report != null);
+    check(
+      'category is plumbing',
+      result.issue_report?.category === 'plumbing',
+      result.issue_report?.category,
+    );
+    assertWiring(calls, 'HOMEOWNER', false);
   }
 
   console.log('');

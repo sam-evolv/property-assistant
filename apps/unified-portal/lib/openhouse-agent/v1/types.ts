@@ -94,6 +94,14 @@ export interface CallAgentInput {
    * this pure module and no new dependency is introduced.
    */
   audio?: string | null;
+  /**
+   * Prior conversation turns, oldest first, replayed to the model for
+   * cross-turn continuity. Inserted between the system context and the current
+   * user message. Text only — images from earlier turns are replaced upstream
+   * with a placeholder, never re-sent. Optional: omit or pass [] for a
+   * single-turn call (the original behaviour).
+   */
+  priorMessages?: { role: 'user' | 'assistant'; content: string }[];
   /** What the route knows about this specific home. Optional. */
   houseContext?: OpenhouseAgentHouseContext | null;
 }
