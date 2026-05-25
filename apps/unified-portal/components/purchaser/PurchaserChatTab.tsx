@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { flushSync } from 'react-dom';
-import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Bookmark, Check } from 'lucide-react';
+import { Home, Mic, Send, Square, X, FileText, Download, Eye, Info, ChevronDown, ChevronUp, AlertCircle, Bookmark, Check } from 'lucide-react';
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
@@ -21,6 +21,7 @@ import {
   SendMultimodalError,
   type MultimodalStatus,
 } from '@/lib/assistant/multimodal-client';
+import { useVoiceInput } from '@/lib/assistant/use-voice-input';
 import { AttachmentButton } from '@/components/assistant/AttachmentButton';
 import { MediaPreviewRow } from '@/components/assistant/MediaPreviewRow';
 import { MediaThumbnailGrid } from '@/components/assistant/MediaThumbnailGrid';
@@ -147,6 +148,14 @@ function getWordDelay(word: string, isAfterParagraph: boolean): number {
   }
 
   return Math.max(10, delay);
+}
+
+// Format a recording duration (ms) as m:ss for the voice-input timer.
+function formatRecordingTime(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
 // Prose rules layered onto paragraph text in the homeowner bubble: section
@@ -976,9 +985,15 @@ export default function PurchaserChatTab({
     }
     return false;
   });
-  const [isListening, setIsListening] = useState(false);
-  const [speechSupported, setSpeechSupported] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  // Voice input: tap to record, tap to stop (or 2s of silence auto-stops), the
+  // audio posts to /api/agent/intelligence/transcribe and the transcript is
+  // appended to the input box for the homeowner to review and send. Replaces the
+  // old Web Speech API mic (which silently failed on iOS WKWebView).
+  const voice = useVoiceInput({
+    languageHint: selectedLanguage,
+    onTranscriptReady: (transcript) =>
+      setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript)),
+  });
   const inputBarRef = useRef<HTMLDivElement>(null);
   
   const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED, developmentId);
@@ -1228,64 +1243,6 @@ export default function PurchaserChatTab({
       return () => window.removeEventListener('resize', fallback);
     }
   }, []);
-
-  useEffect(() => {
-    // Initialize Web Speech API
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        setSpeechSupported(true);
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.lang = selectedLanguage === 'en' ? 'en-US' :
-                          selectedLanguage === 'pl' ? 'pl-PL' :
-                          selectedLanguage === 'es' ? 'es-ES' :
-                          selectedLanguage === 'ru' ? 'ru-RU' :
-                          selectedLanguage === 'pt' ? 'pt-PT' :
-                          selectedLanguage === 'lv' ? 'lv-LV' :
-                          selectedLanguage === 'lt' ? 'lt-LT' :
-                          selectedLanguage === 'ro' ? 'ro-RO' :
-                          selectedLanguage === 'ga' ? 'ga-IE' : 'en-US';
-
-        recognition.onresult = (event: any) => {
-          const transcript = event.results[0][0].transcript;
-          setInput(transcript);
-          setIsListening(false);
-        };
-
-        recognition.onerror = (event: any) => {
-          setIsListening(false);
-        };
-
-        recognition.onend = () => {
-          setIsListening(false);
-        };
-
-        recognitionRef.current = recognition;
-      }
-    }
-  }, [selectedLanguage]);
-
-  const toggleVoiceInput = () => {
-    const t = TRANSLATIONS[selectedLanguage] || TRANSLATIONS.en;
-    if (!speechSupported || !recognitionRef.current) {
-      alert(t.voiceNotSupported);
-      return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    } else {
-      setIsListening(true);
-      try {
-        recognitionRef.current.start();
-      } catch (error) {
-        setIsListening(false);
-      }
-    }
-  };
 
   interface IntentMetadata {
     source: 'suggested_pill';
@@ -2330,6 +2287,23 @@ export default function PurchaserChatTab({
           </div>
         )}
 
+        {voice.status === 'error' && voice.errorMessage && (
+          <div className="mx-auto max-w-3xl">
+            <div className="mx-4 mb-2 rounded-lg border border-red-200 bg-red-50 p-3 text-body-sm text-red-700 flex items-start justify-between gap-3">
+              <span className="flex-1">{voice.errorMessage}</span>
+              {voice.permissionDenied && (
+                <button
+                  type="button"
+                  onClick={() => { void voice.openSettings(); }}
+                  className="shrink-0 inline-flex items-center font-medium text-red-700 hover:text-red-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-red-500 active:scale-[0.98] transition-all duration-150"
+                >
+                  Open Settings
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
         {imageUploadEnabled && isProcessingMedia ? (
           <div className="mx-auto max-w-3xl mb-3">
             <div className="px-4 py-3 bg-neutral-50 rounded-lg flex items-center gap-3 mx-4">
@@ -2338,6 +2312,66 @@ export default function PurchaserChatTab({
                 {statusToLabel(multimodalStatus!)}
               </p>
             </div>
+          </div>
+        ) : voice.status === 'transcribing' ? (
+          <div className="mx-auto max-w-3xl mb-3">
+            <div className="px-4 py-3 bg-neutral-50 rounded-lg flex items-center gap-3 mx-4">
+              <div className="w-4 h-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-body-sm text-neutral-700" aria-live="polite">
+                Transcribing…
+              </p>
+            </div>
+          </div>
+        ) : voice.status === 'recording' ? (
+          <div className="mx-auto flex max-w-3xl items-center gap-2">
+            {/* Cancel — discard the take without transcribing */}
+            <button
+              onClick={() => voice.cancel()}
+              className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
+                isDarkMode
+                  ? 'text-gray-400 hover:bg-white/10 hover:text-gray-200'
+                  : 'text-gray-500 hover:bg-black/5 hover:text-gray-700'
+              }`}
+              aria-label="Cancel recording"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            {/* Live recording pill: pulsing red dot + waveform + timer */}
+            <div className={`flex flex-1 items-center gap-3 rounded-full px-4 py-2.5 ${
+              isDarkMode
+                ? 'bg-[#1A1A1A] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.04),0_1px_3px_0_rgba(0,0,0,0.12)]'
+                : 'bg-black/5 shadow-[inset_0_1px_0_0_rgba(0,0,0,0.02),0_1px_3px_0_rgba(0,0,0,0.05)]'
+            }`}>
+              <span className="relative flex h-2.5 w-2.5 flex-shrink-0" aria-hidden="true">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-500 opacity-70" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-red-500" />
+              </span>
+              <div className="flex h-6 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden="true">
+                {voice.waveform.map((level, i) => (
+                  <span
+                    key={i}
+                    className="w-[3px] rounded-full bg-gold-500"
+                    style={{ height: `${Math.round(Math.max(0.08, level) * 100)}%` }}
+                  />
+                ))}
+              </div>
+              <span
+                className={`text-[13px] tabular-nums font-medium flex-shrink-0 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}
+                aria-live="polite"
+              >
+                {formatRecordingTime(voice.durationMs)}
+              </span>
+            </div>
+
+            {/* Stop — end the take and send it for transcription */}
+            <button
+              onClick={() => { void voice.stop(); }}
+              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-gold-400 to-gold-500 text-white shadow-lg shadow-gold-500/25 transition-all duration-150 hover:shadow-gold-500/40 active:scale-95"
+              aria-label="Stop recording"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
           </div>
         ) : (
         <div className="mx-auto flex max-w-3xl items-center gap-2">
@@ -2388,22 +2422,18 @@ export default function PurchaserChatTab({
               className={`flex-1 border-none bg-transparent text-[15px] placeholder:text-gray-400 focus:outline-none ${isDarkMode ? 'text-white' : 'text-gray-900'}`}
             />
             
-            {speechSupported && (
-              <button
-                onClick={toggleVoiceInput}
-                disabled={sending}
-                className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
-                  isListening 
-                    ? 'bg-gold-500 text-white shadow-lg shadow-gold-500/30' 
-                    : isDarkMode 
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
-                      : 'text-gray-500 hover:text-gray-700 hover:bg-black/5'
-                } disabled:opacity-50`}
-                aria-label="Voice input"
-              >
-                <Mic className="h-5 w-5" />
-              </button>
-            )}
+            <button
+              onClick={() => { void voice.start(); }}
+              disabled={sending}
+              className={`flex h-8 w-8 items-center justify-center rounded-full transition-all duration-150 active:scale-95 ${
+                isDarkMode
+                  ? 'text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-black/5'
+              } disabled:opacity-50`}
+              aria-label="Record voice message"
+            >
+              <Mic className="h-5 w-5" />
+            </button>
 
             {(input.trim() || hasAttachments) && (
               <button

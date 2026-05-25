@@ -56,7 +56,7 @@ export class TranscriptionError extends Error {
 export async function transcribeAudio(
   audio: Buffer,
   mimeType: string,
-  options: { vocabularyPrompt?: string } = {},
+  options: { vocabularyPrompt?: string; language?: string } = {},
 ): Promise<TranscriptionResult> {
   if (audio.byteLength === 0) {
     throw new TranscriptionError('Audio file is empty', 'empty');
@@ -72,7 +72,7 @@ export async function transcribeAudio(
 
   if (process.env.DEEPGRAM_API_KEY) {
     try {
-      return await transcribeWithDeepgram(audio, mimeType);
+      return await transcribeWithDeepgram(audio, mimeType, options.language);
     } catch (err: any) {
       lastError = `deepgram: ${err?.message ?? 'unknown'}`;
     }
@@ -80,7 +80,7 @@ export async function transcribeAudio(
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      return await transcribeWithWhisper(audio, mimeType, options.vocabularyPrompt);
+      return await transcribeWithWhisper(audio, mimeType, options.vocabularyPrompt, options.language);
     } catch (err: any) {
       lastError = lastError
         ? `${lastError}; whisper: ${err?.message ?? 'unknown'}`
@@ -104,13 +104,21 @@ export async function transcribeAudio(
 async function transcribeWithDeepgram(
   audio: Buffer,
   mimeType: string,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const params = new URLSearchParams({
     model: 'nova-3',
     smart_format: 'true',
     punctuate: 'true',
-    language: 'en',
   });
+  // A caller-supplied hint pins the language; otherwise let Nova-3 auto-detect
+  // (the homeowner app speaks 9 languages, so hardcoding 'en' mis-transcribed
+  // everyone else).
+  if (language) {
+    params.set('language', language);
+  } else {
+    params.set('detect_language', 'true');
+  }
 
   const res = await fetch(`https://api.deepgram.com/v1/listen?${params}`, {
     method: 'POST',
@@ -127,10 +135,16 @@ async function transcribeWithDeepgram(
   }
 
   const json: any = await res.json();
-  const transcript: string =
-    json?.results?.channels?.[0]?.alternatives?.[0]?.transcript ?? '';
+  const channel: any = json?.results?.channels?.[0];
+  const transcript: string = channel?.alternatives?.[0]?.transcript ?? '';
   const duration: number | null =
     typeof json?.metadata?.duration === 'number' ? json.metadata.duration : null;
+  // Deepgram reports the detected language on the channel when detect_language
+  // is on; fall back to the hint, then 'en'.
+  const detectedLanguage: string =
+    typeof channel?.detected_language === 'string' && channel.detected_language.length
+      ? channel.detected_language
+      : language || 'en';
 
   if (!transcript.trim()) {
     throw new Error('Deepgram returned empty transcript');
@@ -140,7 +154,7 @@ async function transcribeWithDeepgram(
     transcript: transcript.trim(),
     provider: 'deepgram',
     duration_seconds: duration,
-    language: 'en',
+    language: detectedLanguage,
   };
 }
 
@@ -148,12 +162,16 @@ async function transcribeWithWhisper(
   audio: Buffer,
   mimeType: string,
   vocabularyPrompt?: string,
+  language?: string,
 ): Promise<TranscriptionResult> {
   const form = new FormData();
   const ext = mimeExtension(mimeType);
   form.append('file', new Blob([new Uint8Array(audio)], { type: mimeType }), `capture.${ext}`);
   form.append('model', 'whisper-1');
-  form.append('language', 'en');
+  // Omit `language` to let Whisper auto-detect; pass it only as a caller hint.
+  if (language) {
+    form.append('language', language);
+  }
   form.append('response_format', 'verbose_json');
   if (vocabularyPrompt && vocabularyPrompt.length > 0) {
     form.append('prompt', vocabularyPrompt);
@@ -174,8 +192,12 @@ async function transcribeWithWhisper(
   const transcript: string = json?.text ?? '';
   const duration: number | null =
     typeof json?.duration === 'number' ? json.duration : null;
-  const language: string =
-    typeof json?.language === 'string' && json.language.length ? json.language : 'en';
+  // Whisper reports the detected language in verbose_json; fall back to the
+  // caller hint, then 'en'.
+  const detectedLanguage: string =
+    typeof json?.language === 'string' && json.language.length
+      ? json.language
+      : language || 'en';
 
   if (!transcript.trim()) {
     throw new Error('Whisper returned empty transcript');
@@ -185,7 +207,7 @@ async function transcribeWithWhisper(
     transcript: transcript.trim(),
     provider: 'whisper',
     duration_seconds: duration,
-    language,
+    language: detectedLanguage,
   };
 }
 
