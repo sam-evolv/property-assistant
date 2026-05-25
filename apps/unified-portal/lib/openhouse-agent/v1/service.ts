@@ -131,6 +131,14 @@ export async function callAgent(
       )}`,
     });
   }
+  // Prior turns (oldest first) sit between the system context and the current
+  // user message, so the model reads the conversation in order. Empty or
+  // omitted leaves the original single-message behaviour unchanged.
+  if (input.priorMessages?.length) {
+    for (const prior of input.priorMessages) {
+      messages.push({ role: prior.role, content: prior.content });
+    }
+  }
   messages.push({ role: 'user', content: userContent });
 
   const response = await client.chat.completions.create({

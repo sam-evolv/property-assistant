@@ -105,6 +105,138 @@ function computeCostUsdMicro(tokensIn: number | null, tokensOut: number | null):
   return Math.round((tokensIn ?? 0) * GPT4O_USD_PER_1M_INPUT + (tokensOut ?? 0) * GPT4O_USD_PER_1M_OUTPUT);
 }
 
+// ── Conversation memory (OpenHouse agent path only) ───────────────────────
+// Turns are stored in assistant_conversation_turns (migration 065), keyed by the
+// bare conversation_id. We replay the most recent turns to the model so the
+// homeowner has cross-turn continuity. This is identifiable personal data, NOT
+// the anonymous analytics row — see the migration header.
+const HISTORY_MAX_TURNS = 6; // up to 3 user + 3 assistant turns
+const HISTORY_TOKEN_BUDGET = 2000; // hard cap on the replayed history
+const HISTORY_IMAGE_PLACEHOLDER = '[user sent a photo]';
+
+type PriorMessage = { role: 'user' | 'assistant'; content: string };
+
+// Columns selected from assistant_media for the tenant/conversation/unit checks
+// and signed-URL resolution.
+interface MediaRow {
+  id: string;
+  tenant_id: string;
+  unit_id: string | null;
+  conversation_id: string | null;
+  message_id: string | null;
+  storage_path: string | null;
+}
+
+// Rough token estimate (~4 chars/token). Avoids adding a tokenizer dependency;
+// used only to bound how much history we replay, so an approximation is fine.
+function estimateHistoryTokens(text: string): number {
+  return Math.ceil((text?.length ?? 0) / 4);
+}
+
+// Load up to the last HISTORY_MAX_TURNS turns for this conversation, oldest
+// first, trimmed from the OLDEST end to HISTORY_TOKEN_BUDGET (recent turns are
+// kept). System turns are stripped (defensive — the table only stores
+// user/assistant). Image turns are replaced with a short placeholder rather than
+// re-sending the large, possibly-expired signed URLs. Best-effort: a read
+// failure returns [] and never blocks the turn.
+async function loadPriorMessages(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  tenantId: string,
+  conversationId: string,
+): Promise<PriorMessage[]> {
+  const { data, error } = await supabase
+    .from('assistant_conversation_turns')
+    .select('role, content, has_image, created_at')
+    .eq('tenant_id', tenantId)
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: false })
+    // Both rows of one exchange share created_at (one INSERT, one now()), so add a
+    // deterministic tiebreaker. role ASC puts 'assistant' before 'user' within an
+    // exchange in this DESC fetch, which becomes user-before-assistant after the
+    // reverse() below — the correct chronological order.
+    .order('role', { ascending: true })
+    .limit(HISTORY_MAX_TURNS);
+
+  if (error || !data) {
+    if (error) {
+      console.warn('[assistant-chat-multimodal] history_load_failed reason=%s', error.message);
+    }
+    return [];
+  }
+
+  const chronological: PriorMessage[] = [...data]
+    .reverse()
+    .filter((t) => t.role === 'user' || t.role === 'assistant')
+    .map((t) => {
+      const text = (typeof t.content === 'string' ? t.content : '').trim();
+      const content = t.has_image
+        ? text
+          ? `${text}\n${HISTORY_IMAGE_PLACEHOLDER}`
+          : HISTORY_IMAGE_PLACEHOLDER
+        : text;
+      return { role: t.role as 'user' | 'assistant', content };
+    })
+    .filter((m) => m.content.length > 0);
+
+  // Trim from the oldest end until within the token budget, keeping recent turns.
+  let total = chronological.reduce((sum, m) => sum + estimateHistoryTokens(m.content), 0);
+  let start = 0;
+  while (start < chronological.length && total > HISTORY_TOKEN_BUDGET) {
+    total -= estimateHistoryTokens(chronological[start].content);
+    start += 1;
+  }
+  return chronological.slice(start);
+}
+
+// Persist the user turn and the assistant turn for this exchange. content holds
+// text only (never image URLs); has_image flags that the user attached photos so
+// the next load can show the placeholder. Awaited so the rows are durable before
+// the next request reads them, but a write failure is logged and never fails the
+// response the homeowner already has.
+async function persistConversationTurns(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  params: {
+    tenantId: string;
+    conversationId: string;
+    userId: string | null;
+    messageId: string;
+    userText: string;
+    userHadImage: boolean;
+    assistantText: string;
+  },
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('assistant_conversation_turns').insert([
+      {
+        tenant_id: params.tenantId,
+        conversation_id: params.conversationId,
+        user_id: params.userId,
+        message_id: params.messageId,
+        role: 'user',
+        content: params.userText ?? '',
+        has_image: params.userHadImage,
+      },
+      {
+        tenant_id: params.tenantId,
+        conversation_id: params.conversationId,
+        user_id: params.userId,
+        message_id: params.messageId,
+        role: 'assistant',
+        content: params.assistantText ?? '',
+        has_image: false,
+      },
+    ]);
+    if (error) {
+      console.warn('[assistant-chat-multimodal] turn_persist_failed reason=%s', error.message);
+    }
+  } catch (err) {
+    console.warn(
+      '[assistant-chat-multimodal] turn_persist_threw reason=%s',
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
+
 interface MultimodalBody {
   conversation_id?: unknown;
   message_text?: unknown;
@@ -213,10 +345,28 @@ export async function POST(request: NextRequest) {
   if (!UUID_RE.test(conversationId)) {
     return NextResponse.json({ error: 'conversation_id is required' }, { status: 400 });
   }
-  if (!isUuidArray(body.media_ids)) {
+
+  // media_ids handling differs by path. The image-only paths (housing-reasoning-v1
+  // and the Sprint 1 placeholder) require a valid uuid array. The OpenHouse agent
+  // path (FEATURE_OPENHOUSE_AGENT_V1) also answers text-only turns, so a MISSING or
+  // EMPTY media_ids is treated as text-only there. A present-but-malformed
+  // media_ids (not a uuid array, and not an empty array) is a client bug, so it
+  // 400s on every path rather than being silently dropped. Read the flag once here
+  // and reuse it for the branch below.
+  const agentEnabled = isOpenhouseAgentV1Enabled();
+  const rawMediaIds = body.media_ids;
+  const mediaValid = isUuidArray(rawMediaIds);
+  const mediaMissing = rawMediaIds === undefined || rawMediaIds === null;
+  const mediaEmptyArray = Array.isArray(rawMediaIds) && rawMediaIds.length === 0;
+  const mediaMalformed = !mediaValid && !mediaMissing && !mediaEmptyArray;
+
+  if (mediaMalformed) {
+    return NextResponse.json({ error: 'media_ids is malformed' }, { status: 400 });
+  }
+  if (!mediaValid && !agentEnabled) {
     return NextResponse.json({ error: 'media_ids is required' }, { status: 400 });
   }
-  const mediaIds: string[] = Array.from(new Set(body.media_ids));
+  const mediaIds: string[] = mediaValid ? Array.from(new Set(rawMediaIds as string[])) : [];
   if (mediaIds.length > MAX_MEDIA_PER_MESSAGE) {
     return NextResponse.json(
       { error: 'You can attach up to 6 photos per message.' },
@@ -252,44 +402,52 @@ export async function POST(request: NextRequest) {
   }
 
   const supabase = getSupabaseAdmin();
-  const { data: mediaRows, error: mediaErr } = await supabase
-    .from('assistant_media')
-    .select('id, tenant_id, unit_id, conversation_id, message_id, storage_path')
-    .in('id', mediaIds);
 
-  if (mediaErr) {
-    console.error(
-      '[assistant-chat-multimodal] media_lookup_failed reason=%s',
-      mediaErr.message,
-    );
-    return NextResponse.json({ error: 'Could not load media' }, { status: 500 });
-  }
+  // Text-only turns (agent path) carry no media_ids, so skip the media lookup
+  // and cross-tenant checks entirely; mediaRows stays empty and the downstream
+  // image-loading loops produce no image URLs.
+  let mediaRows: MediaRow[] = [];
+  if (mediaIds.length > 0) {
+    const { data, error: mediaErr } = await supabase
+      .from('assistant_media')
+      .select('id, tenant_id, unit_id, conversation_id, message_id, storage_path')
+      .in('id', mediaIds);
 
-  if (!mediaRows || mediaRows.length !== mediaIds.length) {
-    return NextResponse.json({ error: 'One or more media not found' }, { status: 404 });
-  }
-
-  for (const m of mediaRows) {
-    if (m.tenant_id !== auth.tenantId) {
-      console.warn(
-        '[assistant-chat-multimodal] CROSS_TENANT_MEDIA media_id=%s caller_tenant=%s media_tenant=%s',
-        m.id,
-        auth.tenantId,
-        m.tenant_id,
+    if (mediaErr) {
+      console.error(
+        '[assistant-chat-multimodal] media_lookup_failed reason=%s',
+        mediaErr.message,
       );
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      return NextResponse.json({ error: 'Could not load media' }, { status: 500 });
     }
-    if (m.conversation_id && m.conversation_id !== conversationId) {
-      return NextResponse.json(
-        { error: 'Media belongs to a different conversation' },
-        { status: 400 },
-      );
+
+    if (!data || data.length !== mediaIds.length) {
+      return NextResponse.json({ error: 'One or more media not found' }, { status: 404 });
     }
-    if (auth.unitId && m.unit_id && m.unit_id !== auth.unitId) {
-      return NextResponse.json(
-        { error: 'Media belongs to a different unit' },
-        { status: 400 },
-      );
+    mediaRows = data as MediaRow[];
+
+    for (const m of mediaRows) {
+      if (m.tenant_id !== auth.tenantId) {
+        console.warn(
+          '[assistant-chat-multimodal] CROSS_TENANT_MEDIA media_id=%s caller_tenant=%s media_tenant=%s',
+          m.id,
+          auth.tenantId,
+          m.tenant_id,
+        );
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      if (m.conversation_id && m.conversation_id !== conversationId) {
+        return NextResponse.json(
+          { error: 'Media belongs to a different conversation' },
+          { status: 400 },
+        );
+      }
+      if (auth.unitId && m.unit_id && m.unit_id !== auth.unitId) {
+        return NextResponse.json(
+          { error: 'Media belongs to a different unit' },
+          { status: 400 },
+        );
+      }
     }
   }
 
@@ -356,7 +514,7 @@ export async function POST(request: NextRequest) {
     waitUntil(logTurn(input).catch(() => {}));
   };
 
-  if (isOpenhouseAgentV1Enabled()) {
+  if (agentEnabled) {
     // ===================================================================
     // OpenHouse Assistant v1 (Sprint 2). General home agent, highest
     // priority. callAgent() returns { message, issue_report? } with NO action
@@ -397,6 +555,11 @@ export async function POST(request: NextRequest) {
       unitId: auth.unitId,
     };
 
+    // Short-term conversation memory: replay the most recent turns (token-
+    // bounded, oldest trimmed, image turns reduced to a placeholder) so the
+    // homeowner has continuity across the conversation. See migration 065.
+    const priorMessages = await loadPriorMessages(supabase, auth.tenantId, conversationId);
+
     const startedAt = Date.now();
     let agentResult: OpenhouseAgentResult;
     try {
@@ -404,6 +567,7 @@ export async function POST(request: NextRequest) {
         userType: 'homeowner',
         text: messageText,
         images: imageUrls,
+        priorMessages,
         // Voice notes are not delivered to this route yet (the body carries
         // media_ids only). When that plumbing exists, transcribe upstream via
         // lib/agent-intelligence/transcription.ts and pass the transcript as
@@ -598,6 +762,19 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+
+    // Persist this exchange so the next turn has context (migration 065). Both
+    // the user turn and the assistant turn are written; content is text only and
+    // has_image flags photo attachments for the placeholder on the next load.
+    await persistConversationTurns(supabase, {
+      tenantId: auth.tenantId,
+      conversationId,
+      userId: auth.userId ?? null,
+      messageId,
+      userText: messageText,
+      userHadImage: mediaIds.length > 0,
+      assistantText: residentMessage,
+    });
   } else if (isHousingReasoningV1Enabled()) {
     // ===================================================================
     // Housing Reasoning v0.1 (Sprint 1b). BOUNDARY MAPPING LIVES HERE, by
