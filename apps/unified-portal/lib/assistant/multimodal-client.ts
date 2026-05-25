@@ -72,52 +72,66 @@ const CHAT_FAILED_MESSAGE =
 export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMultimodalResult> {
   const { conversationId, unitId, qrToken, messageText, selections, onStatus } = input;
 
-  onStatus?.('compressing');
-  // compressSelectionsForUpload is a no-op for files already under the
-  // threshold and for browsers that cannot decode the source format
-  // (HEIC on Chrome and Firefox), so this is always safe to call.
-  const compressed = await compressSelectionsForUpload(selections);
+  // Text-only turns (no attachments) skip the compress + upload steps entirely
+  // and post straight to the chat route with empty media_ids. This is the path
+  // PurchaserChatTab uses when the OpenHouse agent flag is on, so a text-only
+  // message goes through the agent route (which has conversation memory) rather
+  // than the RAG /api/chat endpoint. The multimodal route accepts empty
+  // media_ids on the agent path.
+  const textOnly = selections.length === 0;
 
-  onStatus?.('uploading');
+  let media: UploadedMedia[] = [];
+  let uploadedMessageId: string | undefined;
 
-  const form = new FormData();
-  form.set('conversation_id', conversationId);
-  form.set('unit_id', unitId);
-  for (const sel of compressed) {
-    form.append('files', sel.file, sel.file.name);
-  }
+  if (!textOnly) {
+    onStatus?.('compressing');
+    // compressSelectionsForUpload is a no-op for files already under the
+    // threshold and for browsers that cannot decode the source format
+    // (HEIC on Chrome and Firefox), so this is always safe to call.
+    const compressed = await compressSelectionsForUpload(selections);
 
-  let uploadJson: {
-    message_id?: string;
-    media?: UploadedMedia[];
-  };
-  try {
-    const uploadRes = await fetch('/api/assistant/media/upload', {
-      method: 'POST',
-      headers: { 'x-qr-token': qrToken },
-      body: form,
-    });
-    if (!uploadRes.ok) {
-      let serverMessage = UPLOAD_FAILED_MESSAGE;
-      try {
-        const errJson = await uploadRes.json();
-        if (typeof errJson?.error === 'string' && errJson.error.length > 0 && errJson.error.length < 200) {
-          serverMessage = errJson.error;
-        }
-      } catch {
-        // ignore json parse failure
-      }
-      throw new SendMultimodalError(serverMessage, 'upload');
+    onStatus?.('uploading');
+
+    const form = new FormData();
+    form.set('conversation_id', conversationId);
+    form.set('unit_id', unitId);
+    for (const sel of compressed) {
+      form.append('files', sel.file, sel.file.name);
     }
-    uploadJson = await uploadRes.json();
-  } catch (err) {
-    if (err instanceof SendMultimodalError) throw err;
-    throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
-  }
 
-  const media = Array.isArray(uploadJson.media) ? uploadJson.media : [];
-  if (media.length === 0) {
-    throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
+    let uploadJson: {
+      message_id?: string;
+      media?: UploadedMedia[];
+    };
+    try {
+      const uploadRes = await fetch('/api/assistant/media/upload', {
+        method: 'POST',
+        headers: { 'x-qr-token': qrToken },
+        body: form,
+      });
+      if (!uploadRes.ok) {
+        let serverMessage = UPLOAD_FAILED_MESSAGE;
+        try {
+          const errJson = await uploadRes.json();
+          if (typeof errJson?.error === 'string' && errJson.error.length > 0 && errJson.error.length < 200) {
+            serverMessage = errJson.error;
+          }
+        } catch {
+          // ignore json parse failure
+        }
+        throw new SendMultimodalError(serverMessage, 'upload');
+      }
+      uploadJson = await uploadRes.json();
+    } catch (err) {
+      if (err instanceof SendMultimodalError) throw err;
+      throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
+    }
+
+    media = Array.isArray(uploadJson.media) ? uploadJson.media : [];
+    if (media.length === 0) {
+      throw new SendMultimodalError(UPLOAD_FAILED_MESSAGE, 'upload');
+    }
+    uploadedMessageId = uploadJson.message_id;
   }
 
   onStatus?.('reviewing');
@@ -142,7 +156,7 @@ export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMu
         unit_id: unitId,
         message_text: messageText,
         media_ids: media.map((m) => m.media_id),
-        message_id: uploadJson.message_id,
+        message_id: uploadedMessageId,
       }),
     });
     if (!chatRes.ok) {
@@ -164,7 +178,7 @@ export async function sendMultimodal(input: SendMultimodalInput): Promise<SendMu
   }
 
   return {
-    messageId: chatJson.message_id ?? uploadJson.message_id ?? '',
+    messageId: chatJson.message_id ?? uploadedMessageId ?? '',
     conversationId: chatJson.conversation_id ?? conversationId,
     media,
     assistantMessage: typeof chatJson.message === 'string' ? chatJson.message : '',

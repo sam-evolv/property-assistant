@@ -7,7 +7,7 @@ import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
-import { isAssistantImageUploadEnabled } from '@/lib/feature-flags';
+import { isAssistantImageUploadEnabled, isOpenhouseAgentV1Enabled } from '@/lib/feature-flags';
 import {
   ASSISTANT_MEDIA_MAX_FILES,
   normalizeFiles,
@@ -1466,6 +1466,33 @@ export default function PurchaserChatTab({
 
     if (intentMetadata) {
       setLastIntentKey(intentMetadata.intentKey);
+    }
+
+    // Bug 1 fix: when the OpenHouse agent is enabled (client flag
+    // NEXT_PUBLIC_FEATURE_OPENHOUSE_AGENT_V1), route text-only turns through the
+    // agent route via sendMultimodal with no attachments, so they get
+    // conversation memory and are logged to assistant_conversation_turns the
+    // same way photo turns are. Flag off => unchanged RAG /api/chat behaviour.
+    if (isOpenhouseAgentV1Enabled()) {
+      try {
+        const result = await sendMultimodal({
+          conversationId: getOrCreateConversationId(),
+          unitId: unitUid,
+          qrToken: token,
+          messageText: textToSend,
+          selections: [],
+        });
+        setMessages((prev) => [...prev, { role: 'assistant', content: result.assistantMessage }]);
+      } catch (err) {
+        const message =
+          err instanceof SendMultimodalError
+            ? err.residentMessage
+            : "Couldn't send the message. Try again or come back to it later.";
+        setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+      } finally {
+        setSending(false);
+      }
+      return;
     }
 
     try {
