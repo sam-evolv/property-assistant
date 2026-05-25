@@ -115,18 +115,26 @@ const TYPING_STYLES = ANIMATION_STYLES;
 
 // Streaming display configuration for natural text appearance
 const STREAMING_CONFIG = {
-  baseDelay: 18,           // Base delay between words (ms)
-  variance: 8,             // Random variance +/- (ms)
-  sentenceDelay: 50,       // Extra delay after . ! ?
-  paragraphDelay: 100,     // Extra delay after paragraph breaks
-  initialDelay: 350,       // Delay before text starts appearing (thinking time)
+  baseDelay: 32,           // Base delay between words (ms)
+  variance: 6,             // Random variance +/- (ms)
+  sentenceDelay: 60,       // Extra delay after . ! ?
+  paragraphDelay: 120,     // Extra delay after paragraph breaks
+  initialDelay: 0,         // No artificial pause; the model round trip is the wait
 };
 
 // Helper to calculate delay for natural text cadence
 function getWordDelay(word: string, isAfterParagraph: boolean): number {
-  const base = STREAMING_CONFIG.baseDelay;
   const variance = (Math.random() * STREAMING_CONFIG.variance * 2) - STREAMING_CONFIG.variance;
-  let delay = base + variance;
+  let delay = STREAMING_CONFIG.baseDelay + variance;
+
+  // Short, common words flit by faster than longer ones, the way a real
+  // typist runs through "to" or "is" quicker than "underfloor".
+  const wordLength = word.trim().length;
+  if (wordLength <= 2) {
+    delay *= 0.5;
+  } else if (wordLength <= 4) {
+    delay *= 0.75;
+  }
 
   // Add extra pause after sentence-ending punctuation
   if (/[.!?]$/.test(word)) {
@@ -984,7 +992,7 @@ export default function PurchaserChatTab({
   const [displayedContent, setDisplayedContent] = useState<string>('');
   const [fullContent, setFullContent] = useState<string>('');
   const [isTyping, setIsTyping] = useState(false);
-  const typingAbortRef = useRef<boolean>(false);
+  const revealSeqRef = useRef(0);
   const streamingMessageIndexRef = useRef<number>(-1);
   const [hasBeenWelcomed, setHasBeenWelcomed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -1310,26 +1318,38 @@ export default function PurchaserChatTab({
     pillId: string;
   }
 
-  // Controlled typing effect for natural text display
-  const displayTextWithDelay = useCallback(async (
-    fullText: string,
-    messageIndex: number,
-    drawing: DrawingData | null,
-    sources: SourceDocument[] | null
-  ) => {
-    typingAbortRef.current = false;
-    setIsTyping(true);
-
-    // Sanitize the text for display (remove markdown)
+  // Reveals an assistant reply word by word. The agent / multimodal turn comes
+  // back as one JSON payload (no wire streaming), so this animates it after the
+  // fact: it appends its own placeholder message and fills it in, which reads as
+  // the assistant thinking rather than pasting a cached block. A reveal is
+  // superseded the instant a newer one starts or a new turn is sent (tracked by
+  // revealSeqRef): the older message is left complete and its loop stops, so two
+  // turns never race over the same text.
+  const displayTextWithDelay = useCallback(async (fullText: string) => {
+    const seq = ++revealSeqRef.current;
     const sanitizedText = cleanForDisplay(fullText);
 
-    // Initial thinking delay
-    await new Promise(resolve => setTimeout(resolve, STREAMING_CONFIG.initialDelay));
+    // Append the placeholder and remember where it landed. messageIndex is read
+    // after the yield below, by which point React has committed the append.
+    let messageIndex = -1;
+    setMessages((prev) => {
+      messageIndex = prev.length;
+      return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
+    });
+    setIsTyping(true);
 
-    if (typingAbortRef.current) {
-      setIsTyping(false);
-      return;
-    }
+    const writeContent = (content: string) => {
+      setMessages((prev) => {
+        if (messageIndex < 0 || !prev[messageIndex]) return prev;
+        const updated = [...prev];
+        updated[messageIndex] = { ...updated[messageIndex], content };
+        return updated;
+      });
+    };
+
+    // initialDelay is 0 (no artificial pause). The yield lets the placeholder
+    // commit so messageIndex is set before the first write lands.
+    await new Promise((resolve) => setTimeout(resolve, STREAMING_CONFIG.initialDelay));
 
     // Split into words while preserving whitespace structure
     const words = sanitizedText.split(/(\s+)/);
@@ -1337,36 +1357,29 @@ export default function PurchaserChatTab({
     let prevWasParagraph = false;
 
     for (let i = 0; i < words.length; i++) {
-      if (typingAbortRef.current) break;
+      // A newer reveal or turn took over: drop the full text in so this message
+      // is left complete, then stop.
+      if (revealSeqRef.current !== seq) {
+        writeContent(sanitizedText);
+        return;
+      }
 
       const word = words[i];
       displayed += word;
-
-      // Update the message content
-      setMessages((prev) => {
-        const updated = [...prev];
-        if (messageIndex >= 0 && updated[messageIndex]) {
-          updated[messageIndex] = {
-            ...updated[messageIndex],
-            content: displayed,
-            drawing: drawing,
-            sources: sources,
-          };
-        }
-        return updated;
-      });
+      writeContent(displayed);
 
       // Only add delay for non-whitespace words
       if (word.trim()) {
-        const delay = getWordDelay(word, prevWasParagraph);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, getWordDelay(word, prevWasParagraph)));
         prevWasParagraph = false;
       } else if (word.includes('\n\n')) {
         prevWasParagraph = true;
       }
     }
 
-    setIsTyping(false);
+    if (revealSeqRef.current === seq) {
+      setIsTyping(false);
+    }
   }, []);
 
   const sendMessageWithMedia = useCallback(async () => {
@@ -1384,6 +1397,8 @@ export default function PurchaserChatTab({
     setLastMultimodalError(null);
     setShowHome(false);
     setInput('');
+    // A new turn supersedes any reply still revealing word by word.
+    revealSeqRef.current += 1;
     setMultimodalStatus('uploading');
 
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -1409,18 +1424,21 @@ export default function PurchaserChatTab({
       setMessages((prev) => [
         ...prev,
         { role: 'user', content: textForMessage, media: userMedia },
-        { role: 'assistant', content: result.assistantMessage },
       ]);
       clearAttachmentsAfterSend();
+      // The answer is here: drop the upload status (the indicator hides as the
+      // first word lands) and reveal the reply word by word. Status is not
+      // touched after this await, so a turn sent mid-reveal cannot clobber it.
+      setMultimodalStatus(null);
+      await displayTextWithDelay(result.assistantMessage);
     } catch (err) {
       const message = err instanceof SendMultimodalError
         ? err.residentMessage
         : "Couldn't send the message. Try again or come back to it later.";
+      setMultimodalStatus(null);
       setLastMultimodalError(message);
       // Restore the text so the homeowner doesn't lose what they typed.
       setInput(textForMessage);
-    } finally {
-      setMultimodalStatus(null);
     }
   }, [
     imageUploadEnabled,
@@ -1432,6 +1450,7 @@ export default function PurchaserChatTab({
     getOrCreateConversationId,
     unitUid,
     clearAttachmentsAfterSend,
+    displayTextWithDelay,
   ]);
 
   const sendMessage = async (messageText?: string, intentMetadata?: IntentMetadata) => {
@@ -1458,6 +1477,8 @@ export default function PurchaserChatTab({
     
     setInput('');
     setSending(true);
+    // A new turn supersedes any reply still revealing word by word.
+    revealSeqRef.current += 1;
 
     // Haptic feedback on send (mobile)
     if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
@@ -1474,6 +1495,7 @@ export default function PurchaserChatTab({
     // conversation memory and are logged to assistant_conversation_turns the
     // same way photo turns are. Flag off => unchanged RAG /api/chat behaviour.
     if (isOpenhouseAgentV1Enabled()) {
+      let agentReply = '';
       try {
         const result = await sendMultimodal({
           conversationId: getOrCreateConversationId(),
@@ -1482,16 +1504,21 @@ export default function PurchaserChatTab({
           messageText: textToSend,
           selections: [],
         });
-        setMessages((prev) => [...prev, { role: 'assistant', content: result.assistantMessage }]);
+        agentReply = result.assistantMessage;
       } catch (err) {
         const message =
           err instanceof SendMultimodalError
             ? err.residentMessage
             : "Couldn't send the message. Try again or come back to it later.";
-        setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
-      } finally {
         setSending(false);
+        setMessages((prev) => [...prev, { role: 'assistant', content: message }]);
+        return;
       }
+      // Response is in hand: hide the typing indicator and re-enable input, then
+      // reveal the reply word by word. Sending is not touched after this await,
+      // so a new message sent mid-reveal cleanly supersedes this one.
+      setSending(false);
+      await displayTextWithDelay(agentReply);
       return;
     }
 
