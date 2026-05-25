@@ -20,6 +20,7 @@ import type {
   IssueCategory,
   IssueStatus,
 } from '../../housing-reasoning/v1/types';
+import type { HouseContext } from '../../house-context/types';
 
 export type { IssueSeverity, IssueCategory, IssueStatus };
 
@@ -102,6 +103,11 @@ export interface CallAgentInput {
    * single-turn call (the original behaviour).
    */
   priorMessages?: { role: 'user' | 'assistant'; content: string }[];
-  /** What the route knows about this specific home. Optional. */
-  houseContext?: OpenhouseAgentHouseContext | null;
+  /**
+   * What the route knows about this specific home. Optional. Accepts either the
+   * legacy flat OpenhouseAgentHouseContext or the structured HouseContext now
+   * loaded by lib/house-context; the service JSON-serializes whichever it gets
+   * into the HOUSE CONTEXT system message.
+   */
+  houseContext?: OpenhouseAgentHouseContext | HouseContext | null;
 }

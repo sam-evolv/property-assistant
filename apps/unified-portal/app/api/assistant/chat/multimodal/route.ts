@@ -57,10 +57,8 @@ import { HOUSING_REASONING_V1_PROMPT_VERSION } from '@/lib/housing-reasoning/v1/
 import type { HousingReasoningResult, IssueSeverity } from '@/lib/housing-reasoning/v1/types';
 import { callAgent } from '@/lib/openhouse-agent/v1/service';
 import { OPENHOUSE_AGENT_V1_PROMPT_VERSION } from '@/lib/openhouse-agent/v1/prompt';
-import type {
-  OpenhouseAgentResult,
-  OpenhouseAgentHouseContext,
-} from '@/lib/openhouse-agent/v1/types';
+import type { OpenhouseAgentResult } from '@/lib/openhouse-agent/v1/types';
+import { loadHouseContext } from '@/lib/house-context';
 import { logTurn } from '@/lib/assistant-analytics/logger';
 import type { AttachedMediaItem, LogInput } from '@/lib/assistant-analytics/types';
 
@@ -545,15 +543,19 @@ export async function POST(request: NextRequest) {
       imageUrls.push(signed.signedUrl);
     }
 
-    // Pass only the house context the route already loads. resolveMediaAuth
-    // returns ids only. FLAG (follow-up): the route does NOT currently load the
-    // development name, unit name/number, room dimensions, floor plan refs, or
-    // snag history that the prompt is designed to use. Wiring those in needs new
-    // queries and is intentionally out of scope here (no new data plumbing).
-    const houseContext: OpenhouseAgentHouseContext = {
-      developmentId: auth.developmentId,
-      unitId: auth.unitId,
-    };
+    // Load the structured briefing of this homeowner's actual home (development,
+    // unit, every room with dimensions, and scheme-level heating/broadband/waste/
+    // parking facts) so the agent answers from real data instead of deferring to
+    // the Documents tab. Service-role queries; any failure degrades to null/empty
+    // fields and never breaks the chat turn. developmentId is guaranteed by the
+    // early return near the top of this handler; unitId by requireUnit:true in
+    // resolveMediaAuth. See lib/house-context.
+    const houseContext = await loadHouseContext({
+      tenantId: auth.tenantId,
+      developmentId: auth.developmentId!,
+      unitId: auth.unitId!,
+      supabase,
+    });
 
     // Short-term conversation memory: replay the most recent turns (token-
     // bounded, oldest trimmed, image turns reduced to a placeholder) so the
