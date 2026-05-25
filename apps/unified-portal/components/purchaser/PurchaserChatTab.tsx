@@ -6,7 +6,7 @@ import { Home, Mic, Send, FileText, Download, Eye, Info, ChevronDown, ChevronUp,
 import { useSuggestedPills } from '@/hooks/useSuggestedPills';
 import { useHomeNotes } from '@/hooks/useHomeNotes';
 import { PillDefinition } from '@/lib/assistant/suggested-pills';
-import { cleanForDisplay } from '@/lib/assistant/formatting';
+import { cleanForDisplay, renderChatMarkdown } from '@/lib/assistant/formatting';
 import { isAssistantImageUploadEnabled, isOpenhouseAgentV1Enabled } from '@/lib/feature-flags';
 import {
   ASSISTANT_MEDIA_MAX_FILES,
@@ -149,47 +149,30 @@ function getWordDelay(word: string, isAfterParagraph: boolean): number {
   return Math.max(10, delay);
 }
 
-// Format assistant content with selective styling for professionalism
-// Converts clean text into styled HTML with bold headings and proper list formatting
-function formatAssistantContent(content: string, isDarkMode: boolean): string {
-  if (!content) return '';
+// Prose rules layered onto paragraph text in the homeowner bubble: section
+// headers, clickable contacts, smart typography and highlighted figures. These
+// run on plain paragraph text only, so the structural markdown the shared
+// renderer produces (lists, headings) is left untouched.
+function applyAssistantProseRules(text: string): string {
+  let html = text;
 
-  // Escape HTML to prevent XSS
-  let html = content
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-
-  // Style lines that end with a colon as bold headings (e.g., "Walls:" or "Important:")
-  // These are section headers in the assistant's responses
+  // Style a short line that ends in a colon as a section header.
   html = html.replace(/^([A-Z][^:\n]{0,50}:)\s*$/gm, (match, heading) => {
     return `<strong class="block mt-3 mb-1 text-[15px] font-semibold">${heading}</strong>`;
   });
 
-  // Also style inline headings that start a paragraph (e.g., "Walls: The walls are...")
+  // Style an inline "Label:" that starts a line.
   html = html.replace(/^([A-Z][^:\n]{0,50}:)(\s+\S)/gm, (match, heading, rest) => {
     return `<strong class="font-semibold">${heading}</strong>${rest}`;
   });
 
-  // Style list items with proper indentation and bullet styling
-  // Using flex with items-start ensures multi-line text aligns properly (not under the bullet)
-  html = html.replace(/^- (.+)$/gm, (match, item) => {
-    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-gold-500 select-none shrink-0 mt-[2px]">•</span><span class="flex-1">${item}</span></div>`;
-  });
-
-  // Style numbered lists with proper alignment for multi-line items
-  html = html.replace(/^(\d+)\.\s+(.+)$/gm, (match, num, item) => {
-    return `<div class="flex items-start gap-2 ml-1 my-1"><span class="text-gold-500 font-medium select-none shrink-0 min-w-[1.25rem] mt-[1px]">${num}.</span><span class="flex-1">${item}</span></div>`;
-  });
-
-  // Make URLs clickable (but keep them clean-looking)
+  // Make URLs clickable.
   html = html.replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a href="$1" target="_blank" rel="noopener noreferrer" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
   );
 
-  // Make phone numbers clickable (Irish and international formats)
-  // Matches: +353..., 01234..., 083..., 0800..., etc.
+  // Make phone numbers clickable (Irish and international formats).
   html = html.replace(
     /(\+\d{1,3}[\s-]?\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}|\b0\d{2,4}[\s-]?\d{3,4}[\s-]?\d{3,4}\b)/g,
     (match) => {
@@ -198,54 +181,47 @@ function formatAssistantContent(content: string, isDarkMode: boolean): string {
     }
   );
 
-  // Make email addresses clickable
+  // Make email addresses clickable.
   html = html.replace(
     /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/g,
     '<a href="mailto:$1" class="text-gold-500 hover:text-gold-400 underline underline-offset-2">$1</a>'
   );
 
-  // Smart typography - convert straight quotes to curly quotes
-  // Using Unicode escape sequences to avoid parsing issues with curly quotes
-  html = html.replace(/(\s|^)"([^"]+)"(\s|$|[.,!?])/g, '$1\u201C$2\u201D$3'); // Double quotes " "
-  html = html.replace(/(\s|^)'([^']+)'(\s|$|[.,!?])/g, '$1\u2018$2\u2019$3'); // Single quotes ' '
-  html = html.replace(/(\w)'(\w)/g, '$1\u2019$2'); // Apostrophes (e.g., "don't") '
-  html = html.replace(/--/g, '–'); // En-dash
-  html = html.replace(/\.\.\./g, '…'); // Ellipsis
+  // Smart typography. Unicode escapes avoid encoding ambiguity in the source.
+  html = html.replace(/(\s|^)"([^"]+)"(\s|$|[.,!?])/g, '$1“$2”$3');
+  html = html.replace(/(\s|^)'([^']+)'(\s|$|[.,!?])/g, '$1‘$2’$3');
+  html = html.replace(/(\w)'(\w)/g, '$1’$2');
+  html = html.replace(/--/g, '–');
+  html = html.replace(/\.\.\./g, '…');
 
-  // Highlight important numbers - prices, measurements, percentages
-  // Prices (€, £, $)
+  // Highlight prices, measurements, percentages and dates.
   html = html.replace(
     /([€£$]\d{1,3}(?:,\d{3})*(?:\.\d{2})?|\d{1,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:euro|EUR|pounds?|GBP))/gi,
     '<span class="font-semibold text-gold-600">$1</span>'
   );
-  // Measurements (m², sq ft, sqm, etc.)
   html = html.replace(
     /(\d+(?:\.\d+)?\s*(?:m²|sq\.?\s*(?:ft|m|metres?|meters?)|sqm|square\s+(?:feet|metres?|meters?)|hectares?|ha|acres?))/gi,
     '<span class="font-medium">$1</span>'
   );
-  // Percentages
-  html = html.replace(
-    /(\d+(?:\.\d+)?%)/g,
-    '<span class="font-medium">$1</span>'
-  );
-  // Dates (common formats)
+  html = html.replace(/(\d+(?:\.\d+)?%)/g, '<span class="font-medium">$1</span>');
   html = html.replace(
     /(\d{1,2}(?:st|nd|rd|th)?\s+(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+\d{4})/gi,
     '<span class="font-medium">$1</span>'
   );
 
-  // Convert newlines to proper breaks (preserve paragraph structure)
-  html = html.replace(/\n\n/g, '</p><p class="mt-3">');
-  html = html.replace(/\n/g, '<br/>');
-
-  // Wrap in paragraph
-  html = `<p>${html}</p>`;
-
-  // Clean up empty paragraphs
-  html = html.replace(/<p class="mt-3"><\/p>/g, '');
-  html = html.replace(/<p><\/p>/g, '');
-
   return html;
+}
+
+// Render an assistant reply: the shared markdown core plus the homeowner prose
+// rules. Bold, italic, inline code, h3/h4 and lists are styled to match the
+// bubble. The reveal animation re-renders this each frame; partial markdown
+// stays plain text until its closing marker arrives.
+function formatAssistantContent(content: string, isDarkMode: boolean): string {
+  const codeClassName = isDarkMode ? 'bg-white/10 text-gray-100' : 'bg-black/[0.06] text-gray-800';
+  return renderChatMarkdown(content, {
+    codeClassName,
+    transformParagraph: applyAssistantProseRules,
+  });
 }
 
 const TypingIndicator = ({ isDarkMode }: { isDarkMode: boolean }) => (
