@@ -346,17 +346,27 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'conversation_id is required' }, { status: 400 });
   }
 
-  // media_ids is required for the image-only paths (housing-reasoning-v1 and the
-  // Sprint 1 placeholder, both image-by-design). The OpenHouse agent path
-  // (FEATURE_OPENHOUSE_AGENT_V1) also answers text-only turns, so when that flag
-  // is on a missing or empty media_ids is allowed and the turn is treated as
-  // text-only. Read the flag once here and reuse it for the branch below.
+  // media_ids handling differs by path. The image-only paths (housing-reasoning-v1
+  // and the Sprint 1 placeholder) require a valid uuid array. The OpenHouse agent
+  // path (FEATURE_OPENHOUSE_AGENT_V1) also answers text-only turns, so a MISSING or
+  // EMPTY media_ids is treated as text-only there. A present-but-malformed
+  // media_ids (not a uuid array, and not an empty array) is a client bug, so it
+  // 400s on every path rather than being silently dropped. Read the flag once here
+  // and reuse it for the branch below.
   const agentEnabled = isOpenhouseAgentV1Enabled();
-  const hasMedia = isUuidArray(body.media_ids);
-  if (!hasMedia && !agentEnabled) {
+  const rawMediaIds = body.media_ids;
+  const mediaValid = isUuidArray(rawMediaIds);
+  const mediaMissing = rawMediaIds === undefined || rawMediaIds === null;
+  const mediaEmptyArray = Array.isArray(rawMediaIds) && rawMediaIds.length === 0;
+  const mediaMalformed = !mediaValid && !mediaMissing && !mediaEmptyArray;
+
+  if (mediaMalformed) {
+    return NextResponse.json({ error: 'media_ids is malformed' }, { status: 400 });
+  }
+  if (!mediaValid && !agentEnabled) {
     return NextResponse.json({ error: 'media_ids is required' }, { status: 400 });
   }
-  const mediaIds: string[] = hasMedia ? Array.from(new Set(body.media_ids as string[])) : [];
+  const mediaIds: string[] = mediaValid ? Array.from(new Set(rawMediaIds as string[])) : [];
   if (mediaIds.length > MAX_MEDIA_PER_MESSAGE) {
     return NextResponse.json(
       { error: 'You can attach up to 6 photos per message.' },
