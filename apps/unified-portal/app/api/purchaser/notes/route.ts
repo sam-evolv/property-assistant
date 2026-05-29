@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
         updated_at: homeNotes.updated_at,
       })
       .from(homeNotes)
-      .where(eq(homeNotes.unit_id, unitUid))
+      .where(eq(homeNotes.unit_id, unit.id))
       .orderBy(desc(homeNotes.pinned), desc(homeNotes.created_at));
 
     return NextResponse.json({ notes });
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
     const existing = await db
       .select({ id: homeNotes.id })
       .from(homeNotes)
-      .where(eq(homeNotes.unit_id, unitUid));
+      .where(eq(homeNotes.unit_id, unit.id));
 
     if (existing.length >= NOTES_PER_UNIT_LIMIT) {
       return NextResponse.json(
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
     const [note] = await db
       .insert(homeNotes)
       .values({
-        unit_id: unitUid,
+        unit_id: unit.id,
         content: content.trim(),
         source_query: source_query?.trim() || null,
         title,
@@ -192,7 +192,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const tokenResult = await validatePurchaserToken(token, unitUid);
-    if (!tokenResult.valid) {
+    if (!tokenResult.valid || !tokenResult.unitId) {
       return NextResponse.json(
         { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
@@ -202,7 +202,7 @@ export async function PATCH(request: NextRequest) {
     const [updated] = await db
       .update(homeNotes)
       .set({ pinned })
-      .where(and(eq(homeNotes.id, noteId), eq(homeNotes.unit_id, unitUid)))
+      .where(and(eq(homeNotes.id, noteId), eq(homeNotes.unit_id, tokenResult.unitId)))
       .returning({
         id: homeNotes.id,
         content: homeNotes.content,
