@@ -123,8 +123,8 @@ export async function GET(request: NextRequest) {
 
     // SECURITY: Validate token matches claimed unit - cross-unit access forbidden
     const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
-    
-    if (!tokenResult.valid) {
+
+    if (!tokenResult.valid || !tokenResult.unitId) {
       logSecurityViolation({
         request_id: requestId,
         unit_uid: unitUid,
@@ -135,14 +135,19 @@ export async function GET(request: NextRequest) {
         { status: 401 }
       );
     }
-    
+
+    // The homeowner app addresses the unit by its human unit_uid; the validator
+    // resolves it to the canonical units.id. The lookup below keys on units.id
+    // (a UUID), so use the resolved id rather than the raw unit_uid.
+    const resolvedUnitId = tokenResult.unitId;
+
     // STEP 1: Resolve unit's project_id and house_type_code from Supabase
     // Select house_type_code directly — it is a first-class column on units.
     // The unit_types(name) join is kept as a fallback only.
     const { data: supabaseUnit, error: unitError } = await supabase
       .from('units')
       .select('id, project_id, house_type_code, unit_type_id, unit_types(name)')
-      .eq('id', unitUid)
+      .eq('id', resolvedUnitId)
       .single();
 
     if (unitError || !supabaseUnit) {

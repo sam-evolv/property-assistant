@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import { nanoid } from 'nanoid';
 import { db } from '@openhouse/db/client';
-import { qr_tokens } from '@openhouse/db/schema';
+import { qr_tokens, units } from '@openhouse/db/schema';
 import { eq, and, or, lt, isNull, isNotNull } from 'drizzle-orm';
 
 function getSecret(): string {
@@ -230,12 +230,34 @@ export interface TokenValidationResult {
 }
 
 /**
+ * Resolve a unit reference to its canonical units.id. The homeowner app
+ * addresses a unit by its human unit_uid (e.g. AV-015-7CCB), not the UUID the
+ * purchaser routes expect, so a non-UUID reference is looked up by unit_uid.
+ * A UUID is returned unchanged with no database round trip. Mirrors the
+ * either-form resolution getUnitInfo already does. Returns null if unknown.
+ */
+async function resolveUnitUidToId(ref: string): Promise<string | null> {
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (uuidPattern.test(ref)) return ref;
+  try {
+    const rows = await db
+      .select({ id: units.id })
+      .from(units)
+      .where(eq(units.unit_uid, ref))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Standardized token validation for purchaser API endpoints
  * Validates either:
  * 1. A proper signed QR token matching the claimed unitUid
  * 2. Showhouse mode (demo access) - when token equals unitUid OR when signed QR token fails
  *    but the token was originally issued for this unitUid
- * 
+ *
  * Security: Access is granted if either:
  * - Valid cryptographic signature matches unitUid
  * - Token format contains unitUid (even if expired/used - allows continued session access)
@@ -246,42 +268,47 @@ export async function validatePurchaserToken(
   unitUid: string,
   checkShowhouseEnabled?: () => Promise<boolean>
 ): Promise<TokenValidationResult> {
-  // Validate unitUid format (must be a valid UUID)
-  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (!uuidPattern.test(unitUid)) {
+  // The homeowner app passes the unit's human unit_uid, not its units.id UUID.
+  // Resolve it up front so every check below runs against the canonical id and
+  // the result carries that id back to the caller. UUID input resolves to
+  // itself, so existing behaviour is unchanged. A reference we cannot resolve
+  // is rejected, same as the old strict-format check.
+  const resolvedUnitId = await resolveUnitUidToId(unitUid);
+  if (!resolvedUnitId) {
     return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid unit ID format' };
   }
-  
+
   // Try validating as a proper QR token first
   const payload = await validateQRToken(token);
-  if (payload && payload.supabaseUnitId === unitUid) {
-    return { valid: true, unitId: unitUid, isShowhouse: false };
+  if (payload && payload.supabaseUnitId === resolvedUnitId) {
+    return { valid: true, unitId: resolvedUnitId, isShowhouse: false };
   }
-  
-  // Check if this might be showhouse mode (token === unitUid)
-  if (token === unitUid) {
+
+  // Showhouse / continued-session capability: the caller presented the unit's
+  // own identifier, either the unit_uid they were issued or the resolved UUID.
+  if (token === unitUid || token === resolvedUnitId) {
     if (checkShowhouseEnabled) {
       const isShowhouse = await checkShowhouseEnabled();
       if (isShowhouse) {
-        return { valid: true, unitId: unitUid, isShowhouse: true };
+        return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
       }
     }
     // Fallback: Allow showhouse if no checker provided (backward compatibility)
-    return { valid: true, unitId: unitUid, isShowhouse: true };
+    return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
   }
-  
+
   // Check if this is a signed QR token that was originally for this unit
   // This allows continued access even if token is marked as used in DB
   // The token format is: {supabaseUnitId}:{projectId}:{timestamp}:{nonce}:{signature}
   if (token.includes(':')) {
     const parts = token.split(':');
-    if (parts.length >= 2 && parts[0] === unitUid) {
+    if (parts.length >= 2 && (parts[0] === unitUid || parts[0] === resolvedUnitId)) {
       // Token was issued for this unit - allow continued session access
       // This handles the case where a user scanned a QR code, the token was marked as used,
       // but they should still have access to their session
-      return { valid: true, unitId: unitUid, isShowhouse: true };
+      return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
     }
   }
-  
+
   return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid or expired token' };
 }
