@@ -131,6 +131,25 @@ function extractPurchaserCandidate(token: string): string | null {
 }
 
 /**
+ * Resolve a unit reference to its canonical units.id. The homeowner app passes
+ * the human unit_uid (e.g. AV-015-7CCB), not the UUID; a non-UUID reference is
+ * looked up by unit_uid. A UUID is returned unchanged with no round trip, so
+ * the admin and snag paths are unaffected. Mirrors getUnitInfo's either-form
+ * resolution. Returns null if unknown.
+ */
+async function resolveUnitUidToId(ref: string): Promise<string | null> {
+  if (UUID_RE.test(ref)) return ref;
+  const admin = getSupabaseAdmin();
+  const { data, error } = await admin
+    .from('units')
+    .select('id')
+    .eq('unit_uid', ref)
+    .maybeSingle();
+  if (error || !data) return null;
+  return (data as { id: string }).id;
+}
+
+/**
  * Resolve and verify the caller. If a unit_id is provided, the returned
  * context's tenant_id and development_id are taken from the unit (cross
  * checked against the caller's verified tenant). If no unit_id is given,
@@ -145,10 +164,19 @@ export async function resolveMediaAuth(
   request: NextRequest,
   opts: { unitId?: string | null; requireUnit?: boolean } = {},
 ): Promise<MediaAuthContext> {
-  const { unitId: requestedUnitId = null, requireUnit = false } = opts;
+  const { unitId: rawRequestedUnitId = null, requireUnit = false } = opts;
 
-  if (requestedUnitId && !UUID_RE.test(requestedUnitId)) {
-    throw new MediaAuthError('invalid_unit');
+  // The homeowner app addresses units by their human unit_uid (e.g. AV-015-7CCB),
+  // not the units.id UUID. Resolve any non-UUID reference to the canonical id up
+  // front so the UUID and ownership checks below run against it. A UUID resolves
+  // to itself with no round trip, so the admin and snag paths are unchanged. A
+  // reference we cannot resolve is an invalid unit, same as the old check.
+  let requestedUnitId: string | null = rawRequestedUnitId;
+  if (rawRequestedUnitId && !UUID_RE.test(rawRequestedUnitId)) {
+    requestedUnitId = await resolveUnitUidToId(rawRequestedUnitId);
+    if (!requestedUnitId) {
+      throw new MediaAuthError('invalid_unit');
+    }
   }
 
   const qrToken = request.headers.get('x-qr-token');
@@ -171,15 +199,21 @@ export async function resolveMediaAuth(
       // whose token has not been refreshed and who only supply
       // media_id.
       if (requestedUnitId) {
+        // The homeowner presents the unit_uid as the token, so accept either the
+        // raw value they hold or its resolved units.id; carry the canonical id.
         const tokenMatchesUnit =
+          qrToken === rawRequestedUnitId ||
           qrToken === requestedUnitId ||
-          (qrToken.includes(':') && qrToken.split(':')[0] === requestedUnitId);
+          (qrToken.includes(':') &&
+            (qrToken.split(':')[0] === rawRequestedUnitId ||
+              qrToken.split(':')[0] === requestedUnitId));
         if (!tokenMatchesUnit) {
           throw new MediaAuthError('unauthenticated');
         }
         candidateUnitId = requestedUnitId;
       } else {
-        candidateUnitId = extractPurchaserCandidate(qrToken);
+        candidateUnitId =
+          extractPurchaserCandidate(qrToken) ?? (await resolveUnitUidToId(qrToken));
         if (!candidateUnitId) {
           throw new MediaAuthError('unauthenticated');
         }
