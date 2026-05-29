@@ -33,7 +33,7 @@ export async function DELETE(
     }
 
     const tokenResult = await validatePurchaserToken(token, unitUid);
-    if (!tokenResult.valid) {
+    if (!tokenResult.valid || !tokenResult.unitId) {
       return NextResponse.json(
         { error: tokenResult.error || 'Invalid or expired token' },
         { status: 401 }
@@ -43,7 +43,7 @@ export async function DELETE(
     // Delete note only if it belongs to this unit (scoped by unit_id)
     const [deleted] = await db
       .delete(homeNotes)
-      .where(and(eq(homeNotes.id, noteId), eq(homeNotes.unit_id, unitUid)))
+      .where(and(eq(homeNotes.id, noteId), eq(homeNotes.unit_id, tokenResult.unitId)))
       .returning({ id: homeNotes.id });
 
     if (!deleted) {

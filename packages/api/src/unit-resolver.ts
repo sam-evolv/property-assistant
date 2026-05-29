@@ -16,15 +16,39 @@ function getSupabaseClient() {
   );
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function getUnitInfo(unitUid: string): Promise<ResolvedUnit | null> {
   const supabase = getSupabaseClient();
+
+  // The homeowner app addresses a unit by its human unit_uid (e.g. AV-015-7CCB),
+  // while the developer portal passes the units.id UUID. Match the shape-appropriate
+  // column so a non-UUID is never compared against the uuid id column, which errors
+  // with 22P02 and was being swallowed into a null (a 404). The two forms are
+  // disjoint, so there is no cross-match risk.
+  const column = UUID_RE.test(unitUid) ? 'id' : 'unit_uid';
 
   // Include tenant_id and development_id directly from units table
   const { data: supabaseUnit, error } = await supabase
     .from('units')
     .select('id, address, development_id, unit_type_id, tenant_id')
-    .eq('id', unitUid)
-    .single();
+    .eq(column, unitUid)
+    .maybeSingle();
+
+  if (error) {
+    // Surface the REST error rather than swallowing it silently, then fall through
+    // to null. A genuine not-found is error-free with maybeSingle, so it returns
+    // null below without logging. We never throw: callers 404 on null today, and
+    // throwing would turn those graceful 404s into 500s.
+    console.error('[unit-resolver] getUnitInfo lookup failed', JSON.stringify({
+      unitUid,
+      column,
+      code: (error as { code?: string }).code ?? null,
+      message: error.message ?? null,
+      details: (error as { details?: string }).details ?? null,
+      hint: (error as { hint?: string }).hint ?? null,
+    }));
+  }
 
   if (error || !supabaseUnit) {
     return null;
