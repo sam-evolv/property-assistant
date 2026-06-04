@@ -219,7 +219,7 @@ export async function POST(request: NextRequest) {
             extracted_at: new Date().toISOString(),
           };
         })
-        .filter((r) => r.letting_property_id !== null || r.tenancy_id !== null);
+        .filter((r: { letting_property_id: string | null; tenancy_id: string | null }) => r.letting_property_id !== null || r.tenancy_id !== null);
 
       if (provRows.length > 0) {
         const { error: provErr } = await admin.from('lettings_field_provenance').insert(provRows);

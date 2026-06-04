@@ -23,7 +23,7 @@ async function safeQuery(queryFn: () => Promise<any>, fallback: any): Promise<an
   try {
     return await queryFn();
   } catch (error: unknown) {
-    if (error?.cause?.code === '42P01') {
+    if ((error as { cause?: { code?: string } })?.cause?.code === '42P01') {
       return fallback;
     }
     return fallback;

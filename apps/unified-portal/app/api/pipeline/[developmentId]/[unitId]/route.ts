@@ -158,7 +158,7 @@ export async function PATCH(
       const { dateField, updatedByField, updatedAtField } = FIELD_MAPPING[field];
 
       // Get old value for audit
-      oldValue = existingPipeline?.[dateField] || null;
+      oldValue = (existingPipeline as Record<string, any>)?.[dateField] || null;
 
       // Update using Supabase
       const updateData: Record<string, any> = {
@@ -178,7 +178,7 @@ export async function PATCH(
       }
     } else if (isNumericField) {
       const dbField = NUMERIC_FIELD_MAPPING[field];
-      oldValue = existingPipeline?.[dbField] || null;
+      oldValue = (existingPipeline as Record<string, any>)?.[dbField] || null;
       
       // Parse numeric value
       const numericValue = value ? parseFloat(value) : null;
@@ -196,7 +196,7 @@ export async function PATCH(
       }
     } else {
       const dbField = TEXT_FIELD_MAPPING[field];
-      oldValue = existingPipeline?.[dbField] || null;
+      oldValue = (existingPipeline as Record<string, any>)?.[dbField] || null;
 
       const updateData: Record<string, any> = {
         [dbField]: value || null,

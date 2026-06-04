@@ -10,6 +10,7 @@ import {
   X, Check, Clock, ChevronDown, Loader2, MoreVertical,
   CalendarClock, XCircle, UserX, CheckCircle2, MessageSquare,
   Mic, Plus,
+  type LucideIcon,
 } from 'lucide-react';
 import VoiceCaptureCard from '@/components/agent/intelligence/VoiceCaptureCard';
 
@@ -655,7 +656,7 @@ function KebabItem({
   onSelect,
   tone,
 }: {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number; color?: string }>;
+  icon: LucideIcon;
   label: string;
   onSelect: () => void;
   tone?: 'danger' | 'default';

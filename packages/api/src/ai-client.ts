@@ -16,7 +16,7 @@ export interface AIClient {
       create: (params: any) => Promise<any>;
     };
   };
-  embeddings?: {
+  embeddings: {
     create: (params: any) => Promise<any>;
   };
   images?: {

@@ -18,6 +18,8 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 interface PendingDocument {
+  // Index signature satisfies db.execute<T>'s `T extends Record<string, unknown>`.
+  [key: string]: unknown;
   id: string;
   tenant_id: string;
   development_id: string | null;

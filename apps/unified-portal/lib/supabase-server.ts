@@ -180,7 +180,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
         email: admin.email,
         role: admin.role as AdminRole,
         preferredRole: admin.preferred_role as AdminRole | null,
-        tenantId: admin.tenant_id,
+        tenantId: admin.tenant_id as string,
         displayName,
       }
     };

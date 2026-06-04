@@ -215,6 +215,9 @@ export interface ApplicantCandidate {
   id: string;
   name: string;
   latest_enquiry_property: string | null;
+  // Index signature lets a candidate list flow into the generic
+  // `Record<string, unknown>[]` clarification payloads the tools return.
+  [key: string]: unknown;
 }
 
 export interface ApplicantResolution {
@@ -288,6 +291,9 @@ export async function resolveApplicantByName(
 export interface PropertyCandidate {
   development_id: string;
   name: string;
+  // Index signature lets a candidate list flow into the generic
+  // `Record<string, unknown>[]` clarification payloads the tools return.
+  [key: string]: unknown;
 }
 
 export interface PropertyResolution {

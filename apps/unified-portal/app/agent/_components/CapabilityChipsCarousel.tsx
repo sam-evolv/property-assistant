@@ -204,7 +204,6 @@ function Chip({
       <span
         key={text}
         style={{
-          display: 'block',
           maxWidth: '100%',
           // Allow wrap to 2 lines; truncation kicks in only beyond that.
           // Most chips fit on a single line at this width — wrap is the

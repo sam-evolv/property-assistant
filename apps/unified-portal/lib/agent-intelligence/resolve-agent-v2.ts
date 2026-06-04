@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { ResolvedAgentContext } from './agent-context';
+import { asAgentProfileId, asAuthUserId } from './ids';
 
 /**
  * Session 14.6 — clean-room replacement for resolveAgentContext.
@@ -190,8 +191,8 @@ export async function resolveAgentContextV2(
   }
 
   const context: ResolvedAgentContext = {
-    authUserId: authUserId || profile.user_id || profile.id,
-    agentProfileId: profile.id,
+    authUserId: asAuthUserId(authUserId || profile.user_id || profile.id),
+    agentProfileId: asAgentProfileId(profile.id),
     tenantId: profile.tenant_id ?? null,
     displayName: profile.display_name || 'Agent',
     agentType: profile.agent_type ?? null,

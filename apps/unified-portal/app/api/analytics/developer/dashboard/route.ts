@@ -628,7 +628,7 @@ export async function GET(request: NextRequest) {
       }
       const { data: handoverData, error: handoverError } = await handoverQuery;
       if (!handoverError && handoverData) {
-        upcomingHandovers = handoverData.map((row: Record<string, unknown> & { units?: { address?: string; unit_uid?: string | null } | null; handover_date: string }) => ({
+        upcomingHandovers = (handoverData as unknown as Array<{ units?: { address?: string; unit_uid?: string | null } | null; handover_date: string }>).map((row) => ({
           address: row.units?.address || 'Unknown address',
           unit_uid: row.units?.unit_uid || null,
           handover_date: row.handover_date,

@@ -60,7 +60,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       error: 'Failed to fetch videos',
       where: 'GET /api/videos',
-      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+      ...(isDev && {
+        message: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
+      }),
     }, { status: 500 });
   }
 }
@@ -135,7 +138,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       error: 'Failed to create video',
       where: 'POST /api/videos',
-      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+      ...(isDev && {
+        message: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
+      }),
     }, { status: 500 });
   }
 }
@@ -179,7 +185,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({
       error: 'Failed to delete video',
       where: 'DELETE /api/videos',
-      ...(isDev && { message: error?.message, cause: error?.cause?.message }),
+      ...(isDev && {
+        message: error instanceof Error ? error.message : String(error),
+        cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
+      }),
     }, { status: 500 });
   }
 }

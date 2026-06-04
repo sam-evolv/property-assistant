@@ -22,7 +22,7 @@ export async function GET(
 
     return NextResponse.json({ tenancies });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
@@ -51,7 +51,7 @@ export async function POST(
 
     return NextResponse.json({ tenancy }, { status: 201 });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

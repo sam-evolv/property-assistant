@@ -30,7 +30,7 @@ const STAGES = [
   { date: 'November 2025', label: 'First annual service',    done: false, upcoming: true },
 ] as const;
 
-const TOTAL_PHOTOS = STAGES.reduce((s, st) => s + st.photos, 0);
+const TOTAL_PHOTOS = STAGES.reduce((s, st) => s + ('photos' in st ? st.photos : 0), 0);
 
 export default function StoryScreen({ builderName, builderPhone }: StoryScreenProps) {
   const [on, setOn] = useState(false);

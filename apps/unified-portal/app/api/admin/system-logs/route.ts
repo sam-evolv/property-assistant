@@ -97,12 +97,12 @@ export async function GET(request: NextRequest) {
     const result = await db.execute(query);
 
     const logs: AuditLog[] = (result.rows || []).map((row: Record<string, unknown>) => ({
-      id: row.id || String(Math.random()),
-      type: row.type || 'event',
-      action: row.action || row.type || 'system',
-      actor: row.actor || null,
-      metadata: row.metadata || {},
-      created_at: row.created_at ? new Date(row.created_at).toISOString() : new Date().toISOString(),
+      id: row.id ? String(row.id) : String(Math.random()),
+      type: row.type ? String(row.type) : 'event',
+      action: String(row.action || row.type || 'system'),
+      actor: row.actor != null ? String(row.actor) : null,
+      metadata: (row.metadata as Record<string, unknown>) || {},
+      created_at: row.created_at ? new Date(row.created_at as string).toISOString() : new Date().toISOString(),
     }));
 
     return NextResponse.json({ logs });
