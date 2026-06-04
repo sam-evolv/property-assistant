@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
       // minimal address record for the review screen.
       address = addressFromEircodeOnly(eircode!);
       addressSource = 'eircode';
-      berPromise = lookupBerByAddress('', eircode);
+      berPromise = lookupBerByAddress('', eircode ?? undefined);
     }
 
     const ber = await berPromise;

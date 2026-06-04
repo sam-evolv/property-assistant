@@ -265,7 +265,7 @@ export async function retryPendingDeliveries() {
       .eq('id', delivery.id);
 
     await deliverWebhook(
-      delivery.webhooks as Webhook,
+      delivery.webhooks as unknown as Webhook,
       delivery,
       delivery.event_type,
       delivery.payload

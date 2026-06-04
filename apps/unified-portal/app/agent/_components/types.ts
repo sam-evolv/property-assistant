@@ -7,6 +7,7 @@ export type BadgeStatus =
   | 'reserved'
   | 'exchanged'
   | 'available'
+  | 'scheduled'
   | 'confirmed'
   | 'pending'
   | 'completed'

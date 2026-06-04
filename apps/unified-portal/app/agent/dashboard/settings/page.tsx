@@ -53,7 +53,7 @@ export default function AgentDashboardSettingsPage() {
           <h3 className="text-sm font-semibold text-gray-900 mb-3">Agent Type</h3>
           {[{ value: 'scheme', label: 'Scheme agent', desc: 'Managing new-build developments' }, { value: 'independent', label: 'Independent', desc: 'Selling standalone properties' }, { value: 'hybrid', label: 'Both', desc: 'I do both' }].map(opt => (
             <label key={opt.value} className="flex items-start gap-3 py-2 cursor-pointer">
-              <input type="radio" name="agentType" value={opt.value} checked={form.agentType === opt.value} onChange={e => setForm(f => ({ ...f, agentType: e.target.value }))} className="mt-1 accent-gold-500" />
+              <input type="radio" name="agentType" value={opt.value} checked={form.agentType === opt.value} onChange={e => setForm(f => ({ ...f, agentType: e.target.value as 'scheme' | 'independent' | 'hybrid' }))} className="mt-1 accent-gold-500" />
               <div><p className="text-sm font-medium text-gray-900">{opt.label}</p><p className="text-xs text-gray-500">{opt.desc}</p></div>
             </label>
           ))}

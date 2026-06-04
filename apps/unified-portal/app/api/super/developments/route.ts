@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       id: newDevelopment.id,
     });
   } catch (error: unknown) {
-    const errorObj = error instanceof Error ? error as Error & { code?: unknown } : new Error(String(error));
+    const errorObj: Error & { code?: unknown } = error instanceof Error ? error : new Error(String(error));
     if (errorObj.message === 'UNAUTHORIZED' || errorObj.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

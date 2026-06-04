@@ -290,7 +290,7 @@ async function executeTool(
         });
       }
 
-      (compDocs || []).forEach((d: { status: string; compliance_document_types?: { name: string } | null }) => {
+      ((compDocs || []) as unknown as Array<{ status: string; compliance_document_types?: { name: string } | null }>).forEach((d) => {
         const displayStatus = mapComplianceStatus(d.status);
         const docName = d.compliance_document_types?.name || 'Document';
         fields.push({
@@ -351,7 +351,7 @@ async function executeTool(
         .select(PIPELINE_SELECT_COLUMNS)
         .in('unit_id', filteredUnitIds);
 
-      let results = (pipelineRows || []).map((p: Record<string, unknown>) => ({
+      let results = ((pipelineRows || []) as unknown as Record<string, unknown>[]).map((p) => ({
         ...p,
         ...derivePipelineStage(p),
         days: daysAtStage(p),
@@ -369,7 +369,7 @@ async function executeTool(
       }
 
       const enriched = results.map((p) => {
-        const unit = allUnits.find((u) => u.id === p.unit_id);
+        const unit = allUnits.find((u) => u.id === (p as Record<string, unknown>).unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
           stage: p.stage,
@@ -417,14 +417,14 @@ async function executeTool(
       if (args.document_type) {
         const typeFilter = (args.document_type as string).toLowerCase();
         filteredDocs = filteredDocs.filter((d) => {
-          const docTypes = d.compliance_document_types as { name: string } | null;
+          const docTypes = d.compliance_document_types as unknown as { name: string } | null;
           return (docTypes?.name || '').toLowerCase().includes(typeFilter);
         });
       }
 
       const enriched = filteredDocs.map((d) => {
         const unit = allUnits.find((u) => u.id === d.unit_id);
-        const docTypes = d.compliance_document_types as { name: string } | null;
+        const docTypes = d.compliance_document_types as unknown as { name: string } | null;
         return {
           unit_number: unit?.unit_number || 'Unknown',
           document_type: docTypes?.name || 'Unknown',
@@ -567,8 +567,8 @@ async function executeTool(
           .select(PIPELINE_SELECT_COLUMNS)
           .in('unit_id', filteredUnitIds);
 
-        const stuckUnits = (pipelineItems || []).filter(
-          (p: Record<string, unknown>) => daysAtStage(p) > 30 && !p.handover_date
+        const stuckUnits = ((pipelineItems || []) as unknown as Record<string, unknown>[]).filter(
+          (p) => daysAtStage(p) > 30 && !p.handover_date
         );
 
         if (stuckUnits.length > 0) {
@@ -880,7 +880,7 @@ VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housi
               conversation_id: convoId,
               role: 'assistant',
               message_type: 'unit_info',
-              content: `Unit info for ${result.unit_info.unit_name}`,
+              content: `Unit info for ${(result.unit_info as { unit_name?: string }).unit_name}`,
               structured_data: result.unit_info,
             });
           }
@@ -902,7 +902,7 @@ VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housi
               conversation_id: convoId,
               role: 'assistant',
               message_type: 'email_draft',
-              content: `Email draft to ${result.email_draft.to}`,
+              content: `Email draft to ${(result.email_draft as { to?: string }).to}`,
               structured_data: result.email_draft,
             });
           }

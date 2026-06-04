@@ -34,7 +34,7 @@ export async function PATCH(
 
     return NextResponse.json({ request: updated });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
@@ -70,7 +70,7 @@ export async function GET(
 
     return NextResponse.json({ requests });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed' }, { status: 500 });
@@ -98,7 +98,7 @@ export async function POST(
 
     return NextResponse.json({ request: maintenanceRequest }, { status: 201 });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed' }, { status: 500 });

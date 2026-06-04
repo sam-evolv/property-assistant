@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { asAgentProfileId, asAuthUserId, type AgentProfileId, type AuthUserId } from './ids';
 
 /**
  * Single source of truth for resolving an agent's scope from an auth user id.
@@ -17,8 +18,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 
 export interface ResolvedAgentContext {
-  authUserId: string;
-  agentProfileId: string;
+  authUserId: AuthUserId;
+  agentProfileId: AgentProfileId;
   tenantId: string | null;
   displayName: string;
   agentType: string | null;
@@ -123,8 +124,8 @@ export async function resolveAgentContext(
   }
 
   return {
-    authUserId: authUserId || profile.user_id || profile.id,
-    agentProfileId: profile.id,
+    authUserId: asAuthUserId(authUserId || profile.user_id || profile.id),
+    agentProfileId: asAgentProfileId(profile.id),
     tenantId: profile.tenant_id ?? null,
     displayName: profile.display_name || 'Agent',
     agentType: profile.agent_type ?? null,

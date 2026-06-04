@@ -98,7 +98,7 @@ export async function GET(
       complianceAlerts: [...overdueComp, ...dueSoonComp].slice(0, 5),
     });
   } catch (error: unknown) {
-    if (error?.message?.includes('UNAUTHORIZED') || error?.message?.includes('FORBIDDEN')) {
+    if (error instanceof Error && (error.message.includes('UNAUTHORIZED') || error.message.includes('FORBIDDEN'))) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     return NextResponse.json({ error: 'Failed to load BTR data' }, { status: 500 });

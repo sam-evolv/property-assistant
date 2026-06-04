@@ -97,6 +97,7 @@ import {
   type CapabilityContext,
   type NextBestActionResult
 } from '@/lib/assistant/next-best-action';
+import type { SupportedLanguage } from '@/lib/assistant/capability-map';
 import {
   isEscalationEnabled,
   shouldTriggerEscalation,
@@ -1168,8 +1169,9 @@ function parseEmbedding(emb: unknown): number[] | null {
   }
   
   // Object with values property
-  if (typeof emb === 'object' && emb.values) {
-    return Array.isArray(emb.values) ? emb.values : null;
+  if (typeof emb === 'object' && emb !== null && 'values' in emb) {
+    const values = (emb as { values?: unknown }).values;
+    return Array.isArray(values) ? values : null;
   }
   
   return null;
@@ -2556,7 +2558,7 @@ export async function POST(request: NextRequest) {
           destination: transitResult.destination,
         } : null;
 
-        const successResponseObj: Record<string, unknown> = {
+        const successResponseObj: Record<string, any> = {
           success: true,
           answer: poiResponse,
           source: docAugmentUsed ? 'google_places_with_docs' : 'google_places',
@@ -2660,7 +2662,7 @@ export async function POST(request: NextRequest) {
           request_id: requestId,
         });
         
-        const errorResponseObj: Record<string, unknown> = {
+        const errorResponseObj: Record<string, any> = {
           success: true,
           answer: errorResponse,
           source: 'amenities_fallback',
@@ -2754,7 +2756,7 @@ export async function POST(request: NextRequest) {
     // Replaces the previous fetch-all-then-cosine-in-JS approach (was loading ~1000+ rows
     // of 1536-dim embeddings into memory on every request).
     
-    type DocumentChunk = { id: string; content: string; metadata: Record<string, unknown>; embedding?: unknown; similarity?: number; _pgvector_similarity?: number | null; [key: string]: unknown };
+    type DocumentChunk = { id: string; content: string; metadata: Record<string, any>; embedding?: unknown; similarity?: number; _pgvector_similarity?: number | null; [key: string]: unknown };
     let allChunks: DocumentChunk[] | null = null;
     let supabaseError: string | null = null;
 
@@ -3970,7 +3972,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
       if (capabilityContext && isNextBestActionEnabled()) {
         const effectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as string);
+        const nbaResult = appendNextBestAction(fullAnswer, effectiveIntent, responseSource, capabilityContext, selectedLanguage as SupportedLanguage);
         fullAnswer = nbaResult.response;
         nbaSuggestionUsed = nbaResult.suggestionUsed;
         nbaDebugInfo = nbaResult.debugInfo;
@@ -4185,7 +4187,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // Check if this is a topic with specific document requirements
           const hasSpecificTopic = questionTopic && topicToDocCategories[questionTopic];
           const effectiveThreshold = hasSpecificTopic ? HIGH_SIMILARITY_BOOST : MIN_SOURCE_SIMILARITY;
-          const hasRelevantChunks = chunks && chunks.length > 0 && chunks[0]?.similarity >= MIN_SOURCE_SIMILARITY;
+          const hasRelevantChunks = chunks && chunks.length > 0 && (chunks[0]?.similarity ?? 0) >= MIN_SOURCE_SIMILARITY;
           
           // Skip sources for high-risk topics or when no chunks are relevant
           if (!highRiskCheck.isHighRisk && hasRelevantChunks) {
@@ -4312,7 +4314,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
 
           if (capabilityContext && isNextBestActionEnabled()) {
             const streamEffectiveIntent = intentClassification?.intent || detectIntentFromMessage(message) || 'general';
-            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as string);
+            const streamNbaResult = appendNextBestAction('', streamEffectiveIntent, streamResponseSource, capabilityContext, selectedLanguage as SupportedLanguage);
 
             if (streamNbaResult.suggestionUsed) {
               streamNbaSuggestion = streamNbaResult.suggestionUsed;

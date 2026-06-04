@@ -55,7 +55,7 @@ export default function AgentDashboardClientsPage() {
         if (!res.ok) return;
         const data = await res.json();
         // Include ALL pipeline items that have a purchaser name (even with status for_sale if they have a name)
-        const allBuyers = (data.pipeline ?? []).filter((p: BuyerItem) =>
+        const allBuyers: BuyerItem[] = (data.pipeline ?? []).filter((p: BuyerItem) =>
           p.purchaserName && p.purchaserName.trim() !== '' && p.status !== 'for_sale'
         );
         setBuyers(allBuyers);

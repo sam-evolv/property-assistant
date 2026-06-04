@@ -272,8 +272,9 @@ export async function POST(request: NextRequest) {
       }
     );
   } catch (error: unknown) {
-    const errorMsg = error?.message || 'Unknown error';
-    const errorCode = error?.code || 'UNKNOWN';
+    const err = error as { message?: string; code?: string };
+    const errorMsg = err.message || 'Unknown error';
+    const errorCode = err.code || 'UNKNOWN';
     
     if (errorCode === '23505') {
       return errorResponse('A homeowner with these details already exists', 409, requestId, 'Duplicate entry');

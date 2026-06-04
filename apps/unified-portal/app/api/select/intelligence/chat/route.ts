@@ -9,7 +9,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import OpenAI from 'openai';
 import { db } from '@openhouse/db';
-import { messages } from '@openhouse/db/schema';
+import { messages, developments } from '@openhouse/db/schema';
+import { eq } from 'drizzle-orm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -236,24 +237,36 @@ export async function POST(request: NextRequest) {
     const content = completion.choices[0]?.message?.content ?? '';
     const latencyMs = Date.now() - start;
 
-    // Log to messages table
+    // Log to messages table (best-effort). messages.tenant_id is NOT NULL, so
+    // resolve the development's tenant before inserting; skip logging if it
+    // can't be resolved rather than firing an insert that always fails.
     try {
-      await db.insert(messages).values({
-        tenant_id: null,
-        development_id: development_id || null,
-        unit_id: unit_id || null,
-        user_id: null,
-        content: userText,
-        user_message: userText,
-        ai_message: content,
-        question_topic: null,
-        sender: 'conversation',
-        source: 'select',
-        token_count: 0,
-        cost_usd: '0',
-        latency_ms: latencyMs,
-        metadata: { assistant: 'select', homeowner_name },
-      });
+      const [devRow] = development_id
+        ? await db
+            .select({ tenant_id: developments.tenant_id })
+            .from(developments)
+            .where(eq(developments.id, development_id))
+            .limit(1)
+        : [];
+      const resolvedTenantId = devRow?.tenant_id ?? null;
+      if (resolvedTenantId) {
+        await db.insert(messages).values({
+          tenant_id: resolvedTenantId,
+          development_id: development_id || null,
+          unit_id: unit_id || null,
+          user_id: null,
+          content: userText,
+          user_message: userText,
+          ai_message: content,
+          question_topic: null,
+          sender: 'conversation',
+          source: 'select',
+          token_count: 0,
+          cost_usd: '0',
+          latency_ms: latencyMs,
+          metadata: { assistant: 'select', homeowner_name },
+        });
+      }
     } catch (logErr) {
       // Non-fatal — log but don't fail the response
     }

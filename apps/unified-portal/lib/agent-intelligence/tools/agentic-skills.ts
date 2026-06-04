@@ -3475,7 +3475,7 @@ export async function createViewingSchedule(
       // Offer 2-3 specific slots: the primary plus the next two on either
       // side, deduped, capped at the schedule's bounds. Phase 1 keeps it
       // simple — let the agent edit later if needed.
-      const altSlots: typeof slots = [];
+      const altSlots: Array<{ start: string; end: string; iso: string }> = [];
       for (const offset of [1, -1, 2, -2]) {
         const idx = i + offset;
         if (idx >= 0 && idx < slots.length && altSlots.length < 2) {

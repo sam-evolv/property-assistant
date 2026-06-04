@@ -100,7 +100,7 @@ async function readApplicantWriteMode(
 async function classifyAddCandidates(
   supabase: SupabaseClient,
   agentProfileId: string,
-  raw: Array<Pick<ParsedApplicant, 'full_name' | 'email' | 'phone'> & { notes?: string | null; source?: string | null }>,
+  raw: Array<Pick<ParsedApplicant, 'full_name'> & { email?: string | null; phone?: string | null; notes?: string | null; source?: string | null }>,
 ): Promise<ApplicantCandidate[]> {
   if (raw.length === 0) return [];
   const names = raw.map((r) => r.full_name.toLowerCase());

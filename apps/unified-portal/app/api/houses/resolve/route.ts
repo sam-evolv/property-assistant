@@ -240,7 +240,7 @@ export async function POST(req: Request) {
             LIMIT 1
           `);
     } catch (dbErr: unknown) {
-      const dbErrObj = dbErr instanceof Error ? dbErr as Error & { code?: unknown } : new Error(String(dbErr));
+      const dbErrObj: Error & { code?: unknown } = dbErr instanceof Error ? dbErr : new Error(String(dbErr));
       if (dbErrObj.message?.includes('MaxClients') || dbErrObj.message?.includes('pool') || dbErrObj.code === 'XX000') {
         dbConnectionError = true;
       }

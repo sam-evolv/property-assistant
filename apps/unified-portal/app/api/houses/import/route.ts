@@ -308,7 +308,7 @@ export async function POST(req: NextRequest) {
           inserted++;
         }
       } catch (error: unknown) {
-        const errorObj = error instanceof Error ? error as Error & { detail?: unknown; hint?: unknown } : new Error(String(error));
+        const errorObj: Error & { detail?: string; hint?: string } = error instanceof Error ? error : new Error(String(error));
         // errorObj.detail and errorObj.hint captured in results array below
         
         results.push({
