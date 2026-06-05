@@ -9,7 +9,6 @@ import {
   TEXT_2,
   TEXT_3,
   SURFACE_1,
-  SURFACE_2,
   BORDER_LIGHT,
   RED,
   AMBER,
@@ -18,17 +17,9 @@ import {
   GREEN_BG,
 } from '@/lib/dev-app/design-system';
 
-const SEVERITY_COLOR: Record<string, string> = {
-  safety: RED,
-  major: AMBER,
-  minor: TEXT_2,
-  cosmetic: TEXT_3,
-};
-const OPEN_STATES = ['open', 'in_progress', 'disputed'];
-
+// issue_reports status -> chip colour
 function statusStyle(status: string): { color: string; bg: string } {
-  if (status === 'resolved' || status === 'verified') return { color: GREEN, bg: GREEN_BG };
-  if (status === 'wont_fix') return { color: TEXT_3, bg: SURFACE_2 };
+  if (status === 'resolved' || status === 'closed') return { color: GREEN, bg: GREEN_BG };
   return { color: AMBER, bg: AMBER_BG };
 }
 
@@ -59,8 +50,6 @@ export default function UnitDetailPage() {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newDesc, setNewDesc] = useState('');
-  const [newSeverity, setNewSeverity] = useState('minor');
 
   const loadSnags = useCallback(async () => {
     const r = await fetch(`/api/dev-app/units/${unitId}/snags`);
@@ -107,31 +96,6 @@ export default function UnitDetailPage() {
     } finally {
       setGenerating(false);
     }
-  };
-
-  const resolveSnag = async (id: string) => {
-    await fetch(`/api/dev-app/snags/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'resolved' }),
-    });
-    await Promise.all([loadSnags(), loadFile()]);
-  };
-
-  const addSnag = async () => {
-    if (!newDesc.trim()) return;
-    await fetch(`/api/dev-app/snags`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        unit_id: unitId,
-        description: newDesc.trim(),
-        severity: newSeverity,
-        created_by_role: 'site_manager',
-      }),
-    });
-    setNewDesc('');
-    await Promise.all([loadSnags(), loadFile()]);
   };
 
   const logHandover = async (eventType: string) => {
@@ -348,66 +312,32 @@ export default function UnitDetailPage() {
               )}
             </Card>
 
-            {/* Snags */}
+            {/* Snags — read-only view of the canonical issue_reports for this unit */}
             <Card>
-              <div style={{ color: TEXT_1, fontSize: 15, fontWeight: 700, marginBottom: 10 }}>
-                Snags
-                {file?.sections?.snags
-                  ? ` (${file.sections.snags.open} open / ${file.sections.snags.total})`
-                  : ''}
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-                <input
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Describe a snag…"
-                  style={{
-                    flex: 1,
-                    fontSize: 13,
-                    padding: '8px 10px',
-                    border: `1px solid ${BORDER_LIGHT}`,
-                    borderRadius: 8,
-                    color: TEXT_1,
-                    background: '#fff',
-                  }}
-                />
-                <select
-                  value={newSeverity}
-                  onChange={(e) => setNewSeverity(e.target.value)}
-                  style={{
-                    fontSize: 13,
-                    padding: '8px',
-                    border: `1px solid ${BORDER_LIGHT}`,
-                    borderRadius: 8,
-                    color: TEXT_1,
-                    background: '#fff',
-                  }}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 10,
+                }}
+              >
+                <span style={{ color: TEXT_1, fontSize: 15, fontWeight: 700 }}>
+                  Snags
+                  {file?.sections?.snags
+                    ? ` (${file.sections.snags.open} open / ${file.sections.snags.total})`
+                    : ''}
+                </span>
+                <span
+                  onClick={() => router.push('/developer/issues')}
+                  style={{ color: GOLD, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                 >
-                  <option value="safety">Safety</option>
-                  <option value="major">Major</option>
-                  <option value="minor">Minor</option>
-                  <option value="cosmetic">Cosmetic</option>
-                </select>
-                <button
-                  onClick={addSnag}
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 700,
-                    color: GOLD,
-                    background: 'transparent',
-                    border: `1px solid ${GOLD}`,
-                    borderRadius: 8,
-                    padding: '0 12px',
-                    cursor: 'pointer',
-                  }}
-                >
-                  Add
-                </button>
+                  Manage →
+                </span>
               </div>
 
               {snags.length === 0 && (
-                <p style={{ color: TEXT_3, fontSize: 13 }}>No snags logged.</p>
+                <p style={{ color: TEXT_3, fontSize: 13 }}>No snags logged for this unit.</p>
               )}
               {snags.map((s: any) => {
                 const st = statusStyle(s.status);
@@ -427,14 +357,22 @@ export default function UnitDetailPage() {
                         width: 8,
                         height: 8,
                         borderRadius: '50%',
-                        background: SEVERITY_COLOR[s.severity] ?? TEXT_3,
+                        background: s.safety_risk ? RED : TEXT_3,
                         marginTop: 6,
                         flexShrink: 0,
                       }}
                     />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ color: TEXT_1, fontSize: 13 }}>{s.title || s.description}</div>
-                      <div style={{ display: 'flex', gap: 6, marginTop: 4, alignItems: 'center' }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: 6,
+                          marginTop: 4,
+                          alignItems: 'center',
+                          flexWrap: 'wrap',
+                        }}
+                      >
                         <span
                           style={{
                             fontSize: 10,
@@ -445,29 +383,19 @@ export default function UnitDetailPage() {
                             borderRadius: 6,
                           }}
                         >
-                          {String(s.status).replace('_', ' ')}
+                          {String(s.status).replace(/_/g, ' ')}
                         </span>
-                        <span style={{ fontSize: 10, color: TEXT_3 }}>{s.severity}</span>
+                        {s.severity_label && (
+                          <span style={{ fontSize: 10, color: TEXT_3 }}>{s.severity_label}</span>
+                        )}
+                        {s.likely_trade && (
+                          <span style={{ fontSize: 10, color: TEXT_3 }}>{s.likely_trade}</span>
+                        )}
+                        {s.safety_risk && (
+                          <span style={{ fontSize: 10, fontWeight: 700, color: RED }}>safety</span>
+                        )}
                       </div>
                     </div>
-                    {OPEN_STATES.includes(s.status) && (
-                      <button
-                        onClick={() => resolveSnag(s.id)}
-                        style={{
-                          fontSize: 11,
-                          fontWeight: 700,
-                          color: GREEN,
-                          background: GREEN_BG,
-                          border: 'none',
-                          borderRadius: 6,
-                          padding: '5px 9px',
-                          cursor: 'pointer',
-                          flexShrink: 0,
-                        }}
-                      >
-                        Resolve
-                      </button>
-                    )}
                   </div>
                 );
               })}
