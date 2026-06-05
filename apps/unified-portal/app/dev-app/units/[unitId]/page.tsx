@@ -134,6 +134,15 @@ export default function UnitDetailPage() {
     await Promise.all([loadSnags(), loadFile()]);
   };
 
+  const logHandover = async (eventType: string) => {
+    await fetch(`/api/dev-app/units/${unitId}/handover`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event_type: eventType }),
+    });
+    await loadFile();
+  };
+
   const hpi = file?.sections?.hpi_qa8_evidence;
   const unit = file?.unit;
   const hpiRows: [string, boolean][] = [
@@ -219,6 +228,44 @@ export default function UnitDetailPage() {
                   {hpi?.systems_documented ?? 0}
                 </span>
               </div>
+              {(!hpi?.demo_completed || !hpi?.aftercare_activated) && (
+                <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                  {!hpi?.demo_completed && (
+                    <button
+                      onClick={() => logHandover('demo_completed')}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: TEXT_1,
+                        background: '#fff',
+                        border: `1px solid ${BORDER_LIGHT}`,
+                        borderRadius: 8,
+                        padding: '7px 11px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Log handover demo
+                    </button>
+                  )}
+                  {!hpi?.aftercare_activated && (
+                    <button
+                      onClick={() => logHandover('aftercare_activated')}
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: TEXT_1,
+                        background: '#fff',
+                        border: `1px solid ${BORDER_LIGHT}`,
+                        borderRadius: 8,
+                        padding: '7px 11px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Activate aftercare
+                    </button>
+                  )}
+                </div>
+              )}
             </Card>
 
             {/* Home User Guide */}
