@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient, getSupabaseAdmin } from '@/lib/supabase-server';
 import { getOwnedUnit, OPEN_SNAG_STATUSES } from '@/lib/dev-app/snags';
+import { summariseHpiQa8 } from '@/lib/dev-app/unit-systems';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/dev-app/units/[unitId]/file
- * The "one-click unit file". V1.0 returns a structured manifest assembled from
- * what we already hold (unit details + every snag). The shape is stable so the
- * client can render it today; V1.1 fills the stubbed sections with documents,
- * unit_systems, warranties, handover_events and the HPI QA 8.0 evidence, and
- * adds PDF/zip rendering.
+ * The "one-click unit file". Assembles, from what we already hold, a structured
+ * manifest of the home: details, every snag, the installed systems, the handover
+ * evidence trail, and an HPI QA 8.0 readiness summary.
+ *
+ * Still stubbed: the `documents` section (V1.1 — needs the documents assembly)
+ * and PDF/zip rendering. The shape is stable so the client can render today.
  */
 export async function GET(
   _request: NextRequest,
@@ -29,23 +31,37 @@ export async function GET(
 
     const admin = getSupabaseAdmin();
 
-    const { data: unit } = await admin
-      .from('units')
-      .select(
-        'id, unit_number, unit_code, address_line_1, city, eircode, house_type_code, development_id, tenant_id',
-      )
-      .eq('id', owned.id)
-      .single();
-
-    const { data: snags } = await admin
-      .from('snag_items')
-      .select(
-        'id, title, description, status, severity, trade, responsible_contractor_id, created_at, resolved_at',
-      )
-      .eq('unit_id', owned.id)
-      .order('created_at', { ascending: false });
+    const [{ data: unit }, { data: snags }, { data: systems }, { data: handover }] =
+      await Promise.all([
+        admin
+          .from('units')
+          .select(
+            'id, unit_number, unit_code, address_line_1, city, eircode, house_type_code, development_id, tenant_id',
+          )
+          .eq('id', owned.id)
+          .single(),
+        admin
+          .from('snag_items')
+          .select(
+            'id, title, description, status, severity, trade, responsible_contractor_id, created_at, resolved_at',
+          )
+          .eq('unit_id', owned.id)
+          .order('created_at', { ascending: false }),
+        admin
+          .from('unit_systems')
+          .select('*')
+          .eq('unit_id', owned.id)
+          .order('system_type'),
+        admin
+          .from('handover_events')
+          .select('*')
+          .eq('unit_id', owned.id)
+          .order('occurred_at', { ascending: false }),
+      ]);
 
     const snagList = snags ?? [];
+    const systemList = systems ?? [];
+    const handoverList = handover ?? [];
     const openCount = snagList.filter((s: any) =>
       OPEN_SNAG_STATUSES.includes(s.status),
     ).length;
@@ -54,15 +70,12 @@ export async function GET(
       generated_at: new Date().toISOString(),
       unit,
       sections: {
-        snags: {
-          total: snagList.length,
-          open: openCount,
-          items: snagList,
-        },
-        // TODO(V1.1): assemble from documents, unit_systems, handover_events.
+        snags: { total: snagList.length, open: openCount, items: snagList },
+        systems: { total: systemList.length, items: systemList },
+        handover: { total: handoverList.length, items: handoverList },
+        hpi_qa8_evidence: summariseHpiQa8(systemList, handoverList),
+        // TODO(V1.1): documents assembly + PDF/zip rendering.
         documents: { status: 'not_yet_assembled' },
-        systems: { status: 'not_yet_assembled' },
-        hpi_qa8_evidence: { status: 'not_yet_assembled' },
       },
     });
   } catch {
