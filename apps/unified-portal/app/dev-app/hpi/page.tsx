@@ -215,6 +215,28 @@ export default function HpiReadinessPage() {
 
                     {isOpen && (
                       <div style={{ borderTop: `1px solid ${BORDER_LIGHT}` }}>
+                        <div style={{ padding: '10px 16px 2px' }}>
+                          <a
+                            href={`/api/dev-app/developments/${d.id}/evidence-pack`}
+                            download
+                            style={{
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              background: SURFACE_2,
+                              borderRadius: 10,
+                              padding: '9px 12px',
+                              textDecoration: 'none',
+                            }}
+                          >
+                            <span style={{ color: TEXT_1, fontSize: 12.5, fontWeight: 650 }}>
+                              Export evidence pack
+                            </span>
+                            <span style={{ color: GOLD, fontSize: 11.5, fontWeight: 650 }}>
+                              ZIP · PDFs + manifest ↓
+                            </span>
+                          </a>
+                        </div>
                         <div
                           style={{
                             display: 'grid',
