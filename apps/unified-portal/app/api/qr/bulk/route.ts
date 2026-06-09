@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
 import JSZip from 'jszip';
+import { assertEnterpriseUser } from '@/lib/api-auth';
 
 function getBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -26,6 +27,13 @@ function getSupabaseAdmin() {
 
 export async function GET(request: NextRequest) {
   try {
+    // QR codes grant access to the buyer-facing home page — developer-side only
+    try {
+      await assertEnterpriseUser();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const BASE_URL = getBaseUrl();
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');

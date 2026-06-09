@@ -110,23 +110,32 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Execute updates
+    // Execute updates — grouped by target status so a 50-unit bulk action is
+    // a handful of statements instead of 50 sequential round trips
     const errors: string[] = [];
     let updated = 0;
 
+    const idsByStatus = new Map<string, string[]>();
     for (const unit of units) {
-      const { error } = await admin
+      const list = idsByStatus.get(unit.new_status) ?? [];
+      list.push(unit.unit_id);
+      idsByStatus.set(unit.new_status, list);
+    }
+
+    for (const [newStatus, ids] of Array.from(idsByStatus.entries())) {
+      const { data, error } = await admin
         .from('units')
         .update({
-          unit_status: unit.new_status,
+          unit_status: newStatus,
         })
-        .eq('id', unit.unit_id)
-        .eq('development_id', scheme_id);
+        .in('id', ids)
+        .eq('development_id', scheme_id)
+        .select('id');
 
       if (error) {
-        errors.push(`Failed to update unit ${unit.unit_id}: ${error.message}`);
+        errors.push(`Failed to update ${ids.length} unit(s) to "${newStatus}": ${error.message}`);
       } else {
-        updated++;
+        updated += data?.length ?? 0;
       }
     }
 
