@@ -8,7 +8,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield, Sparkles,
-  Layers, ShieldCheck, GitBranch, Mail, Command,
+  Layers, ShieldCheck, BadgeCheck, GitBranch, Mail, Command,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
   Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList, Calendar
 } from 'lucide-react';
@@ -89,6 +89,7 @@ function buildBtsNavSections(opts: { isAdmin: boolean }): NavSection[] {
         { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
         { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
         { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
+        { label: 'HPI Readiness', href: '/developer/hpi', icon: BadgeCheck },
         { label: 'Communications', href: '/developer/communications', icon: Mail },
       ],
     },

@@ -320,6 +320,33 @@ export default function OverviewPage() {
           </div>
         ))}
       </div>
+
+      {/* Bridge to the full developer portal (pipeline, archive, compliance...) */}
+      <div style={{ padding: '0 20px 28px' }}>
+        <div
+          onClick={() => router.push('/developer')}
+          style={{
+            cursor: 'pointer',
+            background: SURFACE_1,
+            border: `1px solid ${BORDER_LIGHT}`,
+            borderRadius: 12,
+            padding: 14,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 650, color: TEXT_1 }}>
+              Open the full OpenHouse portal
+            </div>
+            <div style={{ fontSize: 11.5, color: TEXT_2, marginTop: 2 }}>
+              Pipeline, Smart Archive, compliance, broadcasts and more
+            </div>
+          </div>
+          <span style={{ color: GOLD, fontSize: 16, fontWeight: 700 }}>→</span>
+        </div>
+      </div>
     </MobileShell>
   );
 }
