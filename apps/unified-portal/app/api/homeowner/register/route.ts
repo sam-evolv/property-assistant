@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { checkRateLimit } from '@/lib/security/rate-limiter';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -27,6 +28,18 @@ function isValidEmail(email: string): boolean {
  */
 export async function POST(req: NextRequest) {
   try {
+    const clientIp =
+      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+      req.headers.get('x-real-ip') ||
+      'unknown';
+    const rate = checkRateLimit(`register:${clientIp}`, '/api/homeowner/register');
+    if (!rate.allowed) {
+      return NextResponse.json(
+        { error: 'Too many attempts. Please try again shortly.' },
+        { status: 429 }
+      );
+    }
+
     const body = await req.json();
     const { unitId, email, password } = body;
 

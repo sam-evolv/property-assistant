@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { assertEnterpriseUser, enforceTenantScope } from '@/lib/api-auth';
 
 interface ArchiveDocument {
   id: string;
@@ -364,15 +365,29 @@ async function fetchDisciplines(params: {
 
 export async function GET(request: NextRequest) {
   try {
+    let context;
+    try {
+      context = await assertEnterpriseUser();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const tenantId = searchParams.get('tenantId');
-    
-    if (!tenantId) {
+    const requestedTenantId = searchParams.get('tenantId');
+
+    if (!requestedTenantId) {
       return NextResponse.json(
         { error: 'tenantId is required' },
         { status: 400 }
       );
+    }
+
+    let tenantId: string;
+    try {
+      tenantId = enforceTenantScope(context, requestedTenantId);
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     if (action === 'documents') {

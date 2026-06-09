@@ -12,6 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments, homeowners } from '@openhouse/db/schema';
 import { eq, sql } from 'drizzle-orm';
+import { assertEnterpriseUser, enforceTenantScope, enforceDevelopmentScope } from '@/lib/api-auth';
 
 interface DevelopmentCounts {
   developmentId: string;
@@ -27,15 +28,32 @@ interface HomeownerCountsResponse {
 
 export async function GET(request: NextRequest) {
   try {
+    let context;
+    try {
+      context = await assertEnterpriseUser();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenant_id');
+    const requestedTenantId = searchParams.get('tenant_id');
     const developmentId = searchParams.get('development_id');
 
-    if (!tenantId) {
+    if (!requestedTenantId) {
       return NextResponse.json(
         { error: 'tenant_id is required' },
         { status: 400 }
       );
+    }
+
+    let tenantId: string;
+    try {
+      tenantId = enforceTenantScope(context, requestedTenantId);
+      if (developmentId) {
+        await enforceDevelopmentScope(context, developmentId);
+      }
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // If specific development requested, get count for just that development

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { assertDevOnly, DevOnlyError, isProductionEnvironment } from '@/lib/env-validation';
+import { getAdminSession } from '@openhouse/api/session';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 
@@ -17,6 +18,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
     throw e;
+  }
+
+  // Even outside production, require an authenticated admin session
+  const adminContext = await getAdminSession();
+  if (!adminContext) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {

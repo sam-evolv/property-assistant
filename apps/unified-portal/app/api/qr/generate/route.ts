@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { db } from '@openhouse/db/client';
 import { units } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
+import { assertEnterpriseUser, enforceDevelopmentScope } from '@/lib/api-auth';
 
 function getBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -16,6 +17,13 @@ function getBaseUrl(): string {
 
 export async function GET(request: NextRequest) {
   try {
+    let context;
+    try {
+      context = await assertEnterpriseUser();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const BASE_URL = getBaseUrl();
     const { searchParams } = new URL(request.url);
     const unitId = searchParams.get('unitId');
@@ -30,7 +38,7 @@ export async function GET(request: NextRequest) {
 
     const unit = await db.query.units.findFirst({
       where: eq(units.id, unitId),
-      columns: { id: true, address_line_1: true, purchaser_name: true },
+      columns: { id: true, address_line_1: true, purchaser_name: true, development_id: true },
     });
 
     if (!unit) {
@@ -38,6 +46,12 @@ export async function GET(request: NextRequest) {
         { error: 'Unit not found' },
         { status: 404 }
       );
+    }
+
+    try {
+      await enforceDevelopmentScope(context, unit.development_id ?? undefined);
+    } catch {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const qrUrl = `${BASE_URL}/homes/${unitId}`;

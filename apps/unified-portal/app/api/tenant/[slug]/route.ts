@@ -3,12 +3,20 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { db, tenants, admins, developments, documents, pois, noticeboard_posts } from '@openhouse/db';
 import { eq, sql } from 'drizzle-orm';
+import { assertEnterpriseUser, isSuperAdmin } from '@/lib/api-auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }
 ) {
   try {
+    let context;
+    try {
+      context = await assertEnterpriseUser();
+    } catch {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { slug } = params;
 
     const [tenant] = await db
@@ -22,6 +30,10 @@ export async function GET(
         { error: 'Tenant not found' },
         { status: 404 }
       );
+    }
+
+    if (!isSuperAdmin(context) && tenant.id !== context.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const [tenantAdmins, tenantDevelopments] = await Promise.all([

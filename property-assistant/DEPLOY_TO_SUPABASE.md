@@ -71,12 +71,12 @@ npm install
 
 **Your connection string:**
 ```
-postgresql://postgres:Munsterman99$evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
 ```
 
 ⚠️ **Important**: The `$` character in your password needs to be URL-encoded as `%24` for environment variables:
 ```
-postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
 ```
 
 ---
@@ -97,7 +97,7 @@ Add this content to `.env`:
 
 ```env
 # Supabase Database Connection
-SUPABASE_DB_URL=postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+SUPABASE_DB_URL=postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
 
 # Optional: Other environment variables
 NEXT_PUBLIC_SUPABASE_URL=https://qgkyuaagcrrynnkipbad.supabase.co
@@ -149,10 +149,10 @@ If the variable is empty, load it manually:
 
 ```bash
 # On macOS/Linux:
-export SUPABASE_DB_URL="postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
+export SUPABASE_DB_URL="postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
 
 # On Windows PowerShell:
-$env:SUPABASE_DB_URL="postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
+$env:SUPABASE_DB_URL="postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres"
 ```
 
 ---
@@ -392,7 +392,7 @@ Your OpenHouse AI schema is now deployed to Supabase and ready for production us
 
 **Connection String for Production:**
 ```
-postgresql://postgres:Munsterman99%24evolv@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
+postgresql://postgres:[REDACTED-ROTATE-THIS-PASSWORD]@db.qgkyuaagcrrynnkipbad.supabase.co:5432/postgres
 ```
 
 ---

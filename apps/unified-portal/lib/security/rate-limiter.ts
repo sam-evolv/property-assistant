@@ -30,6 +30,7 @@ export const ROUTE_RATE_LIMITS: Record<string, RateLimitConfig> = {
   '/api/chat': { windowMs: 60000, maxRequests: 30 },
   '/api/houses/resolve': { windowMs: 60000, maxRequests: 100 },
   '/api/purchaser/profile': { windowMs: 60000, maxRequests: 50 },
+  '/api/homeowner/register': { windowMs: 60000, maxRequests: 5 },
   '/api/super': { windowMs: 60000, maxRequests: 200 },
   '/api/developer': { windowMs: 60000, maxRequests: 200 },
   'default': { windowMs: 60000, maxRequests: 100 },
