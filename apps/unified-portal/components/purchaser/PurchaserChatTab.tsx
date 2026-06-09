@@ -1556,6 +1556,25 @@ export default function PurchaserChatTab({
                       return updated;
                     });
                   });
+                } else if (data.type === 'text_final') {
+                  // The server-side hallucination firewall corrected the answer
+                  // after streaming: replace the displayed text with the safe
+                  // version. The 'done' finalizer re-renders from the same
+                  // streamedContent, so ordering stays consistent.
+                  streamedContent = data.content || '';
+                  const correctedContent = cleanForDisplay(streamedContent);
+                  setMessages((prev) => {
+                    const updated = [...prev];
+                    if (assistantMessageIndex >= 0 && updated[assistantMessageIndex]) {
+                      updated[assistantMessageIndex] = {
+                        ...updated[assistantMessageIndex],
+                        content: correctedContent,
+                        drawing: drawing,
+                        sources: sources,
+                      };
+                    }
+                    return updated;
+                  });
                 } else if (data.type === 'done') {
                   // Capture contact_card from done event (detected after full response is built)
                   if (data.contact_card) {

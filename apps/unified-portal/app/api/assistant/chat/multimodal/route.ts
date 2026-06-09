@@ -604,12 +604,16 @@ export async function POST(request: NextRequest) {
     logTokensOut = agentResult.usage?.output_tokens ?? null;
     logLatencyMs = Date.now() - startedAt;
     const ir = agentResult.issue_report ?? null;
+    const clarification = (agentResult.clarification_question ?? '').trim();
 
     if (!ir) {
-      // Ordinary chat turn. Nothing to analyse from a snag perspective: no
-      // assistant_media_analysis row and no issue_reports row are created.
-      // analysisId and createdIssueReportId both stay null.
-      responseAction = 'answer_only';
+      // Ordinary chat turn, or the agent needs one decisive detail before it
+      // can file a useful ticket (prompt v1.3 CLARIFYING BEFORE LOGGING). In
+      // both cases nothing is persisted: no assistant_media_analysis row and
+      // no issue_reports row. The clarification answer arrives next turn via
+      // conversation memory and the agent logs then. The client treats
+      // ask_for_more_info as a plain assistant message.
+      responseAction = clarification ? 'ask_for_more_info' : 'answer_only';
     } else {
       // Something should be logged. Persist exactly as the v1 path does: one
       // assistant_media_analysis row, then the issue_reports row, the media

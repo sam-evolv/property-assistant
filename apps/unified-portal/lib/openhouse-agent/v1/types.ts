@@ -55,6 +55,15 @@ export interface OpenhouseAgentResult {
    */
   issue_report?: OpenhouseAgentIssueReport | null;
   /**
+   * One specific question the agent needs answered BEFORE it can log a
+   * well-formed issue (e.g. which room, how wide is the crack). Mutually
+   * exclusive with issue_report — when both are somehow set, issue_report
+   * wins and the question is ignored. Null/absent on ordinary turns. The
+   * answer arrives on the next turn via conversation memory, at which point
+   * the agent logs normally.
+   */
+  clarification_question?: string | null;
+  /**
    * Token usage for this call. Attached by the service after parsing the
    * model output; never produced by the model itself. Optional so callers
    * (and the smoke test's canned results) need not supply it.

@@ -77,8 +77,9 @@ const RESULT_JSON_SCHEMA = {
       required: ['title', 'area', 'severity', 'category', 'description', 'status'],
       additionalProperties: false,
     },
+    clarification_question: { type: ['string', 'null'] },
   },
-  required: ['message', 'issue_report'],
+  required: ['message', 'issue_report', 'clarification_question'],
   additionalProperties: false,
 };
 

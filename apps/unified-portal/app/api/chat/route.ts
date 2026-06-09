@@ -4354,12 +4354,8 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             email: contactCardEmailMatch?.[0]?.trim() || null,
           } : null;
 
-          // Send completion signal
-          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', contact_card: contactCard })}\n\n`));
-          controller.close();
-
-          // Save to database after streaming completes
-          const latencyMs = Date.now() - startTime;
+          // (Completion signal is sent below, after the tone guardrail and
+          // hallucination firewall have had the chance to correct the answer.)
           
           // TONE GUARDRAILS: Apply final cleanup to complete response for storage
           // Uses processStreamedResponse to apply phrase replacements, em-dash removal, and formatting
@@ -4390,32 +4386,48 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
             
             if (streamFirewallResult.modified) {
               fullAnswer = streamFirewallResult.safeAnswerText;
-              
-              // Log the violation for observability
-              try {
-                const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
-                await logAnswerGap({
-                  scheme_id: userSupabaseProjectId,
-                  unit_id: clientUnitUid || null,
-                  user_question: message,
-                  intent_type: 'validation_failed',
-                  attempted_sources: ['llm_streaming'],
-                  final_source: 'firewall_blocked',
-                  gap_reason: 'validation_failed',
-                  details: { 
-                    violations: streamFirewallResult.violations,
-                    already_sent: true,
-                    firewall_diagnostics: getFirewallDiagnostics(streamFirewallResult)
-                  },
-                });
-              } catch (_logError) {
-                  // error handled silently
-              }
             }
           }
           
           // MARKDOWN CLEANUP: Remove any remaining markdown tokens from stored response
           fullAnswer = cleanForDisplay(fullAnswer);
+
+          // If the firewall changed the answer, replace the already-streamed
+          // text client-side before completing the stream.
+          if (streamFirewallResult?.modified) {
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'text_final', content: fullAnswer })}\n\n`));
+          }
+
+          // Send completion signal
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'done', contact_card: contactCard })}\n\n`));
+          controller.close();
+
+          // Save to database after streaming completes
+          const latencyMs = Date.now() - startTime;
+
+          // Log the firewall violation for observability (DB write — after close)
+          if (streamFirewallResult?.modified) {
+            try {
+              const { logAnswerGap } = await import('@/lib/assistant/gap-logger');
+              await logAnswerGap({
+                scheme_id: userSupabaseProjectId,
+                unit_id: clientUnitUid || null,
+                user_question: message,
+                intent_type: 'validation_failed',
+                attempted_sources: ['llm_streaming'],
+                final_source: 'firewall_blocked',
+                gap_reason: 'validation_failed',
+                details: { 
+                  violations: streamFirewallResult.violations,
+                  already_sent: true,
+                  corrected_in_stream: true,
+                  firewall_diagnostics: getFirewallDiagnostics(streamFirewallResult)
+                },
+              });
+            } catch (_logError) {
+                // error handled silently
+            }
+          }
 
           // ENHANCED GUARDRAILS (shadow mode): confidence scoring, conversation tracking
           console.log(`[Guardrail] Running guardrails for requestId=${requestId}, shadowMode=${process.env.GUARDRAIL_SHADOW_MODE !== 'false'}`);

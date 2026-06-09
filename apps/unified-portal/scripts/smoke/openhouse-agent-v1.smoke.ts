@@ -435,6 +435,34 @@ async function run(): Promise<void> {
     }
   }
 
+  // --- Case 10: clarify-before-logging (prompt v1.3) ---
+  // Ambiguous defect ("there's a crack in one of the rooms upstairs", no photo).
+  // Expect clarification_question populated and issue_report null — the agent
+  // asks the one decisive question instead of filing a vague ticket. The route
+  // maps this to the existing 'ask_for_more_info' action and persists nothing.
+  {
+    console.log('Case 10: homeowner — ambiguous crack, agent asks one clarifying question');
+    const canned: OpenhouseAgentResult = {
+      message:
+        "Happy to get that looked at properly. Which room is it in, and is the crack hairline or wider — say more than a few millimetres?",
+      issue_report: null,
+      clarification_question: 'Which room is the crack in, and is it hairline or wider than ~3mm?',
+    };
+    const { client, calls } = mockClient(canned);
+    const result = await callAgent(
+      { userType: 'homeowner', text: "there's a crack in one of the rooms upstairs", images: [] },
+      { client },
+    );
+    check('message is populated', result.message.length > 0);
+    check('no issue_report on the clarification turn', result.issue_report == null, JSON.stringify(result.issue_report));
+    check(
+      'clarification_question is populated',
+      typeof result.clarification_question === 'string' && result.clarification_question.length > 0,
+      JSON.stringify(result.clarification_question),
+    );
+    assertWiring(calls, 'HOMEOWNER', false);
+  }
+
   console.log('');
   if (failures > 0) {
     console.log(`SMOKE FAILED — ${failures} assertion(s) failed.`);
