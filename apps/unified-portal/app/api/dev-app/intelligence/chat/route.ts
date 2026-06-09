@@ -8,6 +8,14 @@ import {
   daysAtStage,
   mapComplianceStatus,
 } from '@/lib/dev-app/pipeline-helpers';
+import { IRISH_REGULATORY_KNOWLEDGE } from '@/lib/dev-app/regulatory-knowledge';
+
+// Reasoning model for the developer intelligence. This surface is low-volume
+// and high-value, so it defaults to the stronger model; override with
+// INTELLIGENCE_MODEL to trade quality for cost.
+const INTELLIGENCE_MODEL = process.env.INTELLIGENCE_MODEL || 'gpt-4o';
+// Maximum tool-call rounds per turn before forcing a final answer.
+const MAX_TOOL_ROUNDS = 3;
 
 interface PipelineData {
   unit_id: string;
@@ -60,6 +68,48 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           stage: { type: 'string', description: 'Stage name to filter by (partial match)' },
           days_at_stage_min: { type: 'number' },
         },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'query_pipeline_activity',
+      description:
+        "Count and list pipeline milestones reached within a date range, across ALL the developer's schemes or one scheme. Use this for time-based questions like 'how many units went sale agreed last week', 'handovers this month', 'contracts signed since 1 May'. Returns a total, a per-development breakdown, and the matching units.",
+      parameters: {
+        type: 'object',
+        properties: {
+          stage_event: {
+            type: 'string',
+            enum: [
+              'release_date',
+              'sale_agreed_date',
+              'deposit_date',
+              'contracts_issued_date',
+              'signed_contracts_date',
+              'counter_signed_date',
+              'kitchen_date',
+              'snag_date',
+              'drawdown_date',
+              'handover_date',
+            ],
+            description: 'Which milestone date to count (e.g. sale_agreed_date for "went sale agreed")',
+          },
+          from_date: {
+            type: 'string',
+            description: 'Start of the range, inclusive, ISO format YYYY-MM-DD',
+          },
+          to_date: {
+            type: 'string',
+            description: 'End of the range, inclusive, ISO format YYYY-MM-DD. Defaults to today.',
+          },
+          development_id: {
+            type: 'string',
+            description: 'Optional: restrict to one development. Omit to cover the whole portfolio.',
+          },
+        },
+        required: ['stage_event', 'from_date'],
       },
     },
   },
@@ -264,10 +314,10 @@ async function executeTool(
         .select('has_kitchen, counter_type, unit_finish, handle_style')
         .eq('unit_id', unit.id);
 
-      // Get snag items
+      // Get snags from the canonical issue_reports store
       const { data: snags } = await supabase
-        .from('snag_items')
-        .select('description, status')
+        .from('issue_reports')
+        .select('title, status')
         .eq('unit_id', unit.id);
 
       // Get development name
@@ -309,7 +359,9 @@ async function executeTool(
         });
       }
 
-      const openSnags = (snags || []).filter((s: { description: string; status: string }) => s.status !== 'resolved');
+      const openSnags = (snags || []).filter(
+        (s: { title: string; status: string }) => !['resolved', 'closed'].includes(s.status)
+      );
       if (openSnags.length > 0) {
         fields.push({
           label: 'Open Snags',
@@ -378,6 +430,84 @@ async function executeTool(
       });
 
       return { count: enriched.length, pipeline: enriched };
+    }
+
+    case 'query_pipeline_activity': {
+      const stageEvent = args.stage_event as string;
+      const validColumns = PIPELINE_STAGES.map((s) => s.key as string);
+      if (!validColumns.includes(stageEvent)) {
+        return { error: `Unknown stage_event "${stageEvent}". Valid: ${validColumns.join(', ')}` };
+      }
+
+      const fromDate = args.from_date as string;
+      const toDate = (args.to_date as string) || new Date().toISOString().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+        return { error: 'from_date and to_date must be ISO dates (YYYY-MM-DD)' };
+      }
+
+      let filteredUnitIds = unitIds;
+      if (args.development_id) {
+        filteredUnitIds = allUnits
+          .filter((u) => u.development_id === args.development_id)
+          .map((u) => u.id);
+      }
+
+      if (filteredUnitIds.length === 0) {
+        return { total: 0, by_development: [], units: [], from_date: fromDate, to_date: toDate };
+      }
+
+      const { data: activityRows } = await supabase
+        .from('unit_sales_pipeline')
+        .select(`unit_id, purchaser_name, ${stageEvent}`)
+        .in('unit_id', filteredUnitIds)
+        .gte(stageEvent, fromDate)
+        .lte(stageEvent, `${toDate}T23:59:59`);
+
+      const stageLabel =
+        PIPELINE_STAGES.find((s) => s.key === stageEvent)?.label || stageEvent;
+
+      const matched = ((activityRows || []) as unknown as Record<string, unknown>[]).map((row) => {
+        const unit = allUnits.find((u) => u.id === row.unit_id);
+        return {
+          unit_number: unit?.unit_number || 'Unknown',
+          development_id: unit?.development_id || null,
+          purchaser: (row.purchaser_name as string) || null,
+          date: (row[stageEvent] as string) || null,
+        };
+      });
+
+      // Per-development breakdown with names
+      const devCounts: Record<string, number> = {};
+      for (const m of matched) {
+        if (m.development_id) devCounts[m.development_id] = (devCounts[m.development_id] || 0) + 1;
+      }
+      const devIdList = Object.keys(devCounts);
+      let byDevelopment: { development: string; count: number }[] = [];
+      if (devIdList.length > 0) {
+        const { data: devRows } = await supabase
+          .from('developments')
+          .select('id, name')
+          .in('id', devIdList);
+        byDevelopment = devIdList.map((id) => ({
+          development:
+            (devRows || []).find((d: { id: string; name: string }) => d.id === id)?.name || id,
+          count: devCounts[id],
+        }));
+        byDevelopment.sort((a, b) => b.count - a.count);
+      }
+
+      return {
+        milestone: stageLabel,
+        from_date: fromDate,
+        to_date: toDate,
+        total: matched.length,
+        by_development: byDevelopment,
+        units: matched.map((m) => ({
+          unit_number: m.unit_number,
+          purchaser: m.purchaser,
+          date: m.date,
+        })),
+      };
     }
 
     case 'query_compliance': {
@@ -479,6 +609,7 @@ async function executeTool(
     }
 
     case 'query_snagging': {
+      // Canonical snag store is issue_reports (the /snag + /developer/issues flow)
       let filteredUnitIds = unitIds;
       if (args.development_id) {
         filteredUnitIds = allUnits
@@ -490,13 +621,22 @@ async function executeTool(
         return { count: 0, snags: [] };
       }
 
-      let query = supabase
-        .from('snag_items')
-        .select('id, unit_id, description, status, created_at')
-        .in('unit_id', filteredUnitIds);
+      // Tool status vocabulary → issue_reports statuses
+      const statusMap: Record<string, string[]> = {
+        open: ['homeowner_new', 'snag_new', 'open'],
+        in_progress: ['in_progress'],
+        resolved: ['resolved', 'closed'],
+      };
 
-      if (args.status) {
-        query = query.eq('status', args.status as string);
+      let query = supabase
+        .from('issue_reports')
+        .select('id, unit_id, title, description, status, severity_label, safety_risk, likely_trade, room, created_at')
+        .in('unit_id', filteredUnitIds)
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (args.status && statusMap[args.status as string]) {
+        query = query.in('status', statusMap[args.status as string]);
       }
       if (args.unit_id) {
         query = query.eq('unit_id', args.unit_id as string);
@@ -507,8 +647,13 @@ async function executeTool(
         const unit = allUnits.find((u) => u.id === s.unit_id);
         return {
           unit_number: unit?.unit_number || 'Unknown',
+          title: s.title,
           description: s.description,
           status: s.status,
+          severity: s.severity_label,
+          safety_risk: s.safety_risk,
+          trade: s.likely_trade,
+          room: s.room,
         };
       });
 
@@ -596,12 +741,12 @@ async function executeTool(
           });
         }
 
-        // Open snags
+        // Open snags (canonical issue_reports store)
         const { data: openSnags } = await supabase
-          .from('snag_items')
+          .from('issue_reports')
           .select('unit_id, status')
           .in('unit_id', filteredUnitIds)
-          .in('status', ['open', 'in_progress']);
+          .in('status', ['homeowner_new', 'snag_new', 'open', 'in_progress']);
 
         if (openSnags && openSnags.length >= 5) {
           attentionItems.push({
@@ -785,9 +930,16 @@ export async function POST(request: NextRequest) {
       day: 'numeric',
     });
 
-    const systemPrompt = `You are OpenHouse Intelligence, an AI assistant for Irish property developers. You help developers manage their residential developments by answering questions about units, purchasers, compliance, pipeline status, and more.
+    const todayIso = new Date().toISOString().slice(0, 10);
 
-You have access to the developer's real data across all their developments. You can also take actions on their behalf: drafting emails, updating pipeline stages, updating unit statuses, and more.
+    const systemPrompt = `You are OpenHouse Intelligence, the AI operations assistant for Irish property developers. You answer questions and take actions across the developer's ENTIRE portfolio — every scheme they run — covering units, purchasers, solicitors, sales pipeline, compliance, snagging, handover and HPI readiness.
+
+You have tools over the developer's real data. Use them — never answer a data question from memory.
+
+PORTFOLIO-WIDE QUESTIONS:
+- You can answer across all schemes at once. For "across my schemes / portfolio" questions, call tools WITHOUT development_id so they cover everything.
+- For time-based questions ("how many went sale agreed last week", "handovers this month") use query_pipeline_activity with explicit ISO dates. Today is ${todayIso}. "Last week" means the previous 7 days unless the user clearly means the previous calendar week (Monday–Sunday). Always state the date range you used in your answer, e.g. "Between 2 and 9 June…".
+- Lead with the headline number, then the per-scheme breakdown, then the unit detail only if useful.
 
 IMPORTANT RULES:
 - Always be concise and direct. Developers are busy, on-site.
@@ -797,6 +949,8 @@ IMPORTANT RULES:
 - Reference specific unit numbers and names - never be vague.
 - If you're unsure about data, say so. Never guess.
 - Use Irish property terminology (solicitor not lawyer, estate agent not realtor).
+- NEVER claim a write action succeeded unless the tool result confirms it. If a tool returns confirmation_required, tell the user the change is awaiting their confirmation — nothing has been changed yet.
+- If asked to do something you have no tool for (deleting records, sending without confirmation, changing purchaser data), say you can't do that from chat and name where in the portal it can be done.
 
 NAME MATCHING:
 Development names may contain Irish fadas (accented characters). When the user types "Rathard Park", they mean "Rathárd Park". When they type "Ardan View", they mean "Árdan View". Always match ignoring diacritics. The development list below includes aliases in parentheses.
@@ -815,38 +969,52 @@ Rules for write actions:
 - Never call a write tool unless you are confident you have identified the correct records
 - After a confirmed write, acknowledge the change briefly and naturally - do not over-explain
 
+${IRISH_REGULATORY_KNOWLEDGE}
+
 CURRENT CONTEXT:
 Developer ID: ${user.id}
-Current date: ${today}
+Current date: ${today} (ISO: ${todayIso})
 
 YOUR DEVELOPMENTS:
 ${devSummaries || 'None'}
 
 VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housing, occupied, handed_over, maintenance, vacant, void, withdrawn`;
 
-    // Call OpenAI
-    const completion = await getOpenAI().chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: systemPrompt },
-        ...contextMessages,
-        { role: 'user', content: message },
-      ],
-      tools: TOOLS,
-      tool_choice: 'auto',
-      temperature: 0.3,
-      max_tokens: 1500,
-    });
+    // Agentic loop: let the model chain tool calls (e.g. portfolio query →
+    // per-unit lookup) for up to MAX_TOOL_ROUNDS before composing its answer.
+    const conversation: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...contextMessages,
+      { role: 'user', content: message },
+    ];
 
-    let assistantContent = completion.choices[0]?.message?.content || '';
-    const toolCalls = completion.choices[0]?.message?.tool_calls;
+    let assistantContent = '';
     const responseMessages: Record<string, unknown>[] = [];
 
-    if (toolCalls && toolCalls.length > 0) {
-      // Execute tool calls
-      const toolResults: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-        { role: 'assistant', content: null as unknown as string, tool_calls: toolCalls },
-      ];
+    for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+      const finalRound = round === MAX_TOOL_ROUNDS;
+      const completion = await getOpenAI().chat.completions.create({
+        model: INTELLIGENCE_MODEL,
+        messages: conversation,
+        tools: TOOLS,
+        tool_choice: finalRound ? 'none' : 'auto',
+        temperature: 0.3,
+        max_tokens: 1500,
+      });
+
+      const choice = completion.choices[0]?.message;
+      const toolCalls = choice?.tool_calls;
+
+      if (!toolCalls || toolCalls.length === 0) {
+        assistantContent = choice?.content || '';
+        break;
+      }
+
+      conversation.push({
+        role: 'assistant',
+        content: choice?.content ?? (null as unknown as string),
+        tool_calls: toolCalls,
+      });
 
       for (const call of toolCalls) {
         const args = JSON.parse(call.function.arguments);
@@ -857,7 +1025,7 @@ VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housi
           devIds
         );
 
-        toolResults.push({
+        conversation.push({
           role: 'tool',
           tool_call_id: call.id,
           content: JSON.stringify(result),
@@ -937,21 +1105,6 @@ VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housi
           }
         }
       }
-
-      // Second OpenAI call with tool results for natural language response
-      const followUp = await getOpenAI().chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...contextMessages,
-          { role: 'user', content: message },
-          ...toolResults,
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-      });
-
-      assistantContent = followUp.choices[0]?.message?.content || '';
     }
 
     // Add the text response
@@ -989,6 +1142,7 @@ VALID UNIT STATUSES: available, sale_agreed, in_progress, complete, social_housi
       messages: responseMessages,
     });
   } catch (error) {
+    console.error('[Intelligence] chat error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
