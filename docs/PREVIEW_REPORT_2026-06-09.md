@@ -100,3 +100,33 @@ Architecture is solid: persona-locked prompts, three-tier knowledge (real house 
 2. `feat(intelligence)` — portfolio/date-aware/agentic intelligence + regulatory & HPI knowledge
 3. `feat(hpi)` — HPI Readiness board, Units tab, summary API, gpt-4o Home User Guide
 4. `docs` — this report
+
+---
+
+# Session 2 — 9 June 2026 (evening)
+
+Continuation on the same branch, driven by your answers: HPI Evidence Pack, buyer-assistant upgrades, UX bridges, performance + deeper audit, and demo prep with the database work applied directly via the Supabase tools.
+
+## What shipped
+
+1. **HPI Evidence Pack export** (the IGBC centrepiece) — on the HPI board, every scheme card now has "Export evidence pack": a ZIP with a scheme readiness index PDF, a per-home evidence PDF (QA 8.0 ticks, append-only handover log with acknowledgement refs, systems/commissioning/warranty table, the full rendered Home User Guide, snag record) and `manifest.json` listing stored compliance certificates as 7-day signed links (binaries stay canonical in storage). Verified by generating real PDFs locally.
+2. **Buyer assistant**
+   - *Clarify-before-logging* (prompt v1.3): when one decisive detail is missing (room, crack width, fixture), the agent asks exactly one question instead of filing a vague ticket; the answer arrives via conversation memory and it logs properly next turn. Safety always logs immediately. Smoke-tested.
+   - *Firewall gap closed*: streaming chat previously closed the stream **before** the hallucination firewall ran, so corrections only ever reached the stored copy — the homeowner kept the raw text. Corrections now stream as a `text_final` event that replaces the displayed answer.
+3. **UX bridges**: the full portal sidebar gained "HPI Readiness"; `/developer/hpi` redirects to the board; the dev-app overview links back to the full portal. Nothing deleted.
+4. **Performance + audit**: bulk status updates batched (one write per target status, not per unit); migration **070** applied live — `issue_reports(development_id,status)` and partial `unit_sales_pipeline(sale_agreed_date)` indexes added, three advisor-flagged duplicate indexes dropped; `/api/qr/bulk` (unauthenticated bulk QR minting) now requires an enterprise session.
+5. **Demo prep**: migration **071** applied live — fresh **OpenHouse Demo Park** (6 units, Carrigaline): units 1–4 fully QA 8.0 evidenced, unit 5 partial, unit 6 clean for the live on-stage flip; unit 3 went sale-agreed 6 days ago so the intelligence "last week" question lands. Teardown SQL committed for resets. Full walkthrough: **`docs/DEMO_SCRIPT_IGBC.md`**.
+
+## Database state (applied via Supabase MCP, recorded as migrations)
+
+- `070_hot_indexes` and `071_demo_openhouse_demo_park` are **live** on OpenHouse Database V2 and committed to `apps/unified-portal/migrations/`. 067–069 were already applied (so no action needed there — the earlier report's "run migrations" step is done).
+- Demo data is now()-relative: **re-run teardown + seed within ~5 days of the IGBC meeting** (instructions in the demo script).
+
+## Advisor findings (not auto-fixed — need a decision)
+
+- **ERROR `security_definer_view`**: `agent_home_stats`, `listing_price_review_candidates` — these views bypass RLS; converting to `security_invoker` needs a check of the agent dashboard's access path first.
+- `auth_rls_initplan` on 73 policies (per-row `auth.uid()` re-evaluation — bulk policy rewrite, mechanical but wide), public bucket listing on `development-branding`/`development_docs`, leaked-password protection toggle (Auth dashboard setting), and 17 functions with mutable `search_path`. All catalogued for a dedicated hardening pass.
+
+## Verification
+
+- `tsc --noEmit` clean after every stream; full production build green; agent smoke suite (10 cases incl. the new clarification contract) passes; PDFs generated and visually inspected; seeded state verified by SQL (4/6 ready, unit 3 sale-agreed 2026-06-03).
