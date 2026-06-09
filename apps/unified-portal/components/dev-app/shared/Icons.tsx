@@ -19,6 +19,10 @@ export const ClockIcon = ({ active }: { active?: boolean }) => (
   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? GOLD : TEXT_3} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>
 );
 
+export const HomeTabIcon = ({ active }: { active?: boolean }) => (
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={active ? GOLD : TEXT_3} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><path d="M9 22V12h6v10" /></svg>
+);
+
 // Utility icons
 export const BackIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={TEXT_1} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>

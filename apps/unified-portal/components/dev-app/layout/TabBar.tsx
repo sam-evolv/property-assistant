@@ -1,11 +1,12 @@
 'use client';
 
-import { PulseIcon, BuildingIcon, BrainIcon, ClockIcon } from '../shared/Icons';
+import { PulseIcon, BuildingIcon, HomeTabIcon, BrainIcon, ClockIcon } from '../shared/Icons';
 import { GOLD, TEXT_3, BORDER_LIGHT, EASE_PREMIUM } from '@/lib/dev-app/design-system';
 
 const TABS = [
   { id: 'overview' as const, label: 'Overview', Icon: PulseIcon },
   { id: 'developments' as const, label: 'Devs', Icon: BuildingIcon },
+  { id: 'units' as const, label: 'Units', Icon: HomeTabIcon },
   { id: 'intelligence' as const, label: 'Intel', Icon: BrainIcon },
   { id: 'activity' as const, label: 'Activity', Icon: ClockIcon },
 ];

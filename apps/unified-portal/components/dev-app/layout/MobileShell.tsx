@@ -13,6 +13,7 @@ interface MobileShellProps {
 const TAB_ROUTES: Record<string, string> = {
   overview: '/dev-app/overview',
   developments: '/dev-app/developments',
+  units: '/dev-app/units',
   intelligence: '/dev-app/intelligence',
   activity: '/dev-app/activity',
 };
@@ -20,6 +21,7 @@ const TAB_ROUTES: Record<string, string> = {
 function getActiveTab(pathname: string): string {
   if (pathname.includes('/intelligence')) return 'intelligence';
   if (pathname.includes('/developments')) return 'developments';
+  if (pathname.includes('/units')) return 'units';
   if (pathname.includes('/activity')) return 'activity';
   return 'overview';
 }

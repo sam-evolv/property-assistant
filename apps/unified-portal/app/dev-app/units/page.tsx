@@ -9,6 +9,8 @@ import {
   TEXT_3,
   BORDER_LIGHT,
   SURFACE_1,
+  GOLD,
+  GOLD_LIGHT,
 } from '@/lib/dev-app/design-system';
 
 export default function UnitsListPage() {
@@ -34,9 +36,32 @@ export default function UnitsListPage() {
         <h1 style={{ color: TEXT_1, fontSize: 22, fontWeight: 700, marginBottom: 4 }}>
           Units
         </h1>
-        <p style={{ color: TEXT_2, fontSize: 13, marginBottom: 20 }}>
+        <p style={{ color: TEXT_2, fontSize: 13, marginBottom: 14 }}>
           Tap a unit for its snags, HPI readiness and Home User Guide.
         </p>
+
+        <div
+          onClick={() => router.push('/dev-app/hpi')}
+          style={{
+            cursor: 'pointer',
+            background: GOLD_LIGHT,
+            border: `1px solid ${GOLD}33`,
+            borderRadius: 12,
+            padding: 14,
+            marginBottom: 18,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+          }}
+        >
+          <div>
+            <div style={{ color: TEXT_1, fontSize: 14, fontWeight: 650 }}>HPI Readiness board</div>
+            <div style={{ color: TEXT_2, fontSize: 12, marginTop: 2 }}>
+              QA 8.0 evidence across every scheme — guides, demos, aftercare
+            </div>
+          </div>
+          <span style={{ color: GOLD, fontSize: 18, fontWeight: 700 }}>→</span>
+        </div>
 
         {loading && <p style={{ color: TEXT_3, fontSize: 14 }}>Loading…</p>}
         {error && <p style={{ color: TEXT_3, fontSize: 14 }}>{error}</p>}

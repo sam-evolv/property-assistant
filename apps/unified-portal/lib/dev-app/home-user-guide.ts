@@ -4,10 +4,10 @@
 
 import OpenAI from 'openai';
 
-// Defaults to the model proven across this codebase so it runs on existing infra.
-// RECOMMENDED UPGRADE: this is the headline, reasoning-heavy generation — move it
-// to a frontier model (gpt-4o, or Anthropic Claude) by setting HOME_USER_GUIDE_MODEL.
-const GUIDE_MODEL = process.env.HOME_USER_GUIDE_MODEL || 'gpt-4o-mini';
+// This is the headline, reasoning-heavy generation (HPI QA 8.0 deliverable), so it
+// defaults to the stronger model; guides are generated once per unit, so the cost
+// is bounded. Override with HOME_USER_GUIDE_MODEL to trade quality for cost.
+const GUIDE_MODEL = process.env.HOME_USER_GUIDE_MODEL || 'gpt-4o';
 
 function getOpenAIClient() {
   const apiKey = process.env.OPENAI_API_KEY;
