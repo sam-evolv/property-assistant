@@ -24,8 +24,11 @@ const TIER_THRESHOLDS: Array<{ tier: TierBand; min: number }> = [
   { tier: 'silver', min: 75 },
   { tier: 'certified', min: 60 },
 ];
-// Mandatory minimums must be ready on at least this share of units to project any tier.
-const MANDATORY_GATE = 0.9;
+// Mandatory minimums must be ready on at least this share of units to project a
+// tier. IGBC v3.1 allows only a small share of units to miss mandatory minimums;
+// 0.8 tolerates a single laggard on a small scheme without passing a scheme with
+// systemic gaps.
+const MANDATORY_GATE = 0.8;
 // Mandatory indicators weigh double in the readiness mean.
 const MANDATORY_WEIGHT = 2;
 // Minutes of assessor review saved per pre-assembled evidence item (labelled in UI).
@@ -105,11 +108,13 @@ export function normaliseComplianceStatus(
   now: Date = new Date(),
 ): IndicatorStatus {
   const s = (dbStatus ?? '').toLowerCase();
+  // A lapsed certificate is no longer valid evidence → treat as missing.
   if (expiry) {
     const e = new Date(expiry);
+    if (!isNaN(e.getTime()) && e.getTime() < now.getTime()) return 'missing';
     if (!isNaN(e.getTime())) {
-      if (e.getTime() < now.getTime()) return 'expiring'; // past expiry surfaces as needs-attention
       const days = (e.getTime() - now.getTime()) / 86400000;
+      // Valid but expiring soon: present evidence that needs renewal.
       if (days <= EXPIRY_WINDOW_DAYS && (s === 'verified' || s === 'pending_renewal')) return 'expiring';
     }
   }
@@ -121,10 +126,15 @@ export function normaliseComplianceStatus(
     case 'pending_renewal':
       return 'partial';
     case 'expired':
-      return 'expiring';
+      return 'missing'; // lapsed → no valid evidence
     default:
       return 'missing';
   }
+}
+
+/** Whether a status counts as valid evidence present (for the mandatory gate). */
+function isPresent(s: IndicatorStatus): boolean {
+  return s === 'ready' || s === 'expiring';
 }
 
 function unitLabel(u: RawUnitEvidence['unit']): string {
@@ -167,10 +177,11 @@ export function evaluateScheme(units: RawUnitEvidence[]): SchemeEvaluation {
   // Per-indicator coverage + gaps + matrix
   const indicatorMatrix: SchemeEvaluation['indicatorMatrix'] = [];
   const gaps: GapItem[] = [];
-  const indicatorCoverage: Array<{ indicator: HpiIndicator; coverage: number }> = [];
+  const indicatorCoverage: Array<{ indicator: HpiIndicator; coverage: number; presentCoverage: number }> = [];
 
   for (const indicator of HPI_INDICATORS) {
     let ready = 0;
+    let present = 0;
     const total = indicator.scope === 'per_scheme' ? 1 : evidences.length;
 
     if (indicator.scope === 'per_scheme') {
@@ -181,7 +192,8 @@ export function evaluateScheme(units: RawUnitEvidence[]): SchemeEvaluation {
         ? indicator.evaluate(sample)
         : { status: 'missing' as IndicatorStatus, detail: 'No units' };
       if (isReady(res.status)) ready = 1;
-      else {
+      if (isPresent(res.status)) present = 1;
+      if (!isReady(res.status)) {
         gaps.push({
           indicatorId: indicator.id,
           code: indicator.code,
@@ -196,6 +208,7 @@ export function evaluateScheme(units: RawUnitEvidence[]): SchemeEvaluation {
       for (const { unit, ev } of evidences) {
         const res = indicator.evaluate(ev);
         perUnit[unit.id].push({ indicatorId: indicator.id, status: res.status, detail: res.detail });
+        if (isPresent(res.status)) present += 1;
         if (isReady(res.status)) {
           ready += 1;
         } else {
@@ -215,7 +228,8 @@ export function evaluateScheme(units: RawUnitEvidence[]): SchemeEvaluation {
     }
 
     const coverage = total > 0 ? ready / total : 0;
-    indicatorCoverage.push({ indicator, coverage });
+    const presentCoverage = total > 0 ? present / total : 0;
+    indicatorCoverage.push({ indicator, coverage, presentCoverage });
     indicatorMatrix.push({
       indicatorId: indicator.id,
       code: indicator.code,
@@ -238,10 +252,11 @@ export function evaluateScheme(units: RawUnitEvidence[]): SchemeEvaluation {
   }
   const readinessPct = weightSum > 0 ? Math.round((weighted / weightSum) * 100) : 0;
 
-  // Mandatory gate
+  // Mandatory gate — valid evidence present (ready or expiring-but-valid) on
+  // at least the gate share of units for every mandatory minimum.
   const mandatoryMet = indicatorCoverage
     .filter(({ indicator }) => MANDATORY_MINIMUM_IDS.includes(indicator.id))
-    .every(({ coverage }) => coverage >= MANDATORY_GATE);
+    .every(({ presentCoverage }) => presentCoverage >= MANDATORY_GATE);
 
   // Category breakdown
   const categoryBreakdown = {} as SchemeEvaluation['categoryBreakdown'];
