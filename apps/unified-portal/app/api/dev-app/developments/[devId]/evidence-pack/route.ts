@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { createServerSupabaseClient, getSupabaseAdmin } from '@/lib/supabase-server';
+import { getAdminContextFromSession, isSuperAdmin } from '@/lib/api-auth';
 import { summariseHpiQa8 } from '@/lib/dev-app/unit-systems';
 import {
   buildSchemeIndexPdf,
@@ -42,16 +43,25 @@ export async function GET(
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Verify ownership (404 on miss, like the rest of dev-app)
-    const { data: development } = await supabase
+    const admin = getSupabaseAdmin();
+    const { data: development } = await admin
       .from('developments')
-      .select('id, name, address')
+      .select('id, name, address, tenant_id, developer_user_id')
       .eq('id', params.devId)
-      .eq('developer_user_id', user.id)
       .single();
     if (!development) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const { data: units } = await supabase
+    // Two access models, matching the two surfaces this serves:
+    //   dev-app   — the signed-in auth user owns the development
+    //   /developer — an admin session in the development's tenant (or super admin)
+    let authorized = development.developer_user_id === user.id;
+    if (!authorized) {
+      const context = await getAdminContextFromSession();
+      authorized = !!context && (isSuperAdmin(context) || context.tenantId === development.tenant_id);
+    }
+    if (!authorized) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+    const { data: units } = await admin
       .from('units')
       .select('id, unit_number, address_line_1, eircode, house_type_code')
       .eq('development_id', development.id)
@@ -62,9 +72,6 @@ export async function GET(
       return NextResponse.json({ error: 'No units in this development' }, { status: 400 });
     }
     const unitIds = unitList.map((u: any) => u.id);
-
-    // Evidence tables are service-role access (RLS) — read after the ownership check
-    const admin = getSupabaseAdmin();
     const [eventsRes, systemsRes, guidesRes, snagsRes, complianceRes] = await Promise.all([
       admin
         .from('handover_events')
