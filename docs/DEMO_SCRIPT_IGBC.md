@@ -91,10 +91,51 @@ evidence live on stage.
 - For SME builders, the same flow maps to the **Home Performance Pathway**
   (green-finance entry route backed by AIB/BOI/HBFI).
 
+## The HPI Evidence Command Centre (the must-have screen)
+
+This is the upgraded `/developer/hpi` — open it in the full developer portal
+(sidebar → **HPI Readiness**, under Developer Tools). It scores the *whole* HPI
+evidence pack, not just QA 8.0.
+
+1. **Top of the page** — the **ROI strip** (evidence items tracked across the
+   portfolio, % auto-captured by OpenHouse, evidence trackers replaced, assessor
+   review-hours saved) and the scorecards (Total Homes, **Avg HPI Readiness %**,
+   QA 8.0 Ready, **Open Evidence Gaps**). The pitch line: *"every one of these
+   items used to live in a spreadsheet and a chase-up email."*
+
+2. **OpenHouse Demo Park row** shows **~74% · Certified (indicative) · gap badge**.
+   Talking point: *"the scheme is evidence-ready for Certified and one item short
+   of Silver — and it knows exactly which item."* (Tier is always labelled
+   indicative — the assessor makes the call; we make the pack complete.)
+
+3. **Expand the scheme** for the full breakdown:
+   - **Category bars** EN / HW / EC / QA / SL — Health & Wellbeing 100%,
+     Quality Assurance ~69%, Sustainable Location flagged as design-stage.
+   - **Indicator grid** — BER, airtightness, ventilation commissioning, thermal
+     bridging (the mandatory minimums), services commissioning, QA 8.0, and the
+     supporting certs, each with per-home coverage. Note ventilation
+     commissioning is **auto-captured** from the unit systems, not chased.
+   - **What's outstanding** — gaps grouped by **responsible party**. Unit 6 is
+     the laggard (BER + airtightness + electrical + gas + BCMS missing); Unit 5
+     has a **lapsed gas cert** and Unit 2 a **BER expiring in 20 days**.
+
+4. **The close — turn the gap list into action.** On the "Electrical Contractor"
+   (or "BER Assessor") group hit **Draft request** → a pre-filled email listing
+   exactly what's outstanding for that trade, ready to send. Then **Export
+   chase-list** → a CSV of every gap by responsible party. *"This is the bit
+   developers will pay for: the system chases the evidence for you."*
+
+5. Tie back to the **Evidence pack** button (top of the row) — the assembled
+   pack that goes into HPI Upload once the gaps are closed.
+
 ## Reset
 
 ```sql
--- Supabase SQL editor (or MCP):
--- 1. apps/unified-portal/migrations/071_demo_openhouse_demo_park_teardown.sql
--- 2. apps/unified-portal/migrations/071_demo_openhouse_demo_park.sql
+-- Supabase SQL editor (or MCP). Re-seed within ~5 days of the meeting so the
+-- dates and 'expiring' chips stay fresh.
+-- 1. 072_demo_ohdemo_hpi_evidence_teardown.sql   (HPI compliance evidence)
+-- 2. 071_demo_openhouse_demo_park_teardown.sql    (scheme, units, systems, guides)
+-- then re-apply:
+-- 3. 071_demo_openhouse_demo_park.sql
+-- 4. 072_demo_ohdemo_hpi_evidence.sql
 ```

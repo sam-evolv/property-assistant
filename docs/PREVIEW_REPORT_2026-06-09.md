@@ -130,3 +130,24 @@ Continuation on the same branch, driven by your answers: HPI Evidence Pack, buye
 ## Verification
 
 - `tsc --noEmit` clean after every stream; full production build green; agent smoke suite (10 cases incl. the new clarification contract) passes; PDFs generated and visually inspected; seeded state verified by SQL (4/6 ready, unit 3 sale-agreed 2026-06-03).
+
+---
+
+# Session 3 — HPI Evidence Command Centre (make it must-have)
+
+`/developer/hpi` was a single-indicator (QA 8.0) checklist. It is now a whole-scheme **HPI evidence command centre** that scores the entire evidence pack, surfaces what's missing, and turns the gaps into action — reusing evidence already in the database (per-unit compliance certs, commissioning, QA 8.0) with **no schema migrations**.
+
+## What shipped
+- **HPI indicator framework** (`lib/hpi/indicators.ts`, `lib/hpi/evaluate.ts`): 14 evidence-bearing indicators across HPI's five categories, each mapped to data we already hold; a pure evaluator producing a weighted readiness %, per-category breakdown, a transparent **projected certification level** (mandatory-minimums gate + thresholds, always labelled *indicative*), items-to-next-level, and a gap list by responsible party. Lapsed certs count as missing; expiring-but-valid certs satisfy the mandatory gate but surface a "Renew" flag.
+- **APIs**: `/api/developer/hpi/summary` extended (additive per-scheme `hpi{readinessPct,projectedTier,gapCount}` + portfolio ROI), new deep `/api/developer/hpi/scheme/[devId]`, `…/chase-list` (CSV), `…/draft-request` (per-trade email draft). All tenant-scoped like `/api/pipeline`; the dev-app board and its rollup are untouched.
+- **UI**: portfolio ROI/value strip + scorecards; scheme rows with readiness bar, projected-tier chip and gap badge; an expand panel with category bars, the full indicator grid, a gap report grouped by responsible party with **Draft request** (mailto + copy) and **Export chase-list** (CSV), plus the per-home QA 8.0 table and evidence-pack download.
+- **Demo seed** (migration 072 + teardown, applied live): OpenHouse Demo Park now carries a realistic compliance evidence spread → **74% readiness, "Certified (indicative)", 1 item to Silver, 20 gaps across 8 trades, Unit 6 the laggard**, with one expiring and one lapsed cert for realistic chips.
+
+## Why it's must-have
+It answers the question a developer actually loses sleep over — *"is this scheme ready to submit to HPI, and if not, exactly what's missing and who do I chase?"* — and then drafts the chase. The ROI strip makes the spreadsheet-and-email work it replaces explicit.
+
+## Honest framing baked in
+The projected level is an indicative evidence-readiness signal, never represented as an official IGBC score (the assessor decides). The "draft request" is a pre-filled email/CSV, not an automated send pipeline. Both are noted in the UI and code.
+
+## Verification
+- `tsc --noEmit` + full `npm run build` green; evaluator validated against the live seeded shape; live SQL confirms the seeded spread (U1–2 full → U6 laggard). Demo walkthrough added to `docs/DEMO_SCRIPT_IGBC.md`.
