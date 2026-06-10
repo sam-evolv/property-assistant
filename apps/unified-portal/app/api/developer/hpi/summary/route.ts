@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
 import { rollupHpiEvidence } from '@/lib/dev-app/hpi-rollup';
+import { loadSchemeEvidence } from '@/lib/hpi/load-evidence';
+import { summariseSchemeForPortfolio, computeRoi, type RawUnitEvidence } from '@/lib/hpi/evaluate';
+import { HPI_DISCLAIMER } from '@/lib/hpi/indicators';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,8 +57,31 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: 'Failed to load units' }, { status: 500 });
     }
 
-    const developments = await rollupHpiEvidence(admin, devList, (units ?? []) as any[]);
-    return NextResponse.json({ developments });
+    const unitRows = (units ?? []) as any[];
+    const developments = await rollupHpiEvidence(admin, devList, unitRows);
+
+    // Additive HPI evidence layer: assemble evidence once for all units, then
+    // evaluate per scheme. The rollup output above is unchanged (the dev-app
+    // board depends on its shape).
+    const allEvidence = await loadSchemeEvidence(admin, unitRows);
+    const evidenceByDev: Record<string, RawUnitEvidence[]> = {};
+    for (const ev of allEvidence) {
+      const devId = unitRows.find((u) => u.id === ev.unit.id)?.development_id;
+      if (devId) (evidenceByDev[devId] ||= []).push(ev);
+    }
+
+    const withHpi = developments.map((d: any) => {
+      const evs = evidenceByDev[d.id] ?? [];
+      const hpi = evs.length > 0 ? summariseSchemeForPortfolio(evs) : null;
+      return { ...d, hpi };
+    });
+
+    const roi = computeRoi(Object.values(evidenceByDev));
+
+    return NextResponse.json({
+      developments: withHpi,
+      portfolio: { ...roi, disclaimer: HPI_DISCLAIMER },
+    });
   } catch (error) {
     console.error('[Developer HPI] summary error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
