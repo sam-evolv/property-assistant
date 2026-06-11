@@ -545,8 +545,8 @@ export function HomeownersList({
                 </div>
               )}
 
-              {/* Estate board: every home as a tile, in house-number order —
-                  the whole development scannable in one sweep. */}
+              {/* Estate board: every home a tile in house-number order,
+                  grouped under block/street landmarks so the eye can track. */}
               <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
                 {[
                   { label: 'For sale', cls: 'bg-emerald-400' },
@@ -558,13 +558,10 @@ export function HomeownersList({
                     {k.label}
                   </span>
                 ))}
-                <span className="ml-auto hidden text-[11px] text-grey-300 sm:block">
-                  Hover a home for selection &amp; its file
-                </span>
               </div>
 
-              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                {filteredAndSorted.map((unit) => {
+              {(() => {
+                const renderTile = (unit: Unit) => {
                   const houseNum = extractHouseNumber(unit.address, unit.unit_number);
                   const displayNum = houseNum !== 999 ? String(houseNum) : (unit.unit_number || '?');
                   const residentName = unit.purchaser_name || unit.resident_name || unit.name;
@@ -606,7 +603,7 @@ export function HomeownersList({
                       </Link>
 
                       <Link href={`/developer/homeowners/${unit.id}`} className="block px-2 pb-3 pt-5 text-center">
-                        <p className="text-2xl font-bold tracking-tight text-grey-900 transition-colors group-hover:text-gold-700">
+                        <p className="text-2xl font-bold tabular-nums tracking-tight text-grey-900 transition-colors group-hover:text-gold-700">
                           {displayNum}
                         </p>
                         <p
@@ -615,9 +612,6 @@ export function HomeownersList({
                           }`}
                         >
                           {residentName || (isForSale ? 'For sale' : 'Unassigned')}
-                        </p>
-                        <p className="truncate px-1 text-[10px] text-grey-400">
-                          {unit.address || unit.house_type_code || '\u00A0'}
                         </p>
 
                         <div className="mt-2 flex h-4 items-center justify-center gap-2">
@@ -640,8 +634,66 @@ export function HomeownersList({
                       </Link>
                     </div>
                   );
-                })}
-              </div>
+                };
+
+                const tileGrid = (units: Unit[]) => (
+                  <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+                    {units.map(renderTile)}
+                  </div>
+                );
+
+                // Landmarks only make sense in house order; any other sort or a
+                // search shows a flat board.
+                if (sortBy !== 'house' || searchQuery.trim()) {
+                  return tileGrid(filteredAndSorted);
+                }
+
+                // "Apt 3, Block A" -> "Block A" · "6 Demo Park" -> "Demo Park"
+                const blockOf = (unit: Unit): string => {
+                  const addr = (unit.address || '').trim();
+                  if (addr.includes(',')) {
+                    const tail = addr.split(',').slice(1).join(',').trim();
+                    if (tail) return tail;
+                  }
+                  const street = addr.replace(/^[\d\s\-\/]*(apt|apartment|unit|no\.?)?[\d\s\-\/]*/i, '').trim();
+                  return street || unit.development?.name || 'Homes';
+                };
+                const devNames = new Set(filteredAndSorted.map((u) => u.development?.name || ''));
+                const multiDev = devNames.size > 1;
+
+                const groups = new Map<string, Unit[]>();
+                for (const unit of filteredAndSorted) {
+                  const block = blockOf(unit);
+                  const key = multiDev && unit.development?.name && !block.toLowerCase().includes(unit.development.name.toLowerCase())
+                    ? `${unit.development.name} — ${block}`
+                    : block;
+                  if (!groups.has(key)) groups.set(key, []);
+                  groups.get(key)!.push(unit);
+                }
+
+                return (
+                  <div className="space-y-8">
+                    {Array.from(groups.entries()).map(([groupLabel, units]) => {
+                      const forSaleCount = units.filter(
+                        (u) => !u.purchaser_name && !u.resident_name && !u.name && !u.handover_date,
+                      ).length;
+                      const soldCount = units.length - forSaleCount;
+                      return (
+                        <div key={groupLabel}>
+                          <div className="mb-3 flex items-baseline gap-3">
+                            <h3 className="flex-shrink-0 text-sm font-semibold text-grey-700">{groupLabel}</h3>
+                            <span className="h-px flex-1 bg-grey-100" aria-hidden />
+                            <span className="flex-shrink-0 text-xs tabular-nums text-grey-400">
+                              {soldCount}/{units.length} sold
+                            </span>
+                          </div>
+                          {tileGrid(units)}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
 
               {/* Bulk Action Toolbar */}
               <BulkActionToolbar
