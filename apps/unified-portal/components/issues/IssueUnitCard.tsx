@@ -54,7 +54,7 @@ export function IssueUnitCard({ unit, filters, onOpenIssue }: IssueUnitCardProps
   const subtitleParts = [unit.development_name, unitNumber].filter(
     (v): v is string => Boolean(v),
   );
-  const subtitle = subtitleParts.join(' . ');
+  const subtitle = subtitleParts.join(' \u00B7 ');
 
   const totalCount = unit.open_count;
   const topIssues = unit.issues;
@@ -101,8 +101,8 @@ export function IssueUnitCard({ unit, filters, onOpenIssue }: IssueUnitCardProps
   const rowsToRender = expanded && allRows ? allRows : topIssues;
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg overflow-hidden hover:shadow-card-hover transition-shadow">
-      <div className="px-4 py-3 border-b border-neutral-100">
+    <div className="bg-white border border-neutral-200 rounded-2xl overflow-hidden hover:shadow-md hover:border-neutral-300 transition-all">
+      <div className="px-5 py-4 border-b border-neutral-100">
         <IssueUnitCardHeader
           title={unit.unit_display_name}
           subtitle={subtitle}

@@ -35,6 +35,7 @@ interface BriefItem {
 }
 
 interface PipelineAlerts {
+  openSnagsTotal?: number;
   mortgageExpiring: { count: number; items: Array<{ label: string; days: number }> };
   snagRisk?: { count: number; totalOpenSnags: number; items: Array<{ label: string; days: number; openSnags: number }> };
   agedContracts: { count: number; items: Array<{ label: string; days: number }> };
@@ -382,11 +383,10 @@ export default function TodayPage() {
                 className="group rounded-2xl border border-grey-200 bg-white p-5 transition-all hover:border-gold-400 hover:shadow-lg hover:shadow-gold-500/5"
               >
                 <ClipboardList className="h-5 w-5 text-gold-500" />
-                <p className="mt-4 flex items-center gap-1 text-2xl font-semibold tracking-tight text-grey-900">
-                  Snags
-                  <ArrowUpRight className="h-4 w-4 text-grey-300 transition-colors group-hover:text-gold-500" />
+                <p className="mt-4 text-2xl font-semibold tracking-tight text-grey-900">
+                  {typeof pipelineAlerts?.openSnagsTotal === 'number' ? pipelineAlerts.openSnagsTotal : '—'}
                 </p>
-                <p className="text-sm text-grey-500">every issue, one place</p>
+                <p className="text-sm text-grey-500">open snags</p>
               </Link>
               <Link
                 href="/developer/overview"
@@ -402,6 +402,31 @@ export default function TodayPage() {
                 </p>
               </Link>
             </div>
+
+            {/* Coming up — the next handovers, quietly */}
+            {(data?.upcomingHandovers?.length ?? 0) > 0 && (
+              <div className="mt-12">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-grey-400">
+                  Coming up
+                </h2>
+                <div className="mt-3 divide-y divide-grey-100 rounded-2xl border border-grey-200 bg-white">
+                  {(data?.upcomingHandovers ?? []).slice(0, 3).map((h) => (
+                    <div key={`${h.address}-${h.handover_date}`} className="flex items-center gap-3 px-5 py-3.5">
+                      <Home className="h-4 w-4 flex-shrink-0 text-gold-500" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium text-grey-900">
+                        {h.address}
+                      </span>
+                      <span className="flex-shrink-0 text-xs text-grey-500">
+                        Handover{' '}
+                        {h.handover_date
+                          ? new Date(h.handover_date).toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })
+                          : 'TBC'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* One quiet exit to depth */}
             <p className="mt-10 text-center text-sm text-grey-400">

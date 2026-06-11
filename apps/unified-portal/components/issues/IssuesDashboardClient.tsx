@@ -260,9 +260,9 @@ export function IssuesDashboardClient({ initial, initialFilters }: IssuesDashboa
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <header className="flex items-baseline justify-between gap-3">
         <div>
-          <h1 className="text-heading-md text-neutral-900">Issues</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Snags</h1>
           <p className="text-body-sm text-neutral-600 mt-1">
-            Operational visibility across homeowner and snagger reports.
+            Every issue from every source — one place.
           </p>
         </div>
       </header>

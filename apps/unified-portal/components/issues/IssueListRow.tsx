@@ -42,7 +42,7 @@ function relativeTime(iso: string): string {
 
 export function IssueListRow({ row, onOpen }: IssueListRowProps) {
   const subtitleParts = [row.unit_display_name, row.development_name, row.room].filter(Boolean) as string[];
-  const subtitle = subtitleParts.join(' . ');
+  const subtitle = subtitleParts.join(' \u00B7 ');
 
   return (
     <button
@@ -51,10 +51,10 @@ export function IssueListRow({ row, onOpen }: IssueListRowProps) {
       className="w-full flex items-stretch text-left bg-white border-b border-neutral-100 hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 transition-colors"
     >
       <SeverityIndicator severity={row.severity_label} />
-      <div className="flex-1 min-w-0 px-4 py-3 flex items-center gap-4">
+      <div className="flex-1 min-w-0 px-4 py-3.5 flex items-center gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <span className="text-body font-medium text-neutral-900 truncate">
+          <div className="flex items-start gap-1.5 min-w-0">
+            <span className="text-body font-medium text-neutral-900 line-clamp-2 break-words">
               {row.title}
             </span>
             {row.developer_flagged ? (

@@ -22,14 +22,14 @@ interface IssueUnitGridProps {
 export function IssueUnitGrid({ units, filters, onOpenIssue }: IssueUnitGridProps) {
   if (units.length === 0) {
     return (
-      <div className="bg-white border border-neutral-200 rounded-lg px-4 py-10 text-center text-body-sm text-neutral-600">
+      <div className="bg-white border border-neutral-200 rounded-2xl px-4 py-12 text-center text-body-sm text-neutral-500">
         No units have issues matching these filters.
       </div>
     );
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {units.map((unit) => (
         <IssueUnitCard
           key={unit.unit_id}

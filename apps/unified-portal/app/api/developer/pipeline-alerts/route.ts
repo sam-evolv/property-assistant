@@ -91,6 +91,16 @@ export async function GET() {
     }
   } catch {}
 
+  let openSnagsTotal = 0;
+  try {
+    const { count } = await supabase
+      .from('issue_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', session.tenantId)
+      .in('status', ['open', 'reopened']);
+    openSnagsTotal = count ?? 0;
+  } catch {}
+
   let agedRows: Array<{ unit_id: string; contracts_issued_date: string }> = [];
   try {
     const { data, error } = await supabase
@@ -148,6 +158,7 @@ export async function GET() {
     .sort((a, b) => a.days - b.days);
 
   return NextResponse.json({
+    openSnagsTotal,
     mortgageExpiring: {
       count: mortgageExpiring.length,
       items: mortgageExpiring.slice(0, MAX_ITEMS),

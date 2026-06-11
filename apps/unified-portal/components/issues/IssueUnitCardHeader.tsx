@@ -38,14 +38,18 @@ export function IssueUnitCardHeader({
   worstSeverity,
   newlyEscalated = false,
 }: IssueUnitCardHeaderProps) {
+  const tileLabel = (title.match(/\d+[A-Za-z]?$/)?.[0] || title.slice(0, 3)).toUpperCase();
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-center gap-3">
+      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-gold-500 to-gold-600 text-xs font-bold text-white shadow-sm">
+        {tileLabel}
+      </div>
       <div className="flex-1 min-w-0">
-        <div className="text-body font-semibold text-neutral-900 truncate">
+        <div className="text-base font-semibold text-neutral-900 truncate">
           {title}
         </div>
         {subtitle ? (
-          <div className="text-body-sm text-neutral-500 truncate mt-0.5">
+          <div className="text-body-sm text-neutral-400 truncate mt-0.5">
             {subtitle}
           </div>
         ) : null}
