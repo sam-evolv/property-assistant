@@ -48,8 +48,7 @@ const session = await requireRole(['developer', 'admin', 'super_admin']);
 
 ## Current Priorities
 1. Google Drive / OneDrive integration (Data Hub) — OAuth set up, tables live
-2. SE Systems demo (OpenHouse Care) — meeting in ~2 weeks
-3. Keep build passing on Vercel
+2. Keep build passing on Vercel
 
 ## After Every Task
 ```bash

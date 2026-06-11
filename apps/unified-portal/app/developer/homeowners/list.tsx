@@ -576,6 +576,13 @@ export function HomeownersList({
                       {isSelected && <CheckCircle className="w-4 h-4" />}
                     </button>
 
+                    <Link
+                      href={`/developer/homes/${unit.id}`}
+                      className="absolute top-3 right-3 z-10 px-2.5 py-1 rounded-md border border-gold-200 bg-gold-50 text-[11px] font-semibold text-gold-700 hover:bg-gold-100 transition"
+                    >
+                      Home file
+                    </Link>
+
                     <Link href={`/developer/homeowners/${unit.id}`} className="block">
                     <div className="p-5 pl-12">
                       <div className="flex items-start gap-4">

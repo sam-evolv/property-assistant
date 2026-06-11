@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
   ArrowLeft,
   Plus,
@@ -1387,7 +1388,15 @@ function ProfilePanel({ unit, onClose, onCopy, onUpdate }: ProfilePanelProps) {
             <div className="mt-5">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs text-white/40">Sale Progress</span>
-                <span className="text-sm font-bold text-white">{progress}%</span>
+                <div className="flex items-center gap-3">
+                  <Link
+                    href={`/developer/homes/${unit.id}`}
+                    className="text-xs font-semibold text-white/60 hover:text-white underline underline-offset-2"
+                  >
+                    Open home file
+                  </Link>
+                  <span className="text-sm font-bold text-white">{progress}%</span>
+                </div>
               </div>
               <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
                 <div
