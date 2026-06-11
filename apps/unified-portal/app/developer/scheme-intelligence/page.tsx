@@ -945,6 +945,18 @@ export default function SchemeIntelligencePage() {
     [activeSessionId, sessions, isStreaming, developmentId, compareWithId, createSession, updateSessionMessages]
   );
 
+  // Arriving with ?q= (e.g. from the Today ask bar) starts the conversation immediately.
+  const autoAskedRef = useRef(false);
+  useEffect(() => {
+    if (autoAskedRef.current || sessionsLoading || isStreaming) return;
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (!q) return;
+    autoAskedRef.current = true;
+    window.history.replaceState({}, '', window.location.pathname);
+    sendMessage(q);
+  }, [sessionsLoading, isStreaming, sendMessage]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();

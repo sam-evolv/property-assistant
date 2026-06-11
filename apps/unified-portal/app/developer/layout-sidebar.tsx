@@ -8,9 +8,10 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
   FolderArchive, MessageSquare, Shield, Sparkles,
-  Layers, ShieldCheck, GitBranch, Mail, Command,
+  Layers, ShieldCheck, GitBranch, Mail,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
-  Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList, Calendar
+  Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList, Calendar,
+  Sun, ChevronDown,
 } from 'lucide-react';
 import { isDeveloperDashboardEnabled, isBuilderSnagAppEnabled, isHomeownerIssuesEnabled, isScheduleEnabled } from '@/lib/feature-flags';
 import { ScopeSwitcher } from '@/components/developer/ScopeSwitcher';
@@ -23,125 +24,71 @@ interface SidebarMenuProps {
   children: React.ReactNode;
 }
 
-interface NavSection {
-  title: string;
-  items: Array<{
-    label: string;
-    href: string;
-    icon: any;
-    rightAccessory?: 'homeowners_badge';
-  }>;
+interface NavItem {
+  label: string;
+  href: string;
+  icon: any;
+  rightAccessory?: 'homeowners_badge';
 }
 
-function buildBtsNavSections(opts: { isAdmin: boolean }): NavSection[] {
-  const dashboardOn = isDeveloperDashboardEnabled();
-  const snagAppOn = isBuilderSnagAppEnabled();
-  const homeownerIssuesOn = isHomeownerIssuesEnabled();
-  const scheduleOn = isScheduleEnabled();
+const MORE_OPEN_KEY = 'oh-nav-more-open';
 
-  const snaggingItems: NavSection['items'] = [];
-  if (dashboardOn) {
-    snaggingItems.push({ label: 'Issues', href: '/developer/issues', icon: ClipboardList });
+// The product is five words. Everything else lives under More until it is
+// absorbed into one of the five surfaces or deleted (see docs/NORTH_STAR.md).
+function buildPrimaryNav(): NavItem[] {
+  const snagsHref = isDeveloperDashboardEnabled() ? '/developer/issues' : '/developer/snagging';
+  const homesItem: NavItem = { label: 'Homes', href: '/developer/homeowners', icon: Home };
+  if (isHomeownerIssuesEnabled()) {
+    homesItem.rightAccessory = 'homeowners_badge';
   }
-  if (snagAppOn) {
-    snaggingItems.push({ label: 'Team', href: '/developer/snaggers', icon: UserPlus });
-  }
-
-  const homeownersItem: NavSection['items'][number] = {
-    label: 'Homeowners',
-    href: '/developer/homeowners',
-    icon: Users,
-  };
-  if (homeownerIssuesOn) {
-    homeownersItem.rightAccessory = 'homeowners_badge';
-  }
-
-  const sections: NavSection[] = [
-    {
-      title: 'Main',
-      items: [
-        { label: 'Overview', href: '/developer', icon: Home },
-        { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
-        { label: 'OpenHouse Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
-      ],
-    },
-  ];
-
-  if (snaggingItems.length > 0) {
-    sections.push({ title: 'Snagging', items: snaggingItems });
-  }
-
-  const settingsItems: NavSection['items'] = [
-    { label: 'Integrations', href: '/developer/integrations', icon: Plug },
-  ];
-  if (homeownerIssuesOn && opts.isAdmin) {
-    settingsItems.push({
-      label: 'Notifications',
-      href: '/developer/settings/notifications',
-      icon: Mail,
-    });
-  }
-
-  sections.push(
-    {
-      title: 'Developer Tools',
-      items: [
-        { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
-        { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
-        { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
-        { label: 'Communications', href: '/developer/communications', icon: Mail },
-      ],
-    },
-    {
-      title: 'Management',
-      items: [
-        homeownersItem,
-        ...(scheduleOn
-          ? [{ label: 'Schedule', href: '/developer/schedule', icon: Calendar }]
-          : []),
-        { label: 'Smart Archive', href: '/developer/archive', icon: FolderArchive },
-        { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
-        { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
-      ],
-    },
-    {
-      title: 'Communication',
-      items: [
-        { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
-        { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
-        { label: 'Moderation', href: '/developer/moderation', icon: Shield },
-      ],
-    },
-    {
-      title: 'Insights',
-      items: [
-        { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
-        { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
-        { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
-      ],
-    },
-    {
-      title: 'Settings',
-      items: settingsItems,
-    },
-  );
-
-  return sections;
-}
-
-function getBtrNavSections(developmentId: string): NavSection[] {
   return [
-    {
-      title: 'BTR Management',
-      items: [
-        { label: 'BTR Overview', href: `/developer/btr/${developmentId}/overview`, icon: Building2 },
-        { label: 'Units', href: `/developer/btr/${developmentId}/units`, icon: Home },
-        { label: 'Maintenance', href: `/developer/btr/${developmentId}/maintenance`, icon: Wrench },
-        { label: 'Compliance', href: `/developer/btr/${developmentId}/compliance`, icon: ShieldCheck },
-        { label: 'Amenities', href: `/developer/btr/${developmentId}/amenities`, icon: Dumbbell },
-        { label: 'Welcome Sequence', href: `/developer/btr/${developmentId}/welcome`, icon: Welcome },
-      ],
-    },
+    { label: 'Today', href: '/developer', icon: Sun },
+    homesItem,
+    { label: 'Documents', href: '/developer/archive', icon: FolderArchive },
+    { label: 'Snags', href: snagsHref, icon: ClipboardList },
+    { label: 'Intelligence', href: '/developer/scheme-intelligence', icon: Sparkles },
+  ];
+}
+
+function buildMoreNav(opts: { isAdmin: boolean }): NavItem[] {
+  const items: NavItem[] = [
+    { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
+    { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
+    { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
+    { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
+    { label: 'Communications', href: '/developer/communications', icon: Mail },
+    { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
+    { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
+    { label: 'Moderation', href: '/developer/moderation', icon: Shield },
+  ];
+  if (isBuilderSnagAppEnabled()) {
+    items.push({ label: 'Snag Team', href: '/developer/snaggers', icon: UserPlus });
+  }
+  if (isScheduleEnabled()) {
+    items.push({ label: 'Schedule', href: '/developer/schedule', icon: Calendar });
+  }
+  items.push(
+    { label: 'Data Hub', href: '/developer/data-hub', icon: HardDrive },
+    { label: 'Room Dimensions', href: '/developer/room-dimensions', icon: Ruler },
+    { label: 'Analytics', href: '/developer/analytics', icon: BarChart3 },
+    { label: 'AI Insights', href: '/developer/insights', icon: Lightbulb },
+    { label: 'Knowledge Base', href: '/developer/knowledge-base', icon: BookOpen },
+    { label: 'Integrations', href: '/developer/integrations', icon: Plug },
+  );
+  if (isHomeownerIssuesEnabled() && opts.isAdmin) {
+    items.push({ label: 'Notifications', href: '/developer/settings/notifications', icon: Mail });
+  }
+  return items;
+}
+
+function buildBtrNav(developmentId: string): NavItem[] {
+  return [
+    { label: 'BTR Overview', href: `/developer/btr/${developmentId}/overview`, icon: Building2 },
+    { label: 'BTR Units', href: `/developer/btr/${developmentId}/units`, icon: Home },
+    { label: 'Maintenance', href: `/developer/btr/${developmentId}/maintenance`, icon: Wrench },
+    { label: 'BTR Compliance', href: `/developer/btr/${developmentId}/compliance`, icon: ShieldCheck },
+    { label: 'Amenities', href: `/developer/btr/${developmentId}/amenities`, icon: Dumbbell },
+    { label: 'Welcome Sequence', href: `/developer/btr/${developmentId}/welcome`, icon: Welcome },
   ];
 }
 
@@ -156,6 +103,7 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
   const [fetchedProjectType, setFetchedProjectType] = useState<string | null>(null);
   const { userRole } = useSafeAuth();
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
+  const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
     if (!developmentId) {
@@ -187,12 +135,13 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
 
   const effectiveProjectType = contextProjectType || fetchedProjectType || 'bts';
 
-  const navSections = useMemo(() => {
-    const sections = buildBtsNavSections({ isAdmin });
+  const primaryNav = useMemo(() => buildPrimaryNav(), []);
+  const moreNav = useMemo(() => {
+    const items = buildMoreNav({ isAdmin });
     if (developmentId && (effectiveProjectType === 'btr' || effectiveProjectType === 'mixed')) {
-      sections.push(...getBtrNavSections(developmentId));
+      items.push(...buildBtrNav(developmentId));
     }
-    return sections;
+    return items;
   }, [developmentId, effectiveProjectType, isAdmin]);
 
   const isActive = (href: string) => {
@@ -200,6 +149,63 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
       return pathname === '/developer';
     }
     return pathname?.startsWith(href);
+  };
+
+  const moreHasActive = moreNav.some((item) => isActive(item.href));
+
+  // Restore the More toggle, and always reveal it when the current page lives there.
+  useEffect(() => {
+    const stored = typeof window !== 'undefined' ? localStorage.getItem(MORE_OPEN_KEY) : null;
+    if (stored === 'true') setMoreOpen(true);
+  }, []);
+
+  useEffect(() => {
+    if (moreHasActive) setMoreOpen(true);
+  }, [moreHasActive]);
+
+  const toggleMore = () => {
+    setMoreOpen((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(MORE_OPEN_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const renderItem = (item: NavItem, onNavigate?: () => void, mobile = false) => {
+    const Icon = item.icon;
+    const active = isActive(item.href);
+    if (mobile) {
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          onClick={onNavigate}
+          className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
+            active ? 'bg-gold-500 text-white' : 'text-grey-700 hover:bg-gold-50'
+          }`}
+        >
+          <Icon className="w-4 h-4 flex-shrink-0" />
+          <span>{item.label}</span>
+          {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
+        </Link>
+      );
+    }
+    return (
+      <Link
+        key={item.href}
+        href={item.href}
+        className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium ${
+          active ? 'bg-gold-500 text-white shadow-lg' : 'hover:bg-gold-500/10 hover:text-gold-300'
+        }`}
+        style={active ? undefined : { color: '#F9FAFB' }}
+      >
+        <Icon className="w-4 h-4 flex-shrink-0" />
+        <span>{item.label}</span>
+        {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
+      </Link>
+    );
   };
 
   return (
@@ -221,38 +227,29 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         {/* Scope Switcher (Developer + Scheme dropdowns) */}
         <ScopeSwitcher />
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-8 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-          {navSections.map((section, idx) => (
-            <div key={idx}>
-              <p className="px-4 py-2 text-xs font-semibold uppercase tracking-wider" style={{ color: '#9CA3AF' }}>
-                {section.title}
-              </p>
-              <div className="space-y-1">
-                {section.items.map((item) => {
-                  const Icon = item.icon;
-                  const active = isActive(item.href);
+        {/* Navigation: five surfaces, then everything else under More */}
+        <nav className="flex-1 overflow-y-auto py-6 px-3 scrollbar-hide" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+          <div className="space-y-1">
+            {primaryNav.map((item) => renderItem(item))}
+          </div>
 
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className={`flex items-center gap-3 px-4 py-2.5 rounded-lg transition-all text-sm font-medium ${
-                        active
-                          ? 'bg-gold-500 text-white shadow-lg'
-                          : 'hover:bg-gold-500/10 hover:text-gold-300'
-                      }`}
-                      style={active ? undefined : { color: '#F9FAFB' }}
-                    >
-                      <Icon className="w-4 h-4 flex-shrink-0" />
-                      <span>{item.label}</span>
-                      {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
-                    </Link>
-                  );
-                })}
+          <div className="mt-8">
+            <button
+              onClick={toggleMore}
+              className="w-full flex items-center justify-between px-4 py-2 rounded-lg text-xs font-semibold uppercase tracking-wider transition-colors hover:text-gold-300"
+              style={{ color: '#9CA3AF' }}
+            >
+              <span>More</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${moreOpen ? '' : '-rotate-90'}`}
+              />
+            </button>
+            {moreOpen && (
+              <div className="mt-1 space-y-1">
+                {moreNav.map((item) => renderItem(item))}
               </div>
-            </div>
-          ))}
+            )}
+          </div>
         </nav>
 
         {/* Footer */}
@@ -308,37 +305,17 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
         {/* Mobile Menu */}
         {mobileMenuOpen && (
           <div className="md:hidden border-b border-gold-200/30 bg-white/80 backdrop-blur-sm px-4 py-4 space-y-6 overflow-y-auto">
-            {navSections.map((section, idx) => (
-              <div key={idx}>
-                <p className="px-2 py-1.5 text-xs font-semibold text-grey-500 uppercase tracking-wider mb-2">
-                  {section.title}
-                </p>
-                <div className="space-y-1">
-                  {section.items.map((item) => {
-                    const Icon = item.icon;
-                    const active = isActive(item.href);
-
-                    return (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all text-sm font-medium ${
-                          active
-                            ? 'bg-gold-500 text-white'
-                            : 'text-grey-700 hover:bg-gold-50'
-                        }`}
-                      >
-                        <Icon className="w-4 h-4 flex-shrink-0" />
-                        <span>{item.label}</span>
-                        {item.rightAccessory === 'homeowners_badge' && <HomeownersBadge />}
-                      </Link>
-                    );
-                  })}
-                </div>
+            <div className="space-y-1">
+              {primaryNav.map((item) => renderItem(item, () => setMobileMenuOpen(false), true))}
+            </div>
+            <div>
+              <p className="px-2 py-1.5 text-xs font-semibold text-grey-500 uppercase tracking-wider mb-2">
+                More
+              </p>
+              <div className="space-y-1">
+                {moreNav.map((item) => renderItem(item, () => setMobileMenuOpen(false), true))}
               </div>
-            ))}
-
+            </div>
           </div>
         )}
 
