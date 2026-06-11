@@ -171,11 +171,14 @@ next scheme before it's built.
 
 | Phase | Ship | Status |
 |---|---|---|
-| 1 | Five-word navigation, Today (brief + ask bar + go-live empty state), ask routing into Intelligence | **This commit** |
-| 2 | Self-serve go-live: signup→tenant, AI spreadsheet mapping, auto-file with confirm tray | next |
-| 3 | One assistant: tool registry behind scheme-intelligence chat, approval-first actions | next |
-| 4 | Home timeline view (one page per home, whole life), compliance rings | then |
-| 5 | Cut the dead weight: delete absorbed routes, one snag system end-to-end, retire the flags | then |
+| 1 | Five-word navigation (+ mobile bottom tab bar), Today (brief + ask bar + go-live empty state), ask routing into Intelligence | ✅ shipped |
+| 2 | Live in minutes: self-serve signup→tenant→scheme, "drop your tracker" import (units + full 23-column pipeline, AI header mapping, dry-run preview), documents auto-file + needs-review tray | ✅ shipped (run migration 070) |
+| 3 | People: one page, invite an office colleague in seconds; site/snagger roster with expiry | ✅ shipped |
+| 4 | Snagging: Houses screen (handover-proximity sorted), mark-off with completion photos, statement of completion, real gpt-4o snag analysis writing severity/trade/safety onto issues | ✅ shipped (capture app pre-existing) |
+| 5 | Pipeline for four stakeholders: tracker columns editable (API ✅) → grid UI, Today alerts (mortgage expiry, contract aging), solicitor chases, builder view, email ingestion | API shipped; UI next |
+| 6 | One assistant: tool registry behind scheme-intelligence chat, approval-first actions | next |
+| 7 | Home timeline view (one page per home, whole life), compliance rings (HPI/BCMS/Homebond) | then |
+| 8 | Cut the dead weight: delete absorbed routes, one snag system end-to-end, retire the flags; external snag-list upload + contractor scorecards land here too | then |
 
 ---
 
