@@ -53,6 +53,7 @@ function buildPrimaryNav(): NavItem[] {
 function buildMoreNav(opts: { isAdmin: boolean }): NavItem[] {
   const items: NavItem[] = [
     { label: 'Sales Pipeline', href: '/developer/pipeline', icon: GitBranch },
+    { label: 'People', href: '/developer/people', icon: Users },
     { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
     { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
     { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
