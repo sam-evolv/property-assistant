@@ -20,7 +20,8 @@
  */
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
-import { Camera, ChevronRight, Plus, X } from 'lucide-react';
+import Link from 'next/link';
+import { Camera, ChevronRight, Home, Plus, X } from 'lucide-react';
 import {
   ASSISTANT_MEDIA_ACCEPT,
   ASSISTANT_MEDIA_MAX_FILES,
@@ -89,6 +90,16 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
   const fileInputId = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Deep-link prefill (e.g. from /snag/houses/[unitId]): ?development_id=&unit_id=
+  const prefillRef = useRef<{ developmentId: string | null; unitId: string | null }>(
+    typeof window !== 'undefined'
+      ? {
+          developmentId: new URLSearchParams(window.location.search).get('development_id'),
+          unitId: new URLSearchParams(window.location.search).get('unit_id'),
+        }
+      : { developmentId: null, unitId: null },
+  );
+
   const [developments, setDevelopments] = useState<SnagDevelopment[]>([]);
   const [developmentId, setDevelopmentId] = useState<string | null>(null);
   const developmentName = useMemo(
@@ -128,7 +139,11 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
         if (cancelled) return;
         const list: SnagDevelopment[] = Array.isArray(json?.developments) ? json.developments : [];
         setDevelopments(list);
-        if (list.length > 0) setDevelopmentId((prev) => prev ?? list[0].id);
+        if (list.length > 0) {
+          const wanted = prefillRef.current.developmentId;
+          const initial = wanted && list.some((d) => d.id === wanted) ? wanted : list[0].id;
+          setDevelopmentId((prev) => prev ?? initial);
+        }
       } catch (err) {
         console.warn('[snag-form] failed to load developments', err);
       }
@@ -159,6 +174,12 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
         if (cancelled) return;
         const list: SnagUnit[] = Array.isArray(json?.units) ? json.units : [];
         setUnits(list);
+        const wantedUnit = prefillRef.current.unitId;
+        if (wantedUnit) {
+          const match = list.find((u) => u.id === wantedUnit);
+          if (match) setSelectedUnit((prev) => prev ?? match);
+          prefillRef.current.unitId = null;
+        }
       } catch (err) {
         if (!cancelled) setUnitsError("Couldn't load units. Try again.");
       } finally {
@@ -305,7 +326,15 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
       <header className="px-4 py-3 bg-white border-b border-neutral-200 flex items-center justify-between gap-3">
-        <h1 className="text-heading-md text-neutral-900">Log a snag</h1>
+        <div className="flex items-center gap-3 min-w-0">
+          <h1 className="text-heading-md text-neutral-900">Log a snag</h1>
+          <Link
+            href="/snag/houses"
+            className="flex items-center gap-1 text-body-sm font-medium text-neutral-500 min-h-[44px] px-1 active:text-neutral-900"
+          >
+            <Home className="h-4 w-4" /> Houses
+          </Link>
+        </div>
         {developments.length > 1 ? (
           <button
             type="button"

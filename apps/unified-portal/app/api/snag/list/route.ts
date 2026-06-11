@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
 
   const url = new URL(request.url);
   const developmentIdParam = url.searchParams.get('development_id');
+  const unitIdParam = url.searchParams.get('unit_id');
   const statusParam = url.searchParams.get('status');
   const limitParam = url.searchParams.get('limit');
   const offsetParam = url.searchParams.get('offset');
@@ -93,6 +94,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ rows: [], total: 0, limit, offset });
     }
     query = query.in('development_id', allowed);
+  }
+
+  if (unitIdParam) {
+    if (!UUID_RE.test(unitIdParam)) {
+      return NextResponse.json({ error: 'unit_id must be a uuid' }, { status: 400 });
+    }
+    query = query.eq('unit_id', unitIdParam);
   }
 
   if (statusParam) {
