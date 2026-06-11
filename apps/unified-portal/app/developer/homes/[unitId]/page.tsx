@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
 import { isBuilderSnagAppEnabled, isDeveloperDashboardEnabled } from '@/lib/feature-flags';
+import { EditHomeSheet } from './edit-home-sheet';
 
 export const dynamic = 'force-dynamic';
 
@@ -178,12 +179,36 @@ export default async function HomeFilePage({ params }: { params: { unitId: strin
               .join(' · ') || '—'}
           </p>
         </div>
-        <Link
-          href={`/developer/pipeline/${unit.development_id}`}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-grey-200 bg-white px-4 py-2.5 text-sm font-semibold text-grey-600 transition-all hover:border-gold-400 hover:text-gold-700"
-        >
-          Pipeline <ArrowRight className="h-4 w-4" />
-        </Link>
+        <div className="flex flex-shrink-0 items-center gap-2">
+          <EditHomeSheet
+            home={{
+              unitId: unit.id,
+              address: address || '',
+              house_type_code: unit.house_type_code && unit.house_type_code !== 'TBD' ? unit.house_type_code : '',
+              bedrooms: unit.bedrooms ?? null,
+              eircode: unit.eircode || '',
+              phase: (unit as Record<string, any>).phase || '',
+              property_designation: unit.property_designation || '',
+              purchaser_name: (pipeline.purchaser_name as string) || unit.purchaser_name || '',
+              purchaser_email: (pipeline.purchaser_email as string) || unit.purchaser_email || '',
+              purchaser_phone: (pipeline.purchaser_phone as string) || unit.purchaser_phone || '',
+              sale_price: (() => {
+                const v = parseFloat(String(pipeline.sale_price));
+                return isFinite(v) && v > 0 ? v : null;
+              })(),
+              solicitor_firm: (pipeline.solicitor_firm as string) || '',
+              solicitor_name: (pipeline.solicitor_name as string) || '',
+              solicitor_email: (pipeline.solicitor_email as string) || '',
+              solicitor_phone: (pipeline.solicitor_phone as string) || '',
+            }}
+          />
+          <Link
+            href={`/developer/pipeline/${unit.development_id}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-grey-200 bg-white px-4 py-2.5 text-sm font-semibold text-grey-600 transition-all hover:border-gold-400 hover:text-gold-700"
+          >
+            Pipeline <ArrowRight className="h-4 w-4" />
+          </Link>
+        </div>
       </div>
 
       {/* Buyer */}
