@@ -6,9 +6,10 @@ import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
 /**
  * GET /api/developer/pipeline-alerts
  *
- * The two pipeline conditions that genuinely need a human today:
+ * The pipeline conditions that genuinely need a human today:
  *  - mortgage approvals expiring within 30 days on unsold-through homes
  *  - contracts issued more than 42 days ago with no signed return
+ *  - open snags on homes handing over within 30 days
  *
  * Tenant-scoped. Each query is independently fail-soft so the endpoint
  * works before migration 070 (mortgage_expiry_date absent -> zero alerts).
@@ -55,6 +56,41 @@ export async function GET() {
     if (!error && data) mortgageRows = data as typeof mortgageRows;
   } catch {}
 
+  // Homes handing over within the window that still carry open snags.
+  let snagRiskRows: Array<{ unit_id: string; handover: string; openCount: number }> = [];
+  try {
+    const { data: upcoming } = await supabase
+      .from('unit_sales_pipeline')
+      .select('unit_id, handover_date, projected_handover_date')
+      .eq('tenant_id', session.tenantId)
+      .or(
+        `and(handover_date.gte.${nowIso},handover_date.lte.${windowIso}),and(handover_date.is.null,projected_handover_date.gte.${nowIso},projected_handover_date.lte.${windowIso})`,
+      )
+      .limit(100);
+    const handoverByUnit = new Map<string, string>();
+    for (const r of upcoming || []) {
+      const when = (r as any).handover_date || (r as any).projected_handover_date;
+      if (r.unit_id && when) handoverByUnit.set(r.unit_id, when);
+    }
+    if (handoverByUnit.size > 0) {
+      const { data: openSnags } = await supabase
+        .from('issue_reports')
+        .select('unit_id')
+        .eq('tenant_id', session.tenantId)
+        .in('unit_id', Array.from(handoverByUnit.keys()))
+        .in('status', ['open', 'reopened']);
+      const counts = new Map<string, number>();
+      for (const snag of openSnags || []) {
+        if (snag.unit_id) counts.set(snag.unit_id, (counts.get(snag.unit_id) || 0) + 1);
+      }
+      snagRiskRows = Array.from(counts.entries()).map(([unit_id, openCount]) => ({
+        unit_id,
+        handover: handoverByUnit.get(unit_id)!,
+        openCount,
+      }));
+    }
+  } catch {}
+
   let agedRows: Array<{ unit_id: string; contracts_issued_date: string }> = [];
   try {
     const { data, error } = await supabase
@@ -70,7 +106,7 @@ export async function GET() {
 
   // Labels for the homes involved, one lookup.
   const unitIds = Array.from(
-    new Set([...mortgageRows, ...agedRows].map((r) => r.unit_id).filter(Boolean)),
+    new Set([...mortgageRows, ...agedRows, ...snagRiskRows].map((r) => r.unit_id).filter(Boolean)),
   );
   const labelById = new Map<string, string>();
   if (unitIds.length > 0) {
@@ -101,10 +137,25 @@ export async function GET() {
     }))
     .sort((a, b) => b.days - a.days);
 
+  const snagRisk = snagRiskRows
+    .map((r) => ({
+      unitId: r.unit_id,
+      label: labelById.get(r.unit_id) || 'Unit',
+      date: r.handover,
+      days: Math.ceil((new Date(r.handover).getTime() - now) / 86_400_000),
+      openSnags: r.openCount,
+    }))
+    .sort((a, b) => a.days - b.days);
+
   return NextResponse.json({
     mortgageExpiring: {
       count: mortgageExpiring.length,
       items: mortgageExpiring.slice(0, MAX_ITEMS),
+    },
+    snagRisk: {
+      count: snagRisk.length,
+      totalOpenSnags: snagRisk.reduce((sum, r) => sum + r.openSnags, 0),
+      items: snagRisk.slice(0, MAX_ITEMS),
     },
     agedContracts: {
       count: agedContracts.length,

@@ -36,6 +36,7 @@ interface BriefItem {
 
 interface PipelineAlerts {
   mortgageExpiring: { count: number; items: Array<{ label: string; days: number }> };
+  snagRisk?: { count: number; totalOpenSnags: number; items: Array<{ label: string; days: number; openSnags: number }> };
   agedContracts: { count: number; items: Array<{ label: string; days: number }> };
 }
 
@@ -119,6 +120,16 @@ export default function TodayPage() {
         detail: next ? `${next.label} — ${next.days} day${next.days === 1 ? '' : 's'} left` : '',
         action: 'Open pipeline',
         href: '/developer/pipeline',
+      });
+    }
+    const snagRisk = pipelineAlerts.snagRisk;
+    if (snagRisk && snagRisk.count > 0) {
+      const next = snagRisk.items[0];
+      brief.push({
+        title: `${snagRisk.totalOpenSnags} open snag${snagRisk.totalOpenSnags === 1 ? '' : 's'} on home${snagRisk.count === 1 ? '' : 's'} handing over soon`,
+        detail: next ? `${next.label} — ${next.openSnags} open, handover in ${next.days} day${next.days === 1 ? '' : 's'}` : '',
+        action: 'Clear them',
+        href: '/snag/houses',
       });
     }
     const aged = pipelineAlerts.agedContracts;

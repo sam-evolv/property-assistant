@@ -177,7 +177,7 @@ next scheme before it's built.
 | 4 | Snagging: Houses screen (handover-proximity sorted), mark-off with completion photos, statement of completion, real gpt-4o snag analysis writing severity/trade/safety onto issues | ✅ shipped (capture app pre-existing) |
 | 5 | Pipeline for four stakeholders: Conveyancing Tracker in the unit panel, Today money alerts (mortgage expiry, contract aging), real solicitor chases | ✅ shipped (builder view + email ingestion remain) |
 | 6 | One assistant: tool registry behind scheme-intelligence chat (13 data tools + document/regulation search, 3-round loop, classic path behind SCHEME_INTELLIGENCE_CLASSIC=1) | ✅ shipped (write tools later, draft-first) |
-| 7 | Home timeline view (one page per home, whole life), compliance rings (HPI/BCMS/Homebond) | then |
+| 7 | Home file shipped ✅ (/developer/homes/[unitId]: sale stages, conveyancing, snags + evidence, systems, handover record, readiness; linked from Homes + Pipeline). Compliance rings (HPI/BCMS/Homebond schemas + evidence packs) remain | core shipped |
 | 8 | Cut the dead weight: delete absorbed routes, one snag system end-to-end, retire the flags; contractor scorecards land here too (external snag-list upload ✅ shipped with Phase 4) | then |
 
 ---
