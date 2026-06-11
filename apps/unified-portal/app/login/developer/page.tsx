@@ -700,7 +700,17 @@ function DeveloperLoginForm() {
           <div className="mt-7 text-center">
             {mode === 'signin' && (
               <p className="text-sm" style={{ color: '#6b7280' }}>
-                Need an account?{' '}
+                New to OpenHouse?{' '}
+                <a
+                  href="/signup"
+                  className="font-medium transition-colors"
+                  style={{ color: '#b8934c' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
+                >
+                  Create your account
+                </a>
+                {' '}·{' '}
                 <button
                   onClick={() => {
                     setMode('signup');
@@ -708,11 +718,11 @@ function DeveloperLoginForm() {
                     setSuccess(null);
                   }}
                   className="font-medium transition-colors"
-                  style={{ color: '#b8934c' }}
-                  onMouseEnter={(e) => e.currentTarget.style.color = '#d4af37'}
-                  onMouseLeave={(e) => e.currentTarget.style.color = '#b8934c'}
+                  style={{ color: '#6b7280' }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = '#b8934c'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = '#6b7280'}
                 >
-                  Create one
+                  invitation code
                 </button>
               </p>
             )}

@@ -51,7 +51,7 @@ function greetingForHour() {
 export default function TodayPage() {
   const router = useRouter();
   const { email, displayName: authDisplayName } = useAuth();
-  const { developmentId, developmentName } = useCurrentContext();
+  const { developmentId, developmentName, setDevelopmentId } = useCurrentContext();
 
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -133,6 +133,21 @@ export default function TodayPage() {
   }
 
   const needsSetup = !loading && !failed && (summary?.totalUnits ?? 0) === 0;
+
+  // Fresh from signup there's exactly one scheme but nothing selected yet —
+  // select it so step 1 of the checklist shows as already done.
+  useEffect(() => {
+    if (!needsSetup || developmentId) return;
+    fetch('/api/developer/developments')
+      .then((res) => (res.ok ? res.json() : Promise.reject()))
+      .then((data) => {
+        const devs = Array.isArray(data) ? data : data?.developments;
+        if (Array.isArray(devs) && devs.length === 1 && devs[0]?.id) {
+          setDevelopmentId(devs[0].id, devs[0].name || null);
+        }
+      })
+      .catch(() => {});
+  }, [needsSetup, developmentId, setDevelopmentId]);
 
   const setupSteps = [
     {

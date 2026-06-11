@@ -53,6 +53,7 @@ function buildCsp(nonce: string, isDev: boolean): string {
 const PUBLIC_PATHS = [
   '/',
   '/login',
+  '/signup',
   '/login/developer',
   '/login/agent',
   '/login/homeowner',
