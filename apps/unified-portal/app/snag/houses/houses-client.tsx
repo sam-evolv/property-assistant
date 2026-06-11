@@ -203,10 +203,10 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
           <Plus className="h-4 w-4" /> Log a snag
         </Link>
         <Link
-          href="/snag"
+          href="/snag/import"
           className="flex items-center justify-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-3.5 text-body-sm font-semibold text-neutral-700 min-h-[48px] active:bg-neutral-50"
         >
-          <ClipboardList className="h-4 w-4" /> Recent
+          <ClipboardList className="h-4 w-4" /> Upload list
         </Link>
       </nav>
 
