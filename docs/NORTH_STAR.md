@@ -175,10 +175,10 @@ next scheme before it's built.
 | 2 | Live in minutes: self-serve signup→tenant→scheme, "drop your tracker" import (units + full 23-column pipeline, AI header mapping, dry-run preview), documents auto-file + needs-review tray | ✅ shipped (run migration 070) |
 | 3 | People: one page, invite an office colleague in seconds; site/snagger roster with expiry | ✅ shipped |
 | 4 | Snagging: Houses screen (handover-proximity sorted), mark-off with completion photos, statement of completion, real gpt-4o snag analysis writing severity/trade/safety onto issues | ✅ shipped (capture app pre-existing) |
-| 5 | Pipeline for four stakeholders: tracker columns editable (API ✅) → grid UI, Today alerts (mortgage expiry, contract aging), solicitor chases, builder view, email ingestion | API shipped; UI next |
-| 6 | One assistant: tool registry behind scheme-intelligence chat, approval-first actions | next |
+| 5 | Pipeline for four stakeholders: Conveyancing Tracker in the unit panel, Today money alerts (mortgage expiry, contract aging), real solicitor chases | ✅ shipped (builder view + email ingestion remain) |
+| 6 | One assistant: tool registry behind scheme-intelligence chat (13 data tools + document/regulation search, 3-round loop, classic path behind SCHEME_INTELLIGENCE_CLASSIC=1) | ✅ shipped (write tools later, draft-first) |
 | 7 | Home timeline view (one page per home, whole life), compliance rings (HPI/BCMS/Homebond) | then |
-| 8 | Cut the dead weight: delete absorbed routes, one snag system end-to-end, retire the flags; external snag-list upload + contractor scorecards land here too | then |
+| 8 | Cut the dead weight: delete absorbed routes, one snag system end-to-end, retire the flags; contractor scorecards land here too (external snag-list upload ✅ shipped with Phase 4) | then |
 
 ---
 
