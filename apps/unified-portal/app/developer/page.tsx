@@ -143,9 +143,9 @@ export default function TodayPage() {
     },
     {
       title: 'Bring in your homes',
-      detail: 'Import your sales sheet — every home and purchaser becomes a live profile.',
+      detail: 'Drop your sales sheet — every home and purchaser becomes a live profile.',
       done: (summary?.totalUnits ?? 0) > 0,
-      href: '/developer/homeowners/new',
+      href: '/developer/homeowners/import',
     },
     {
       title: 'Drop in your documents',

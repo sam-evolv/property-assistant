@@ -4,7 +4,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AdminSession } from '@/lib/types';
-import { ArrowLeft, Users, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download } from 'lucide-react';
+import { ArrowLeft, Users, CheckCircle, Clock, Search, Filter, ChevronDown, Home, Calendar, Activity, Building2, QrCode, Download, Upload } from 'lucide-react';
 import { BulkActionToolbar, getCommonBulkActions } from '@/components/ui/BulkActionToolbar';
 
 interface Unit {
@@ -377,6 +377,14 @@ export function HomeownersList({
                   <Download className="w-3 h-3" />
                 </button>
               )}
+              <Link
+                href="/developer/homeowners/import"
+                className="px-4 py-2 border border-gold-300 text-gold-700 rounded-lg hover:bg-gold-50 transition flex items-center gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                <span className="hidden sm:inline">Import sales sheet</span>
+                <span className="sm:hidden">Import</span>
+              </Link>
               <Link
                 href="/developer/homeowners/new"
                 className="px-4 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition flex items-center gap-2 shadow-md"
