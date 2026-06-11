@@ -302,27 +302,50 @@ export function DeveloperLayoutWithSidebar({ children }: SidebarMenuProps) {
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu — the five surfaces live in the bottom tab bar; this holds the rest */}
         {mobileMenuOpen && (
-          <div className="md:hidden border-b border-gold-200/30 bg-white/80 backdrop-blur-sm px-4 py-4 space-y-6 overflow-y-auto">
+          <div className="md:hidden border-b border-gold-200/30 bg-white/80 backdrop-blur-sm px-4 py-4 overflow-y-auto max-h-[60vh]">
+            <p className="px-2 py-1.5 text-xs font-semibold text-grey-500 uppercase tracking-wider mb-2">
+              More
+            </p>
             <div className="space-y-1">
-              {primaryNav.map((item) => renderItem(item, () => setMobileMenuOpen(false), true))}
-            </div>
-            <div>
-              <p className="px-2 py-1.5 text-xs font-semibold text-grey-500 uppercase tracking-wider mb-2">
-                More
-              </p>
-              <div className="space-y-1">
-                {moreNav.map((item) => renderItem(item, () => setMobileMenuOpen(false), true))}
-              </div>
+              {moreNav.map((item) => renderItem(item, () => setMobileMenuOpen(false), true))}
             </div>
           </div>
         )}
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto bg-gradient-to-br from-white via-grey-50 to-white">
+        {/* Content Area — bottom padding clears the mobile tab bar */}
+        <div className="flex-1 overflow-auto bg-gradient-to-br from-white via-grey-50 to-white pb-24 md:pb-0">
           {children}
         </div>
+
+        {/* Mobile bottom tab bar — the five surfaces, always one thumb away */}
+        <nav
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gold-900/20 bg-black"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        >
+          <div className="grid grid-cols-5">
+            {primaryNav.map((item) => {
+              const Icon = item.icon;
+              const active = isActive(item.href);
+              const tabLabel =
+                item.label === 'Intelligence' ? 'Ask' :
+                item.label === 'Documents' ? 'Docs' : item.label;
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="flex flex-col items-center gap-1 py-2.5"
+                >
+                  <Icon className={`h-5 w-5 ${active ? 'text-gold-400' : 'text-gray-400'}`} />
+                  <span className={`text-[10px] font-medium leading-none ${active ? 'text-gold-400' : 'text-gray-400'}`}>
+                    {tabLabel}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </nav>
       </div>
 
       {/* Global Command Palette - accessible with Cmd+K */}
