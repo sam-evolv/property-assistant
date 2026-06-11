@@ -79,6 +79,16 @@ interface PipelineUnit {
   purchaserPhone?: string | null;
   solicitorName?: string | null;
   solicitorEmail?: string | null;
+  solicitorFirm?: string | null;
+  solicitorPhone?: string | null;
+  sadrlDate?: string | null;
+  proofOfFundsDate?: string | null;
+  depositReceiptDate?: string | null;
+  loanApprovedDate?: string | null;
+  onePartReturnedDate?: string | null;
+  projectedHandoverDate?: string | null;
+  snaggingStartDate?: string | null;
+  mortgageExpiryDate?: string | null;
   releaseDate: string | null;
   saleAgreedDate: string | null;
   depositDate: string | null;
@@ -1258,9 +1268,71 @@ interface ProfilePanelProps {
   unit: PipelineUnit | null;
   onClose: () => void;
   onCopy: (text: string, label: string) => void;
+  onUpdate: (unitId: string, field: string, value: string | null) => void;
 }
 
-function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
+function TrackerDateField({ label, field, value, unitId, onUpdate, warn }: {
+  label: string;
+  field: string;
+  value: string | null | undefined;
+  unitId: string;
+  onUpdate: (unitId: string, field: string, value: string | null) => void;
+  warn?: 'amber' | 'red' | null;
+}) {
+  return (
+    <div className="p-3 rounded-xl border border-gray-100 bg-white">
+      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{label}</p>
+      <input
+        type="date"
+        value={value ? value.slice(0, 10) : ''}
+        onChange={(e) => onUpdate(unitId, field, e.target.value || null)}
+        className={`mt-1 w-full bg-transparent text-sm font-semibold outline-none cursor-pointer ${
+          warn === 'red' ? 'text-red-600' : warn === 'amber' ? 'text-amber-600' : 'text-gray-900'
+        }`}
+      />
+    </div>
+  );
+}
+
+function TrackerTextField({ label, field, value, unitId, onUpdate, placeholder }: {
+  label: string;
+  field: string;
+  value: string | null | undefined;
+  unitId: string;
+  onUpdate: (unitId: string, field: string, value: string | null) => void;
+  placeholder?: string;
+}) {
+  const [draft, setDraft] = useState(value || '');
+  useEffect(() => {
+    setDraft(value || '');
+  }, [value, unitId]);
+  return (
+    <div className="p-3 rounded-xl border border-gray-100 bg-white">
+      <p className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{label}</p>
+      <input
+        type="text"
+        value={draft}
+        placeholder={placeholder || '—'}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const v = draft.trim() || null;
+          if (v !== (value || null)) onUpdate(unitId, field, v);
+        }}
+        className="mt-1 w-full bg-transparent text-sm font-semibold text-gray-900 outline-none placeholder:text-gray-300"
+      />
+    </div>
+  );
+}
+
+function mortgageWarn(value: string | null | undefined): 'amber' | 'red' | null {
+  if (!value) return null;
+  const days = Math.ceil((new Date(value).getTime() - Date.now()) / 86_400_000);
+  if (days <= 30) return 'red';
+  if (days <= 60) return 'amber';
+  return null;
+}
+
+function ProfilePanel({ unit, onClose, onCopy, onUpdate }: ProfilePanelProps) {
   if (!unit) return null;
 
   const progress = getProgress(unit);
@@ -1392,6 +1464,25 @@ function ProfilePanel({ unit, onClose, onCopy }: ProfilePanelProps) {
                         </button>
                       </div>
                     )}
+                  </div>
+                </div>
+
+                {/* Conveyancing tracker (migration 070 fields) */}
+                <div className="px-6 py-5 border-b border-gray-100">
+                  <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-4">Conveyancing Tracker</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    <TrackerTextField label="Solicitor Firm" field="solicitorFirm" value={unit.solicitorFirm} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerTextField label="Solicitor Name" field="solicitorName" value={unit.solicitorName} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerTextField label="Solicitor Email" field="solicitorEmail" value={unit.solicitorEmail} unitId={unit.id} onUpdate={onUpdate} placeholder="solicitor@firm.ie" />
+                    <TrackerTextField label="Solicitor Phone" field="solicitorPhone" value={unit.solicitorPhone} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="SADRL" field="sadrlDate" value={unit.sadrlDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Proof of Funds" field="proofOfFundsDate" value={unit.proofOfFundsDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Deposit Receipt" field="depositReceiptDate" value={unit.depositReceiptDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Loan Approved" field="loanApprovedDate" value={unit.loanApprovedDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="One Part Returned" field="onePartReturnedDate" value={unit.onePartReturnedDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Snagging Start" field="snaggingStartDate" value={unit.snaggingStartDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Projected Handover" field="projectedHandoverDate" value={unit.projectedHandoverDate} unitId={unit.id} onUpdate={onUpdate} />
+                    <TrackerDateField label="Mortgage Expiry" field="mortgageExpiryDate" value={unit.mortgageExpiryDate} unitId={unit.id} onUpdate={onUpdate} warn={mortgageWarn(unit.mortgageExpiryDate)} />
                   </div>
                 </div>
 
@@ -3380,7 +3471,12 @@ export default function PipelineDevelopmentPage() {
 
       {/* Profile Panel */}
       {selectedUnit && (
-        <ProfilePanel unit={selectedUnit} onClose={() => setSelectedUnit(null)} onCopy={handleCopy} />
+        <ProfilePanel
+          unit={units.find(u => u.id === selectedUnit.id) || selectedUnit}
+          onClose={() => setSelectedUnit(null)}
+          onCopy={handleCopy}
+          onUpdate={handleUpdate}
+        />
       )}
 
       {/* Activity Sidebar */}

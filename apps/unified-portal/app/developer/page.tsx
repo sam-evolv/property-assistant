@@ -34,6 +34,11 @@ interface BriefItem {
   href: string;
 }
 
+interface PipelineAlerts {
+  mortgageExpiring: { count: number; items: Array<{ label: string; days: number }> };
+  agedContracts: { count: number; items: Array<{ label: string; days: number }> };
+}
+
 const SUGGESTIONS = [
   'What needs my attention this week?',
   'How is homeowner registration trending?',
@@ -54,6 +59,7 @@ export default function TodayPage() {
   const { developmentId, developmentName, setDevelopmentId } = useCurrentContext();
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [pipelineAlerts, setPipelineAlerts] = useState<PipelineAlerts | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [question, setQuestion] = useState('');
@@ -76,6 +82,11 @@ export default function TodayPage() {
       .then((payload) => setData(payload))
       .catch(() => setFailed(true))
       .finally(() => setLoading(false));
+    // Pipeline alerts ride alongside; their absence never blocks the brief.
+    fetch('/api/developer/pipeline-alerts')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((payload) => setPipelineAlerts(payload))
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -97,7 +108,30 @@ export default function TodayPage() {
   const snagsHref = isDeveloperDashboardEnabled() ? '/developer/issues' : '/developer/snagging';
 
   // The brief: at most three things that genuinely need a human today.
+  // Money-critical pipeline alerts outrank everything else.
   const brief: BriefItem[] = [];
+  if (pipelineAlerts) {
+    const mortgage = pipelineAlerts.mortgageExpiring;
+    if (mortgage?.count > 0) {
+      const next = mortgage.items[0];
+      brief.push({
+        title: `${mortgage.count} mortgage approval${mortgage.count === 1 ? '' : 's'} expiring within 30 days`,
+        detail: next ? `${next.label} — ${next.days} day${next.days === 1 ? '' : 's'} left` : '',
+        action: 'Open pipeline',
+        href: '/developer/pipeline',
+      });
+    }
+    const aged = pipelineAlerts.agedContracts;
+    if (aged?.count > 0) {
+      const worst = aged.items[0];
+      brief.push({
+        title: `${aged.count} contract${aged.count === 1 ? '' : 's'} out over 6 weeks, unsigned`,
+        detail: worst ? `${worst.label} — issued ${worst.days} days ago` : '',
+        action: 'Chase them',
+        href: '/developer/pipeline',
+      });
+    }
+  }
   if (data) {
     const gaps = data.unansweredQueries || [];
     if (gaps.length > 0) {

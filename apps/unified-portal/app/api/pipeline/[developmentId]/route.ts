@@ -233,7 +233,7 @@ export async function GET(
         // Kitchen data is now stored directly in unit_sales_pipeline
         const { data: pipelineRows, error: pipelineError } = await supabaseAdmin
           .from('unit_sales_pipeline')
-          .select('id, unit_id, purchaser_name, purchaser_email, purchaser_phone, release_date, sale_agreed_date, deposit_date, contracts_issued_date, signed_contracts_date, counter_signed_date, kitchen_date, snag_date, drawdown_date, handover_date, queries_raised_date, queries_replied_date, sale_type, housing_agency, sale_price, kitchen_selected, kitchen_counter, kitchen_cabinet, kitchen_handle, kitchen_wardrobes, kitchen_notes')
+          .select('*')
           .eq('tenant_id', tenantId)
           .eq('development_id', developmentId);
 
@@ -325,6 +325,19 @@ export async function GET(
           handoverDate: safeDate(pipeline?.handover_date),
           queriesRaisedDate: safeDate(pipeline?.queries_raised_date),
           queriesRepliedDate: safeDate(pipeline?.queries_replied_date),
+          // Tracker columns (migration 070) — undefined pre-migration, mapped to null
+          solicitorFirm: pipeline?.solicitor_firm || null,
+          solicitorName: pipeline?.solicitor_name || null,
+          solicitorEmail: pipeline?.solicitor_email || null,
+          solicitorPhone: pipeline?.solicitor_phone || null,
+          sadrlDate: safeDate(pipeline?.sadrl_date),
+          proofOfFundsDate: safeDate(pipeline?.proof_of_funds_date),
+          depositReceiptDate: safeDate(pipeline?.deposit_receipt_date),
+          loanApprovedDate: safeDate(pipeline?.loan_approved_date),
+          onePartReturnedDate: safeDate(pipeline?.one_part_returned_date),
+          projectedHandoverDate: safeDate(pipeline?.projected_handover_date),
+          snaggingStartDate: safeDate(pipeline?.snagging_start_date),
+          mortgageExpiryDate: safeDate(pipeline?.mortgage_expiry_date),
           saleType: pipeline?.sale_type || null,
           housingAgency: pipeline?.housing_agency || null,
           salePrice: pipeline?.sale_price ? Number(pipeline.sale_price) : null,

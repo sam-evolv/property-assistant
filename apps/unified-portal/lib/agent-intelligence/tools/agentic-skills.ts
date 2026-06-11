@@ -371,14 +371,31 @@ export async function surfaceAgedContractsForSolicitor(
       };
     }
 
-    const { data: pipeline, error: pipeErr } = await supabase
-      .from('unit_sales_pipeline')
-      .select('unit_id, development_id, purchaser_name, contracts_issued_date, signed_contracts_date')
-      .in('development_id', devIds)
-      .not('contracts_issued_date', 'is', null)
-      .is('signed_contracts_date', null)
-      .lt('contracts_issued_date', cutoffIso);
-    if (pipeErr) throw pipeErr;
+    // solicitor_* columns arrive with migration 070; fall back cleanly when absent
+    const PIPE_COLS_BASE = 'unit_id, development_id, purchaser_name, contracts_issued_date, signed_contracts_date';
+    let pipeline: any[] | null = null;
+    {
+      const extended = await supabase
+        .from('unit_sales_pipeline')
+        .select(`${PIPE_COLS_BASE}, solicitor_name, solicitor_firm, solicitor_email`)
+        .in('development_id', devIds)
+        .not('contracts_issued_date', 'is', null)
+        .is('signed_contracts_date', null)
+        .lt('contracts_issued_date', cutoffIso);
+      if (!extended.error) {
+        pipeline = extended.data;
+      } else {
+        const basic = await supabase
+          .from('unit_sales_pipeline')
+          .select(PIPE_COLS_BASE)
+          .in('development_id', devIds)
+          .not('contracts_issued_date', 'is', null)
+          .is('signed_contracts_date', null)
+          .lt('contracts_issued_date', cutoffIso);
+        if (basic.error) throw basic.error;
+        pipeline = basic.data;
+      }
+    }
 
     const rows = pipeline || [];
     if (!rows.length) {
@@ -483,6 +500,65 @@ export async function surfaceAgedContractsForSolicitor(
           // @ts-ignore — diagnostic
           demo_placeholder_recipient: true,
         } as any,
+      };
+    }
+
+    // BUG-A resolved for rows that carry a solicitor address (migration 070 +
+    // pipeline import/tracker): draft real chases directly. Rows without an
+    // address still go through the needs_recipient path below.
+    const withEmail = filtered.filter(
+      (r: any) => typeof r.solicitor_email === 'string' && r.solicitor_email.includes('@'),
+    );
+    if (withEmail.length > 0) {
+      const sign = 'Best regards,';
+      const sig = signature(agentContext);
+      const drafts = withEmail.slice(0, 10).map((r: any) => {
+        const schemeName = devNameById.get(r.development_id) || 'Unknown scheme';
+        const unit = unitById.get(r.unit_id);
+        const unitNumber = unit?.unit_number || unit?.unit_uid || 'unknown';
+        const purchaser = r.purchaser_name || 'the buyer';
+        const issuedLabel = formatIrishDate(r.contracts_issued_date);
+        const daysAged = daysBetween(r.contracts_issued_date);
+        const unitLabel = `${schemeName} Unit ${unitNumber}`;
+        return {
+          id: randomUUID(),
+          type: 'email' as const,
+          recipient: {
+            name: r.solicitor_name || r.solicitor_firm || 'Solicitor',
+            email: r.solicitor_email as string,
+            role: 'solicitor',
+          },
+          subject: `Contract chase — ${unitLabel} (${daysAged}d aged)`,
+          body: [
+            'Hi,',
+            '',
+            `Following up on the contracts for ${unitLabel} (purchaser: ${purchaser}). Contracts were issued on ${issuedLabel} and remain unsigned ${daysAged} days later.`,
+            '',
+            'Could you let me know where things stand at your end and what\'s outstanding to get them returned?',
+            '',
+            sign,
+            sig,
+          ].join('\n'),
+          affected_record: {
+            kind: 'sales_unit' as const,
+            id: r.unit_id,
+            label: unitLabel,
+          },
+          reasoning: `Contracts issued ${issuedLabel}, ${daysAged}d aged with no signed return. Solicitor on file: ${r.solicitor_email}.`,
+        };
+      });
+      const missing = filtered.length - withEmail.length;
+      const summary =
+        `Drafted ${drafts.length} solicitor chase${drafts.length === 1 ? '' : 's'} from the addresses on the pipeline.` +
+        (missing > 0
+          ? ` ${missing} more aged contract${missing === 1 ? ' has' : 's have'} no solicitor email on file — add it in the pipeline's Conveyancing Tracker, or reply with the address.`
+          : '');
+      return {
+        skill,
+        status: 'awaiting_approval',
+        summary,
+        drafts,
+        meta: { record_count: drafts.length, generated_at: new Date().toISOString(), query },
       };
     }
 
