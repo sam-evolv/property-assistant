@@ -32,6 +32,21 @@ const FIELD_MAPPING: Record<string, { dateField: string; updatedByField: string;
   snagDate: { dateField: 'snag_date', updatedByField: 'snag_updated_by', updatedAtField: 'snag_updated_at' },
   drawdownDate: { dateField: 'drawdown_date', updatedByField: 'drawdown_updated_by', updatedAtField: 'drawdown_updated_at' },
   handoverDate: { dateField: 'handover_date', updatedByField: 'handover_updated_by', updatedAtField: 'handover_updated_at' },
+  // Tracker columns (migration 070)
+  queriesRaisedDate: { dateField: 'queries_raised_date', updatedByField: 'queries_raised_updated_by', updatedAtField: 'queries_raised_updated_at' },
+  queriesRepliedDate: { dateField: 'queries_replied_date', updatedByField: 'queries_replied_updated_by', updatedAtField: 'queries_replied_updated_at' },
+  sadrlDate: { dateField: 'sadrl_date', updatedByField: 'sadrl_updated_by', updatedAtField: 'sadrl_updated_at' },
+  proofOfFundsDate: { dateField: 'proof_of_funds_date', updatedByField: 'proof_of_funds_updated_by', updatedAtField: 'proof_of_funds_updated_at' },
+  depositReceiptDate: { dateField: 'deposit_receipt_date', updatedByField: 'deposit_receipt_updated_by', updatedAtField: 'deposit_receipt_updated_at' },
+  loanApprovedDate: { dateField: 'loan_approved_date', updatedByField: 'loan_approved_updated_by', updatedAtField: 'loan_approved_updated_at' },
+  onePartReturnedDate: { dateField: 'one_part_returned_date', updatedByField: 'one_part_returned_updated_by', updatedAtField: 'one_part_returned_updated_at' },
+  snaggingStartDate: { dateField: 'snagging_start_date', updatedByField: 'snagging_start_updated_by', updatedAtField: 'snagging_start_updated_at' },
+};
+
+// 070 dates without an audit-pair convention (projection + expiry)
+const PLAIN_DATE_FIELD_MAPPING: Record<string, string> = {
+  projectedHandoverDate: 'projected_handover_date',
+  mortgageExpiryDate: 'mortgage_expiry_date',
 };
 
 const TEXT_FIELD_MAPPING: Record<string, string> = {
@@ -39,6 +54,10 @@ const TEXT_FIELD_MAPPING: Record<string, string> = {
   purchaserEmail: 'purchaser_email',
   purchaserPhone: 'purchaser_phone',
   housingAgency: 'housing_agency',
+  solicitorFirm: 'solicitor_firm',
+  solicitorName: 'solicitor_name',
+  solicitorEmail: 'solicitor_email',
+  solicitorPhone: 'solicitor_phone',
 };
 
 // Numeric fields mapping
@@ -94,10 +113,11 @@ export async function PATCH(
 
     // Check if it's a date field, text field, or numeric field
     const isDateField = field in FIELD_MAPPING;
+    const isPlainDateField = field in PLAIN_DATE_FIELD_MAPPING;
     const isTextField = field in TEXT_FIELD_MAPPING;
     const isNumericField = field in NUMERIC_FIELD_MAPPING;
 
-    if (!isDateField && !isTextField && !isNumericField) {
+    if (!isDateField && !isPlainDateField && !isTextField && !isNumericField) {
       return NextResponse.json({ error: `Invalid field: ${field}` }, { status: 400 });
     }
 
@@ -171,6 +191,18 @@ export async function PATCH(
       const { error: updateError } = await supabaseAdmin
         .from('unit_sales_pipeline')
         .update(updateData)
+        .eq('id', pipelineId);
+
+      if (updateError) {
+        return NextResponse.json({ error: 'Failed to update pipeline' }, { status: 500 });
+      }
+    } else if (isPlainDateField) {
+      const dateField = PLAIN_DATE_FIELD_MAPPING[field];
+      oldValue = (existingPipeline as Record<string, any>)?.[dateField] || null;
+
+      const { error: updateError } = await supabaseAdmin
+        .from('unit_sales_pipeline')
+        .update({ [dateField]: value || null, updated_at: now })
         .eq('id', pipelineId);
 
       if (updateError) {
