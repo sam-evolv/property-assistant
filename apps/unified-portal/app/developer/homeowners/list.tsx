@@ -545,155 +545,103 @@ export function HomeownersList({
                 </div>
               )}
 
-              {(() => {
-                const renderCard = (unit: Unit) => {
+              {/* Estate board: every home as a tile, in house-number order —
+                  the whole development scannable in one sweep. */}
+              <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+                {[
+                  { label: 'For sale', cls: 'bg-emerald-400' },
+                  { label: 'Sold', cls: 'bg-gold-400' },
+                  { label: 'Handed over', cls: 'bg-grey-300' },
+                ].map((k) => (
+                  <span key={k.label} className="flex items-center gap-1.5 text-[11px] font-medium text-grey-400">
+                    <span className={`h-1.5 w-4 rounded-full ${k.cls}`} aria-hidden />
+                    {k.label}
+                  </span>
+                ))}
+                <span className="ml-auto hidden text-[11px] text-grey-300 sm:block">
+                  Hover a home for selection &amp; its file
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                {filteredAndSorted.map((unit) => {
                   const houseNum = extractHouseNumber(unit.address, unit.unit_number);
-                  const displayNum = houseNum !== 999 ? houseNum : (unit.unit_number || '?');
+                  const displayNum = houseNum !== 999 ? String(houseNum) : (unit.unit_number || '?');
                   const residentName = unit.purchaser_name || unit.resident_name || unit.name;
                   const isForSale = !unit.purchaser_name && !unit.resident_name && !unit.name && !unit.handover_date;
                   const isHandedOver = Boolean(unit.handover_date);
                   const hasAgreed = hasUnitAcknowledged(unit);
-                  const houseType = unit.house_type_code && unit.house_type_code !== 'TBD' ? unit.house_type_code : null;
                   const isSelected = selectedIds.has(unit.id);
-                  const addressLine = unit.address || `Unit ${displayNum}`;
+                  const issueCount = unit.homeowner_new_issue_count ?? 0;
+                  const accent = isForSale ? 'bg-emerald-400' : isHandedOver ? 'bg-grey-300' : 'bg-gold-400';
 
                   return (
                     <div
                       key={unit.id}
-                      className={`group flex flex-col rounded-2xl border bg-white transition-all hover:shadow-md ${
+                      title={[unit.address, residentName].filter(Boolean).join(' — ') || undefined}
+                      className={`group relative overflow-hidden rounded-xl border bg-white transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-gold-500/5 ${
                         isSelected ? 'border-gold-400 ring-2 ring-gold-200' : 'border-grey-200 hover:border-gold-300'
                       }`}
                     >
-                      {/* Header: checkbox · address · lifecycle */}
-                      <div className="flex items-start gap-3 p-4 pb-3">
-                        <button
-                          onClick={(e) => toggleSelection(unit.id, e)}
-                          className={`mt-0.5 h-5 w-5 flex-shrink-0 rounded-md border-2 flex items-center justify-center transition-all ${
-                            isSelected
-                              ? 'bg-gold-500 border-gold-500 text-white'
-                              : 'border-grey-300 bg-white opacity-40 group-hover:opacity-100 hover:border-gold-400'
-                          }`}
-                        >
-                          {isSelected && <CheckCircle className="h-3.5 w-3.5" />}
-                        </button>
-                        <Link href={`/developer/homeowners/${unit.id}`} className="min-w-0 flex-1">
-                          <h3 className="truncate text-base font-semibold text-grey-900 group-hover:text-gold-700 transition">
-                            {addressLine}
-                          </h3>
-                          <p className="mt-0.5 text-xs text-grey-400">
-                            {[houseType, unit.bedrooms ? `${unit.bedrooms} bed` : null].filter(Boolean).join(' · ') || '\u00A0'}
-                          </p>
-                        </Link>
-                        <span
-                          className={`flex-shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                            isForSale
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : isHandedOver
-                                ? 'bg-grey-100 text-grey-600'
-                                : 'bg-gold-50 text-gold-700'
-                          }`}
-                        >
-                          {isForSale ? 'For sale' : isHandedOver ? 'Handed over' : 'Sold'}
-                        </span>
-                      </div>
+                      <span className={`absolute inset-x-0 top-0 h-1 ${accent}`} aria-hidden />
 
-                      {/* Resident */}
-                      <Link href={`/developer/homeowners/${unit.id}`} className="block flex-1 px-4 pb-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${residentName ? 'bg-gold-50' : 'bg-grey-50'}`}>
-                            <User className={`h-4 w-4 ${residentName ? 'text-gold-600' : 'text-grey-300'}`} />
-                          </div>
-                          <span className={`min-w-0 flex-1 truncate text-sm ${residentName ? 'font-medium text-grey-700' : 'text-grey-400'}`}>
-                            {residentName || 'No purchaser yet'}
-                          </span>
-                          {residentName && (
-                            hasAgreed ? (
-                              <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-medium text-emerald-600">
-                                <CheckCircle className="h-3.5 w-3.5" /> Docs
-                              </span>
-                            ) : (
-                              <span className="flex flex-shrink-0 items-center gap-1 text-[11px] font-medium text-amber-500">
-                                <Clock className="h-3.5 w-3.5" /> Docs
-                              </span>
-                            )
-                          )}
-                        </div>
-                        {(unit.homeowner_new_issue_count ?? 0) > 0 && (
-                          <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-amber-700">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" aria-hidden />
-                            {unit.homeowner_new_issue_count === 1
-                              ? '1 issue awaiting review'
-                              : `${unit.homeowner_new_issue_count} issues awaiting review`}
-                          </p>
-                        )}
+                      <button
+                        onClick={(e) => toggleSelection(unit.id, e)}
+                        className={`absolute left-2 top-2.5 z-10 flex h-5 w-5 items-center justify-center rounded-md border-2 bg-white transition-all ${
+                          isSelected
+                            ? 'border-gold-500 bg-gold-500 text-white opacity-100'
+                            : 'border-grey-300 opacity-0 group-hover:opacity-100 hover:border-gold-400'
+                        }`}
+                        aria-label="Select home"
+                      >
+                        {isSelected && <CheckCircle className="h-3.5 w-3.5" />}
+                      </button>
+
+                      <Link
+                        href={`/developer/homes/${unit.id}`}
+                        className="absolute right-2 top-2.5 z-10 rounded-md border border-gold-200 bg-white p-1 text-gold-600 opacity-0 transition-all hover:bg-gold-50 group-hover:opacity-100"
+                        title="Open home file"
+                      >
+                        <ArrowRight className="h-3.5 w-3.5" />
                       </Link>
 
-                      {/* Footer */}
-                      <div className="flex items-center justify-between rounded-b-2xl border-t border-grey-100 bg-grey-50/60 px-4 py-2.5">
-                        <span className="flex items-center gap-1 text-[11px] text-grey-400">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(unit.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                        <Link
-                          href={`/developer/homes/${unit.id}`}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-gold-600 hover:text-gold-700"
+                      <Link href={`/developer/homeowners/${unit.id}`} className="block px-2 pb-3 pt-5 text-center">
+                        <p className="text-2xl font-bold tracking-tight text-grey-900 transition-colors group-hover:text-gold-700">
+                          {displayNum}
+                        </p>
+                        <p
+                          className={`mt-1 truncate px-1 text-[11px] font-medium ${
+                            residentName ? 'text-grey-600' : isForSale ? 'text-emerald-600' : 'text-grey-400'
+                          }`}
                         >
-                          Home file <ArrowRight className="h-3 w-3" />
-                        </Link>
-                      </div>
+                          {residentName || (isForSale ? 'For sale' : 'Unassigned')}
+                        </p>
+                        <p className="truncate px-1 text-[10px] text-grey-400">
+                          {unit.address || unit.house_type_code || '\u00A0'}
+                        </p>
+
+                        <div className="mt-2 flex h-4 items-center justify-center gap-2">
+                          {residentName && (
+                            hasAgreed ? (
+                              <CheckCircle className="h-3.5 w-3.5 text-emerald-500" aria-label="Documents acknowledged" />
+                            ) : (
+                              <Clock className="h-3.5 w-3.5 text-amber-400" aria-label="Documents pending" />
+                            )
+                          )}
+                          {issueCount > 0 && (
+                            <span
+                              className="flex h-4 min-w-[1rem] items-center justify-center rounded-full bg-amber-100 px-1 text-[10px] font-bold text-amber-700"
+                              aria-label={`${issueCount} issues awaiting review`}
+                            >
+                              {issueCount}
+                            </span>
+                          )}
+                        </div>
+                      </Link>
                     </div>
                   );
-                };
-
-                // Lifecycle sections when browsing everything; flat grid when
-                // searching or filtering (the filter IS the grouping then).
-                const isBrowsingAll =
-                  statusFilter === 'all' && filterStatus === 'all' && !searchQuery.trim();
-                if (!isBrowsingAll) {
-                  return (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                      {filteredAndSorted.map(renderCard)}
-                    </div>
-                  );
-                }
-
-                const sections = [
-                  {
-                    title: 'For sale',
-                    units: filteredAndSorted.filter(
-                      (u) => !u.purchaser_name && !u.resident_name && !u.name && !u.handover_date,
-                    ),
-                  },
-                  {
-                    title: 'Sold · on the journey',
-                    units: filteredAndSorted.filter(
-                      (u) => (u.purchaser_name || u.resident_name || u.name) && !u.handover_date,
-                    ),
-                  },
-                  {
-                    title: 'Handed over',
-                    units: filteredAndSorted.filter((u) => Boolean(u.handover_date)),
-                  },
-                ].filter((sec) => sec.units.length > 0);
-
-                return (
-                  <div className="space-y-8">
-                    {sections.map((sec) => (
-                      <div key={sec.title}>
-                        <div className="mb-3 flex items-baseline gap-2">
-                          <h2 className="text-sm font-semibold uppercase tracking-wider text-grey-400">
-                            {sec.title}
-                          </h2>
-                          <span className="text-xs text-grey-300">{sec.units.length}</span>
-                        </div>
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-                          {sec.units.map(renderCard)}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
+                })}
+              </div>
 
               {/* Bulk Action Toolbar */}
               <BulkActionToolbar
