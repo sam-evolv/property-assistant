@@ -348,6 +348,39 @@ export function ImportClient({ developments }: { developments: DevelopmentOption
       )}
 
       {stage === 'done' && result && (
+        result.inserted === 0 ? (
+          <div className="mt-10 rounded-2xl border border-amber-200 bg-white p-8 md:p-10">
+            <div className="text-center">
+              <AlertCircle className="mx-auto h-10 w-10 text-amber-500" />
+              <h2 className="mt-4 text-2xl font-semibold tracking-tight text-grey-900">
+                Nothing was imported.
+              </h2>
+              <p className="mt-2 text-sm text-grey-500">
+                Every row hit a problem — the notes below say exactly what went wrong.
+                {result.skippedDuplicates > 0 && <> ({result.skippedDuplicates} were duplicates of homes already on the platform.)</>}
+              </p>
+            </div>
+            {result.errors.length > 0 && (
+              <ul className="mx-auto mt-5 max-w-lg space-y-1.5 rounded-xl bg-amber-50 p-4 text-xs text-amber-900">
+                {result.errors.slice(0, 8).map((e) => <li key={e}>{e}</li>)}
+              </ul>
+            )}
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                onClick={reset}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gold-500 px-6 py-3.5 text-base font-semibold text-white transition-all hover:bg-gold-600"
+              >
+                Try again
+              </button>
+              <Link
+                href="/developer/homeowners"
+                className="rounded-xl border border-grey-200 bg-white px-6 py-3.5 text-base font-semibold text-grey-600 transition-all hover:border-gold-400 hover:text-gold-700"
+              >
+                View your homes
+              </Link>
+            </div>
+          </div>
+        ) : (
         <div className="mt-10 rounded-2xl border border-grey-200 bg-white p-8 text-center md:p-12">
           <CheckCircle2 className="mx-auto h-10 w-10 text-gold-500" />
           <h2 className="mt-4 text-2xl font-semibold tracking-tight text-grey-900">
@@ -383,6 +416,7 @@ export function ImportClient({ developments }: { developments: DevelopmentOption
             </Link>
           </div>
         </div>
+        )
       )}
     </div>
   );

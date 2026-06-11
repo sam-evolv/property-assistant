@@ -68,6 +68,97 @@ function extractUnitNumber(identifier: string): string {
 const MISSING_COLUMN_RE = /Could not find the '([^']+)' column/i;
 
 /**
+ * The live units table carries a legacy NOT NULL FK: project_id -> projects.
+ * Resolve the development's project container (by id, by link, by name —
+ * matching how the archive resolves it) or create it, reusing/creating a
+ * minimal organisations row named after the tenant.
+ */
+async function ensureProjectIdForDevelopment(
+  supabase: ReturnType<typeof getSupabaseAdmin>,
+  development: { id: string; name: string; tenant_id: string | null },
+): Promise<{ projectId: string | null; error: string | null }> {
+  const byId = await supabase.from('projects').select('id').eq('id', development.id).maybeSingle();
+  if (byId.data?.id) return { projectId: byId.data.id, error: null };
+
+  const byLink = await supabase
+    .from('projects')
+    .select('id')
+    .eq('development_id', development.id)
+    .maybeSingle();
+  if (byLink.data?.id) return { projectId: byLink.data.id, error: null };
+
+  const byName = await supabase
+    .from('projects')
+    .select('id')
+    .eq('name', development.name)
+    .maybeSingle();
+  if (byName.data?.id) return { projectId: byName.data.id, error: null };
+
+  let orgName = 'OpenHouse';
+  if (development.tenant_id) {
+    const { data: tenant } = await supabase
+      .from('tenants')
+      .select('name')
+      .eq('id', development.tenant_id)
+      .maybeSingle();
+    if (tenant?.name) orgName = tenant.name;
+  }
+  let orgId: string | null = null;
+  const { data: existingOrg } = await supabase
+    .from('organisations')
+    .select('id')
+    .eq('name', orgName)
+    .maybeSingle();
+  orgId = existingOrg?.id ?? null;
+  if (!orgId) {
+    const { data: newOrg, error: orgErr } = await supabase
+      .from('organisations')
+      .insert({ name: orgName })
+      .select('id')
+      .single();
+    if (orgErr || !newOrg) return { projectId: null, error: `organisation: ${orgErr?.message}` };
+    orgId = newOrg.id;
+  }
+
+  const { data: project, error: projErr } = await supabase
+    .from('projects')
+    .insert({
+      id: development.id,
+      organization_id: orgId,
+      name: development.name,
+      development_id: development.id,
+    })
+    .select('id')
+    .single();
+  if (project?.id) return { projectId: project.id, error: null };
+
+  // Lost a race with a concurrent import — the row exists now.
+  const retry = await supabase.from('projects').select('id').eq('id', development.id).maybeSingle();
+  if (retry.data?.id) return { projectId: retry.data.id, error: null };
+  return { projectId: null, error: `project: ${projErr?.message}` };
+}
+
+/** "Row 12 (x): same message" * 112 -> two examples + one summary line. */
+function compressWarnings(warnings: string[]): string[] {
+  const groups = new Map<string, string[]>();
+  for (const w of warnings) {
+    const key = w.replace(/^Row \d+[^:]*: /, '');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(w);
+  }
+  const out: string[] = [];
+  for (const [key, items] of groups) {
+    if (items.length <= 3) {
+      out.push(...items);
+    } else {
+      out.push(...items.slice(0, 2));
+      out.push(`…and ${items.length - 2} more rows: ${key}`);
+    }
+  }
+  return out;
+}
+
+/**
  * Inserts a row, dropping any column PostgREST reports as unknown and
  * retrying — so the importer works whether or not migration 070 has been
  * run yet. Dropped columns are remembered for the rest of the batch.
@@ -262,6 +353,14 @@ export async function POST(request: NextRequest) {
   }
 
   // ---- commit ----
+  const { projectId, error: projectError } = await ensureProjectIdForDevelopment(supabase, development);
+  if (!projectId) {
+    return NextResponse.json(
+      { error: `Couldn't prepare the scheme for import${projectError ? ` (${projectError})` : ''}. Nothing was saved.` },
+      { status: 500 },
+    );
+  }
+
   const warnings: string[] = [...errors];
   const droppedUnitCols = new Set<string>();
   const droppedPipelineCols = new Set<string>();
@@ -285,6 +384,7 @@ export async function POST(request: NextRequest) {
     const unitRow: Record<string, unknown> = {
       tenant_id: tenantId,
       development_id: developmentId,
+      project_id: projectId,
       development_code: development.code,
       unit_number: unitNumber,
       unit_code: generateUnitCode(development.code, unitIndex),
@@ -396,7 +496,7 @@ export async function POST(request: NextRequest) {
     inserted,
     skippedDuplicates: duplicates.length,
     pipelineCreated,
-    errors: warnings,
+    errors: compressWarnings(warnings),
     developmentId,
   });
 }
