@@ -82,7 +82,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
   const { data: report, error: reportErr } = await supabase
     .from('issue_reports')
-    .select('id, tenant_id, development_id, unit_id, user_id, title, description, logged_by_user_id, linked_analysis_id')
+    .select('id, tenant_id, development_id, unit_id, user_id, title, description, room, logged_by_user_id, linked_analysis_id')
     .eq('id', issueReportId)
     .maybeSingle();
   if (reportErr) {
@@ -131,9 +131,23 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({ error: 'Could not enrich snag' }, { status: 500 });
   }
 
+  // Copy the assessment onto the snag so severity/trade/safety drive the
+  // Houses screen, the issues dashboard and prioritisation directly.
+  const s = result.structured;
+  const reportUpdates: Record<string, unknown> = {
+    linked_analysis_id: result.analysisId,
+    updated_at: new Date().toISOString(),
+  };
+  if (s.severity_label) reportUpdates.severity_label = s.severity_label;
+  if (s.severity_score !== null) reportUpdates.severity_score = s.severity_score;
+  if (s.safety_risk) reportUpdates.safety_risk = true;
+  if (s.likely_trade) reportUpdates.likely_trade = s.likely_trade;
+  if (s.likely_system) reportUpdates.likely_system = s.likely_system;
+  if (s.room && !report.room) reportUpdates.room = s.room;
+
   const { error: updateErr } = await supabase
     .from('issue_reports')
-    .update({ linked_analysis_id: result.analysisId, updated_at: new Date().toISOString() })
+    .update(reportUpdates)
     .eq('id', issueReportId);
   if (updateErr) {
     console.error('[snag-enrich] report_update_failed reason=%s', updateErr.message);
