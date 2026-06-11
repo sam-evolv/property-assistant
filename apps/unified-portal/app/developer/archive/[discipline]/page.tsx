@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle, FolderPlus } from 'lucide-react';
+import { ArrowLeft, FolderOpen, RefreshCw, Plus, ChevronRight, Home, Grid, List, Search, Star, AlertTriangle, FolderPlus, Sparkles, Check } from 'lucide-react';
 import { DocumentGrid, UploadModal, FolderCard, CreateFolderModal, MoveToFolderModal, type ArchiveFolder } from '@/components/archive';
 import { useSafeCurrentContext } from '@/contexts/CurrentContext';
 import { DISCIPLINES, getDisciplineDisplayName, type ArchiveDocument, type DisciplineType } from '@/lib/archive-constants';
@@ -41,6 +41,14 @@ export default function DisciplineDetailPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterImportant, setFilterImportant] = useState(false);
   const [filterMustRead, setFilterMustRead] = useState(false);
+  const [filterNeedsReview, setFilterNeedsReview] = useState(false);
+  const [reviewBusy, setReviewBusy] = useState<string | null>(null);
+
+  // Arriving from the archive tray card (?review=1) opens the review view
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('review') === '1') setFilterNeedsReview(true);
+  }, []);
 
   const displayName = getDisciplineDisplayName(discipline);
   const disciplineInfo = DISCIPLINES[discipline as DisciplineType];
@@ -284,6 +292,28 @@ export default function DisciplineDetailPage() {
   };
 
   const importantCount = allDocuments.filter(d => d.is_important === true).length;
+  const needsReviewDocs = allDocuments.filter(d => d.needs_review === true);
+  const needsReviewCount = needsReviewDocs.length;
+
+  const resolveReview = async (doc: ArchiveDocument, newDiscipline?: string) => {
+    const fileName = doc.file_name || doc.title;
+    setReviewBusy(fileName);
+    try {
+      await fetch('/api/archive/documents', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fileName,
+          needsReview: false,
+          ...(newDiscipline ? { discipline: newDiscipline } : {}),
+        }),
+      });
+      await loadDocuments();
+    } catch {
+    } finally {
+      setReviewBusy(null);
+    }
+  };
   const mustReadCount = allDocuments.filter(d => (d as ArchiveDocument & { must_read?: boolean }).must_read === true).length;
 
   const groups = groupedByHouseType();
@@ -468,6 +498,25 @@ export default function DisciplineDetailPage() {
                     </span>
                   )}
                 </button>
+
+                <button
+                  onClick={() => setFilterNeedsReview(!filterNeedsReview)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                    filterNeedsReview
+                      ? 'bg-amber-500/20 border-amber-500/50 text-amber-600'
+                      : 'bg-gray-100 border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span className="text-sm font-medium">Needs review</span>
+                  {needsReviewCount > 0 && (
+                    <span className={`px-1.5 py-0.5 rounded text-xs font-semibold ${
+                      filterNeedsReview ? 'bg-amber-500/30 text-amber-700' : 'bg-gray-200 text-gray-500'
+                    }`}>
+                      {needsReviewCount}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
           )}
@@ -490,6 +539,63 @@ export default function DisciplineDetailPage() {
             {[...Array(8)].map((_, i) => (
               <div key={i} className="h-32 bg-gray-50 rounded-xl animate-pulse" />
             ))}
+          </div>
+        ) : filterNeedsReview ? (
+          <div className="max-w-3xl">
+            {needsReviewDocs.length === 0 ? (
+              <div className="rounded-2xl border border-gray-200 bg-white p-10 text-center">
+                <Check className="mx-auto h-8 w-8 text-gold-500" />
+                <p className="mt-3 text-base font-semibold text-gray-900">All reviewed.</p>
+                <p className="mt-1 text-sm text-gray-500">Every auto-filed document here has been confirmed.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <p className="text-sm text-gray-500">
+                  These were filed automatically. A glance is all they need — confirm, or move them.
+                </p>
+                {needsReviewDocs.map((doc) => {
+                  const fileName = doc.file_name || doc.title;
+                  const busy = reviewBusy === fileName;
+                  return (
+                    <div key={doc.id} className="flex flex-col gap-3 rounded-2xl border border-amber-200 bg-amber-50/40 p-4 sm:flex-row sm:items-center">
+                      <div className="min-w-0 flex-1">
+                        <a
+                          href={doc.file_url || '#'}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block truncate text-sm font-semibold text-gray-900 hover:text-gold-700"
+                        >
+                          {doc.title}
+                        </a>
+                        <p className="mt-0.5 text-xs text-gray-500">
+                          Filed by AI{typeof doc.mapping_confidence === 'number' ? ` · ${Math.round(doc.mapping_confidence * 100)}% sure` : ''}
+                        </p>
+                      </div>
+                      <div className="flex flex-shrink-0 items-center gap-2">
+                        <select
+                          defaultValue=""
+                          disabled={busy}
+                          onChange={(e) => { if (e.target.value) resolveReview(doc, e.target.value); }}
+                          className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-xs font-medium text-gray-600 outline-none focus:border-gold-400"
+                        >
+                          <option value="" disabled>Move to…</option>
+                          {Object.keys(DISCIPLINES).filter((d) => d !== discipline).map((d) => (
+                            <option key={d} value={d}>{getDisciplineDisplayName(d)}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => resolveReview(doc)}
+                          disabled={busy}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-gold-500 px-3.5 py-2 text-xs font-semibold text-white transition-all hover:bg-gold-600 disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" /> Looks right
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         ) : viewMode === 'folders' && !selectedHouseType && !selectedFolder ? (
           <div className="space-y-6">

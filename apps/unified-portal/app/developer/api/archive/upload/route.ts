@@ -6,6 +6,10 @@ import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { documents } from '@openhouse/db/schema';
+import { classifyDocumentWithAI } from '@/lib/ai-classify';
+
+// Below this confidence an auto-filed document is queued for a human glance.
+const NEEDS_REVIEW_THRESHOLD = 0.7;
 
 const DEVELOPMENT_TO_SUPABASE_PROJECT: Record<string, string> = {
   '34316432-f1e8-4297-b993-d9b5c88ee2d8': '57dc3919-2725-4575-8046-9179075ac88e',
@@ -164,7 +168,28 @@ export async function POST(request: NextRequest) {
           .getPublicUrl(storagePath);
 
         const fileUrl = publicUrlData?.publicUrl || null;
-        const discipline = metadata.discipline || inferDiscipline(file.name);
+
+        // Auto-file: no discipline chosen -> classify (fail-soft: keyword
+        // fast-path, AI when available, keyword fallback on any error).
+        let discipline = metadata.discipline || null;
+        let mappingConfidence = 1.0;
+        let autoMapped = false;
+        let aiClassified = false;
+        let aiHouseTypeCode: string | null = null;
+        if (!discipline) {
+          try {
+            const classification = await classifyDocumentWithAI(file.name);
+            discipline = classification.discipline;
+            mappingConfidence = classification.confidence;
+            aiHouseTypeCode = classification.houseTypeCodes[0] || null;
+            aiClassified = true;
+          } catch {
+            discipline = inferDiscipline(file.name);
+            mappingConfidence = 0.5;
+          }
+          autoMapped = true;
+        }
+        const needsReview = autoMapped && mappingConfidence < NEEDS_REVIEW_THRESHOLD;
 
         // Phase 2: Write to local PostgreSQL database
         try {
@@ -172,6 +197,7 @@ export async function POST(request: NextRequest) {
             tenant_id: tenantId,
             development_id: developmentId,
             house_type_id: metadata.houseTypeId || null,
+            house_type_code: metadata.houseTypeId ? null : aiHouseTypeCode,
             document_type: 'archive',
             discipline,
             title: file.name.replace(/\.[^.]+$/, ''),
@@ -189,6 +215,11 @@ export async function POST(request: NextRequest) {
             is_important: metadata.isImportant || false,
             must_read: metadata.mustRead || false,
             upload_status: 'pending',
+            ai_classified: aiClassified,
+            ai_classified_at: aiClassified ? new Date() : null,
+            auto_mapped: autoMapped,
+            mapping_confidence: mappingConfidence,
+            needs_review: needsReview,
           }).returning();
 
           result.documentId = newDoc.id;
@@ -215,7 +246,12 @@ export async function POST(request: NextRequest) {
                 doc_kind: 'specification',
                 is_important: metadata.isImportant || false,
                 must_read: metadata.mustRead || false,
-                house_type_code: null,
+                house_type_code: aiHouseTypeCode,
+                ai_classified: aiClassified,
+                auto_mapped: autoMapped,
+                mapping_confidence: mappingConfidence,
+                needs_review: needsReview,
+                document_id: result.documentId,
               },
             });
 

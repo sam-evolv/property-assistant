@@ -20,6 +20,7 @@ export interface DisciplineSummary {
   discipline: DisciplineType;
   displayName: string;
   fileCount: number;
+  needsReviewCount?: number;
   lastUpdated: string | null;
 }
 
@@ -47,6 +48,8 @@ export interface ArchiveDocument {
   is_important: boolean;
   must_read?: boolean;
   ai_classified?: boolean;
+  needs_review?: boolean;
+  mapping_confidence?: number | null;
   folder_id?: string | null;
   mime_type: string | null;
   size_kb: number | null;

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, lazy, Suspense } from 'react';
-import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, Video, AlertTriangle, CheckCircle, Upload } from 'lucide-react';
+import { FolderArchive, Plus, RefreshCw, Search, BarChart3, Sparkles, Loader2, Database, Zap, Star, Video, AlertTriangle, CheckCircle, Upload, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { DisciplineGrid, UploadModal, DevelopmentSelector, SchemeSelectionModal } from '@/components/archive';
 import { InsightsTab } from '@/components/archive/InsightsTab';
@@ -385,6 +385,10 @@ export default function SmartArchivePage() {
   };
 
   const totalDocuments = disciplines.reduce((sum, d) => sum + d.fileCount, 0);
+  const needsReviewTotal = disciplines.reduce((sum, d) => sum + (d.needsReviewCount || 0), 0);
+  const topReviewDiscipline = disciplines
+    .filter(d => (d.needsReviewCount || 0) > 0)
+    .sort((a, b) => (b.needsReviewCount || 0) - (a.needsReviewCount || 0))[0];
   const showClassifyBanner = unclassifiedCount > 0;
   const showEmbeddingBanner = embeddingStats && embeddingStats.withoutEmbeddings > 0;
   const hasDocuments = totalDocuments > 0;
@@ -524,6 +528,34 @@ export default function SmartArchivePage() {
               </p>
             </div>
           </div>
+        </div>
+      )}
+
+      {needsReviewTotal > 0 && topReviewDiscipline && (
+        <div className="max-w-7xl mx-auto px-6 pt-6">
+          <Link
+            href={`/developer/archive/${topReviewDiscipline.discipline}?review=1`}
+            className="block rounded-xl border border-amber-200 bg-amber-50 p-4 transition-all hover:border-amber-300"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center flex-shrink-0">
+                  <Sparkles className="w-5 h-5 text-amber-600" />
+                </div>
+                <div>
+                  <p className="text-gray-900 font-medium">
+                    {needsReviewTotal} document{needsReviewTotal !== 1 ? 's' : ''} filed automatically need a quick look
+                  </p>
+                  <p className="text-gray-500 text-sm">
+                    Confirm the filing or move them — five seconds each.
+                  </p>
+                </div>
+              </div>
+              <span className="hidden sm:flex items-center gap-1 text-sm font-semibold text-amber-700">
+                Review <ChevronRight className="w-4 h-4" />
+              </span>
+            </div>
+          </Link>
         </div>
       )}
 

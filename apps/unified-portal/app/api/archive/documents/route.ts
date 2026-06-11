@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { fileName, isImportant, mustRead, schemeId } = body;
+    const { fileName, isImportant, mustRead, discipline, needsReview, schemeId } = body;
 
     if (!fileName) {
       return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
@@ -28,6 +28,8 @@ export async function PATCH(request: NextRequest) {
       fileName,
       isImportant,
       mustRead,
+      discipline,
+      needsReview,
       schemeId,
     });
 
@@ -61,6 +63,12 @@ export async function PATCH(request: NextRequest) {
         const updates: Record<string, any> = { updated_at: new Date() };
         if (isImportant !== undefined) updates.is_important = isImportant;
         if (mustRead !== undefined) updates.must_read = mustRead;
+        if (discipline !== undefined) updates.discipline = discipline;
+        if (needsReview !== undefined) {
+          updates.needs_review = needsReview;
+          // A human confirming (or correcting) the filing ends the auto-mapped state
+          if (needsReview === false) updates.auto_mapped = false;
+        }
 
         await db.update(documents)
           .set(updates)

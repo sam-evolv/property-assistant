@@ -21,6 +21,8 @@ export interface ArchiveDocument {
   is_important: boolean;
   must_read: boolean;
   ai_classified: boolean;
+  needs_review: boolean;
+  mapping_confidence: number | null;
   folder_id: string | null;
   mime_type: string;
   size_kb: number | null;
@@ -84,6 +86,8 @@ function createArchiveDocument(section: any, projectId: string): ArchiveDocument
     is_important: section.metadata?.is_important === true,
     must_read: section.metadata?.must_read === true,
     ai_classified: section.metadata?.ai_classified === true,
+    needs_review: section.metadata?.needs_review === true,
+    mapping_confidence: typeof section.metadata?.mapping_confidence === 'number' ? section.metadata.mapping_confidence : null,
     folder_id: section.metadata?.folder_id || null,
     mime_type: 'application/pdf',
     size_kb: null,
@@ -306,11 +310,15 @@ export async function updateDocumentFlags({
   fileName,
   isImportant,
   mustRead,
+  discipline,
+  needsReview,
   schemeId,
 }: {
   fileName: string;
   isImportant?: boolean;
   mustRead?: boolean;
+  discipline?: string;
+  needsReview?: boolean;
   schemeId?: string;
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
@@ -346,6 +354,10 @@ export async function updateDocumentFlags({
         ...section.metadata,
         is_important: isImportant !== undefined ? isImportant : section.metadata?.is_important,
         must_read: mustRead !== undefined ? mustRead : section.metadata?.must_read,
+        ...(discipline !== undefined ? { discipline } : {}),
+        ...(needsReview !== undefined
+          ? { needs_review: needsReview, ...(needsReview === false ? { auto_mapped: false } : {}) }
+          : {}),
       };
 
       const { error: updateError } = await supabase

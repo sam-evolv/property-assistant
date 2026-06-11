@@ -17,6 +17,8 @@ interface ArchiveDocument {
   is_important: boolean;
   must_read: boolean;
   ai_classified: boolean;
+  needs_review: boolean;
+  mapping_confidence: number | null;
   folder_id: string | null;
   mime_type: string;
   size_kb: number | null;
@@ -28,6 +30,7 @@ interface DisciplineSummary {
   discipline: string;
   displayName: string;
   fileCount: number;
+  needsReviewCount: number;
   lastUpdated: string | null;
 }
 
@@ -168,6 +171,8 @@ function createArchiveDocument(section: any, projectId: string): ArchiveDocument
     is_important: section.metadata?.is_important === true,
     must_read: section.metadata?.must_read === true,
     ai_classified: section.metadata?.ai_classified === true,
+    needs_review: section.metadata?.needs_review === true,
+    mapping_confidence: typeof section.metadata?.mapping_confidence === 'number' ? section.metadata.mapping_confidence : null,
     folder_id: section.metadata?.folder_id || null,
     mime_type: 'application/pdf',
     size_kb: null,
@@ -316,25 +321,26 @@ async function fetchDisciplines(params: {
       return [];
     }
 
-    const documentMap = new Map<string, { source: string; discipline: string }>();
+    const documentMap = new Map<string, { source: string; discipline: string; needsReview: boolean }>();
     
     for (const section of sections || []) {
       const source = section.metadata?.source || section.metadata?.file_name || 'Unknown';
       if (!documentMap.has(source)) {
         const discipline = section.metadata?.discipline?.toLowerCase() || 'other';
-        documentMap.set(source, { source, discipline });
+        documentMap.set(source, { source, discipline, needsReview: section.metadata?.needs_review === true });
       }
     }
 
-    const disciplineMap = new Map<string, { count: number; lastUpdated: Date | null }>();
+    const disciplineMap = new Map<string, { count: number; needsReviewCount: number; lastUpdated: Date | null }>();
     Object.keys(DISCIPLINES).forEach(disc => {
-      disciplineMap.set(disc, { count: 0, lastUpdated: null });
+      disciplineMap.set(disc, { count: 0, needsReviewCount: 0, lastUpdated: null });
     });
     
     documentMap.forEach(doc => {
       const key = VALID_DISCIPLINES.includes(doc.discipline) ? doc.discipline : 'other';
-      const current = disciplineMap.get(key) || { count: 0, lastUpdated: null };
+      const current = disciplineMap.get(key) || { count: 0, needsReviewCount: 0, lastUpdated: null };
       current.count++;
+      if (doc.needsReview) current.needsReviewCount++;
       disciplineMap.set(key, current);
     });
     
@@ -345,6 +351,7 @@ async function fetchDisciplines(params: {
         discipline: key,
         displayName: DISCIPLINES[key]?.label || key,
         fileCount: value.count,
+        needsReviewCount: value.needsReviewCount,
         lastUpdated: value.lastUpdated?.toISOString() || null,
       });
     });
