@@ -1,9 +1,17 @@
 import { NextRequest } from 'next/server';
 import OpenAI from 'openai';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAdminContextFromSession, enforceTenantScope } from '@/lib/api-auth';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { FUNCTION_REGISTRY, getSchemeSummary } from '@/lib/scheme-intelligence/functions';
 import { routeQuery } from '@/lib/scheme-intelligence/router';
+import {
+  buildToolDefinitions,
+  executeDataTool,
+  searchDocuments,
+  actionsForTools,
+  SEARCH_DOCUMENTS_TOOL,
+} from '@/lib/scheme-intelligence/tools';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,6 +69,13 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseAdmin();
+
+    // Agentic loop is the default; SCHEME_INTELLIGENCE_CLASSIC=1 reverts to
+    // the classifier path. Comparison mode stays on the classic path (its
+    // side-by-side prompt assembly is purpose-built).
+    if (process.env.SCHEME_INTELLIGENCE_CLASSIC !== '1' && !compareWithDevelopmentId) {
+      return runAgenticChat({ supabase, tenantId, developmentId, message, history });
+    }
 
     // 1. Get scheme context (+ comparison scheme in parallel if requested)
     const contextPromises: Promise<any>[] = [
@@ -329,4 +344,198 @@ export async function POST(request: NextRequest) {
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
+}
+
+// ============================================================================
+// Agentic chat — the assistant decides which live data to pull and can chain
+// tool calls (Phase 6 of docs/NORTH_STAR.md). Streams the exact same NDJSON
+// frame protocol as the classic path, so the UI is unchanged.
+// ============================================================================
+
+const AGENTIC_SYSTEM_PROMPT = `You are the OpenHouse Intelligence assistant for OpenHouse AI — a B2B platform for Irish property developers.
+
+You help developers understand their scheme data, uploaded documents, unit specifications, and Irish building regulations.
+
+You have live tools over the developer's real data. Decide which tools you need — several if useful — call them, then answer from their results.
+
+RULES:
+- Be concise and professional. Developers are busy.
+- Never make up data. If the tools don't return it, say so clearly.
+- Format numbers with proper Irish conventions (€, %, commas).
+- Use markdown tables (| col | col |) for any multi-row comparisons or data breakdowns.
+- Use bullet points (- item) for lists.
+- Use ## for section headings.
+- Use **bold** for key figures, names, and important terms.
+- For regulatory/compliance answers, search the regulations and always recommend verification with the assigned certifier or solicitor.
+- Keep responses focused. Lead with the direct answer, then supporting detail.
+
+SCHEME CONTEXT:
+{{SCHEME_CONTEXT}}`;
+
+const MAX_TOOL_ROUNDS = 3;
+const TOOL_RESULT_CHAR_CAP = 6000;
+
+function runAgenticChat(params: {
+  supabase: SupabaseClient;
+  tenantId: string;
+  developmentId?: string;
+  message: string;
+  history?: Array<{ role: string; content: string }>;
+}): Response {
+  const { supabase, tenantId, developmentId, message, history } = params;
+  const encoder = new TextEncoder();
+
+  const readable = new ReadableStream({
+    async start(controller) {
+      const emit = (frame: Record<string, unknown>) => {
+        controller.enqueue(encoder.encode(JSON.stringify(frame) + '\n'));
+      };
+
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+        const schemeContext = await getSchemeSummary(supabase, tenantId, developmentId);
+
+        const messages: OpenAI.ChatCompletionMessageParam[] = [
+          {
+            role: 'system',
+            content: AGENTIC_SYSTEM_PROMPT.replace(
+              '{{SCHEME_CONTEXT}}',
+              schemeContext.summary || 'No scheme selected.',
+            ),
+          },
+        ];
+        if (history?.length) {
+          for (const msg of history.slice(-10)) {
+            messages.push({
+              role: msg.role === 'user' ? 'user' : 'assistant',
+              content: msg.content,
+            });
+          }
+        }
+        messages.push({ role: 'user', content: message });
+
+        const tools = buildToolDefinitions();
+        const sources: Array<{ title: string; type: string; excerpt: string }> = [];
+        const toolsUsed = new Set<string>();
+        let chartData: unknown = null;
+        let regulatoryUsed = false;
+        let finalContent = '';
+
+        for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
+          const completion = await openai.chat.completions.create({
+            model: 'gpt-4.1-mini',
+            messages,
+            temperature: 0.3,
+            max_tokens: 4000,
+            tools,
+            // The last round must answer, not keep digging.
+            tool_choice: round < MAX_TOOL_ROUNDS ? 'auto' : 'none',
+          });
+
+          const choice = completion.choices[0]?.message;
+          if (!choice) break;
+
+          const toolCalls = choice.tool_calls || [];
+          if (toolCalls.length === 0) {
+            finalContent = choice.content || '';
+            break;
+          }
+
+          messages.push(choice);
+
+          for (const call of toolCalls) {
+            if (call.type !== 'function') continue;
+            const name = call.function.name;
+            let resultText = 'Tool unavailable.';
+
+            if (name === SEARCH_DOCUMENTS_TOOL) {
+              let args: { query?: string; scope?: string } = {};
+              try {
+                args = JSON.parse(call.function.arguments || '{}');
+              } catch {}
+              const scope = args.scope === 'regulations' ? 'regulations' : 'scheme';
+              if (scope === 'regulations') regulatoryUsed = true;
+              const search = await searchDocuments(supabase, openai, {
+                query: args.query || message,
+                scope,
+                tenantId,
+                developmentId,
+              });
+              sources.push(...search.sources);
+              resultText = search.text;
+            } else {
+              const result = await executeDataTool(supabase, tenantId, developmentId, name);
+              if (result) {
+                toolsUsed.add(name);
+                sources.push({ title: result.name, type: 'function', excerpt: result.summary });
+                if (result.chartData && !chartData) chartData = result.chartData;
+                resultText = `${result.summary}\nData: ${JSON.stringify(result.data)}`;
+              }
+            }
+
+            messages.push({
+              role: 'tool',
+              tool_call_id: call.id,
+              content: resultText.slice(0, TOOL_RESULT_CHAR_CAP),
+            });
+          }
+        }
+
+        if (!finalContent) {
+          finalContent = 'I could not put an answer together from the data this time — try rephrasing the question.';
+        }
+
+        // Stream the answer out in small slices (same frame shape as classic).
+        const pieces = finalContent.match(/(\S+\s*){1,4}/g) || [finalContent];
+        for (const piece of pieces) {
+          emit({ type: 'token', content: piece });
+        }
+
+        if (sources.length > 0) emit({ type: 'sources', sources });
+        if (chartData) emit({ type: 'chart', chartData });
+        const actions = actionsForTools(toolsUsed, developmentId, regulatoryUsed);
+        if (actions.length > 0) emit({ type: 'actions', actions });
+        if (regulatoryUsed) emit({ type: 'regulatory_disclaimer', show: true });
+
+        try {
+          const followUpCompletion = await openai.chat.completions.create({
+            model: 'gpt-4.1-mini',
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are helping a property developer. Based on this conversation, suggest 2-3 short follow-up questions they might ask next. Return ONLY a JSON array of strings, no explanation. Max 10 words per question.',
+              },
+              { role: 'user', content: `User asked: ${message}\n\nAssistant replied: ${finalContent}` },
+            ],
+            temperature: 0.7,
+            max_tokens: 200,
+          });
+          const followUpText = followUpCompletion.choices[0]?.message?.content?.trim();
+          if (followUpText) {
+            const questions = JSON.parse(followUpText);
+            if (Array.isArray(questions) && questions.length > 0) {
+              emit({ type: 'followups', questions });
+            }
+          }
+        } catch {
+          // Skip follow-ups if generation fails
+        }
+
+        emit({ type: 'done' });
+        controller.close();
+      } catch (err) {
+        emit({ type: 'error', message: 'Stream failed' });
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(readable, {
+    headers: {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      Connection: 'keep-alive',
+    },
+  });
 }
