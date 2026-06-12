@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
+import { resolveAllowedProjectIds } from '@/lib/archive-documents';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,12 +23,31 @@ interface Project {
 
 export async function GET() {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
-    const { data: projects, error } = await supabaseAdmin
+
+    // SECURITY: non-super sessions only see their own tenant's projects
+    // (resolved via the tenant's developments, as in /api/archive/documents)
+    const isSuperAdmin = session.role === 'super_admin';
+    const allowedProjectIds = isSuperAdmin ? null : await resolveAllowedProjectIds(session.tenantId);
+
+    if (allowedProjectIds && allowedProjectIds.length === 0) {
+      return NextResponse.json({ projects: [] });
+    }
+
+    // tenant-scope: projects restricted to the session tenant's allowed project ids for non-super sessions
+    let projectsQuery = supabaseAdmin
       .from('projects')
       .select('id, name, address, image_url, organization_id, created_at')
       .order('name', { ascending: true });
+
+    if (allowedProjectIds) {
+      projectsQuery = allowedProjectIds.length === 1
+        ? projectsQuery.eq('id', allowedProjectIds[0])
+        : projectsQuery.in('id', allowedProjectIds);
+    }
+
+    const { data: projects, error } = await projectsQuery;
 
     if (error) {
       console.error('[API /projects] Supabase error:', error);
@@ -38,9 +58,18 @@ export async function GET() {
       return NextResponse.json({ projects: [] });
     }
 
-    const { data: unitCounts, error: countError } = await supabaseAdmin
+    // tenant-scope: unit counts restricted to the same allowed project ids for non-super sessions
+    let unitCountsQuery = supabaseAdmin
       .from('units')
-      .select('project_id')
+      .select('project_id');
+
+    if (allowedProjectIds) {
+      unitCountsQuery = allowedProjectIds.length === 1
+        ? unitCountsQuery.eq('project_id', allowedProjectIds[0])
+        : unitCountsQuery.in('project_id', allowedProjectIds);
+    }
+
+    const { data: unitCounts, error: countError } = await unitCountsQuery
       .then(({ data }) => {
         const counts: Record<string, number> = {};
         if (data) {

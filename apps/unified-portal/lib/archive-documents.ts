@@ -264,14 +264,59 @@ export async function fetchDocumentsByDiscipline({
   }
 }
 
+/**
+ * SECURITY: Resolves all Supabase project IDs a tenant may touch.
+ * Mirrors resolveAllProjectIds in /api/archive/disciplines: each of the
+ * tenant's developments is resolved via name-based projects lookup first,
+ * then the hardcoded mapping, then the development's own id.
+ */
+export async function resolveAllowedProjectIds(tenantId: string): Promise<string[]> {
+  if (!tenantId) return [];
+
+  const supabase = getSupabaseClient();
+  const projectIds = new Set<string>();
+
+  // tenant-scope: developments filtered by tenant_id; resulting project ids gate all document_sections access
+  const { data: tenantDevs } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('tenant_id', tenantId);
+
+  if (tenantDevs) {
+    for (const dev of tenantDevs) {
+      // Try name-based lookup first
+      if (dev.name) {
+        const { data: project } = await supabase
+          .from('projects')
+          .select('id')
+          .eq('name', dev.name)
+          .maybeSingle();
+        if (project?.id) {
+          projectIds.add(project.id);
+          continue;
+        }
+      }
+      // Fall back to hardcoded mapping / own id
+      projectIds.add(getSupabaseProjectId(dev.id));
+    }
+  }
+
+  return Array.from(projectIds);
+}
+
 export async function deleteDocument({
   documentId,
   fileName,
   schemeId,
+  allowedProjectIds,
 }: {
   documentId?: string;
   fileName?: string;
   schemeId?: string;
+  // SECURITY: mandatory project scoping — callers must resolve the session
+  // tenant's project ids (resolveAllowedProjectIds) so deletes can never
+  // touch another tenant's document_sections.
+  allowedProjectIds: string[];
 }): Promise<{ success: boolean; deletedCount: number; error?: string }> {
   try {
     const supabase = getSupabaseClient();
@@ -280,12 +325,28 @@ export async function deleteDocument({
       return { success: false, deletedCount: 0, error: 'Either documentId or fileName is required' };
     }
 
+    // SECURITY: fail closed when the tenant has no resolvable projects
+    if (!allowedProjectIds || allowedProjectIds.length === 0) {
+      return { success: false, deletedCount: 0, error: 'No accessible projects for this tenant' };
+    }
+
+    // SECURITY: a requested scheme outside the allowed set is rejected outright
+    if (schemeId && !allowedProjectIds.includes(schemeId)) {
+      return { success: false, deletedCount: 0, error: 'Scheme not accessible' };
+    }
+
     let query = supabase
       .from('document_sections')
       .delete();
-    
+
+    // tenant-scope: delete constrained to the caller's allowed project ids
     if (schemeId) {
       query = query.eq('project_id', schemeId);
+    } else if (allowedProjectIds.length === 1) {
+      // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
+      query = query.eq('project_id', allowedProjectIds[0]);
+    } else {
+      query = query.in('project_id', allowedProjectIds);
     }
 
     if (fileName) {
@@ -313,6 +374,7 @@ export async function updateDocumentFlags({
   discipline,
   needsReview,
   schemeId,
+  allowedProjectIds,
 }: {
   fileName: string;
   isImportant?: boolean;
@@ -320,18 +382,38 @@ export async function updateDocumentFlags({
   discipline?: string;
   needsReview?: boolean;
   schemeId?: string;
+  // SECURITY: mandatory project scoping — callers must resolve the session
+  // tenant's project ids (resolveAllowedProjectIds) so updates can never
+  // touch another tenant's document_sections.
+  allowedProjectIds: string[];
 }): Promise<{ success: boolean; updatedCount: number; error?: string }> {
   try {
     const supabase = getSupabaseClient();
 
+    // SECURITY: fail closed when the tenant has no resolvable projects
+    if (!allowedProjectIds || allowedProjectIds.length === 0) {
+      return { success: false, updatedCount: 0, error: 'No accessible projects for this tenant' };
+    }
+
+    // SECURITY: a requested scheme outside the allowed set is rejected outright
+    if (schemeId && !allowedProjectIds.includes(schemeId)) {
+      return { success: false, updatedCount: 0, error: 'Scheme not accessible' };
+    }
+
     let fetchQuery = supabase
       .from('document_sections')
       .select('id, metadata');
-    
+
+    // tenant-scope: select constrained to the caller's allowed project ids
     if (schemeId) {
       fetchQuery = fetchQuery.eq('project_id', schemeId);
+    } else if (allowedProjectIds.length === 1) {
+      // Use .eq() for single project (fixes Supabase .in() bug with single-element arrays)
+      fetchQuery = fetchQuery.eq('project_id', allowedProjectIds[0]);
+    } else {
+      fetchQuery = fetchQuery.in('project_id', allowedProjectIds);
     }
-    
+
     const { data: allSections, error: fetchError } = await fetchQuery;
 
     if (fetchError) {

@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole, type AdminSession } from '@/lib/supabase-server';
 
 function getSupabaseClient() {
   return createClient(
@@ -10,14 +11,43 @@ function getSupabaseClient() {
   );
 }
 
+// SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+async function assertDevelopmentOwnership(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  session: AdminSession,
+  developmentId: string
+): Promise<NextResponse | null> {
+  // tenant-scope: development fetched by id, then tenant_id compared against session tenant below
+  const { data: development, error } = await supabase
+    .from('developments')
+    .select('id, tenant_id')
+    .eq('id', developmentId)
+    .single();
+
+  if (error || !development) {
+    return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+  }
+
+  if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return null;
+}
+
 // GET /api/developments/:id/prehandover-config
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    // SECURITY: only developer pages consume this endpoint — require an admin session
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseClient();
     const { id } = params;
+
+    const ownershipError = await assertDevelopmentOwnership(supabase, session, id);
+    if (ownershipError) return ownershipError;
 
     const { data, error } = await supabase
       .from('developments')
@@ -54,6 +84,13 @@ export async function GET(
 
     return NextResponse.json(data?.prehandover_config || defaultConfig);
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -64,8 +101,13 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseClient();
     const { id } = params;
+
+    const ownershipError = await assertDevelopmentOwnership(supabase, session, id);
+    if (ownershipError) return ownershipError;
+
     const config = await request.json();
 
     const { error } = await supabase
@@ -79,6 +121,13 @@ export async function PUT(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

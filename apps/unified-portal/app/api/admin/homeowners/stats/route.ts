@@ -18,15 +18,23 @@ function getSupabaseAdmin() {
 export async function GET(request: NextRequest) {
   try {
     // Require admin authentication to access homeowner data
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
 
     const supabaseAdmin = getSupabaseAdmin();
-    
+
     // Fetch units from Supabase (where units data lives)
-    const { data: unitsData, error: unitsError } = await supabaseAdmin
+    // SECURITY: scope to the session tenant (super_admin sees all)
+    // tenant-scope: units filtered by session.tenantId for non-super sessions
+    let unitsQuery = supabaseAdmin
       .from('units')
       .select('*')
       .order('created_at', { ascending: false });
+
+    if (session.role !== 'super_admin') {
+      unitsQuery = unitsQuery.eq('tenant_id', session.tenantId);
+    }
+
+    const { data: unitsData, error: unitsError } = await unitsQuery;
     
     if (unitsError) {
       console.error('[Homeowners API] Units query error:', unitsError);

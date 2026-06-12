@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
+import { resolveAllowedProjectIds } from '@/lib/archive-documents';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,11 +21,22 @@ export async function GET(
   { params }: { params: { projectId: string } }
 ) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
     const { projectId } = params;
 
     if (!projectId) {
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+    }
+
+    // SECURITY: verify the project belongs to the session tenant via the
+    // project -> development -> tenant chain (super_admin exempt)
+    // tenant-scope: projectId checked against the tenant's resolved project ids
+    if (session.role !== 'super_admin') {
+      const allowedProjectIds = await resolveAllowedProjectIds(session.tenantId);
+      if (!allowedProjectIds.includes(projectId)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
     }
 
     // Query Supabase with service role - should bypass RLS
@@ -62,6 +75,13 @@ export async function GET(
       setupRequired,
     });
   } catch (err) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    if (errMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch project status' },
       { status: 500 }

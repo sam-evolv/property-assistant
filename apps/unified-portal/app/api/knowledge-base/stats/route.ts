@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,10 @@ function getSupabaseClient() {
 
 export async function GET(request: NextRequest) {
   try {
+    // SECURITY: these are platform-wide aggregates ('sections' has no tenant
+    // column path, messages count is global) — restrict to super_admin.
+    await requireRole(['super_admin']);
+
     const supabase = getSupabaseClient();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -53,6 +58,13 @@ export async function GET(request: NextRequest) {
       knowledge_coverage: knowledgeCoverage,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({
       total_documents: 0,
       total_chunks: 0,

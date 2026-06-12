@@ -61,6 +61,13 @@ export async function GET(
       return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
     }
 
+    // SECURITY: enforce tenant ownership of the unit (super_admin exempt).
+    // Return 404 rather than 403 to avoid confirming the unit exists in another tenant.
+    // tenant-scope: unit fetched by id, tenant_id compared against session tenant
+    if (adminContext.role !== 'super_admin' && unitRow.tenant_id !== adminContext.tenantId) {
+      return NextResponse.json({ error: 'Homeowner not found' }, { status: 404 });
+    }
+
     // Fetch project details separately
     let project = null;
     if (unitRow.project_id) {

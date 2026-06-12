@@ -15,7 +15,7 @@ function getSupabaseAdmin() {
 export async function POST(req: NextRequest) {
   try {
     // Require admin authentication to mark handover
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
 
     const body = await req.json();
     const { unitId } = body;
@@ -30,6 +30,23 @@ export async function POST(req: NextRequest) {
     console.log('[Mark Handover] Marking unit as handed over:', unitId);
 
     const supabase = getSupabaseAdmin();
+
+    // SECURITY: verify the unit belongs to the session tenant before updating (super_admin exempt)
+    // tenant-scope: unit fetched by id, tenant_id compared against session tenant
+    const { data: unit, error: unitFetchError } = await supabase
+      .from('units')
+      .select('id, tenant_id')
+      .eq('id', unitId)
+      .single();
+
+    if (unitFetchError || !unit) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && unit.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const now = new Date().toISOString();
 
     const { error: unitError } = await supabase

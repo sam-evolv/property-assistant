@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabaseClient() {
   return createClient(
@@ -12,13 +13,31 @@ function getSupabaseClient() {
 
 // GET /api/developments/:id/units
 // Returns all units for a development with handover status
+// SECURITY: developer-only consumer (UnitHandoverStatus) — purchaser flows use token routes
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseClient();
     const { id } = params;
+
+    // SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+    // tenant-scope: development fetched by id, tenant_id compared against session tenant
+    const { data: development, error: devError } = await supabase
+      .from('developments')
+      .select('id, tenant_id')
+      .eq('id', id)
+      .single();
+
+    if (devError || !development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Fetch units for this development
     const { data: units, error } = await supabase
@@ -62,6 +81,13 @@ export async function GET(
 
     return NextResponse.json({ units: mappedUnits });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,10 +1,13 @@
 export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin } from '@/lib/supabase-server';
+import { getSupabaseAdmin, requireRole } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
   try {
+    // SECURITY: Super admin only — cross-tenant development creation by design
+    await requireRole(['super_admin']);
+
     const body = await request.json();
     
     const {
@@ -100,6 +103,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ development }, { status: 201 });
   } catch (err: unknown) {
     const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    if (errMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: errMessage || 'Internal server error' }, { status: 500 });
   }
 }

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 import { getSupabaseAdmin } from '@/lib/supabase-server';
 import { getResendClient } from '@/lib/resend';
 import { enforceTrustFloor } from '@/lib/agent-intelligence/autonomy';
+import { authorizeDraftMutation } from '@/lib/agent-intelligence/draft-auth';
+import { resolveSessionWorkspace } from '@/lib/agent-intelligence/workspace-resolution';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -24,6 +28,19 @@ export async function POST(request: NextRequest) {
 
     const supabase = getSupabaseAdmin();
 
+    // Auth guard — same pattern as the sibling draft mutation routes
+    // (send-draft, drafts/[id]): cookie-authenticated user required, then
+    // each pending_drafts row is authorised before it is mutated.
+    const cookieStore = cookies();
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Authentication required' }, { status: 401 });
+    }
+
+    // Workspace scope, as in send-draft: cross-workspace undos 404 by design.
+    const workspaceSession = await resolveSessionWorkspace(supabase, user.id, null);
+
     const { data: entries, error } = await supabase
       .from('recent_actions')
       .select('id, target_id, reversal_payload, status, action_type')
@@ -42,6 +59,24 @@ export async function POST(request: NextRequest) {
     for (const entry of entries) {
       const payload = entry.reversal_payload as any;
       if (payload?.op !== 'restore_draft') continue;
+
+      // Authorise against the actual draft row before mutating anything.
+      // tenant-scope: authorizeDraftMutation enforces draft.user_id === user.id
+      // and draft.tenant_id === the user's agent_profiles.tenant_id
+      const { data: draft } = await supabase
+        .from('pending_drafts')
+        .select('id, user_id, tenant_id, workspace_id')
+        .eq('id', payload.draftId)
+        .maybeSingle();
+
+      if (!draft) continue; // nothing to restore — skip without touching history
+
+      const authResult = await authorizeDraftMutation(supabase, user, draft);
+      if (!authResult.ok) return authResult.response;
+
+      if (!workspaceSession || draft.workspace_id !== workspaceSession.workspaceId) {
+        return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+      }
 
       // Best-effort provider cancellation. Resend only cancels scheduled
       // emails that haven't left yet; immediate sends cannot be recalled.

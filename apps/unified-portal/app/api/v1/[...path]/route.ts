@@ -49,6 +49,10 @@ async function listDevelopments(ctx: ApiKeyContext): Promise<NextResponse> {
 
   if (ctx.allowed_developments?.length) {
     query = query.in('id', ctx.allowed_developments);
+  } else if (!ctx.scopes.includes('admin')) {
+    // SECURITY (fail closed): no development allowlist and no all-access
+    // marker ('admin' scope) — the key may not list any developments.
+    return NextResponse.json({ developments: [] });
   }
 
   const { data, error } = await query;
@@ -202,6 +206,24 @@ async function listWebhooks(ctx: ApiKeyContext): Promise<NextResponse> {
 
 // --- Route Handlers ---
 
+/**
+ * SECURITY: verify a development referenced in the path belongs to the API
+ * key's tenant. hasDevelopmentAccess checks the key's allowlist, but the
+ * allowlist itself must never grant a foreign tenant's development, and
+ * all-access ('admin' scope) keys are all-access only WITHIN their tenant.
+ * Verified once where the developmentId is resolved, before dispatch.
+ */
+async function verifyDevelopmentTenant(ctx: ApiKeyContext, developmentId: string): Promise<boolean> {
+  const supabase = getSupabaseAdmin();
+  // tenant-scope: development fetched by id, tenant_id compared against the API key's tenant
+  const { data } = await supabase
+    .from('developments')
+    .select('id, tenant_id')
+    .eq('id', developmentId)
+    .single();
+  return !!data && data.tenant_id === ctx.tenant_id;
+}
+
 export async function GET(request: NextRequest, { params }: { params: { path: string[] } }) {
   return withApiAuth(request, async (ctx) => {
     if (!hasScope(ctx, 'read')) {
@@ -214,6 +236,11 @@ export async function GET(request: NextRequest, { params }: { params: { path: st
     switch (resource) {
       case 'developments':
         if (!id) return listDevelopments(ctx);
+        // SECURITY: enforce development.tenant_id === key.tenant_id once,
+        // before dispatching to any sub-handler
+        if (!(await verifyDevelopmentTenant(ctx, id))) {
+          return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+        }
         if (!subResource) return getDevelopment(ctx, id);
         if (subResource === 'units' && !subId) return listUnits(ctx, id);
         if (subResource === 'units' && subId) return getUnit(ctx, id, subId);
@@ -246,6 +273,11 @@ export async function PATCH(request: NextRequest, { params }: { params: { path: 
 
     if (!hasDevelopmentAccess(ctx, id)) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    // SECURITY: enforce development.tenant_id === key.tenant_id before any write
+    if (!(await verifyDevelopmentTenant(ctx, id))) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
     const body = await request.json();

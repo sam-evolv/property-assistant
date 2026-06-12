@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { db } from '@openhouse/db';
 import { messages, homeowners, admins } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,9 @@ function getSupabaseAdmin() {
 
 export async function GET(request: Request) {
   try {
+    // SECURITY: platform-wide cross-tenant aggregates — super admin only
+    await requireRole(['super_admin']);
+
     const supabaseAdmin = getSupabaseAdmin();
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get('projectId');
@@ -109,6 +113,13 @@ export async function GET(request: Request) {
       active_homeowners_7d: activeUsers,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to fetch overview' }, { status: 500 });
   }
 }

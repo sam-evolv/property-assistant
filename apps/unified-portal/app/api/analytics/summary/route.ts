@@ -33,6 +33,7 @@ import { z } from 'zod';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
 import { logSecurityViolation } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -98,8 +99,11 @@ export async function GET(request: Request) {
   const errors: CanonicalMetricError[] = [];
 
   try {
+    // SECURITY: authenticated admin sessions only
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+
     const { searchParams } = new URL(request.url);
-    
+
     const parseResult = summaryQuerySchema.safeParse({
       scope: searchParams.get('scope') || 'superadmin',
       project_id: searchParams.get('project_id') || undefined,
@@ -117,7 +121,16 @@ export async function GET(request: Request) {
       );
     }
 
-    const { scope, project_id, developer_id, time_window } = parseResult.data;
+    let { scope, developer_id } = parseResult.data;
+    const { project_id, time_window } = parseResult.data;
+
+    // SECURITY: non-super sessions are forced to developer scope on their own tenant,
+    // regardless of what the client requested. super_admin keeps the requested params.
+    if (session.role !== 'super_admin') {
+      scope = 'developer';
+      developer_id = session.tenantId;
+    }
+
     const days = daysFromWindow(time_window);
 
     // SECURITY: Fail-closed - developer scope MUST have developer_id to prevent cross-tenant leakage
@@ -356,13 +369,25 @@ export async function GET(request: Request) {
         // Filter by development_id if provided, or by tenant through developments join
         let fallbackResult;
         if (project_id) {
-          fallbackResult = await db.execute(sql`
-            SELECT COUNT(DISTINCT unit_id)::int as count
-            FROM purchaser_agreements
-            WHERE unit_id IS NOT NULL
-              AND agreed_at > ${windowStart.toISOString()}::timestamp
-              AND development_id = ${project_id}::uuid
-          `);
+          // SECURITY: when a tenant filter is in force (non-super sessions), apply it
+          // alongside the project filter so a foreign project_id cannot leak data
+          fallbackResult = developer_id
+            ? await db.execute(sql`
+                SELECT COUNT(DISTINCT pa.unit_id)::int as count
+                FROM purchaser_agreements pa
+                INNER JOIN developments d ON pa.development_id = d.id
+                WHERE pa.unit_id IS NOT NULL
+                  AND pa.agreed_at > ${windowStart.toISOString()}::timestamp
+                  AND pa.development_id = ${project_id}::uuid
+                  AND d.tenant_id = ${developer_id}::uuid
+              `)
+            : await db.execute(sql`
+                SELECT COUNT(DISTINCT unit_id)::int as count
+                FROM purchaser_agreements
+                WHERE unit_id IS NOT NULL
+                  AND agreed_at > ${windowStart.toISOString()}::timestamp
+                  AND development_id = ${project_id}::uuid
+              `);
         } else if (developer_id) {
           // Filter by tenant through developments table
           fallbackResult = await db.execute(sql`
@@ -405,6 +430,10 @@ export async function GET(request: Request) {
 
             if (project_id) {
               unitQuery = unitQuery.eq('project_id', project_id);
+              // SECURITY: keep the tenant filter alongside the project filter when in force
+              if (developer_id) {
+                unitQuery = unitQuery.eq('tenant_id', developer_id);
+              }
             } else if (developer_id) {
               // SECURITY: Filter by tenant_id when no specific project is selected
               unitQuery = unitQuery.eq('tenant_id', developer_id);
@@ -458,6 +487,19 @@ export async function GET(request: Request) {
       { headers: getResponseHeaders(requestId) }
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json(
+        createStructuredError('Authentication required', requestId, { error_code: 'UNAUTHORIZED' }),
+        { status: 401, headers: getResponseHeaders(requestId) }
+      );
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json(
+        createStructuredError('Access denied', requestId, { error_code: 'FORBIDDEN' }),
+        { status: 403, headers: getResponseHeaders(requestId) }
+      );
+    }
     logCritical('ANALYTICS SUMMARY', 'Failed to compute analytics summary', requestId, {
       error: error instanceof Error ? error.message : 'Unknown error',
     });

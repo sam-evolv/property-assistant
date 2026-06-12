@@ -5,7 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole } from '@/lib/supabase-server';
 import {
   deleteDocument,
-  updateDocumentFlags
+  updateDocumentFlags,
+  resolveAllowedProjectIds
 } from '@/lib/archive-documents';
 
 export async function PATCH(request: NextRequest) {
@@ -24,6 +25,9 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
     }
 
+    // SECURITY: resolve the session tenant's project ids — mandatory scoping for the lib call
+    const allowedProjectIds = await resolveAllowedProjectIds(tenantId);
+
     const result = await updateDocumentFlags({
       fileName,
       isImportant,
@@ -31,6 +35,7 @@ export async function PATCH(request: NextRequest) {
       discipline,
       needsReview,
       schemeId,
+      allowedProjectIds,
     });
 
     if (!result.success) {
@@ -110,9 +115,13 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'fileName is required' }, { status: 400 });
     }
 
+    // SECURITY: resolve the session tenant's project ids — mandatory scoping for the lib call
+    const allowedProjectIds = await resolveAllowedProjectIds(tenantId);
+
     const result = await deleteDocument({
       fileName,
       schemeId,
+      allowedProjectIds,
     });
 
     if (!result.success) {

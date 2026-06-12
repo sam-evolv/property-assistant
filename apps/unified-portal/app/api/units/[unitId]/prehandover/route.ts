@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession, requireRole } from '@/lib/supabase-server';
+import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 function getSupabaseClient() {
   return createClient(
@@ -12,6 +14,9 @@ function getSupabaseClient() {
 
 // GET /api/units/:unitId/prehandover
 // Returns pre-handover portal data for a unit
+// SECURITY: consumed by the purchaser portal (/homes/[unitUid] via PreHandoverPortal) without
+// an admin session, and by developer surfaces with one. Accept EITHER a valid admin session
+// (with unit-ownership check) OR the purchaser token validation used by sibling purchaser routes.
 export async function GET(
   request: NextRequest,
   { params }: { params: { unitId: string } }
@@ -20,11 +25,28 @@ export async function GET(
     const supabase = getSupabaseClient();
     const { unitId } = params;
 
+    const session = await getServerSession();
+    const isAdminSession = !!session && ['developer', 'admin', 'super_admin'].includes(session.role);
+
+    if (!isAdminSession) {
+      // Purchaser path — same validation as sibling purchaser routes (e.g. /api/purchaser/videos):
+      // token bound to this unit, with unit-uid showhouse/continued-session fallback.
+      const { searchParams } = new URL(request.url);
+      const token = searchParams.get('token');
+      const tokenResult = await validatePurchaserToken(token || unitId, unitId);
+      if (!tokenResult.valid) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+    }
+
     // Fetch unit with development info
+    // tenant-scope: unit fetched by id; admin sessions are tenant-checked below,
+    // purchaser access is bound to this unit by validatePurchaserToken above
     const { data: unit, error: unitError } = await supabase
       .from('units')
       .select(`
         id,
+        tenant_id,
         unit_code,
         address,
         house_type,
@@ -47,6 +69,11 @@ export async function GET(
 
     if (unitError || !unit) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
+    }
+
+    // SECURITY: admin sessions may only read units in their own tenant (super_admin exempt)
+    if (isAdminSession && session && session.role !== 'super_admin' && unit.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     // Fetch documents for this unit
@@ -93,13 +120,32 @@ export async function GET(
 
 // PATCH /api/units/:unitId/prehandover
 // Update unit milestone or estimated dates
+// SECURITY: developer-only consumer (UnitHandoverStatus) — admin session + unit ownership required
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { unitId: string } }
 ) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseClient();
     const { unitId } = params;
+
+    // SECURITY: verify the unit belongs to the session tenant (super_admin exempt)
+    // tenant-scope: unit fetched by id, tenant_id compared against session tenant
+    const { data: unit, error: unitFetchError } = await supabase
+      .from('units')
+      .select('id, tenant_id')
+      .eq('id', unitId)
+      .single();
+
+    if (unitFetchError || !unit) {
+      return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && unit.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const updates = await request.json();
 
     const allowedFields = [
@@ -134,6 +180,13 @@ export async function PATCH(
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

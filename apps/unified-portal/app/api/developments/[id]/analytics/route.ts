@@ -26,7 +26,17 @@ export async function GET(
     const supabaseAdmin = getSupabaseAdmin();
     const developmentId = (await params).id;
     
-    const [dev] = await db.select({ name: developments.name }).from(developments).where(eq(developments.id, developmentId)).limit(1);
+    const [dev] = await db.select({ name: developments.name, tenant_id: developments.tenant_id }).from(developments).where(eq(developments.id, developmentId)).limit(1);
+
+    // SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+    // tenant-scope: development fetched by id, tenant_id compared against session tenant
+    if (!dev) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+    if (session.role !== 'super_admin' && dev.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     await logDataAccess({
       accessorId: session.id,
       accessorEmail: session.email,
@@ -89,6 +99,13 @@ export async function GET(
       chatCosts,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

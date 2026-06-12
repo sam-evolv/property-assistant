@@ -3,6 +3,7 @@ export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 interface ArchiveDocument {
   id: string;
@@ -371,10 +372,18 @@ async function fetchDisciplines(params: {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
-    const tenantId = searchParams.get('tenantId');
-    
+    const requestedTenantId = searchParams.get('tenantId');
+
+    // SECURITY: ignore the client-supplied tenantId — always use the session
+    // tenant. Only super_admin may query another tenant via the param.
+    const tenantId = session.role === 'super_admin'
+      ? (requestedTenantId || session.tenantId)
+      : session.tenantId;
+
     if (!tenantId) {
       return NextResponse.json(
         { error: 'tenantId is required' },
@@ -444,6 +453,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ disciplines });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch data' },
       { status: 500 }

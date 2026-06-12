@@ -25,6 +25,22 @@ export async function GET(
     const supabaseAdmin = getSupabaseAdmin();
     const session = await requireRole(['developer', 'super_admin']);
 
+    // SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+    // tenant-scope: development fetched by id, tenant_id compared against session tenant
+    const { data: development, error: devError } = await supabaseAdmin
+      .from('developments')
+      .select('id, tenant_id')
+      .eq('id', developmentId)
+      .single();
+
+    if (devError || !development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { data: units, error } = await supabaseAdmin
       .from('units')
       .select(
@@ -67,6 +83,13 @@ export async function GET(
 
     return NextResponse.json({ houses });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to fetch houses' }, { status: 500 });
   }
 }

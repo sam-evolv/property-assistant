@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -108,15 +109,24 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const developmentId = searchParams.get('developmentId');
-    const tenantId = searchParams.get('tenantId');
+    const requestedTenantId = searchParams.get('tenantId');
     const limit = parseInt(searchParams.get('limit') || '50');
+
+    // SECURITY: ignore the client-supplied tenantId — always scope to the session
+    // tenant. Only super_admin may query another tenant via the param.
+    const tenantId = session.role === 'super_admin'
+      ? (requestedTenantId || null)
+      : session.tenantId;
 
     const supabase = getSupabaseAdmin();
 
     // Build query
+    // tenant-scope: scoped to session.tenantId for non-super sessions above
     let query = supabase
       .from('information_requests')
       .select('*')
@@ -150,6 +160,13 @@ export async function GET(request: NextRequest) {
       total: requests?.length || 0,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch requests' },
       { status: 500 }

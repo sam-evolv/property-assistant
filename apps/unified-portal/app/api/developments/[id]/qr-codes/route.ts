@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import jsPDF from 'jspdf';
 import QRCode from 'qrcode';
+import { requireRole } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,18 +13,36 @@ function getSupabaseClient() {
   );
 }
 
-const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
 const BASE_URL = 'https://84141d02-f316-41eb-8d70-a45b1b91c63c-00-140og66wspdkl.riker.replit.dev';
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabase = getSupabaseClient();
+    const { id } = params;
 
-    // Simple query without join
+    // SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+    // tenant-scope: development fetched by id, tenant_id compared against session tenant
+    const { data: development, error: devError } = await supabase
+      .from('developments')
+      .select('id, tenant_id')
+      .eq('id', id)
+      .single();
+
+    if (devError || !development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // Query units for the verified development (previously a hardcoded project id,
+    // which leaked another tenant's units regardless of the [id] requested)
     const { data: units, error } = await supabase
       .from('units')
       .select('id, address, purchaser_name, unit_type_id')
-      .eq('project_id', REAL_PROJECT_ID)
+      .eq('project_id', id)
       .order('address', { ascending: true });
 
     if (error) {
@@ -154,6 +173,12 @@ export async function POST(req: Request, { params }: { params: { id: string } })
 
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

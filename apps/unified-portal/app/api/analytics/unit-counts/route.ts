@@ -36,9 +36,15 @@ export async function GET(request: NextRequest) {
     const developmentId = searchParams.get('developmentId');
 
     // Build query exactly like the Homeowners page does
+    // SECURITY: scope to the session tenant (super_admin sees all)
+    // tenant-scope: units filtered by adminContext.tenantId for non-super sessions
     let query = supabaseAdmin
       .from('units')
       .select('id, project_id, created_at, purchaser_email', { count: 'exact' });
+
+    if (adminContext.role !== 'super_admin') {
+      query = query.eq('tenant_id', adminContext.tenantId);
+    }
 
     // Filter by development/project if specified
     if (developmentId && developmentId !== 'all') {

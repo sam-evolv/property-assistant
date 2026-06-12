@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import QRCode from 'qrcode';
 import { createClient } from '@supabase/supabase-js';
 import JSZip from 'jszip';
+import { requireRole } from '@/lib/supabase-server';
 
 function getBaseUrl(): string {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
@@ -26,12 +27,31 @@ function getSupabaseAdmin() {
 
 export async function GET(request: NextRequest) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const BASE_URL = getBaseUrl();
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');
     const format = searchParams.get('format') || 'png';
 
     const supabase = getSupabaseAdmin();
+
+    if (developmentId && developmentId !== 'all') {
+      // SECURITY: verify the requested development belongs to the session tenant (super_admin exempt)
+      // tenant-scope: development fetched by id, tenant_id compared against session tenant
+      const { data: development, error: devError } = await supabase
+        .from('developments')
+        .select('id, tenant_id')
+        .eq('id', developmentId)
+        .single();
+
+      if (devError || !development) {
+        return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      }
+
+      if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+    }
 
     // Fetch units - optionally filter by development
     let query = supabase
@@ -41,6 +61,9 @@ export async function GET(request: NextRequest) {
 
     if (developmentId && developmentId !== 'all') {
       query = query.eq('project_id', developmentId);
+    } else if (session.role !== 'super_admin') {
+      // SECURITY: no development specified — scope to the session tenant (super_admin may stay cross-tenant)
+      query = query.eq('tenant_id', session.tenantId);
     }
 
     const { data: units, error } = await query;
@@ -113,6 +136,13 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to generate QR codes' },
       { status: 500 }

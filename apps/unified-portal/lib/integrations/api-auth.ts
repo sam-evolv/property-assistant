@@ -97,9 +97,17 @@ export function hasScope(ctx: ApiKeyContext, requiredScope: string): boolean {
 
 /**
  * Check if the API key context has access to a specific development.
+ *
+ * SECURITY (fail closed): a key with a null/empty allowed_developments list is
+ * DENIED unless it carries the explicit all-access marker. The api_keys table
+ * has no all_developments column, so the 'admin' scope (explicitly granted at
+ * key creation) is the all-access marker; 'read'/'write'-only keys must name
+ * the developments they may touch.
  */
 export function hasDevelopmentAccess(ctx: ApiKeyContext, developmentId: string): boolean {
-  if (!ctx.allowed_developments || ctx.allowed_developments.length === 0) return true;
+  if (!ctx.allowed_developments || ctx.allowed_developments.length === 0) {
+    return ctx.scopes.includes('admin');
+  }
   return ctx.allowed_developments.includes(developmentId);
 }
 

@@ -40,8 +40,25 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'developmentId is required' }, { status: 400 });
     }
 
-    const projectId = getSupabaseProjectId(developmentId);
     const supabase = getSupabaseClient();
+
+    // SECURITY: verify the requested development belongs to the session tenant before querying (super_admin exempt)
+    // tenant-scope: development fetched by id, tenant_id compared against session tenant
+    const { data: development, error: devError } = await supabase
+      .from('developments')
+      .select('id, tenant_id')
+      .eq('id', developmentId)
+      .single();
+
+    if (devError || !development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && development.tenant_id !== tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const projectId = getSupabaseProjectId(developmentId);
 
     const { data: sections, error: sectionsError } = await supabase
       .from('document_sections')
@@ -82,6 +99,13 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ documents: docs });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch documents' },
       { status: 500 }

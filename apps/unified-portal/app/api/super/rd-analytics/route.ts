@@ -15,7 +15,8 @@ function getSupabaseAdmin() {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireRole(['super_admin', 'admin']);
+    // SECURITY: platform-wide cross-tenant analytics — super admin only
+    await requireRole(['super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
 
     // Fetch question analytics if table exists
@@ -233,6 +234,13 @@ export async function GET(request: NextRequest) {
       hasData: totalQuestions > 0,
     });
   } catch (err) {
+    const errMessage = err instanceof Error ? err.message : 'Unknown error';
+    if (errMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });
   }
 }

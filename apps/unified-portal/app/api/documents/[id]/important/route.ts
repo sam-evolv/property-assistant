@@ -76,9 +76,25 @@ export async function PATCH(
 
       const fileName = existingDoc.file_name || existingDoc.original_file_name;
       if (fileName) {
-        const { data: sections } = await supabase
+        // SECURITY: scope the filename sync to the session tenant's allowed
+        // project ids — a same-named file in another tenant must not be touched
+        const { resolveAllowedProjectIds } = await import('@/lib/archive-documents');
+        const allowedProjectIds = await resolveAllowedProjectIds(tenantId);
+
+        if (allowedProjectIds.length === 0) {
+          // No resolvable projects for this tenant — skip the sync entirely
+          return NextResponse.json({ success: true });
+        }
+
+        // tenant-scope: document_sections constrained to the tenant's allowed project ids
+        let sectionsQuery = supabase
           .from('document_sections')
           .select('id, metadata');
+        sectionsQuery = allowedProjectIds.length === 1
+          ? sectionsQuery.eq('project_id', allowedProjectIds[0])
+          : sectionsQuery.in('project_id', allowedProjectIds);
+
+        const { data: sections } = await sectionsQuery;
 
         const matchingSections = (sections || []).filter(s => {
           const source = s.metadata?.source;
