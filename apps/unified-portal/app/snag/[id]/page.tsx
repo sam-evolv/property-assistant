@@ -107,7 +107,7 @@ export default async function SnagDetailPage({ params }: PageProps) {
     <div className="min-h-screen bg-neutral-50">
       <header className="px-4 py-3 bg-white border-b border-neutral-200 flex items-center gap-2">
         <Link
-          href="/snag"
+          href="/snag/houses"
           className="w-11 h-11 -ml-2 flex items-center justify-center rounded-lg text-neutral-700 hover:bg-neutral-100"
           aria-label="Back to snag form"
         >

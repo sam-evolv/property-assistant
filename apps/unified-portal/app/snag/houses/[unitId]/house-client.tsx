@@ -141,7 +141,7 @@ export function HouseClient({ unit }: { unit: HouseUnit }) {
     }
   };
 
-  const captureHref = `/snag?development_id=${unit.developmentId}&unit_id=${unit.id}`;
+  const captureHref = `/snag/new?development_id=${unit.developmentId}&unit_id=${unit.id}`;
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
@@ -158,6 +158,13 @@ export function HouseClient({ unit }: { unit: HouseUnit }) {
               </p>
             )}
           </div>
+          <Link
+            href={`/snag/houses/${unit.id}/statement`}
+            title="Statement of completion"
+            className="p-2 -mr-1 min-h-[44px] flex items-center text-neutral-400 active:text-neutral-900"
+          >
+            <FileCheck2 className="h-5 w-5" />
+          </Link>
         </div>
         <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
           {(['open', 'done'] as const).map((t) => (

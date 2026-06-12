@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, ChevronDown, Home, Plus, Loader2, ClipboardList } from 'lucide-react';
+import { ChevronRight, ChevronDown, Home, Plus, Loader2, ClipboardList, Search } from 'lucide-react';
 
 interface Development {
   id: string;
@@ -45,6 +45,7 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
   const [houses, setHouses] = useState<House[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
 
   // Load developments, restore last selection
   useEffect(() => {
@@ -86,6 +87,14 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
 
   const developmentName = developments.find((d) => d.id === developmentId)?.name || 'Development';
   const totalOpen = houses.reduce((sum, h) => sum + h.open_snags, 0);
+  const q = query.trim().toLowerCase();
+  const visibleHouses = q
+    ? houses.filter(
+        (h) =>
+          (h.label || '').toLowerCase().includes(q) ||
+          (h.address || '').toLowerCase().includes(q),
+      )
+    : houses;
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
@@ -125,7 +134,21 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
       </header>
 
       <main className="flex-1 px-4 py-4 pb-28 space-y-3">
-        {!loading && !error && houses.length > 0 && (
+        {!loading && !error && houses.length > 3 && (
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <input
+              type="search"
+              inputMode="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Find a house — number or address"
+              className="w-full rounded-lg border border-neutral-200 bg-white py-3 pl-10 pr-4 text-body-sm text-neutral-900 outline-none placeholder:text-neutral-400 focus:border-neutral-400 min-h-[48px]"
+            />
+          </div>
+        )}
+
+        {!loading && !error && houses.length > 0 && !q && (
           <p className="text-body-sm text-neutral-500">
             {totalOpen === 0
               ? 'Every snag is cleared. Spotless.'
@@ -154,8 +177,12 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
             <Home className="mx-auto h-8 w-8 text-neutral-300" />
             <p className="mt-3 text-body-sm text-neutral-600">No houses in this development yet.</p>
           </div>
+        ) : visibleHouses.length === 0 ? (
+          <div className="rounded-lg bg-white border border-neutral-200 p-8 text-center">
+            <p className="text-body-sm text-neutral-600">No house matches “{query.trim()}”.</p>
+          </div>
         ) : (
-          houses.map((house) => {
+          visibleHouses.map((house) => {
             const chip = handoverChip(house.days_to_handover, house.handover_date);
             return (
               <button
@@ -197,7 +224,7 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
       {/* Bottom actions */}
       <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-200 px-4 py-3 flex gap-3" style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}>
         <Link
-          href="/snag"
+          href="/snag/new"
           className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3.5 text-body-sm font-semibold text-white min-h-[48px] active:bg-neutral-800"
         >
           <Plus className="h-4 w-4" /> Log a snag
