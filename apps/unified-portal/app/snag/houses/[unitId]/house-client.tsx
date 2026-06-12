@@ -144,44 +144,47 @@ export function HouseClient({ unit }: { unit: HouseUnit }) {
   const captureHref = `/snag/new?development_id=${unit.developmentId}&unit_id=${unit.id}`;
 
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col">
-      <header className="px-4 py-3 bg-white border-b border-neutral-200 sticky top-0 z-10">
-        <div className="flex items-center gap-3">
-          <Link href="/snag/houses" className="p-2 -ml-2 min-h-[44px] flex items-center text-neutral-500 active:text-neutral-900">
-            <ArrowLeft className="h-5 w-5" />
-          </Link>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-heading-md text-neutral-900 truncate">{unit.label}</h1>
-            {unit.handoverDate && (
-              <p className="text-[11px] text-neutral-500">
-                Handover {new Date(unit.handoverDate).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })}
-              </p>
-            )}
-          </div>
-          <Link
-            href={`/snag/houses/${unit.id}/statement`}
-            title="Statement of completion"
-            className="p-2 -mr-1 min-h-[44px] flex items-center text-neutral-400 active:text-neutral-900"
-          >
-            <FileCheck2 className="h-5 w-5" />
-          </Link>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-1 rounded-lg bg-neutral-100 p-1">
-          {(['open', 'done'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`rounded-md py-2 text-body-sm font-semibold min-h-[40px] transition-colors ${
-                tab === t ? 'bg-white text-neutral-900 shadow-sm' : 'text-neutral-500'
-              }`}
+    <div className="min-h-screen bg-neutral-100 flex flex-col">
+      <header className="sticky top-0 z-20 border-b border-gold-500/15 text-white" style={{ backgroundColor: '#0b0b0d' }}>
+        <div className="mx-auto w-full max-w-3xl px-4 pb-3 pt-3">
+          <div className="flex items-center gap-3">
+            <Link href="/snag/houses" className="-ml-2 flex min-h-[44px] items-center p-2 text-white/50 active:text-white">
+              <ArrowLeft className="h-5 w-5" />
+            </Link>
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-gold-500">House</p>
+              <h1 className="truncate text-xl font-semibold tracking-tight">{unit.label}</h1>
+              {unit.handoverDate && (
+                <p className="text-[11px] text-white/40">
+                  Handover {new Date(unit.handoverDate).toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' })}
+                </p>
+              )}
+            </div>
+            <Link
+              href={`/snag/houses/${unit.id}/statement`}
+              title="Statement of completion"
+              className="-mr-1 flex min-h-[44px] items-center p-2 text-white/50 active:text-gold-400"
             >
-              {t === 'open' ? `Open · ${openRows.length}` : `Done · ${doneRows.length}`}
-            </button>
-          ))}
+              <FileCheck2 className="h-5 w-5" />
+            </Link>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl bg-white/10 p-1">
+            {(['open', 'done'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`min-h-[40px] rounded-lg py-2 text-body-sm font-semibold transition-colors ${
+                  tab === t ? 'bg-white text-neutral-900' : 'text-white/50'
+                }`}
+              >
+                {t === 'open' ? `Open · ${openRows.length}` : `Done · ${doneRows.length}`}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4 py-4 pb-28 space-y-3">
+      <main className="mx-auto w-full max-w-3xl flex-1 space-y-3 px-4 py-4 pb-28">
         {allClear && (
           <Link
             href={`/snag/houses/${unit.id}/statement`}
@@ -247,15 +250,18 @@ export function HouseClient({ unit }: { unit: HouseUnit }) {
 
       {/* Bottom action */}
       <nav
-        className="fixed bottom-0 inset-x-0 bg-white border-t border-neutral-200 px-4 py-3"
-        style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
+        className="fixed inset-x-0 bottom-0 border-t border-neutral-200 bg-white/95 backdrop-blur"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
-        <Link
-          href={captureHref}
-          className="flex items-center justify-center gap-2 rounded-lg bg-neutral-900 px-4 py-3.5 text-body-sm font-semibold text-white min-h-[48px] active:bg-neutral-800"
-        >
-          <Plus className="h-4 w-4" /> Snag this house
-        </Link>
+        <div className="mx-auto w-full max-w-3xl px-4 py-3">
+          <Link
+            href={captureHref}
+            className="flex min-h-[50px] items-center justify-center gap-2 rounded-xl text-[15px] font-semibold text-black shadow-lg shadow-gold-500/20 transition-all active:scale-[0.99]"
+            style={{ background: 'linear-gradient(135deg, #E5C158 0%, #D4AF37 55%, #B8934C 100%)' }}
+          >
+            <Plus className="h-5 w-5" /> Snag this house
+          </Link>
+        </div>
       </nav>
 
       {/* Mark-off sheet */}

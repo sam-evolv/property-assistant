@@ -325,26 +325,29 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
 
   return (
     <div className="min-h-screen bg-neutral-50 flex flex-col">
-      <header className="px-4 py-3 bg-white border-b border-neutral-200 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <h1 className="text-heading-md text-neutral-900">Log a snag</h1>
+      <header className="flex items-center justify-between gap-3 border-b border-gold-500/15 px-4 py-3 text-white" style={{ backgroundColor: '#0b0b0d' }}>
+        <div className="flex min-w-0 items-center gap-3">
           <Link
             href="/snag/houses"
-            className="flex items-center gap-1 text-body-sm font-medium text-neutral-500 min-h-[44px] px-1 active:text-neutral-900"
+            className="-ml-2 flex min-h-[44px] items-center gap-1 p-2 text-white/50 active:text-white"
           >
-            <Home className="h-4 w-4" /> Houses
+            <Home className="h-5 w-5" />
           </Link>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-gold-500">New snag</p>
+            <h1 className="truncate text-lg font-semibold tracking-tight">Log a snag</h1>
+          </div>
         </div>
         {developments.length > 1 ? (
           <button
             type="button"
             onClick={() => setPickerOpen('development')}
-            className="text-body-sm text-neutral-600 max-w-[180px] truncate active:text-neutral-900 min-h-[44px] px-2"
+            className="min-h-[44px] max-w-[180px] truncate px-2 text-body-sm text-white/60 active:text-white"
           >
             {developmentName || 'Pick a development'}
           </button>
         ) : developmentName ? (
-          <span className="text-body-sm text-neutral-500 max-w-[180px] truncate">{developmentName}</span>
+          <span className="max-w-[180px] truncate text-body-sm text-white/50">{developmentName}</span>
         ) : null}
       </header>
 
@@ -478,7 +481,8 @@ export function SnagFormClient({ initialAuth }: SnagFormClientProps) {
           type="button"
           onClick={submit}
           disabled={!canSubmit || submitting}
-          className="w-full py-3 bg-brand-500 text-white rounded-lg font-medium disabled:bg-neutral-200 disabled:text-neutral-400 active:bg-brand-600 min-h-[48px]"
+          className="min-h-[50px] w-full rounded-xl py-3 text-[15px] font-semibold text-black shadow-lg shadow-gold-500/20 transition-all active:scale-[0.99] disabled:bg-neutral-200 disabled:bg-none disabled:text-neutral-400 disabled:shadow-none"
+          style={!canSubmit || submitting ? undefined : { background: 'linear-gradient(135deg, #E5C158 0%, #D4AF37 55%, #B8934C 100%)' }}
         >
           {submitting ? SUBMIT_PENDING : SUBMIT_IDLE}
         </button>
