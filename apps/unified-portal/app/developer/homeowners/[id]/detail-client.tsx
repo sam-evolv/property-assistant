@@ -337,6 +337,12 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
           </div>
 
           <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              href={`/developer/homes/${homeownerId}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-gold-300 bg-gold-50 px-3 py-1.5 text-sm font-semibold text-gold-700 transition-colors hover:bg-gold-100"
+            >
+              Home file
+            </Link>
             <button
               type="button"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 transition-colors"

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Upload, Eye, Download, ChevronDown, Plus, X, Check, Loader2, AlertCircle, Settings, Trash2 } from 'lucide-react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
+import { HpiPanel } from './hpi-panel';
 
 interface ComplianceFile {
   id: string;
@@ -314,6 +315,7 @@ const UploadModal = ({
 
 export default function CompliancePage() {
   const { developmentId, developmentName } = useCurrentContext();
+  const [activeTab, setActiveTab] = useState<'documents' | 'hpi'>('documents');
   
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -564,6 +566,29 @@ export default function CompliancePage() {
             </div>
           </div>
 
+          {/* Programme tabs */}
+          <div className="flex items-center gap-1.5">
+            {([
+              { key: 'documents', label: 'Documents' },
+              { key: 'hpi', label: 'HPI' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${
+                  activeTab === t.key
+                    ? 'bg-gold-500 text-white shadow-sm'
+                    : 'bg-white border border-gray-200 text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {activeTab === 'hpi' && <HpiPanel developmentId={developmentId} />}
+
+          <div className={activeTab === 'hpi' ? 'hidden' : 'contents'}>
           {/* Stats Bar — the rings fill themselves */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex flex-wrap items-center justify-between gap-6">
@@ -635,6 +660,7 @@ export default function CompliancePage() {
                 />
               ))
             )}
+          </div>
           </div>
         </div>
       </div>
