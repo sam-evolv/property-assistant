@@ -95,7 +95,31 @@ export async function resolveSnagAuth(_request?: NextRequest): Promise<SnagAuthC
     console.error('[snag-auth] membership_lookup_failed reason=%s', memErr.message);
     throw new SnagAuthError('forbidden');
   }
+
+  // Portal owners walk straight in: a developer/admin account (the admins
+  // table is the platform's access model) gets full site access to their
+  // tenant without having to invite themselves to their own snag app.
   if (!rows || rows.length === 0) {
+    const { data: portalAdmin } = await admin
+      .from('admins')
+      .select('id, role, tenant_id')
+      .eq('email', user.email)
+      .maybeSingle();
+    if (
+      portalAdmin?.tenant_id &&
+      ['developer', 'admin', 'super_admin', 'tenant_admin'].includes(portalAdmin.role)
+    ) {
+      return {
+        userId: user.id,
+        email: user.email,
+        tenantId: portalAdmin.tenant_id,
+        role: 'admin',
+        developmentIds: null,
+        isAdmin: true,
+        membershipId: `admins:${portalAdmin.id}`,
+        expiresAt: null,
+      };
+    }
     throw new SnagAuthError('forbidden');
   }
 
