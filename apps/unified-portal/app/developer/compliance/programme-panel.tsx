@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertTriangle, Loader2, Leaf, Info } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Loader2, Leaf, ShieldCheck, BadgeCheck, Info } from 'lucide-react';
+
+type ProgrammeKey = 'hpi' | 'bcar' | 'homebond';
 
 interface Criterion {
   key: string;
@@ -14,15 +16,27 @@ interface Criterion {
   tracked: boolean;
 }
 
-interface HpiData {
+interface ProgrammeData {
   homes: number;
   criteria: Criterion[];
   overallPct: number;
   trackedCriteria: number;
 }
 
-export function HpiPanel({ developmentId }: { developmentId: string | null }) {
-  const [data, setData] = useState<HpiData | null>(null);
+const DISPLAY: Record<ProgrammeKey, { title: string; icon: typeof Leaf; iconClass: string }> = {
+  hpi: { title: 'HPI evidence readiness', icon: Leaf, iconClass: 'text-emerald-600' },
+  bcar: { title: 'BCAR / BCMS evidence readiness', icon: ShieldCheck, iconClass: 'text-sky-600' },
+  homebond: { title: 'Homebond evidence readiness', icon: BadgeCheck, iconClass: 'text-gold-600' },
+};
+
+export function ProgrammePanel({
+  developmentId,
+  programme,
+}: {
+  developmentId: string | null;
+  programme: ProgrammeKey;
+}) {
+  const [data, setData] = useState<ProgrammeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,17 +47,18 @@ export function HpiPanel({ developmentId }: { developmentId: string | null }) {
     }
     setLoading(true);
     setError(null);
-    fetch(`/api/developer/compliance/hpi?developmentId=${developmentId}`)
+    setData(null);
+    fetch(`/api/developer/compliance/programme?developmentId=${developmentId}&programme=${programme}`)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then(setData)
-      .catch(() => setError('Could not load HPI readiness.'))
+      .catch(() => setError('Could not load programme readiness.'))
       .finally(() => setLoading(false));
-  }, [developmentId]);
+  }, [developmentId, programme]);
 
   if (!developmentId) {
     return (
       <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-sm text-gray-500">
-        Select a development to see its HPI readiness.
+        Select a development to see its readiness.
       </div>
     );
   }
@@ -62,6 +77,8 @@ export function HpiPanel({ developmentId }: { developmentId: string | null }) {
     );
   }
 
+  const display = DISPLAY[programme];
+  const Icon = display.icon;
   const r = 30;
   const c = 2 * Math.PI * r;
   const ringColour = data.overallPct === 100 ? '#059669' : data.overallPct >= 60 ? '#D4AF37' : '#d97706';
@@ -86,15 +103,15 @@ export function HpiPanel({ developmentId }: { developmentId: string | null }) {
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <Leaf className="h-4 w-4 text-emerald-600" />
-            <h2 className="text-base font-semibold text-gray-900">HPI evidence readiness</h2>
+            <Icon className={`h-4 w-4 ${display.iconClass}`} />
+            <h2 className="text-base font-semibold text-gray-900">{display.title}</h2>
           </div>
           <p className="mt-1 text-sm text-gray-500">
             {data.homes} home{data.homes === 1 ? '' : 's'} · {data.trackedCriteria} criteria tracked from your live record
           </p>
           <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-400">
             <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
-            This is evidence coverage gathered automatically — it supports an HPI assessment, it isn&apos;t the certification itself.
+            Evidence coverage gathered automatically — it supports the programme&apos;s assessment, it isn&apos;t the certification itself.
           </p>
         </div>
       </div>

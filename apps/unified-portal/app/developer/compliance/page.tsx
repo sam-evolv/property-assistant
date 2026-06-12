@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Upload, Eye, Download, ChevronDown, Plus, X, Check, Loader2, AlertCircle, Settings, Trash2 } from 'lucide-react';
 import { useCurrentContext } from '@/contexts/CurrentContext';
-import { HpiPanel } from './hpi-panel';
+import { ProgrammePanel } from './programme-panel';
 
 interface ComplianceFile {
   id: string;
@@ -315,7 +315,7 @@ const UploadModal = ({
 
 export default function CompliancePage() {
   const { developmentId, developmentName } = useCurrentContext();
-  const [activeTab, setActiveTab] = useState<'documents' | 'hpi'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'hpi' | 'bcar' | 'homebond'>('documents');
   
   const [units, setUnits] = useState<Unit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -571,6 +571,8 @@ export default function CompliancePage() {
             {([
               { key: 'documents', label: 'Documents' },
               { key: 'hpi', label: 'HPI' },
+              { key: 'bcar', label: 'BCAR / BCMS' },
+              { key: 'homebond', label: 'Homebond' },
             ] as const).map((t) => (
               <button
                 key={t.key}
@@ -586,9 +588,9 @@ export default function CompliancePage() {
             ))}
           </div>
 
-          {activeTab === 'hpi' && <HpiPanel developmentId={developmentId} />}
+          {activeTab !== 'documents' && <ProgrammePanel developmentId={developmentId} programme={activeTab} />}
 
-          <div className={activeTab === 'hpi' ? 'hidden' : 'contents'}>
+          <div className={activeTab !== 'documents' ? 'hidden' : 'contents'}>
           {/* Stats Bar — the rings fill themselves */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <div className="flex flex-wrap items-center justify-between gap-6">
