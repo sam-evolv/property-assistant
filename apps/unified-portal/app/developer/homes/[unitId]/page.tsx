@@ -106,6 +106,37 @@ export default async function HomeFilePage({ params }: { params: { unitId: strin
     supabase.from('unit_systems').select('*').eq('unit_id', unit.id),
   ]);
 
+  // Per-home compliance: required document types and their statuses.
+  let complianceTotal = 0;
+  let complianceGood = 0;
+  let complianceGaps: Array<{ name: string; status: string }> = [];
+  try {
+    const { data: cdocs } = await supabase
+      .from('compliance_documents')
+      .select('status, expiry_date, document_type_id')
+      .eq('unit_id', unit.id);
+    if (cdocs && cdocs.length > 0) {
+      const typeIds = Array.from(new Set(cdocs.map((c) => c.document_type_id).filter(Boolean)));
+      const { data: ctypes } = await supabase
+        .from('compliance_document_types')
+        .select('id, name, required')
+        .in('id', typeIds);
+      const typeById = new Map((ctypes || []).map((t) => [t.id, t]));
+      for (const c of cdocs) {
+        const t = typeById.get(c.document_type_id);
+        if (!t?.required) continue;
+        complianceTotal += 1;
+        const good = c.status === 'verified' || c.status === 'uploaded';
+        const expired = c.status === 'expired' || c.status === 'pending_renewal';
+        if (good && !expired) complianceGood += 1;
+        else complianceGaps.push({ name: t.name, status: expired ? 'expired' : 'missing' });
+      }
+      complianceGaps.sort((a, b) => (a.status === b.status ? a.name.localeCompare(b.name) : a.status === 'expired' ? -1 : 1));
+    }
+  } catch {
+    // compliance tables absent in this environment — the section simply doesn't render
+  }
+
   const development = devRes.data;
   const pipeline = (pipelineRes.data || {}) as Record<string, unknown>;
   const snags = snagsRes.data || [];
@@ -134,6 +165,16 @@ export default async function HomeFilePage({ params }: { params: { unitId: strin
       done: snags.length > 0 && openSnags.length === 0,
       warn: openSnags.length > 0,
     },
+    ...(complianceTotal > 0
+      ? [{
+          label:
+            complianceGood === complianceTotal
+              ? 'Compliance docs complete'
+              : `${complianceTotal - complianceGood} compliance doc${complianceTotal - complianceGood === 1 ? '' : 's'} outstanding`,
+          done: complianceGood === complianceTotal,
+          warn: complianceGood < complianceTotal,
+        }]
+      : []),
     { label: 'Demo completed', done: eventTypes.has('demo_completed') },
     { label: 'Handed over', done: Boolean(pipeline.handover_date) || eventTypes.has('keys_handed') },
     { label: 'Aftercare active', done: eventTypes.has('aftercare_activated') },
@@ -302,6 +343,44 @@ export default async function HomeFilePage({ params }: { params: { unitId: strin
                 <p className="mt-1 truncate text-sm font-semibold text-grey-900">{c.value}</p>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {/* Compliance */}
+      {complianceTotal > 0 && (
+        <section className="mt-8">
+          <div className="flex items-center justify-between">
+            <h2 className="flex items-center gap-2 text-sm font-semibold uppercase tracking-wider text-grey-400">
+              <FileCheck2 className="h-4 w-4 text-gold-500" /> Compliance
+            </h2>
+            <Link href="/developer/compliance" className="text-xs font-semibold text-gold-600 hover:text-gold-700">
+              All compliance →
+            </Link>
+          </div>
+          <div className="mt-3 rounded-2xl border border-grey-200 bg-white p-5">
+            <p className="text-sm text-grey-600">
+              <span className={`font-semibold ${complianceGood === complianceTotal ? 'text-grey-900' : 'text-amber-600'}`}>
+                {complianceGood} of {complianceTotal}
+              </span>{' '}
+              required documents in place
+            </p>
+            {complianceGaps.length > 0 && (
+              <ul className="mt-3 space-y-1.5">
+                {complianceGaps.slice(0, 6).map((g) => (
+                  <li key={g.name} className="flex items-center gap-2.5 text-sm">
+                    <AlertTriangle className={`h-3.5 w-3.5 flex-shrink-0 ${g.status === 'expired' ? 'text-red-500' : 'text-amber-400'}`} />
+                    <span className="min-w-0 flex-1 truncate text-grey-700">{g.name}</span>
+                    <span className={`flex-shrink-0 text-[11px] font-medium ${g.status === 'expired' ? 'text-red-600' : 'text-amber-600'}`}>
+                      {g.status}
+                    </span>
+                  </li>
+                ))}
+                {complianceGaps.length > 6 && (
+                  <li className="text-xs text-grey-400">…and {complianceGaps.length - 6} more</li>
+                )}
+              </ul>
+            )}
           </div>
         </section>
       )}

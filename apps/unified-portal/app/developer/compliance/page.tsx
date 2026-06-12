@@ -38,6 +38,33 @@ const TypeBadge = ({ type }: { type: string }) => (
   </span>
 );
 
+/** A ring that fills itself — one per compliance category. */
+const CategoryRing = ({ label, uploaded, total }: { label: string; uploaded: number; total: number }) => {
+  const pct = total > 0 ? Math.round((uploaded / total) * 100) : 0;
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const colour = pct === 100 ? '#059669' : pct >= 60 ? '#D4AF37' : '#d97706';
+  return (
+    <div className="flex flex-col items-center gap-1.5">
+      <div className="relative h-16 w-16">
+        <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+          <circle cx="32" cy="32" r={r} fill="none" stroke="#f3f4f6" strokeWidth="6" />
+          <circle
+            cx="32" cy="32" r={r} fill="none" stroke={colour} strokeWidth="6"
+            strokeLinecap="round" strokeDasharray={c} strokeDashoffset={c - (c * pct) / 100}
+            className="transition-all duration-700"
+          />
+        </svg>
+        <span className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-900">
+          {pct}%
+        </span>
+      </div>
+      <p className="text-xs font-medium text-gray-600">{label}</p>
+      <p className="-mt-1 text-[10px] tabular-nums text-gray-400">{uploaded}/{total}</p>
+    </div>
+  );
+};
+
 const DocumentRow = ({ 
   doc, 
   onUpload 
@@ -515,18 +542,31 @@ export default function CompliancePage() {
                 {currentDevelopment || 'Select a development'} · Track certificates and regulatory documents per unit
               </p>
             </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-            >
-              <Settings className="w-4 h-4" />
-              Document Types
-            </button>
+            <div className="flex items-center gap-2">
+              <a
+                href={developmentId ? `/developer/compliance/pack?developmentId=${developmentId}` : '#'}
+                className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${
+                  developmentId
+                    ? 'border-gold-300 bg-gold-50 text-gold-700 hover:bg-gold-100'
+                    : 'border-gray-200 bg-white text-gray-300 pointer-events-none'
+                }`}
+              >
+                <Download className="w-4 h-4" />
+                Evidence pack
+              </a>
+              <button
+                onClick={() => setShowSettings(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Document Types
+              </button>
+            </div>
           </div>
 
-          {/* Stats Bar */}
+          {/* Stats Bar — the rings fill themselves */}
           <div className="bg-white rounded-xl border border-gray-200 p-5">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-6">
               <div className="flex items-center gap-8">
                 <div>
                   <p className="text-sm text-gray-500">Overall Progress</p>
@@ -543,6 +583,26 @@ export default function CompliancePage() {
                   <p className="text-2xl font-bold text-gray-900">{uploadedDocs} / {totalDocs}</p>
                 </div>
               </div>
+              {(() => {
+                const byCategory = new Map<string, { uploaded: number; total: number }>();
+                for (const u of units) {
+                  for (const d of u.documents) {
+                    const entry = byCategory.get(d.category) || { uploaded: 0, total: 0 };
+                    entry.total += 1;
+                    if (d.files.length > 0) entry.uploaded += 1;
+                    byCategory.set(d.category, entry);
+                  }
+                }
+                const cats = Array.from(byCategory.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+                if (cats.length === 0) return null;
+                return (
+                  <div className="flex items-start gap-5">
+                    {cats.map(([category, v]) => (
+                      <CategoryRing key={category} label={category} uploaded={v.uploaded} total={v.total} />
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
 

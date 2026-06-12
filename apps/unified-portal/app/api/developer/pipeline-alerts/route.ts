@@ -10,6 +10,7 @@ import { requireRole, getSupabaseAdmin } from '@/lib/supabase-server';
  *  - mortgage approvals expiring within 30 days on unsold-through homes
  *  - contracts issued more than 42 days ago with no signed return
  *  - open snags on homes handing over within 30 days
+ *  - required compliance documents expired or expiring within 60 days
  *
  * Tenant-scoped. Each query is independently fail-soft so the endpoint
  * works before migration 070 (mortgage_expiry_date absent -> zero alerts).
@@ -114,9 +115,55 @@ export async function GET() {
     if (!error && data) agedRows = data as typeof agedRows;
   } catch {}
 
+  // Required compliance docs that are expired, due renewal, or expiring soon.
+  let complianceRows: Array<{ unit_id: string; type_name: string; status: string; expiry: string | null }> = [];
+  try {
+    const expiryWindowIso = new Date(now + 60 * 86_400_000).toISOString();
+    const [badRes, soonRes] = await Promise.all([
+      supabase
+        .from('compliance_documents')
+        .select('unit_id, document_type_id, status, expiry_date')
+        .eq('tenant_id', session.tenantId)
+        .in('status', ['expired', 'pending_renewal'])
+        .limit(100),
+      supabase
+        .from('compliance_documents')
+        .select('unit_id, document_type_id, status, expiry_date')
+        .eq('tenant_id', session.tenantId)
+        .gte('expiry_date', nowIso)
+        .lte('expiry_date', expiryWindowIso)
+        .limit(100),
+    ]);
+    const merged = new Map<string, any>();
+    for (const r of [...(badRes.data || []), ...(soonRes.data || [])]) {
+      merged.set(`${r.unit_id}:${r.document_type_id}:${r.status}:${r.expiry_date}`, r);
+    }
+    const rows = Array.from(merged.values());
+    const typeIds = Array.from(new Set(rows.map((r) => r.document_type_id).filter(Boolean)));
+    if (typeIds.length > 0) {
+      const { data: types } = await supabase
+        .from('compliance_document_types')
+        .select('id, name, required')
+        .in('id', typeIds);
+      const typeById = new Map((types || []).map((t) => [t.id, t]));
+      complianceRows = rows
+        .filter((r) => typeById.get(r.document_type_id)?.required)
+        .map((r) => ({
+          unit_id: r.unit_id,
+          type_name: typeById.get(r.document_type_id)?.name || 'Document',
+          status: r.status,
+          expiry: r.expiry_date || null,
+        }));
+    }
+  } catch {}
+
   // Labels for the homes involved, one lookup.
   const unitIds = Array.from(
-    new Set([...mortgageRows, ...agedRows, ...snagRiskRows].map((r) => r.unit_id).filter(Boolean)),
+    new Set(
+      [...mortgageRows, ...agedRows, ...snagRiskRows, ...complianceRows]
+        .map((r) => r.unit_id)
+        .filter(Boolean),
+    ),
   );
   const labelById = new Map<string, string>();
   if (unitIds.length > 0) {
@@ -157,8 +204,22 @@ export async function GET() {
     }))
     .sort((a, b) => a.days - b.days);
 
+  const complianceExpiring = complianceRows
+    .map((r) => ({
+      unitId: r.unit_id,
+      label: labelById.get(r.unit_id) || 'Unit',
+      type: r.type_name,
+      status: r.status,
+      days: r.expiry ? Math.ceil((new Date(r.expiry).getTime() - now) / 86_400_000) : null,
+    }))
+    .sort((a, b) => (a.days ?? -999) - (b.days ?? -999));
+
   return NextResponse.json({
     openSnagsTotal,
+    complianceExpiring: {
+      count: complianceExpiring.length,
+      items: complianceExpiring.slice(0, MAX_ITEMS),
+    },
     mortgageExpiring: {
       count: mortgageExpiring.length,
       items: mortgageExpiring.slice(0, MAX_ITEMS),

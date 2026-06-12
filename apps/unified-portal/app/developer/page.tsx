@@ -36,6 +36,7 @@ interface BriefItem {
 
 interface PipelineAlerts {
   openSnagsTotal?: number;
+  complianceExpiring?: { count: number; items: Array<{ label: string; type: string; status: string; days: number | null }> };
   mortgageExpiring: { count: number; items: Array<{ label: string; days: number }> };
   snagRisk?: { count: number; totalOpenSnags: number; items: Array<{ label: string; days: number; openSnags: number }> };
   agedContracts: { count: number; items: Array<{ label: string; days: number }> };
@@ -131,6 +132,18 @@ export default function TodayPage() {
         detail: next ? `${next.label} — ${next.openSnags} open, handover in ${next.days} day${next.days === 1 ? '' : 's'}` : '',
         action: 'Clear them',
         href: '/snag/houses',
+      });
+    }
+    const compliance = pipelineAlerts.complianceExpiring;
+    if (compliance && compliance.count > 0) {
+      const worst = compliance.items[0];
+      brief.push({
+        title: `${compliance.count} compliance document${compliance.count === 1 ? '' : 's'} expired or expiring soon`,
+        detail: worst
+          ? `${worst.type} — ${worst.label}${worst.days !== null && worst.days >= 0 ? ` · ${worst.days} day${worst.days === 1 ? '' : 's'} left` : ' · action needed'}`
+          : '',
+        action: 'Open compliance',
+        href: '/developer/compliance',
       });
     }
     const aged = pipelineAlerts.agedContracts;
