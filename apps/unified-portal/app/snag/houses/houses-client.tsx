@@ -23,6 +23,32 @@ interface House {
 }
 
 const STORAGE_KEY = 'snag-houses-dev';
+const SORT_KEY = 'snag-houses-sort';
+
+type SortMode = 'number' | 'handover' | 'snags';
+
+const SORT_OPTIONS: Array<{ key: SortMode; label: string }> = [
+  { key: 'number', label: 'House №' },
+  { key: 'handover', label: 'Handover' },
+  { key: 'snags', label: 'Open snags' },
+];
+
+/** The API delivers house-number order; the other modes re-rank on top. */
+function sortHouses(houses: House[], mode: SortMode): House[] {
+  if (mode === 'number') return houses;
+  const ranked = [...houses];
+  if (mode === 'handover') {
+    ranked.sort((a, b) => {
+      if (a.days_to_handover === null && b.days_to_handover === null) return 0;
+      if (a.days_to_handover === null) return 1;
+      if (b.days_to_handover === null) return -1;
+      return a.days_to_handover - b.days_to_handover;
+    });
+  } else {
+    ranked.sort((a, b) => b.open_snags - a.open_snags);
+  }
+  return ranked;
+}
 
 /** Urgency chip earns its place only inside the 6-week window. */
 function handoverUrgency(days: number | null, dateIso: string | null) {
@@ -43,6 +69,18 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [sortMode, setSortMode] = useState<SortMode>(() => {
+    if (typeof window === 'undefined') return 'number';
+    const stored = localStorage.getItem(SORT_KEY);
+    return stored === 'handover' || stored === 'snags' ? stored : 'number';
+  });
+
+  const changeSort = (mode: SortMode) => {
+    setSortMode(mode);
+    try {
+      localStorage.setItem(SORT_KEY, mode);
+    } catch {}
+  };
 
   useEffect(() => {
     fetch('/api/snag/developments')
@@ -86,13 +124,14 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
   const housesWithOpen = houses.filter((h) => h.open_snags > 0).length;
 
   const q = query.trim().toLowerCase();
+  const orderedHouses = sortHouses(houses, sortMode);
   const visibleHouses = q
-    ? houses.filter(
+    ? orderedHouses.filter(
         (h) =>
           (h.label || '').toLowerCase().includes(q) ||
           (h.address || '').toLowerCase().includes(q),
       )
-    : houses;
+    : orderedHouses;
 
   const summary = loading || error
     ? null
@@ -157,6 +196,24 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
                 placeholder="Find a house — number or address"
                 className="min-h-[46px] w-full rounded-xl border border-white/10 bg-white/10 py-3 pl-10 pr-4 text-[15px] text-white outline-none transition-colors placeholder:text-white/40 focus:border-gold-500/60 focus:bg-white/[0.14]"
               />
+            </div>
+          )}
+
+          {!loading && !error && houses.length > 1 && (
+            <div className="mt-3 flex items-center gap-1.5">
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  onClick={() => changeSort(opt.key)}
+                  className={`min-h-[34px] rounded-full px-3.5 py-1.5 text-[12px] font-semibold transition-colors ${
+                    sortMode === opt.key
+                      ? 'bg-gold-500 text-black'
+                      : 'bg-white/10 text-white/60 active:bg-white/20'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
           )}
         </div>
