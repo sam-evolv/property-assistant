@@ -100,7 +100,7 @@ export function HousesClient({ initialDevelopmentIds }: { initialDevelopmentIds:
       ? null
       : totalOpen === 0
         ? 'Every snag is closed. Spotless.'
-        : `${totalOpen} open snag${totalOpen === 1 ? '' : 's'} across ${housesWithOpen} house${housesWithOpen === 1 ? '' : 's'} — most urgent first`;
+        : `${totalOpen} open snag${totalOpen === 1 ? '' : 's'} across ${housesWithOpen} house${housesWithOpen === 1 ? '' : 's'}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-100">

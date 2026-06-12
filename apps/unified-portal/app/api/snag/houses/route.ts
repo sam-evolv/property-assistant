@@ -2,9 +2,10 @@
  * GET /api/snag/houses?development_id=...
  *
  * The Houses screen of the snagging app: every unit in the development
- * with its open/done snag counts and handover date, sorted by handover
- * proximity (soonest first, undated last) — the houses closest to
- * handover are the ones to clear first.
+ * with its open/done snag counts and handover date, in house-number
+ * order (the order a human expects). Handover urgency travels as data
+ * (days_to_handover) and is FLAGGED on the board, never used to
+ * reshuffle it.
  *
  * Auth + scoping identical to /api/snag/units (snag-auth).
  * Gated on FEATURE_BUILDER_SNAG_APP.
@@ -119,14 +120,15 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  // Soonest handover first; undated houses follow, ordered by open snags.
+  // House-number order: numeric where a number exists, alphabetical after.
+  const houseNumber = (h: { label: string; address: string | null }): number => {
+    const m = (h.label || '').match(/\d+/) || (h.address || '').match(/^\s*(\d+)/);
+    return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER;
+  };
   houses.sort((a, b) => {
-    if (a.days_to_handover === null && b.days_to_handover === null) {
-      return b.open_snags - a.open_snags;
-    }
-    if (a.days_to_handover === null) return 1;
-    if (b.days_to_handover === null) return -1;
-    return a.days_to_handover - b.days_to_handover;
+    const diff = houseNumber(a) - houseNumber(b);
+    if (diff !== 0) return diff;
+    return (a.label || '').localeCompare(b.label || '', undefined, { numeric: true });
   });
 
   return NextResponse.json({
