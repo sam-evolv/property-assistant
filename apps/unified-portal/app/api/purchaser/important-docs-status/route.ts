@@ -13,6 +13,22 @@ function getSupabaseClient() {
   return createClient(url!, key!);
 }
 
+// Mirrors the extractor in docs-list/route.ts so house-type scoping is consistent
+// across the consent modal and the Documents tab.
+function extractHouseTypeFromFilename(filename: string): string | null {
+  const patterns = [
+    /House-Type-([A-Z]{1,3}\d{1,2})/i,
+    /Type-([A-Z]{1,3}\d{1,2})/i,
+    /[-_]([A-Z]{1,3}\d{1,2})[-_]/i,
+    /^([A-Z]{1,3}\d{1,2})[-_]/i,
+  ];
+  for (const pattern of patterns) {
+    const match = filename.match(pattern);
+    if (match && match[1]) return match[1].toUpperCase();
+  }
+  return null;
+}
+
 const PUBLIC_DISCIPLINES = ['handover', 'other'];
 
 export async function GET(request: NextRequest) {
@@ -36,10 +52,10 @@ export async function GET(request: NextRequest) {
     // Get the unit's project_id to scope documents correctly (using Supabase UUID, not the QR code)
     const { data: unitData, error: unitError } = await supabase
       .from('units')
-      .select('project_id')
+      .select('project_id, house_type_code')
       .eq('id', supabaseUnitId)
       .single();
-    
+
     if (unitError || !unitData?.project_id) {
       return NextResponse.json({
         requiresConsent: false,
@@ -47,8 +63,12 @@ export async function GET(request: NextRequest) {
         importantDocsCount: 0,
       });
     }
-    
+
     const projectId = unitData.project_id;
+    // House type for this home — used to scope house-type-specific important docs.
+    const normalizedHouseType = ((unitData.house_type_code as string | null) || '')
+      .toLowerCase()
+      .trim();
 
     // Check if user has already agreed using the purchaserAgreements table
     // Wrap in try-catch in case table doesn't exist in current database
@@ -110,19 +130,35 @@ export async function GET(request: NextRequest) {
     for (const section of sections || []) {
       const metadata = section.metadata || {};
       const discipline = (metadata.discipline || 'other').toLowerCase();
-      
+
       // Only include important docs from PUBLIC disciplines
-      if (metadata.is_important === true && PUBLIC_DISCIPLINES.includes(discipline)) {
-        const source = metadata.file_name || metadata.source || 'Unknown';
-        if (!importantDocsMap.has(source)) {
-          importantDocsMap.set(source, {
-            id: `supabase-${section.id}`,
-            title: source,
-            original_file_name: source,
-            file_url: metadata.file_url || '',
-            important_rank: metadata.important_rank || null,
-          });
-        }
+      if (metadata.is_important !== true || !PUBLIC_DISCIPLINES.includes(discipline)) {
+        continue;
+      }
+
+      const source = metadata.file_name || metadata.source || 'Unknown';
+
+      // HOUSE-TYPE SCOPING (mirror docs-list): a document tagged for a specific
+      // house type must match the homeowner's house type. Documents with no
+      // house type are development-wide (e.g. Home User Guide) and shown to all.
+      const drawingClassification = metadata.drawing_classification || {};
+      const docHouseType =
+        metadata.house_type_code ||
+        drawingClassification.houseTypeCode ||
+        extractHouseTypeFromFilename(source);
+      const normalizedDocHouseType = (docHouseType || '').toLowerCase().trim();
+      if (normalizedDocHouseType && normalizedDocHouseType !== normalizedHouseType) {
+        continue;
+      }
+
+      if (!importantDocsMap.has(source)) {
+        importantDocsMap.set(source, {
+          id: `supabase-${section.id}`,
+          title: source,
+          original_file_name: source,
+          file_url: metadata.file_url || '',
+          important_rank: metadata.important_rank || null,
+        });
       }
     }
 

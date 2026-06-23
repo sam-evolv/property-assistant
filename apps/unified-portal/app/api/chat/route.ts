@@ -791,6 +791,33 @@ async function persistMessageSafely(params: MessagePersistParams): Promise<{ suc
   }
 }
 
+// OWN-HOME FACTS: the logged-in homeowner's own home (house type + bedrooms) so the
+// assistant can answer "what is my house type / how many bedrooms" directly, and can
+// explain that whole-development documents reference every house type in the scheme.
+function buildOwnHomeFactsBlock(
+  unitInfo: { bedrooms?: number | null; bathrooms?: number | null; property_type?: string | null } | null | undefined,
+  houseTypeCode: string | null,
+): string {
+  const bed = unitInfo?.bedrooms ?? null;
+  const bath = unitInfo?.bathrooms ?? null;
+  const facts: string[] = [];
+  const typeLabel = houseTypeCode
+    ? `house type ${houseTypeCode}${bed != null ? ` (${bed}-bedroom)` : ''}`
+    : (bed != null ? `${bed}-bedroom home` : null);
+  if (typeLabel) facts.push(`- House type: ${typeLabel}`);
+  if (bed != null) facts.push(`- Bedrooms: ${bed}`);
+  if (bath != null) facts.push(`- Bathrooms: ${bath}`);
+  if (unitInfo?.property_type) facts.push(`- Property type: ${unitInfo.property_type}`);
+  if (facts.length === 0) return '';
+  const ownTypePhrase = `${bed != null ? `${bed}-bed ` : ''}${houseTypeCode || 'home'}`.trim();
+  return [
+    "THE HOMEOWNER'S OWN HOME — AUTHORITATIVE FACTS:",
+    ...facts,
+    `When the homeowner asks "what is my house type", "how many bedrooms do I have", or "is it 3 or 4 bed", answer directly and plainly from these facts (e.g. "Your home is a ${ownTypePhrase}"). Do not deflect.`,
+    "Whole-development documents — the Home User Guide, specification document and FAQs — describe EVERY house type in the development (e.g. BS01, BD01, BT01). If one of these mentions a house type code that is not the homeowner's own, that is because it is a development-wide document, not a mistake. Never tell the homeowner the document is wrong — explain it covers all house types and restate their own home's type from the facts above.",
+  ].join('\n');
+}
+
 // SCHEME PROFILE FACTS: Build a structured block from scheme_profile data for injection into system prompts
 function buildSchemeFactsBlock(profile: Record<string, unknown>): string {
   const lines: string[] = [
@@ -1786,6 +1813,9 @@ export async function POST(request: NextRequest) {
         // scheme_profile fetch failed — continue without it
       }
     }
+
+    // OWN-HOME FACTS: built once, injected into both system-prompt variants below.
+    const ownHomeFacts = buildOwnHomeFactsBlock(userUnitDetails.unitInfo, userHouseTypeCode);
 
     // Determine scheme resolution path for diagnostics
     let schemeResolutionPath = 'unknown';
@@ -3124,7 +3154,7 @@ export async function POST(request: NextRequest) {
       const sources = Array.from(new Set(chunks.map((c) => (c.metadata?.file_name || c.metadata?.source || 'Document') as string)));
 
       const schemeFactsPrefixWithDocs = schemeProfileData ? buildSchemeFactsBlock(schemeProfileData) : '';
-      systemMessage = `${schemeFactsPrefixWithDocs ? schemeFactsPrefixWithDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      systemMessage = `${schemeFactsPrefixWithDocs ? schemeFactsPrefixWithDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.${ownHomeFacts ? '\n\n' + ownHomeFacts : ''}
 
 ${isFirstMessage ? `This is the homeowner's first message — give a one-sentence warm welcome, then answer directly.` : `Follow-up message — no greeting, answer directly.`}
 ${userHouseTypeCode ? `
@@ -3257,7 +3287,7 @@ GDPR — PRIVACY (LEGAL REQUIREMENT):
         isLongviewOrRathard: checkIsLongviewOrRathard(developmentName),
       });
       const schemeFactsPrefixNoDocs = schemeProfileData ? buildSchemeFactsBlock(schemeProfileData) : '';
-      systemMessage = `${schemeFactsPrefixNoDocs ? schemeFactsPrefixNoDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.
+      systemMessage = `${schemeFactsPrefixNoDocs ? schemeFactsPrefixNoDocs + '\n\n' : ''}You are a home assistant for ${developmentName || 'this development'}. You help homeowners with questions about their specific home, their development and community, and their local area.${ownHomeFacts ? '\n\n' + ownHomeFacts : ''}
 
 ${hasRelevantMemory(sessionMemory) ? `${getMemoryContext(sessionMemory)}\n` : ''}NO REFERENCE DATA: You don't have documents that answer this specific question. Acknowledge this honestly and conversationally — don't be robotic. Never invent, guess, or infer any property-specific facts.
 
