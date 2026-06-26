@@ -688,6 +688,54 @@ function getOpenAIClient() {
   });
 }
 
+// PREMIUM TENANT ROUTING (OpenAI Responses API)
+// Tenants listed in PREMIUM_TENANTS are answered by PREMIUM_MODEL (default gpt-5.5)
+// through the Responses API instead of chat.completions. The fully assembled
+// systemMessage is passed as `instructions`, so the premium path still reasons over
+// the injected demo_home block, and the current user turn is passed as `input`.
+//
+// The installed openai SDK (4.104.0) supports responses.create, output_text and
+// reasoning.effort. The text.verbosity field is newer than these types, so the params
+// are passed loosely and the SDK forwards the field to the API unchanged. No SDK bump
+// is required.
+async function getPremiumResponseText(
+  systemMessage: string,
+  userInput: string,
+  model: string,
+): Promise<string> {
+  const params = {
+    model,
+    instructions: systemMessage,
+    input: userInput,
+    reasoning: { effort: 'medium' },
+    text: { verbosity: 'low' },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } as any;
+  const response = await getOpenAIClient().responses.create(params);
+  const outputText = (response as { output_text?: string }).output_text;
+  return typeof outputText === 'string' ? outputText : '';
+}
+
+// Adapts the single-block premium answer to the chat.completions streaming shape that
+// the existing response pipeline consumes, so the premium reply renders through the
+// exact same client path as a normal streamed answer, just delivered as one chunk.
+async function* premiumResponseStream(
+  systemMessage: string,
+  userInput: string,
+  model: string,
+): AsyncGenerator<OpenAI.Chat.Completions.ChatCompletionChunk> {
+  const text = await getPremiumResponseText(systemMessage, userInput, model);
+  yield {
+    id: 'premium-responses',
+    object: 'chat.completion.chunk',
+    created: 0,
+    model,
+    choices: [
+      { index: 0, delta: { content: text }, finish_reason: 'stop', logprobs: null },
+    ],
+  } as unknown as OpenAI.Chat.Completions.ChatCompletionChunk;
+}
+
 // MULTILINGUAL SUPPORT: Translate non-English queries to English for better RAG retrieval
 // Documents are embedded in English, so queries should be in English for best semantic match
 async function translateQueryToEnglish(query: string, sourceLanguage: string): Promise<string> {
@@ -3980,17 +4028,34 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
     // Select model based on question complexity
     const selectedModel = selectChatModel(message, chunks ?? [], activeIntentKey);
 
+    // PREMIUM TENANT ROUTING: tenant ids listed in PREMIUM_TENANTS (comma separated)
+    // are answered by PREMIUM_MODEL (default gpt-5.5) via the Responses API. An empty
+    // or unset PREMIUM_TENANTS keeps today's behaviour for every tenant. Routing keys
+    // only on the tenant id, never on anything else.
+    const premiumTenantIds = (process.env.PREMIUM_TENANTS || '')
+      .split(',')
+      .map((id) => id.trim())
+      .filter(Boolean);
+    const premiumModel = process.env.PREMIUM_MODEL || 'gpt-5.5';
+    const isPremiumTenant = premiumTenantIds.includes(userTenantId);
+
     // TEST MODE: Return JSON response instead of streaming for test harness
     if (testMode) {
-      const completion = await getOpenAIClient().chat.completions.create({
-        model: selectedModel,
-        messages: chatMessages,
-        temperature: 0.3,
-        max_tokens: 800,
-        stream: false,
-      });
-      
-      let fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
+      let fullAnswer: string;
+      if (isPremiumTenant) {
+        // Premium tenant: same systemMessage, answered by PREMIUM_MODEL via Responses.
+        const premiumText = await getPremiumResponseText(systemMessage, message, premiumModel);
+        fullAnswer = cleanMarkdownFormatting(premiumText);
+      } else {
+        const completion = await getOpenAIClient().chat.completions.create({
+          model: selectedModel,
+          messages: chatMessages,
+          temperature: 0.3,
+          max_tokens: 800,
+          stream: false,
+        });
+        fullAnswer = cleanMarkdownFormatting(completion.choices[0]?.message?.content || '');
+      }
       const latencyMs = Date.now() - startTime;
       
       // AMENITY HALLUCINATION CHECK: Block fabricated venue names, travel times, distances
@@ -4168,14 +4233,19 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       });
     }
 
-    // Create streaming response
-    const stream = await getOpenAIClient().chat.completions.create({
-      model: selectedModel,
-      messages: chatMessages,
-      temperature: 0.3,
-      max_tokens: 800,
-      stream: true,
-    });
+    // Create streaming response. Premium tenants are answered by PREMIUM_MODEL via the
+    // Responses API, delivered as a single chunk through the same streaming pipeline so
+    // the client renders it unchanged. Every other tenant keeps the exact chat.completions
+    // streaming path below, byte for byte.
+    const stream = isPremiumTenant
+      ? premiumResponseStream(systemMessage, message, premiumModel)
+      : await getOpenAIClient().chat.completions.create({
+          model: selectedModel,
+          messages: chatMessages,
+          temperature: 0.3,
+          max_tokens: 800,
+          stream: true,
+        });
 
     // Create a TransformStream for the response
     const encoder = new TextEncoder();
