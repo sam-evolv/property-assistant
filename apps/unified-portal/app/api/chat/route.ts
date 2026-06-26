@@ -3915,6 +3915,46 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       systemMessage = systemMessage + languageInstruction;
     }
 
+    // STORED HOME AND ENERGY DATA: if this unit has a stored home and energy dataset
+    // under units.metadata.demo_home, append it to the END of the system prompt so the
+    // assistant reasons over real per-home figures. getUnitInfo does not load metadata,
+    // so we fetch it here with a small service-role query for this unit only. Gated
+    // purely on the data being present, so it stays inert for every unit without it
+    // (never gated on tenant id).
+    if (actualUnitId) {
+      try {
+        const homeDataClient = getSupabaseClient();
+        const { data: unitMetaRow } = await homeDataClient
+          .from('units')
+          .select('metadata')
+          .eq('id', actualUnitId)
+          .maybeSingle();
+        const unitMetadata = (unitMetaRow?.metadata ?? null) as Record<string, unknown> | null;
+        const demoHome = unitMetadata && typeof unitMetadata === 'object'
+          ? (unitMetadata as Record<string, unknown>).demo_home
+          : null;
+        if (demoHome !== null && demoHome !== undefined) {
+          const homeDataJson = JSON.stringify(demoHome, null, 2);
+          systemMessage = systemMessage +
+            '\n\n=== THIS HOME: STORED HOME AND ENERGY DATA ===\n' +
+            "The block below is verified, per-home data for the logged-in homeowner's own property. " +
+            "Treat it as the source of truth about this home's systems and energy use. When you answer " +
+            'energy, bill, heating, solar, EV or efficiency questions, reason across the solar generation, ' +
+            'the heat pump and its running efficiency, the EV charging pattern, the electricity tariff bands ' +
+            'and the absence of a home battery. Quantify your answer with the actual figures in this data ' +
+            'rather than generic ranges, and finish with the one or two highest impact actions for this ' +
+            'household. For any fault or fault-like symptom, triage and guide the homeowner through sensible ' +
+            'checks and next steps, and never give an authoritative structural, electrical or safety verdict; ' +
+            'recommend a qualified engineer where that is the right call. Where the homeowner says "this ' +
+            'month", use the energy.current_month field in the data.\n\n' +
+            homeDataJson +
+            '\n=== END THIS HOME DATA ===';
+        }
+      } catch (_homeDataErr) {
+        // Stored home data is optional enrichment. Never fail the chat over it.
+      }
+    }
+
     // STEP 5: Generate Response with STREAMING
     
     // Build messages array with conversation history for context
