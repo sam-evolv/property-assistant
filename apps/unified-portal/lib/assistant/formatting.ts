@@ -151,6 +151,21 @@ export function renderChatMarkdown(
         } else if (!ordered && bullet) {
           items.push(bullet[1]);
           i++;
+        } else if (lines[i].trim() === '') {
+          // A blank line between items is common in model output ("loose"
+          // lists). Keep one list together when the next non-blank line
+          // continues the same kind, so numbering runs 1, 2, 3 rather than
+          // restarting a fresh <ol> per item. Otherwise the list ends here and
+          // the blank line falls through to the block loop below.
+          let j = i + 1;
+          while (j < lines.length && lines[j].trim() === '') j++;
+          const nextContinues =
+            j < lines.length && (ordered ? numberedRe.test(lines[j]) : bulletRe.test(lines[j]));
+          if (nextContinues) {
+            i = j;
+          } else {
+            break;
+          }
         } else {
           break;
         }
