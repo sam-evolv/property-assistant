@@ -4,6 +4,12 @@ import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 export const dynamic = 'force-dynamic';
 
+// Never cache this response. The My Home tab must reflect the latest seeded
+// figures the moment they change; without this the browser can serve a stale
+// copy of the energy payload (a headline lagging behind a data edit while every
+// other figure was current was exactly that).
+const NO_STORE = { 'Cache-Control': 'no-store, max-age=0' };
+
 // Service-role client, same pattern as the other purchaser API routes.
 function getSupabaseClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -23,13 +29,13 @@ export async function GET(request: NextRequest) {
     const unitUid = searchParams.get('unitUid');
 
     if (!unitUid) {
-      return NextResponse.json({ error: 'Unit UID required' }, { status: 400 });
+      return NextResponse.json({ error: 'Unit UID required' }, { status: 400, headers: NO_STORE });
     }
 
     // Validate using the shared purchaser authentication, same as important-docs-status.
     const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
     if (!tokenResult.valid) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 401, headers: NO_STORE });
     }
     const supabaseUnitId = tokenResult.unitId || unitUid;
 
@@ -40,16 +46,16 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (unitError || !unitData) {
-      return NextResponse.json({ energy: null });
+      return NextResponse.json({ energy: null }, { headers: NO_STORE });
     }
 
     const metadata = (unitData.metadata as Record<string, unknown> | null) || {};
     // Only the demo_home object is ever returned. No other metadata leaks out.
     const energy = (metadata.demo_home as unknown) ?? null;
 
-    return NextResponse.json({ energy });
+    return NextResponse.json({ energy }, { headers: NO_STORE });
   } catch {
     // Fail quiet: the tab treats a null payload as "no energy data".
-    return NextResponse.json({ energy: null });
+    return NextResponse.json({ energy: null }, { headers: NO_STORE });
   }
 }
