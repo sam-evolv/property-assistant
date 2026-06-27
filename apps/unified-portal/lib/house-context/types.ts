@@ -65,4 +65,6 @@ export interface HouseContext {
   rooms: HouseContextRoom[];
   /** From unit_types.floor_plan_pdf_url for this unit's type. */
   floor_plan_url: string | null;
+  /** A stored per-home energy and systems dataset, optional. */
+  energy?: unknown;
 }

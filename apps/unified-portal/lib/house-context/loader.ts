@@ -258,11 +258,39 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
     }
   };
 
+  // Stored per-home energy and systems dataset, if one has been attached to the unit
+  // under units.metadata.demo_home. Optional enrichment: absent data or any failure
+  // degrades to an omitted field and never breaks the turn.
+  const loadEnergy = async (): Promise<unknown> => {
+    try {
+      const { data, error } = await supabase
+        .from('units')
+        .select('metadata')
+        .eq('id', unitId)
+        .maybeSingle();
+      if (error || !data) {
+        if (error) console.warn('[house-context] energy_load_failed reason=%s', error.message);
+        return undefined;
+      }
+      const metadata = (data as Row).metadata;
+      if (!metadata || typeof metadata !== 'object') return undefined;
+      const demoHome = (metadata as Row).demo_home;
+      return demoHome ?? undefined;
+    } catch (err) {
+      console.warn(
+        '[house-context] energy_load_threw reason=%s',
+        err instanceof Error ? err.message : String(err),
+      );
+      return undefined;
+    }
+  };
+
   // Wave 1 — keyed entirely on the loader inputs, so run in parallel.
-  const [development, unitLoad, unitRooms] = await Promise.all([
+  const [development, unitLoad, unitRooms, energy] = await Promise.all([
     loadDevelopment(),
     loadUnit(),
     loadUnitRooms(),
+    loadEnergy(),
   ]);
 
   // Wave 2 — keyed on values the unit fetch returned (project_id for the scheme,
@@ -320,6 +348,12 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
         TOKEN_BUDGET,
       );
     }
+  }
+
+  // Attach the stored per-home energy dataset last, so it reaches the model intact and
+  // does not perturb the room and scheme budget trimming above.
+  if (energy !== undefined) {
+    context = { ...context, energy };
   }
 
   return context;
