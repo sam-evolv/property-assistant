@@ -4,7 +4,7 @@ import { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import * as Tabs from '@radix-ui/react-tabs';
-import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User, Bookmark } from 'lucide-react';
+import { MessageCircle, Map, Bell, FileText, ChevronDown, Moon, Sun, User, Bookmark, Home } from 'lucide-react';
 import IntroAnimation from '@/components/purchaser/IntroAnimation';
 import MobileTabBar from '@/components/mobile/MobileTabBar';
 import PurchaserProfilePanel from '@/components/purchaser/PurchaserProfilePanel';
@@ -25,6 +25,11 @@ const PurchaserChatTab = dynamic(
 const PurchaserMapsTab = dynamic(
   () => import('@/components/purchaser/OptimizedMapsTab'),
   { ssr: false, loading: () => <div className="h-48 md:h-96 flex items-center justify-center bg-gray-100 rounded-lg"><div className="animate-pulse text-gray-400">Loading map...</div></div> }
+);
+
+const PurchaserMyHomeTab = dynamic(
+  () => import('@/components/purchaser/PurchaserMyHomeTab'),
+  { ssr: false, loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" /> }
 );
 
 const PurchaserNoticeboardTab = dynamic(
@@ -97,6 +102,8 @@ export default function HomeResidentPage() {
   const [retryCount, setRetryCount] = useState(0);
   const [showIntro, setShowIntro] = useState(false);
   const [activeTab, setActiveTab] = useState('chat');
+  // Question handed from My Home deep links to the assistant composer.
+  const [pendingQuestion, setPendingQuestion] = useState<string | undefined>(undefined);
   const [selectedLanguage, setSelectedLanguage] = useState('en');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -302,6 +309,20 @@ export default function HomeResidentPage() {
     setIsDarkMode(newMode);
     localStorage.setItem('purchaser_theme', newMode ? 'dark' : 'light');
   };
+
+  // Tab changes clear any pending deep-link question so a later manual visit to
+  // the assistant does not re-populate the composer with a stale question.
+  const handleTabChange = useCallback((tab: string) => {
+    setActiveTab(tab);
+    if (tab !== 'chat') setPendingQuestion(undefined);
+  }, []);
+
+  // My Home deep links: stage the question, then switch to the assistant. The
+  // chat tab pre-fills its composer (without sending) from prefillMessage.
+  const handleAskAssistant = useCallback((question: string) => {
+    setPendingQuestion(question);
+    setActiveTab('chat');
+  }, []);
 
   const checkImportantDocsConsent = async (houseId: string, authToken: string) => {
     try {
@@ -698,7 +719,7 @@ export default function HomeResidentPage() {
 
       <Tabs.Root
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex-1 min-h-0 flex flex-col overflow-hidden"
       >
         <div className="flex-1 min-h-0 overflow-hidden">
@@ -715,6 +736,26 @@ export default function HomeResidentPage() {
               selectedLanguage={selectedLanguage}
               isDarkMode={isDarkMode}
               userId={house.user_id}
+              prefillMessage={pendingQuestion}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="home" className="h-full min-h-0 overflow-auto">
+            <PurchaserMyHomeTab
+              unitUid={house.unit_id}
+              token={validatedToken || undefined}
+              address={house.address}
+              developmentName={house.development_name}
+              purchaserName={house.purchaser_name}
+              eircode={house.eircode}
+              houseType={house.house_type}
+              bedrooms={house.bedrooms}
+              latitude={house.latitude}
+              longitude={house.longitude}
+              isDarkMode={isDarkMode}
+              selectedLanguage={selectedLanguage}
+              onOpenMaps={() => handleTabChange('maps')}
+              onAskAssistant={handleAskAssistant}
             />
           </Tabs.Content>
 
@@ -755,7 +796,7 @@ export default function HomeResidentPage() {
       {/* Mobile Bottom Tab Bar - Frosted Glass Native Feel */}
       <MobileTabBar
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         isDarkMode={isDarkMode}
         selectedLanguage={selectedLanguage}
       />

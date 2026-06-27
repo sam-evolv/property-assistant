@@ -790,6 +790,9 @@ interface PurchaserChatTabProps {
   schemeLat?: number | null;
   schemeLng?: number | null;
   estHandoverDate?: string | null;
+  // Optional text to drop into the composer (without sending) when the homeowner
+  // deep-links here from another tab, e.g. the My Home "Ask the assistant" buttons.
+  prefillMessage?: string;
 }
 
 // Translations for UI and prompts
@@ -966,12 +969,21 @@ export default function PurchaserChatTab({
   schemeLat,
   schemeLng,
   estHandoverDate,
+  prefillMessage,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [showHome, setShowHome] = useState(true);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+
+  // Deep-link prefill: when another tab hands us a question, drop it into the
+  // composer for the homeowner to review and send. We never auto-send.
+  useEffect(() => {
+    if (prefillMessage && prefillMessage.trim()) {
+      setInput(prefillMessage);
+    }
+  }, [prefillMessage]);
 
   // Controlled streaming display state
   const [displayedContent, setDisplayedContent] = useState<string>('');
