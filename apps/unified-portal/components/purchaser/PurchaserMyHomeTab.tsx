@@ -383,8 +383,8 @@ export default function PurchaserMyHomeTab({
     let cancelled = false;
     async function load() {
       try {
-        const url = `/api/purchaser/home-energy?unitUid=${encodeURIComponent(unitUid)}&token=${encodeURIComponent(token || '')}`;
-        const res = await fetch(url);
+        const url = `/api/purchaser/home-energy?unitUid=${encodeURIComponent(unitUid)}&token=${encodeURIComponent(token || '')}&_cb=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) { if (!cancelled) setData(null); return; }
         const json = await res.json();
         if (!cancelled) setData((json?.energy as DemoHome) ?? null);
@@ -439,6 +439,8 @@ export default function PurchaserMyHomeTab({
   // --- Derived energy data ---
   const smd = data?.energy?.showcase_month_detail;
   const hasEnergy = !!smd;
+  const rawHeadline = smd?.headline || 'Your heat pump is short-cycling, and that is most of why your electricity is high this month.';
+  const headline = rawHeadline.charAt(0).toUpperCase() + rawHeadline.slice(1);
 
   const ber = data?.home?.ber;
   const displayAddress = data?.home?.address || address || '';
@@ -720,9 +722,8 @@ export default function PurchaserMyHomeTab({
                   />
                   {thingsToLookAt} {thingsToLookAt === 1 ? 'thing' : 'things'} to look at this month
                 </div>
-                <div style={{ fontSize: '1.0625rem', fontWeight: 600, color: c.t1, lineHeight: 1.4, marginTop: 11, letterSpacing: '-0.01em' }}>
-                  {smd?.headline ||
-                    'Your heat pump is short-cycling, and that is most of why your electricity is high this month.'}
+                <div style={{ fontSize: '1.0625rem', fontWeight: 600, color: c.t1, lineHeight: 1.4, marginTop: 11, letterSpacing: '-0.01em', textTransform: 'none' }}>
+                  {headline}
                 </div>
                 <div
                   style={{

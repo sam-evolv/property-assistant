@@ -601,9 +601,11 @@ export default function HomeResidentPage() {
                 className={`h-full w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
-              <span className={`text-base font-semibold leading-none ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
-                {house?.development_name || 'Home'}
-              </span>
+              <img
+                src="/cairn-logo.png"
+                alt="Cairn"
+                className={`h-6 w-auto object-contain transition-all ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
             )}
           </div>
         </div>

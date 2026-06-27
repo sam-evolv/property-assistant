@@ -1826,9 +1826,11 @@ export default function PurchaserChatTab({
                 className={`h-[83px] w-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
               />
             ) : (
-              <span className={`text-2xl font-bold ${isDarkMode ? 'text-white' : 'text-[#111827]'}`}>
-                {developmentName || 'Home'}
-              </span>
+              <img
+                src="/bayly-logo.png"
+                alt="Bayly"
+                className={`w-[220px] max-w-full h-auto object-contain ${isDarkMode ? 'brightness-0 invert' : ''}`}
+              />
             )}
           </div>
 
