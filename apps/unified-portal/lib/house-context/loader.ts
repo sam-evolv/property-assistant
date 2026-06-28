@@ -17,6 +17,7 @@
 // context-load failure can never break the homeowner's chat turn.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { enrichDemoHomeEnergy } from '@/lib/energy/home-energy-intelligence';
 import type {
   HouseContext,
   HouseContextDevelopment,
@@ -429,7 +430,7 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
     context = { ...context, specification: unitLoad.specification };
   }
   if (energy !== undefined) {
-    context = { ...context, energy };
+    context = { ...context, energy: enrichDemoHomeEnergy(energy) };
   }
 
   return context;

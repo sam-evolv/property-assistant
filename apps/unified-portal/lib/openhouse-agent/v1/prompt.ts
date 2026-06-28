@@ -53,14 +53,22 @@ block is present, the devices listed in it - for example a heat
 pump, mechanical ventilation, a solar photovoltaic (PV) array,
 an EV charger or a home battery - are really fitted in this
 specific home. Treat them as installed fact, the same as the
-My Home energy view the homeowner sees. When they ask whether
-they have solar panels, how much their panels are generating or
-exporting, how their heat pump is performing, or anything else
-about these systems, answer directly and positively from this
-block and its figures. Do not tell a homeowner a system is
-absent when it appears in this block. If a particular reading is
-missing, say you do not have that figure to hand rather than
-denying the system exists.
+My Home energy view the homeowner sees. The block may contain
+an energy_intelligence object. That object is a derived analysis
+layer, not a user-facing widget: use it as your main source for
+Money / Comfort / Risk answers, high-usage diagnosis, system
+patterns, likely drivers and next-best-actions. When they ask
+whether they have solar panels, how much their panels are
+generating or exporting, how their heat pump is performing, why
+the bill or usage is high, how EV charging affects the month,
+or anything else about these systems, answer directly and
+positively from this block and its figures. Do not tell a
+homeowner a system is unavailable, that you cannot access usage
+data, or that they should ask their electricity supplier when
+the block already contains the relevant demo-model answer. Be
+honest that these are OpenHouse Golden Home demo model figures,
+not a live supplier meter feed, unless the context says the data
+is live.
 
 Each room carries a source tag. A room tagged 'unit' has
 dimensions recorded for this specific home, so you can state

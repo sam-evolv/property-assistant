@@ -133,6 +133,7 @@ import {
 } from '@/lib/assistant/hallucination-firewall';
 import { isHallucinationFirewallEnabled } from '@/lib/assistant/grounding-policy';
 import { cleanForDisplay } from '@/lib/assistant/formatting';
+import { buildHomeEnergyAnswer, isHomeEnergyQuestion } from '@/lib/energy/home-energy-intelligence';
 import { isEscalationAllowedForIntent } from '@/lib/assistant/escalation';
 import { runGuardrails } from '@/lib/assistant/guardrails';
 import type { ConversationState } from '@/lib/assistant/guardrails';
@@ -819,31 +820,6 @@ function buildOwnHomeFactsBlock(
 }
 
 // SCHEME PROFILE FACTS: Build a structured block from scheme_profile data for injection into system prompts
-function isEnergyUsageQuestion(message: string): boolean {
-  const m = message.toLowerCase();
-  const mentionsEnergy = /\b(electricity|energy|usage|use|bill|cost|grid|kwh|solar|panel|panels|pv|heat\s*pump|ev|charger|export|generation|cop|meter|readings?)\b/i.test(m);
-  const asksUsageReason = /\b(why|high|higher|tell|usage|using|bill|cost|expensive|can you tell|what.*driving|what.*causing)\b/i.test(m);
-  return mentionsEnergy && asksUsageReason;
-}
-
-function num(v: unknown): number | null {
-  return typeof v === 'number' && Number.isFinite(v) ? v : null;
-}
-
-function str(v: unknown): string | null {
-  return typeof v === 'string' && v.trim() ? v.trim() : null;
-}
-
-function fmtKwh(v: unknown): string | null {
-  const n = num(v);
-  return n == null ? null : `${Math.round(n).toLocaleString('en-IE')} kWh`;
-}
-
-function fmtPct(v: unknown): string | null {
-  const n = num(v);
-  return n == null ? null : `${Math.round(n)} percent`;
-}
-
 function getObj(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? v as Record<string, unknown> : {};
 }
@@ -866,91 +842,6 @@ async function loadDemoHomeEnergy(unitId: string | null): Promise<Record<string,
   } catch {
     return null;
   }
-}
-
-function buildDemoEnergyAnswer(demoHome: Record<string, unknown>, message: string): string | null {
-  const home = getObj(demoHome.home);
-  const energy = getObj(demoHome.energy);
-  const devices = getObj(demoHome.devices);
-  const detail = getObj(energy.showcase_month_detail);
-  if (Object.keys(detail).length === 0 && Object.keys(devices).length === 0) return null;
-
-  const address = str(home.address) || 'your home';
-  const month = str(energy.current_month) || 'this month';
-  const headline = str(detail.headline);
-  const gridImport = fmtKwh(detail.grid_import_kwh);
-
-  const heatPump = getObj(detail.heat_pump);
-  const hpDevice = getObj(devices.heat_pump);
-  const cop = num(heatPump.cop);
-  const designSpf = num(heatPump.design_spf) ?? num(hpDevice.design_spf);
-  const excessKwh = fmtKwh(heatPump.excess_kwh);
-  const excessPct = fmtPct(heatPump.excess_pct);
-  const hpMakeModel = [str(hpDevice.make), str(hpDevice.model)].filter(Boolean).join(' ');
-
-  const solar = getObj(detail.solar);
-  const solarDevice = getObj(devices.solar);
-  const solarGenerated = fmtKwh(solar.generated_kwh);
-  const solarExported = fmtKwh(solar.exported_kwh);
-  const arrayKwp = num(solarDevice.array_kwp);
-
-  const ev = getObj(detail.ev);
-  const evDay = fmtKwh(ev.day_rate_kwh);
-  const evNight = fmtKwh(ev.night_rate_kwh);
-  const evSessions = num(ev.day_rate_sessions);
-
-  const bands = getObj(detail.grid_import_bands);
-  const dayKwh = fmtKwh(bands.day_kwh);
-  const peakKwh = fmtKwh(bands.peak_kwh);
-  const nightKwh = fmtKwh(bands.night_kwh);
-
-  const asksCanTellByUsage = /\b(can you tell|by my usage|usage\?)\b/i.test(message);
-  const asksSolar = /\b(solar|panel|panels|pv|generation|export)\b/i.test(message);
-  const asksHeatPump = /\b(heat\s*pump|cop|heating)\b/i.test(message);
-
-  if (asksSolar && !asksCanTellByUsage) {
-    const parts = [`Yes, this demo home has solar PV${arrayKwp ? `, a ${arrayKwp.toFixed(1)} kWp array` : ''}.`];
-    if (solarGenerated || solarExported) {
-      parts.push(`For ${month}, the model shows ${solarGenerated || 'some generation'} generated${solarExported ? `, with ${solarExported} exported` : ''}.`);
-    }
-    parts.push('I’m taking that from the Golden Home energy model, not a live supplier meter feed. Want me to explain how much of that solar is actually helping the bill?');
-    return parts.join(' ');
-  }
-
-  if (asksHeatPump && !asksCanTellByUsage) {
-    const model = hpMakeModel ? `${hpMakeModel} ` : '';
-    const perf = cop && designSpf ? `It is running at about ${cop.toFixed(1)} COP against a design SPF of ${designSpf.toFixed(1)}.` : null;
-    return [`Your ${model}heat pump is the main thing to check in the demo data.`, perf, excessKwh ? `The model attributes roughly ${excessKwh}${excessPct ? `, about ${excessPct} extra` : ''}, to underperformance this month.` : null, 'That is why OpenHouse should answer this from the home model rather than telling you to call the supplier. Want me to turn that into a simple homeowner explanation?'].filter(Boolean).join(' ');
-  }
-
-  const lead = asksCanTellByUsage
-    ? `Yes. From the usage model for ${address}, the high usage is not random.`
-    : `Yes. For ${address}, the demo data points to a few specific drivers rather than a generic bill issue.`;
-
-  const lines = [lead];
-  if (headline) lines.push(headline.charAt(0).toUpperCase() + headline.slice(1));
-  if (gridImport) lines.push(`The model shows ${gridImport} imported from the grid in ${month}.`);
-
-  const drivers: string[] = [];
-  if (cop && designSpf) {
-    drivers.push(`the heat pump is running at ${cop.toFixed(1)} COP versus a design SPF of ${designSpf.toFixed(1)}${excessKwh ? `, adding about ${excessKwh}${excessPct ? ` or ${excessPct}` : ''}` : ''}`);
-  }
-  if (evDay) {
-    drivers.push(`EV charging used ${evDay} on day rate${evNight ? ` versus ${evNight} at night` : ''}${evSessions ? ` across ${evSessions} day-rate sessions` : ''}`);
-  }
-  if (solarGenerated) {
-    drivers.push(`solar generated ${solarGenerated}${solarExported ? `, but ${solarExported} was exported rather than used in the home` : ''}`);
-  }
-  if (dayKwh || peakKwh || nightKwh) {
-    drivers.push(`grid use split as ${[nightKwh ? `${nightKwh} night` : null, dayKwh ? `${dayKwh} day` : null, peakKwh ? `${peakKwh} peak` : null].filter(Boolean).join(', ')}`);
-  }
-
-  if (drivers.length > 0) {
-    lines.push(`The main drivers are: ${drivers.join('; ')}.`);
-  }
-
-  lines.push('I’m taking this from the Golden Home demo energy model, the same data used in My Home, not from a live supplier bill. The best next check is the heat pump settings and EV charging schedule. Want me to suggest the three changes that would reduce the next month’s usage?');
-  return lines.join('\n\n');
 }
 
 function buildSchemeFactsBlock(profile: Record<string, unknown>): string {
@@ -1921,9 +1812,9 @@ export async function POST(request: NextRequest) {
       throw new Error('Homeowner chat: cannot resolve project_id for RAG lookup');
     }
 
-    if (isEnergyUsageQuestion(message)) {
+    if (isHomeEnergyQuestion(message)) {
       const demoHome = await loadDemoHomeEnergy(actualUnitId);
-      const energyAnswer = demoHome ? buildDemoEnergyAnswer(demoHome, message) : null;
+      const energyAnswer = demoHome ? buildHomeEnergyAnswer(demoHome, message) : null;
       if (energyAnswer) {
         await persistMessageSafely({
           tenant_id: userTenantId,
