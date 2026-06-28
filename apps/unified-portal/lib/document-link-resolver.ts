@@ -414,13 +414,15 @@ export async function findFloorPlanDocuments(
     // Priority 2: Discipline-based (architectural drawings)
     const isArchitecturalDrawing = discipline === 'architectural' || discipline === 'floorplan';
     
-    // Exclude elevations, sections, foundations (not room dimensions)
+    // Exclude elevations, sections, foundations, site layouts (not room dimensions)
     const isExcludedType = 
       /elevation/i.test(fileName) ||
       /section/i.test(fileName) ||
       /foundation/i.test(fileName) ||
+      /site[-\s]*layout/i.test(fileName) ||
       drawingType === 'elevation' ||
-      drawingType === 'section';
+      drawingType === 'section' ||
+      drawingType === 'site_layout';
     
     // Priority 3: Filename-based detection (fallback) - only for floor plan patterns, NOT elevations/sections
     // Patterns handle both spaces and hyphens in filenames
