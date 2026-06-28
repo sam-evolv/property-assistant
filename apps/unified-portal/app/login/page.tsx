@@ -2,7 +2,16 @@
 
 import { useRouter } from 'next/navigation';
 
-const PRODUCTS = [
+type Product = {
+  id: string;
+  icon: JSX.Element;
+  title: string;
+  subtitle: string;
+  href: string;
+  hidden?: boolean;
+};
+
+const PRODUCTS: Product[] = [
   {
     id: 'home',
     icon: (
@@ -26,6 +35,8 @@ const PRODUCTS = [
     title: 'OpenHouse Select',
     subtitle: 'Builder & homeowner portal',
     href: '/select',
+    // Hidden until this product is operational — remove `hidden` to re-enable
+    hidden: true,
   },
   {
     id: 'agent',
@@ -39,6 +50,8 @@ const PRODUCTS = [
     title: "I'm an Estate Agent",
     subtitle: 'Sales pipeline & intelligence',
     href: '/login/agent',
+    // Hidden until this product is operational — remove `hidden` to re-enable
+    hidden: true,
   },
   {
     id: 'care',
@@ -50,6 +63,8 @@ const PRODUCTS = [
     title: 'My Energy System',
     subtitle: 'Solar, heat pump & EV portal',
     href: '/care/select',
+    // Hidden until this product is operational — remove `hidden` to re-enable
+    hidden: true,
   },
   {
     id: 'developer',
@@ -154,7 +169,7 @@ export default function LoginSelector() {
 
           {/* Product cards */}
           <div className="flex flex-col gap-2.5">
-            {PRODUCTS.map(p => (
+            {PRODUCTS.filter(p => !p.hidden).map(p => (
               <button
                 key={p.id}
                 onClick={() => router.push(p.href)}
