@@ -744,6 +744,7 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               userId={house.user_id}
               prefillMessage={pendingQuestion}
+              onViewIssues={() => handleTabChange('issues')}
             />
           </Tabs.Content>
 

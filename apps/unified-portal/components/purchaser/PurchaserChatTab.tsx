@@ -326,6 +326,31 @@ const SaveToast = ({ show }: { show: boolean }) => {
   );
 };
 
+// Toast notification when an issue is logged from a photo
+const IssueToast = ({ show, onViewIssues }: { show: boolean; onViewIssues: () => void }) => {
+  if (!show) return null;
+  return (
+    <div
+      className="fixed top-20 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-3 px-4 py-2.5 rounded-xl backdrop-blur-xl border"
+      style={{
+        backgroundColor: 'rgba(245, 158, 11, 0.14)',
+        borderColor: 'rgba(245, 158, 11, 0.32)',
+        animation: 'toastSlideIn 300ms cubic-bezier(0.16, 1, 0.3, 1)',
+      }}
+    >
+      <Check className="h-3.5 w-3.5 text-amber-500" />
+      <span className="text-xs font-semibold text-amber-600">Issue reported to your developer</span>
+      <button
+        type="button"
+        onClick={onViewIssues}
+        className="text-xs font-semibold text-amber-700 underline underline-offset-2 hover:text-amber-800"
+      >
+        View issues
+      </button>
+    </div>
+  );
+};
+
 // Weather card component for rich weather display
 const WeatherCard = ({ card, isDarkMode }: { card: NonNullable<Message['weather_card']>; isDarkMode: boolean }) => {
   const conditions = (card.conditions || '').toLowerCase();
@@ -793,6 +818,9 @@ interface PurchaserChatTabProps {
   // Optional text to drop into the composer (without sending) when the homeowner
   // deep-links here from another tab, e.g. the My Home "Ask the assistant" buttons.
   prefillMessage?: string;
+  // Optional callback fired when the homeowner taps "View issues" in the
+  // issue-logged toast, so the parent can switch to the Issues tab.
+  onViewIssues?: () => void;
 }
 
 // Translations for UI and prompts
@@ -972,6 +1000,7 @@ export default function PurchaserChatTab({
   schemeLng,
   estHandoverDate,
   prefillMessage,
+  onViewIssues,
 }: PurchaserChatTabProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -1084,6 +1113,7 @@ export default function PurchaserChatTab({
     enabled: true,
   });
   const [showSaveToast, setShowSaveToast] = useState(false);
+  const [showIssueToast, setShowIssueToast] = useState(false);
 
   const handleSaveNote = useCallback(async (content: string, sourceQuery: string) => {
     const result = await addHomeNote(content, false, sourceQuery);
@@ -1379,6 +1409,12 @@ export default function PurchaserChatTab({
       // touched after this await, so a turn sent mid-reveal cannot clobber it.
       setMultimodalStatus(null);
       await displayTextWithDelay(result.assistantMessage);
+      // If the assistant logged an issue from the photo(s), surface a toast so
+      // the homeowner knows it reached the site team.
+      if (result.action === 'create_issue_report') {
+        setShowIssueToast(true);
+        setTimeout(() => setShowIssueToast(false), 4000);
+      }
     } catch (err) {
       const message = err instanceof SendMultimodalError
         ? err.residentMessage
@@ -1825,6 +1861,7 @@ export default function PurchaserChatTab({
     >
       {/* Save toast notification */}
       <SaveToast show={showSaveToast} />
+      <IssueToast show={showIssueToast} onViewIssues={() => onViewIssues?.()} />
 
       {/* CONTENT AREA - Either home screen or messages */}
       {messages.length === 0 && showHome ? (
