@@ -65,6 +65,14 @@ export interface HouseContext {
   rooms: HouseContextRoom[];
   /** From unit_types.floor_plan_pdf_url for this unit's type. */
   floor_plan_url: string | null;
+  /**
+   * The dwelling specification for this unit's type, from
+   * unit_types.specification_json. Free-form key/value detail about fixtures and
+   * finishes: lighting and bulb types, sockets, paint, flooring, internal doors,
+   * worktop, appliances, sanitaryware and heating/hot water. Optional: absent for
+   * unit types that have no specification recorded.
+   */
+  specification?: unknown;
   /** A stored per-home energy and systems dataset, optional. */
   energy?: unknown;
 }
