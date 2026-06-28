@@ -486,6 +486,13 @@ export default function PurchaserMyHomeTab({
     (!!data?._note ||
       (data?.home?.address || '').toLowerCase().includes('bayly') ||
       (address || '').toLowerCase().includes('bayly'));
+  const liveLabel = isDemo ? 'Demo live view' : 'Live';
+  const rightNowLabel = isDemo ? 'Simulated right now' : 'Right now';
+  const systemsHint = isDemo ? 'demo readings from this home model' : 'live from this home';
+  const monthHint = `${currentMonthLabel ? currentMonthLabel.split(' ')[0] : 'This month'}, ${isDemo ? 'simulated' : 'live'}`;
+  const meterCopy = isDemo
+    ? 'Demo readings from this home model, not a live meter feed. Your supplier sets the bill, the assistant explains what is driving it.'
+    : 'Read from your meter and devices. Your supplier sets the bill, the assistant explains what is driving it.';
 
   // --- Live simulation (gated on energy + reduced motion) ---
   // The import total is the fixed monthly grid figure; the bands sum to it.
@@ -584,6 +591,24 @@ export default function PurchaserMyHomeTab({
       <span style={{ fontSize: '0.75rem', color: c.t3 }}>{hint}</span>
     </div>
   );
+
+  const insightCard = (label: string, text: string, tone: 'money' | 'comfort' | 'risk') => {
+    const tones = {
+      money: { bg: 'rgba(212,175,55,0.10)', border: 'rgba(212,175,55,0.28)', color: goldText },
+      comfort: { bg: 'rgba(59,130,246,0.09)', border: 'rgba(59,130,246,0.24)', color: c.blue },
+      risk: { bg: 'rgba(245,158,11,0.10)', border: 'rgba(245,158,11,0.28)', color: c.amber },
+    }[tone];
+    return (
+      <div style={{ background: tones.bg, border: `1px solid ${tones.border}`, borderRadius: 12, padding: '10px 11px' }}>
+        <div style={{ color: tones.color, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: 4 }}>
+          {label}
+        </div>
+        <div style={{ color: c.t2, fontSize: '0.6875rem', lineHeight: 1.4 }}>
+          {text}
+        </div>
+      </div>
+    );
+  };
 
   // Live "now" line used inside system cards.
   const nowLine = (label: string, value: number | null, unit: string, dim = false) => (
@@ -768,7 +793,7 @@ export default function PurchaserMyHomeTab({
                   </div>
                 </div>
                 <div style={{ color: c.t3, fontSize: '0.6875rem', marginTop: 12, lineHeight: 1.4 }}>
-                  Read from your meter and devices. Your supplier sets the bill, the assistant explains what is driving it.
+                  {meterCopy}
                 </div>
                 <button
                   type="button"
@@ -819,8 +844,8 @@ export default function PurchaserMyHomeTab({
                       <span style={{ position: 'absolute', inset: -4, borderRadius: '50%', border: '2px solid rgba(16,185,129,0.45)', animation: 'mh-ring 2s ease-out infinite' }} />
                     )}
                   </span>
-                  <span style={{ color: c.green, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase', fontSize: '0.625rem' }}>Live</span>
-                  Right now
+                  <span style={{ color: c.green, fontWeight: 700, letterSpacing: '0.03em', textTransform: 'uppercase', fontSize: '0.625rem' }}>{liveLabel}</span>
+                  {rightNowLabel}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
                   {[
@@ -840,7 +865,7 @@ export default function PurchaserMyHomeTab({
               </div>
             </Reveal>
 
-            {sectionTitle("Your home's systems", 'live from this home')}
+            {sectionTitle("Your home's systems", systemsHint)}
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               {/* Heat pump (lead) */}
@@ -982,7 +1007,17 @@ export default function PurchaserMyHomeTab({
               </div>
             </Reveal>
 
-            {sectionTitle('When you used the grid', `${currentMonthLabel ? currentMonthLabel.split(' ')[0] : 'This month'}, live`)}
+            {sectionTitle('Money / Comfort / Risk', 'what it means')}
+
+            <Reveal index={next()} reduce={reduce}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                {insightCard('Money', `${fmtInt(evDayKwh)} kWh of EV charging landed on the dear day rate. Moving that to night is the clearest saving.`, 'money')}
+                {insightCard('Comfort', 'Low and constant heat-pump running should keep rooms steadier than short bursts in cold weather.', 'comfort')}
+                {insightCard('Risk', 'Short-cycling and recent ventilation downtime are worth checking before they become maintenance or warranty issues.', 'risk')}
+              </div>
+            </Reveal>
+
+            {sectionTitle('When you used the grid', monthHint)}
 
             {/* Rate-window panel */}
             <Reveal index={next()} reduce={reduce}>
@@ -1021,12 +1056,12 @@ export default function PurchaserMyHomeTab({
                   </div>
                 </div>
                 <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 12, lineHeight: 1.5 }}>
-                  You are drawing on the day rate right now. Over half this month landed in the dearer windows, so the room is in shifting load to night.
+                  You are drawing on the day rate right now. Over half this month landed in the dearer windows, so there is room to shift more load to night.
                 </div>
               </div>
             </Reveal>
 
-            {sectionTitle('What would help', 'tap to do it')}
+            {sectionTitle('What would help', 'recommended actions')}
 
             {/* What would help */}
             <Reveal index={next()} reduce={reduce}>

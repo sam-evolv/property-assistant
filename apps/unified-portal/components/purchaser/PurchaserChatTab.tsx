@@ -799,12 +799,14 @@ interface PurchaserChatTabProps {
 const TRANSLATIONS: Record<string, any> = {
   en: {
     welcome: 'Ask anything about your home or community',
-    subtitle: 'Quick answers for daily life: floor plans, amenities, local services, and more.',
+    subtitle: 'Quick answers from your home file: rooms, systems, documents, energy, and issues.',
     prompts: [
-      "Kitchen Layout",
-      "First-Year Maintenance",
-      "Broadband Setup",
-      "EV Charging"
+      "What size is my living room?",
+      "Why is my electricity high?",
+      "What warranty covers my heat pump?",
+      "Upload a photo of an issue",
+      "Where are my fire safety documents?",
+      "How do I move EV charging to night?"
     ],
     placeholder: 'Ask about your home or community...',
     askButton: 'Ask',
@@ -1884,9 +1886,9 @@ export default function PurchaserChatTab({
             {t.subtitle}
           </p>
 
-          {/* 2x2 Prompt Grid */}
+          {/* Golden Home prompt grid */}
           <div className="mt-4"></div>
-          <div className="grid w-full max-w-[300px] grid-cols-2 gap-1.5">
+          <div className="grid w-full max-w-[330px] grid-cols-2 gap-1.5">
             {SUGGESTED_PILLS_V2_ENABLED && suggestedPillsV2.length === 4 ? (
               suggestedPillsV2.map((pill) => (
                 <button
@@ -1925,7 +1927,7 @@ export default function PurchaserChatTab({
                     e.preventDefault();
                     handleQuickPrompt(prompt);
                   }}
-                  className={`flex items-center justify-center rounded-full px-2.5 py-2 text-[12px] font-medium transition-all duration-200 cursor-pointer touch-manipulation ${
+                  className={`flex min-h-[34px] items-center justify-center rounded-full px-2.5 py-2 text-center text-[11px] font-medium leading-tight transition-all duration-200 cursor-pointer touch-manipulation ${
                     isDarkMode
                       ? 'border border-[#2A2A2A] bg-[#1A1A1A] text-[#E0E0E0] hover:border-[#D4AF37] hover:shadow-[0_0_10px_rgba(212,175,55,0.3)] active:scale-95'
                       : 'border border-slate-200 bg-white text-slate-800 shadow-sm hover:border-gold-500 hover:shadow-[0_0_10px_rgba(234,179,8,0.35)] active:scale-95'
