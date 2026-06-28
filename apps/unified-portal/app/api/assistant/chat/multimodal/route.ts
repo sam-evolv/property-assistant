@@ -103,6 +103,74 @@ function computeCostUsdMicro(tokensIn: number | null, tokensOut: number | null):
   return Math.round((tokensIn ?? 0) * GPT4O_USD_PER_1M_INPUT + (tokensOut ?? 0) * GPT4O_USD_PER_1M_OUTPUT);
 }
 
+// ── Document link backfill (OpenHouse agent path only) ────────────────────
+// The chat bubble only turns a bare absolute http(s) URL into a tappable link.
+// The agent reliably NAMES the right document ("Here's your BER certificate:
+// BER Certificate - A2 - 34 Bayly") but does not always paste the URL, so the
+// homeowner sees dead text. This backfill is deterministic and model-independent:
+// for each document in the house context, if the reply mentions the document's
+// title (or its distinctive lead phrase) but does not already contain the URL,
+// append the URL so the bubble linkifies it. If the agent already pasted the URL
+// it is left untouched. Nothing is invented: only URLs already in the context
+// for this home are ever added.
+interface ContextDocument {
+  title: string;
+  url: string;
+}
+
+function extractContextDocuments(houseContext: unknown): ContextDocument[] {
+  if (!houseContext || typeof houseContext !== 'object') return [];
+  const docs = (houseContext as { documents?: unknown }).documents;
+  if (!Array.isArray(docs)) return [];
+  const out: ContextDocument[] = [];
+  for (const d of docs) {
+    if (d && typeof d === 'object') {
+      const title = (d as { title?: unknown }).title;
+      const url = (d as { url?: unknown }).url;
+      if (typeof title === 'string' && typeof url === 'string' && title && url) {
+        out.push({ title, url });
+      }
+    }
+  }
+  return out;
+}
+
+// The lead phrase is the document title up to its first " - " (e.g. "BER
+// Certificate" from "BER Certificate - A2 - 34 Bayly"), lowercased. This is what
+// the agent tends to echo, so matching on it catches the common case where the
+// agent shortens the title.
+function documentLeadPhrase(title: string): string {
+  const head = title.split(' - ')[0] ?? title;
+  return head.trim().toLowerCase();
+}
+
+function backfillDocumentLinks(message: string, documents: ContextDocument[]): string {
+  if (!message || documents.length === 0) return message;
+  const lower = message.toLowerCase();
+  const appended: string[] = [];
+  const already = new Set<string>();
+  for (const doc of documents) {
+    if (message.includes(doc.url)) {
+      // The agent already pasted this URL; nothing to do for it.
+      already.add(doc.url);
+    }
+  }
+  for (const doc of documents) {
+    if (already.has(doc.url)) continue;
+    if (appended.includes(doc.url)) continue;
+    const fullTitle = doc.title.toLowerCase();
+    const lead = documentLeadPhrase(doc.title);
+    const mentioned = lower.includes(fullTitle) || (lead.length >= 4 && lower.includes(lead));
+    if (mentioned) {
+      appended.push(doc.url);
+    }
+  }
+  if (appended.length === 0) return message;
+  // One link per line so each renders as its own tappable anchor. A blank line
+  // separates the links from the agent's prose.
+  return `${message.trimEnd()}\n\n${appended.join('\n')}`;
+}
+
 // ── Conversation memory (OpenHouse agent path only) ───────────────────────
 // Turns are stored in assistant_conversation_turns (migration 065), keyed by the
 // bare conversation_id. We replay the most recent turns to the model so the
@@ -597,6 +665,14 @@ export async function POST(request: NextRequest) {
     }
 
     residentMessage = agentResult.message;
+    // Deterministically ensure any document the agent named is accompanied by its
+    // real URL, so the chat bubble renders it as a tappable link even when the
+    // model wrote only the document's name. Uses only URLs already in this home's
+    // context; never invents a link. No-op when no document is referenced.
+    residentMessage = backfillDocumentLinks(
+      residentMessage,
+      extractContextDocuments(houseContext),
+    );
     logFlagPath = ANALYTICS_FLAG_OPENHOUSE_AGENT;
     logPromptVersion = OPENHOUSE_AGENT_V1_PROMPT_VERSION;
     logModelUsed = 'gpt-4o';
