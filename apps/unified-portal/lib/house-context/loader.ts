@@ -87,6 +87,7 @@ interface UnitLoad {
   projectId: string | null;
   unitTypeId: string | null;
   floorPlanUrl: string | null;
+  specification: unknown;
 }
 
 export async function loadHouseContext(params: LoadHouseContextParams): Promise<HouseContext> {
@@ -127,12 +128,13 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
       projectId: null,
       unitTypeId: null,
       floorPlanUrl: null,
+      specification: undefined,
     };
     try {
       const { data, error } = await supabase
         .from('units')
         .select(
-          'unit_number, address, eircode, bedrooms, bathrooms, floor_area_m2, property_type, handover_date, house_type_code, project_id, unit_type_id, unit_types(name, floor_plan_pdf_url)',
+          'unit_number, address, eircode, bedrooms, bathrooms, floor_area_m2, property_type, handover_date, house_type_code, project_id, unit_type_id, unit_types(name, floor_plan_pdf_url, specification_json)',
         )
         .eq('id', unitId)
         .maybeSingle();
@@ -145,6 +147,11 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
       // single-element array depending on relationship detection. Handle both.
       const utRaw = row.unit_types;
       const ut = (Array.isArray(utRaw) ? utRaw[0] : utRaw) as Row | null | undefined;
+      const specRaw = ut ? (ut.specification_json as unknown) : undefined;
+      const specification =
+        specRaw && typeof specRaw === 'object' && Object.keys(specRaw as Row).length > 0
+          ? specRaw
+          : undefined;
       return {
         unit: {
           unit_number: toStr(row.unit_number),
@@ -161,6 +168,7 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
         projectId: toStr(row.project_id),
         unitTypeId: toStr(row.unit_type_id),
         floorPlanUrl: ut ? toStr(ut.floor_plan_pdf_url) : null,
+        specification,
       };
     } catch (err) {
       console.warn(
@@ -350,8 +358,12 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
     }
   }
 
-  // Attach the stored per-home energy dataset last, so it reaches the model intact and
-  // does not perturb the room and scheme budget trimming above.
+  // Attach the dwelling specification and the stored per-home energy dataset last,
+  // so they reach the model intact and do not perturb the room and scheme budget
+  // trimming above. Both are optional: an unset field is simply omitted.
+  if (unitLoad.specification !== undefined) {
+    context = { ...context, specification: unitLoad.specification };
+  }
   if (energy !== undefined) {
     context = { ...context, energy };
   }
