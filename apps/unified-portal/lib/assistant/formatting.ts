@@ -4,7 +4,9 @@
  * `sanitizeForChat` neutralises unsupported or unsafe markdown (code blocks,
  * images, links, blockquotes, horizontal rules) and caps heading levels, while
  * preserving the inline and list markers the chat renderer styles: bold,
- * italic, inline code, h3/h4 headings, and ordered/unordered lists.
+ * italic, inline code, h3/h4 headings, and ordered/unordered lists. It also
+ * renumbers ordered lists so a model that emits "1." for every item (a very
+ * common failure mode) renders 1, 2, 3 rather than 1, 1, 1.
  *
  * `renderChatMarkdown` turns that preserved markdown into safe HTML for the
  * chat bubbles. It HTML-escapes first, so model output can never inject markup,
@@ -12,6 +14,50 @@
  * (PurchaserChatTab) and care (AssistantScreen) bubbles render through it so the
  * markdown looks the same across the product.
  */
+
+/**
+ * Renumber ordered-list items so their numbers run sequentially.
+ *
+ * Models frequently emit "1." for every item, or restart numbering, especially
+ * when each numbered item is followed by indented sub-bullets. The chat renderer
+ * builds a separate <ol> per fragment, and each <ol> with list-decimal would
+ * otherwise start again at 1, so the user sees 1, 1, 1, 1.
+ *
+ * This walks the text and rewrites the leading number of each ordered-list line
+ * to an incrementing counter. Blank lines and sub-bullet lines (-, *) do not
+ * break the sequence, so a numbered item with bullets under it still counts. Any
+ * other non-list line ends the current list and resets the counter, so two
+ * genuinely separate lists each start at 1.
+ */
+export function renumberOrderedLists(text: string): string {
+  const lines = text.split('\n');
+  const numberedRe = /^(\s*)\d+\.\s+(.+)$/;
+  const bulletRe = /^(\s*)[-*•]\s+/;
+  let counter = 0;
+  let inOrdered = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const m = numberedRe.exec(lines[i]);
+    if (m) {
+      counter += 1;
+      inOrdered = true;
+      lines[i] = `${m[1]}${counter}. ${m[2]}`;
+      continue;
+    }
+    if (inOrdered) {
+      // Sub-bullets and blank lines belong to the current ordered item; they do
+      // not break or reset the sequence.
+      if (lines[i].trim() === '' || bulletRe.test(lines[i])) {
+        continue;
+      }
+      // Any other content ends the ordered list; the next "1." starts fresh.
+      inOrdered = false;
+      counter = 0;
+    }
+  }
+
+  return lines.join('\n');
+}
 
 export function sanitizeForChat(text: string): string {
   let result = text;
@@ -40,6 +86,9 @@ export function sanitizeForChat(text: string): string {
 
   // Blockquotes are not supported: keep the text, drop the leading "> " marker.
   result = result.replace(/^>\s+(.+)$/gm, '$1');
+
+  // Renumber ordered lists so repeated or restarted "1." items count correctly.
+  result = renumberOrderedLists(result);
 
   // Collapse runs of blank lines and trim trailing whitespace per line.
   result = result.replace(/\n{3,}/g, '\n\n');
@@ -123,11 +172,14 @@ export function renderChatMarkdown(
 
   // 5. Block pass: headings and lists, line by line. Consecutive list lines of
   //    the same kind collapse into one <ul>/<ol>; a blank line or a different
-  //    block ends the run.
+  //    block ends the run. Ordered items carry their literal number through to
+  //    an <li value="N">, so a list that fragments into several <ol> blocks
+  //    (numbered item, then sub-bullets, then the next numbered item) still
+  //    shows 1, 2, 3 rather than restarting each fragment at 1.
   const lines = html.split('\n');
   const blocks: { kind: 'block' | 'text'; value: string }[] = [];
   const bulletRe = /^[-*•]\s+(.+)$/;
-  const numberedRe = /^\d+\.\s+(.+)$/;
+  const numberedRe = /^(\d+)\.\s+(.+)$/;
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
@@ -141,15 +193,19 @@ export function renderChatMarkdown(
       i++;
     } else if (bulletRe.test(line) || numberedRe.test(line)) {
       const ordered = numberedRe.test(line);
-      const items: string[] = [];
+      // Items keep their text and, for ordered lists, their literal number.
+      const items: { text: string; num: number | null }[] = [];
+      let firstNum: number | null = null;
       while (i < lines.length) {
         const bullet = bulletRe.exec(lines[i]);
         const numbered = numberedRe.exec(lines[i]);
         if (ordered && numbered) {
-          items.push(numbered[1]);
+          const num = parseInt(numbered[1], 10);
+          if (firstNum === null) firstNum = num;
+          items.push({ text: numbered[2], num });
           i++;
         } else if (!ordered && bullet) {
-          items.push(bullet[1]);
+          items.push({ text: bullet[1], num: null });
           i++;
         } else if (lines[i].trim() === '') {
           // A blank line between items is common in model output ("loose"
@@ -172,10 +228,16 @@ export function renderChatMarkdown(
       }
       const tag = ordered ? 'ol' : 'ul';
       const listClass = ordered ? 'list-decimal' : 'list-disc';
-      const lis = items.map((item) => `<li>${item}</li>`).join('');
+      const startAttr = ordered && firstNum !== null && firstNum !== 1 ? ` start="${firstNum}"` : '';
+      const lis = items
+        .map((item) => {
+          const valueAttr = ordered && item.num !== null ? ` value="${item.num}"` : '';
+          return `<li${valueAttr}>${item.text}</li>`;
+        })
+        .join('');
       blocks.push({
         kind: 'block',
-        value: `<${tag} class="${listClass} list-outside ml-5 space-y-1 my-2 marker:text-gold-500">${lis}</${tag}>`,
+        value: `<${tag}${startAttr} class="${listClass} list-outside ml-5 space-y-1 my-2 marker:text-gold-500">${lis}</${tag}>`,
       });
     } else {
       blocks.push({ kind: 'text', value: line });
