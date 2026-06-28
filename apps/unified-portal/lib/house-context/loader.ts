@@ -10,6 +10,8 @@
 //     marker used by the developer-portal write paths, not the read key here.
 //   - unit_types joins via the real FK units.unit_type_id -> unit_types.id.
 //   - unit_room_dimensions.house_type_id references unit_types.id.
+//   - document_sections holds the home's documents; each carries a source title
+//     and file_url in metadata. We distil those to one title+url per document.
 //
 // Every query swallows its own errors (console.warn, return null/empty) so a
 // context-load failure can never break the homeowner's chat turn.
@@ -18,6 +20,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type {
   HouseContext,
   HouseContextDevelopment,
+  HouseContextDocument,
   HouseContextRoom,
   HouseContextScheme,
   HouseContextUnit,
@@ -36,6 +39,15 @@ export interface LoadHouseContextParams {
 const TOKEN_BUDGET = 800;
 const MAX_ROOMS = 8;
 
+// Base used to turn a relative document path (/docs/x.pdf) into an absolute URL.
+// The chat bubble only linkifies absolute http(s) URLs, so relative paths would
+// render as dead text. Prefer the configured app URL; fall back to the portal.
+const DOC_BASE_URL = (
+  process.env.NEXT_PUBLIC_APP_URL ||
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  'https://portal.openhouseai.ie'
+).replace(/\/+$/, '');
+
 type Row = Record<string, unknown>;
 
 function toNum(v: unknown): number | null {
@@ -46,6 +58,13 @@ function toNum(v: unknown): number | null {
 
 function toStr(v: unknown): string | null {
   return typeof v === 'string' ? v : null;
+}
+
+// Make a stored document URL absolute so the chat bubble renders it as a link.
+// Already-absolute URLs pass through unchanged; relative paths get the doc base.
+function absoluteDocUrl(url: string): string {
+  if (/^https?:\/\//i.test(url)) return url;
+  return `${DOC_BASE_URL}/${url.replace(/^\/+/, '')}`;
 }
 
 function emptyDevelopment(): HouseContextDevelopment {
@@ -152,6 +171,7 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
         specRaw && typeof specRaw === 'object' && Object.keys(specRaw as Row).length > 0
           ? specRaw
           : undefined;
+      const rawFloorPlan = ut ? toStr(ut.floor_plan_pdf_url) : null;
       return {
         unit: {
           unit_number: toStr(row.unit_number),
@@ -167,7 +187,7 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
         },
         projectId: toStr(row.project_id),
         unitTypeId: toStr(row.unit_type_id),
-        floorPlanUrl: ut ? toStr(ut.floor_plan_pdf_url) : null,
+        floorPlanUrl: rawFloorPlan ? absoluteDocUrl(rawFloorPlan) : null,
         specification,
       };
     } catch (err) {
@@ -266,6 +286,44 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
     }
   };
 
+  // The home's documents, distilled to one title+url per document from
+  // document_sections (a document is chunked across many rows, so dedupe by
+  // source title). URLs are made absolute so the chat bubble renders them as
+  // links. Optional: an empty or failed load degrades to an omitted field.
+  const loadDocuments = async (projectId: string | null): Promise<HouseContextDocument[]> => {
+    if (!projectId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('document_sections')
+        .select('metadata')
+        .eq('project_id', projectId)
+        .limit(1000);
+      if (error) {
+        console.warn('[house-context] documents_load_failed reason=%s', error.message);
+        return [];
+      }
+      const seen = new Set<string>();
+      const docs: HouseContextDocument[] = [];
+      for (const r of (data as Row[] | null) ?? []) {
+        const meta = (r.metadata as Row) || {};
+        const title = toStr(meta.source);
+        const fileUrl = toStr(meta.file_url);
+        if (!title || !fileUrl) continue;
+        if (seen.has(title)) continue;
+        seen.add(title);
+        docs.push({ title, url: absoluteDocUrl(fileUrl) });
+      }
+      docs.sort((a, b) => a.title.localeCompare(b.title));
+      return docs;
+    } catch (err) {
+      console.warn(
+        '[house-context] documents_load_threw reason=%s',
+        err instanceof Error ? err.message : String(err),
+      );
+      return [];
+    }
+  };
+
   // Stored per-home energy and systems dataset, if one has been attached to the unit
   // under units.metadata.demo_home. Optional enrichment: absent data or any failure
   // degrades to an omitted field and never breaks the turn.
@@ -302,15 +360,16 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
   ]);
 
   // Wave 2 — keyed on values the unit fetch returned (project_id for the scheme,
-  // unit_type_id for the room fallback), so they depend on loadUnit but run in
+  // documents and the room fallback), so they depend on loadUnit but run in
   // parallel with each other. The house-type fallback only fires when the unit has
   // no unit-keyed verified dimensions of its own.
   const needsFallback = unitRooms.length === 0 && !!unitLoad.unitTypeId;
-  const [scheme, fallbackRooms] = await Promise.all([
+  const [scheme, fallbackRooms, documents] = await Promise.all([
     loadScheme(unitLoad.projectId),
     needsFallback
       ? loadHouseTypeRooms(unitLoad.unitTypeId as string)
       : Promise.resolve<HouseContextRoom[]>([]),
+    loadDocuments(unitLoad.projectId),
   ]);
 
   const rooms = unitRooms.length > 0 ? unitRooms : fallbackRooms;
@@ -326,6 +385,8 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
   // Token budget guard. Over budget: trim rooms to the first MAX_ROOMS, then (if
   // still over) drop the verbose scheme notes fields. Never throws; always returns
   // something. Truncation is logged so analytics can show whether it is firing.
+  // Documents and the specification are attached after this guard so they are not
+  // counted against the room/scheme trim.
   let estimated = estimateTokens(context);
   if (estimated > TOKEN_BUDGET) {
     if (context.rooms.length > MAX_ROOMS) {
@@ -358,9 +419,12 @@ export async function loadHouseContext(params: LoadHouseContextParams): Promise<
     }
   }
 
-  // Attach the dwelling specification and the stored per-home energy dataset last,
-  // so they reach the model intact and do not perturb the room and scheme budget
-  // trimming above. Both are optional: an unset field is simply omitted.
+  // Attach the documents list, dwelling specification and stored per-home energy
+  // dataset last, so they reach the model intact and do not perturb the room and
+  // scheme budget trimming above. All are optional: an unset/empty field is omitted.
+  if (documents.length > 0) {
+    context = { ...context, documents };
+  }
   if (unitLoad.specification !== undefined) {
     context = { ...context, specification: unitLoad.specification };
   }
