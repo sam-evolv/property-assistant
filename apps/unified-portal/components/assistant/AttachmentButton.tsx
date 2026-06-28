@@ -19,7 +19,7 @@
  * with new files, and the parent merges them into its own state.
  */
 
-import { useId, useRef } from 'react';
+import { useId, useRef, useImperativeHandle, forwardRef } from 'react';
 import { Paperclip } from 'lucide-react';
 import {
   ASSISTANT_MEDIA_ACCEPT,
@@ -33,7 +33,12 @@ interface AttachmentButtonProps {
   onSelected: (files: File[]) => void;
 }
 
-export function AttachmentButton({ remaining, disabled, onSelected }: AttachmentButtonProps) {
+export interface AttachmentButtonHandle {
+  openPicker: () => void;
+}
+
+export const AttachmentButton = forwardRef<AttachmentButtonHandle, AttachmentButtonProps>(
+function AttachmentButton({ remaining, disabled, onSelected }, ref) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -48,21 +53,18 @@ export function AttachmentButton({ remaining, disabled, onSelected }: Attachment
       onSelected(capacitorFiles);
       return;
     }
-    // capacitorFiles can be null (plugin unavailable) or an empty array
-    // (user cancelled). Only fall through to the HTML picker when the
-    // plugin is unavailable; an empty result from a real native sheet
-    // means the user cancelled, so we leave the input alone.
     if (capacitorFiles === null) {
       inputRef.current?.click();
     }
   };
+
+  useImperativeHandle(ref, () => ({ openPicker }), [remaining, disabled]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const list = e.target.files;
     if (list && list.length > 0) {
       onSelected(Array.from(list));
     }
-    // Reset so picking the same file twice still fires the change event.
     e.target.value = '';
   };
 
@@ -90,4 +92,4 @@ export function AttachmentButton({ remaining, disabled, onSelected }: Attachment
       </button>
     </>
   );
-}
+});

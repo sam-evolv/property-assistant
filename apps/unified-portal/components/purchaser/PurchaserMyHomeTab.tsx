@@ -371,6 +371,7 @@ export default function PurchaserMyHomeTab({
   token,
   address,
   developmentName,
+  bedrooms,
   isDarkMode,
   onOpenMaps,
   onAskAssistant,
@@ -402,6 +403,7 @@ export default function PurchaserMyHomeTab({
     rooms: Array<{ name: string; floor: string | null; length_m: number | null; width_m: number | null; area_sqm: number | null; source: string }>;
     floor_plan_url: string | null;
     floor_area_m2: number | null;
+    house_type: string | null;
   } | null>(null);
 
   useEffect(() => {
@@ -417,6 +419,7 @@ export default function PurchaserMyHomeTab({
             rooms: json?.rooms ?? [],
             floor_plan_url: json?.floor_plan_url ?? null,
             floor_area_m2: json?.floor_area_m2 ?? null,
+            house_type: json?.house_type ?? null,
           });
         }
       } catch {
@@ -703,6 +706,20 @@ export default function PurchaserMyHomeTab({
               {displayAddress && (
                 <div style={{ color: c.t2, fontSize: '0.8125rem', marginTop: 3 }}>{displayAddress}</div>
               )}
+              {/* Home identity: type · bedrooms · floor area */}
+              {(() => {
+                const parts = [
+                  homeModel?.house_type,
+                  bedrooms ? `${bedrooms} bed` : null,
+                  homeModel?.floor_area_m2 ? `${homeModel.floor_area_m2.toFixed(0)} m²` : null,
+                ].filter(Boolean);
+                if (parts.length === 0) return null;
+                return (
+                  <div style={{ color: c.t3, fontSize: '0.75rem', marginTop: 5, fontWeight: 500 }}>
+                    {parts.join(' · ')}
+                  </div>
+                );
+              })()}
               {ber && (
                 <div
                   style={{

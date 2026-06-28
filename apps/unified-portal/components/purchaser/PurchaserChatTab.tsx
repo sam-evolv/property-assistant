@@ -22,7 +22,7 @@ import {
   type MultimodalStatus,
 } from '@/lib/assistant/multimodal-client';
 import { useVoiceInput } from '@/lib/assistant/use-voice-input';
-import { AttachmentButton } from '@/components/assistant/AttachmentButton';
+import { AttachmentButton, type AttachmentButtonHandle } from '@/components/assistant/AttachmentButton';
 import { MediaPreviewRow } from '@/components/assistant/MediaPreviewRow';
 import { MediaThumbnailGrid } from '@/components/assistant/MediaThumbnailGrid';
 import { MediaLightbox } from '@/components/assistant/MediaLightbox';
@@ -1009,6 +1009,7 @@ export default function PurchaserChatTab({
       setInput((prev) => (prev.trim() ? `${prev.trim()} ${transcript}` : transcript)),
   });
   const inputBarRef = useRef<HTMLDivElement>(null);
+  const attachRef = useRef<AttachmentButtonHandle>(null);
   
   const { pills: suggestedPillsV2, sessionId: pillSessionId } = useSuggestedPills(SUGGESTED_PILLS_V2_ENABLED, developmentId);
   const [lastIntentKey, setLastIntentKey] = useState<string | null>(null);
@@ -1701,7 +1702,24 @@ export default function PurchaserChatTab({
     'Pleananna Urláir'  // Irish
   ];
   
+  const PHOTO_PROMPTS = [
+    'Upload a photo of an issue',
+    'Tym zdjęciem',       // pl (approx — actual: 'Przez zdjęcie problemu')
+    'Subir foto',          // es
+    'Загрузить фото',      // ru
+    'Carregar foto',       // pt
+    'Augšupielādēt foto',  // lv
+    'Įkelti nuotrauka',    // lt
+    'Încărcați o fotografie', // ro
+    'Íosludra grianghraf', // ga
+  ];
+
   const handleQuickPrompt = (prompt: string) => {
+    // Photo prompts: open the file picker instead of sending text.
+    if (imageUploadEnabled && PHOTO_PROMPTS.some((pp) => prompt.toLowerCase().includes(pp.toLowerCase()))) {
+      attachRef.current?.openPicker();
+      return;
+    }
     // Check if this is a floor plan prompt - send a specific query
     if (FLOOR_PLAN_PROMPTS.includes(prompt)) {
       sendMessage('Show me the floor plans for my home');
@@ -2414,6 +2432,7 @@ export default function PurchaserChatTab({
           }`}>
             {imageUploadEnabled && (
               <AttachmentButton
+                ref={attachRef}
                 remaining={ASSISTANT_MEDIA_MAX_FILES - selectedAttachments.length}
                 disabled={sending}
                 onSelected={handleAttachmentSelected}
