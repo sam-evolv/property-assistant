@@ -144,8 +144,8 @@ export async function callAgent(
   const response = await client.chat.completions.create({
     model: MODEL,
     messages,
-    max_tokens: 1500,
-    temperature: 0.4,
+    max_tokens: 1800,
+    temperature: 0.35,
     response_format: {
       type: 'json_schema',
       json_schema: {

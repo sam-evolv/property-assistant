@@ -171,6 +171,20 @@ function backfillDocumentLinks(message: string, documents: ContextDocument[]): s
   return `${message.trimEnd()}\n\n${appended.join('\n')}`;
 }
 
+function appendIssueTrackingConfirmation(message: string, issueTitle: string | null): string {
+  if (!message) return message;
+  const lower = message.toLowerCase();
+  const saysLogged = lower.includes('logged') || lower.includes('log this') || lower.includes('issue');
+  const mentionsIssuesTab = lower.includes('issues tab') || lower.includes('track it in issues') || lower.includes('trackable in issues');
+  if (saysLogged && mentionsIssuesTab) return message;
+
+  const title = issueTitle?.trim();
+  const suffix = title
+    ? `\n\nI've logged this as "${title}". You can track it in the Issues tab.`
+    : `\n\nI've logged this for the site team. You can track it in the Issues tab.`;
+  return `${message.trimEnd()}${suffix}`;
+}
+
 // ── Conversation memory (OpenHouse agent path only) ───────────────────────
 // Turns are stored in assistant_conversation_turns (migration 065), keyed by the
 // bare conversation_id. We replay the most recent turns to the model so the
@@ -563,6 +577,7 @@ export async function POST(request: NextRequest) {
   let logLatencyMs: number | null = null;
   let logSeverityReturned: string | null = null;
   let logCategoryReturned: string | null = null;
+  let createdIssueTitle: string | null = null;
 
   // Fire one anonymous analytics row WITHOUT blocking or delaying the response.
   // waitUntil keeps the lambda alive until the insert completes (same pattern
@@ -769,6 +784,7 @@ export async function POST(request: NextRequest) {
 
       if (auth.unitId && auth.developmentId) {
         const title = ir.title.length > 200 ? `${ir.title.slice(0, 197)}...` : ir.title;
+        createdIssueTitle = title;
 
         const { data: issueRow, error: issueErr } = await supabase
           .from('issue_reports')
@@ -844,6 +860,9 @@ export async function POST(request: NextRequest) {
     // Persist this exchange so the next turn has context (migration 065). Both
     // the user turn and the assistant turn are written; content is text only and
     // has_image flags photo attachments for the placeholder on the next load.
+    if (createdIssueReportId) {
+      residentMessage = appendIssueTrackingConfirmation(residentMessage, createdIssueTitle);
+    }
     await persistConversationTurns(supabase, {
       tenantId: auth.tenantId,
       conversationId,
@@ -1033,6 +1052,7 @@ export async function POST(request: NextRequest) {
     // homeowner_assistant), mirroring the placeholder path's linkage.
     if (createsIssue && ir && auth.unitId && auth.developmentId) {
       const title = ir.title.length > 200 ? `${ir.title.slice(0, 197)}...` : ir.title;
+      createdIssueTitle = title;
 
       const { data: issueRow, error: issueErr } = await supabase
         .from('issue_reports')
@@ -1158,6 +1178,7 @@ export async function POST(request: NextRequest) {
         result.structured.issue_type?.trim() ||
         'Photo from homeowner';
       const title = titleSource.length > 200 ? `${titleSource.slice(0, 197)}...` : titleSource;
+      createdIssueTitle = title;
 
       const { data: issueRow, error: issueErr } = await supabase
         .from('issue_reports')
@@ -1226,6 +1247,10 @@ export async function POST(request: NextRequest) {
         }
       }
     }
+  }
+
+  if (createdIssueReportId) {
+    residentMessage = appendIssueTrackingConfirmation(residentMessage, createdIssueTitle);
   }
 
   // Anonymous analytics for the successful turn. Fired after the response is
