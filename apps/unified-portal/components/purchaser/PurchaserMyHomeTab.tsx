@@ -98,28 +98,6 @@ interface PurchaserMyHomeTabProps {
   onAskAssistant: (question: string) => void;
 }
 
-type HomeModelRoom = {
-  name: string;
-  floor: string | null;
-  length_m: number | null;
-  width_m: number | null;
-  area_sqm: number | null;
-  source: string;
-};
-
-const BS08_FALLBACK_ROOMS: HomeModelRoom[] = [
-  { name: 'Kitchen / Dining', floor: 'Ground floor', length_m: 3.6, width_m: 5.8, area_sqm: 20.9, source: 'house_type' },
-  { name: 'Living Room', floor: 'Ground floor', length_m: 3.8, width_m: 4.1, area_sqm: 15.6, source: 'house_type' },
-  { name: 'Hall', floor: 'Ground floor', length_m: 1.9, width_m: 5.3, area_sqm: 10.1, source: 'house_type' },
-  { name: 'Utility', floor: 'Ground floor', length_m: 2.2, width_m: 1.6, area_sqm: 3.5, source: 'house_type' },
-  { name: 'WC', floor: 'Ground floor', length_m: 1.5, width_m: 1.6, area_sqm: 2.4, source: 'house_type' },
-  { name: 'Main Bedroom', floor: 'First floor', length_m: 3.6, width_m: 4.0, area_sqm: 14.4, source: 'house_type' },
-  { name: 'Bedroom 2', floor: 'First floor', length_m: 3.2, width_m: 3.9, area_sqm: 12.5, source: 'house_type' },
-  { name: 'Bedroom 3', floor: 'First floor', length_m: 2.5, width_m: 3.3, area_sqm: 8.3, source: 'house_type' },
-  { name: 'Bathroom', floor: 'First floor', length_m: 2.1, width_m: 2.0, area_sqm: 4.2, source: 'house_type' },
-  { name: 'En-suite', floor: 'First floor', length_m: 2.1, width_m: 1.5, area_sqm: 3.2, source: 'house_type' },
-];
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -421,10 +399,8 @@ export default function PurchaserMyHomeTab({
     return () => { cancelled = true; };
   }, [unitUid, token]);
 
-  // --- Home model (rooms + floor plan) ---
+  // --- Home model metadata ---
   const [homeModel, setHomeModel] = useState<{
-    rooms: Array<{ name: string; floor: string | null; length_m: number | null; width_m: number | null; area_sqm: number | null; source: string }>;
-    floor_plan_url: string | null;
     floor_area_m2: number | null;
     house_type: string | null;
   } | null>(null);
@@ -439,8 +415,6 @@ export default function PurchaserMyHomeTab({
         const json = await res.json();
         if (!cancelled) {
           setHomeModel({
-            rooms: json?.rooms ?? [],
-            floor_plan_url: json?.floor_plan_url ?? null,
             floor_area_m2: json?.floor_area_m2 ?? null,
             house_type: json?.house_type ?? null,
           });
@@ -452,9 +426,6 @@ export default function PurchaserMyHomeTab({
     loadModel();
     return () => { cancelled = true; };
   }, [unitUid, token]);
-
-  const fmtM = (v: number | null) => v ? `${v.toFixed(1)} m` : '—';
-  const fmtSqM = (v: number | null) => v ? `${v.toFixed(1)} m²` : '—';
 
   // --- Theme tokens (the app drives dark mode through the isDarkMode prop) ---
   const GOLD = '#D4AF37';
@@ -649,6 +620,16 @@ export default function PurchaserMyHomeTab({
     position: 'relative',
     overflow: 'hidden',
     boxShadow: c.shadow,
+    height: 252,
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  const systemRevealStyle: React.CSSProperties = {
+    display: 'flex',
+    height: '100%',
+    minWidth: 0,
   };
 
   const sectionTitle = (title: string, hint: string) => (
@@ -949,120 +930,14 @@ export default function PurchaserMyHomeTab({
               </div>
             </Reveal>
 
-            {/* Visual home model */}
-            {(() => {
-              const storedRooms = homeModel?.rooms ?? [];
-              const rooms = storedRooms.length > 0 ? storedRooms : (isGoldenHomeLike ? BS08_FALLBACK_ROOMS : []);
-              const hasRooms = rooms.length > 0;
-              const fp = homeModel?.floor_plan_url;
-              if (!hasRooms && !fp) return null;
-              return (
-                <>
-                  {sectionTitle('Your home', storedRooms.length > 0 ? `${rooms.length} rooms recorded` : 'BS08 home model')}
-                  <Reveal index={next()} reduce={reduce}>
-                    <div style={{ background: c.card, border: `1px solid ${c.cardBorder}`, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: c.shadow }}>
-                      {/* Floor plan thumbnail */}
-                      {fp && (
-                        <a
-                          href={fp}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hasRooms ? 12 : 0, textDecoration: 'none' }}
-                        >
-                          <div style={{
-                            width: 64, height: 48, borderRadius: 8, overflow: 'hidden',
-                            border: `1px solid ${c.border}`, background: c.soft, flexShrink: 0,
-                          }}>
-                            <div style={{
-                              width: '100%', height: '100%',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              flexDirection: 'column', gap: 2,
-                            }}>
-                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth={2}>
-                                <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
-                              </svg>
-                              <span style={{ fontSize: '0.5625rem', color: c.t3, fontWeight: 600 }}>Plan</span>
-                            </div>
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1 }}>Floor plan</div>
-                            <div style={{ fontSize: '0.6875rem', color: c.t3, marginTop: 1 }}>Open the full plan for this home</div>
-                          </div>
-                          <ChevronRight size={16} strokeWidth={2} style={{ color: c.t3, flexShrink: 0 }} />
-                        </a>
-                      )}
-
-                      {/* Room grid */}
-                      {hasRooms && (
-                        <>
-                          {fp && <div style={{ borderTop: `1px solid ${c.border}`, marginBottom: 12 }} />}
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                            {rooms.map((room, i) => {
-                              const dims = room.length_m && room.width_m
-                                ? `${fmtM(room.length_m)} × ${fmtM(room.width_m)}`
-                                : null;
-                              return (
-                                <button
-                                  key={i}
-                                  type="button"
-                                  onClick={() => onAskAssistant(
-                                    room.source === 'unit'
-                                      ? `Tell me about the ${room.name}${room.floor ? ` on the ${room.floor}` : ''} in my home. What are its dimensions and fixtures?`
-                                      : `What is typical for the ${room.name} in a house like mine?`,
-                                  )}
-                                  style={{
-                                    background: c.soft,
-                                    border: `1px solid ${c.border}`,
-                                    borderRadius: 10,
-                                    padding: '10px 11px',
-                                    textAlign: 'left',
-                                    cursor: 'pointer',
-                                  }}
-                                >
-                                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: c.t1, lineHeight: 1.2 }}>
-                                    {room.name}
-                                    {room.floor && (
-                                      <span style={{ fontWeight: 400, color: c.t3 }}> · {room.floor}</span>
-                                    )}
-                                  </div>
-                                  {dims && (
-                                    <div style={{ fontSize: '0.6875rem', color: goldText, marginTop: 3, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
-                                      {dims}
-                                    </div>
-                                  )}
-                                  {room.area_sqm && !dims && (
-                                    <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
-                                      {fmtSqM(room.area_sqm)}
-                                    </div>
-                                  )}
-                                  {room.source === 'house_type' && (
-                                    <div style={{ fontSize: '0.5625rem', color: c.t3, marginTop: 3, fontStyle: 'italic' }}>
-                                      typical for this type
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
-                          <div style={{ fontSize: '0.625rem', color: c.t3, marginTop: 10, lineHeight: 1.4 }}>
-                            Tap a room to ask the assistant about it.
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </Reveal>
-                </>
-              );
-            })()}
-
             {sectionTitle("Your home's systems", systemsHint)}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, alignItems: 'stretch' }}>
               {/* Heat pump (lead) */}
-              <Reveal index={next()} reduce={reduce}>
+              <Reveal index={next()} reduce={reduce} style={systemRevealStyle}>
                 <div
                   className="mh-press"
-                  style={{ ...cardBase, borderColor: 'rgba(212,175,55,0.5)', boxShadow: '0 1px 2px rgba(12,12,12,.04), 0 12px 26px rgba(212,175,55,0.16)' }}
+                  style={{ ...cardBase, width: '100%', borderColor: 'rgba(212,175,55,0.5)', boxShadow: '0 1px 2px rgba(12,12,12,.04), 0 12px 26px rgba(212,175,55,0.16)' }}
                 >
                   <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(180deg,#D4AF37,#B8934C)' }} />
                   <span style={pillStyle('act')}>Act now</span>
@@ -1085,8 +960,8 @@ export default function PurchaserMyHomeTab({
               </Reveal>
 
               {/* Ventilation */}
-              <Reveal index={next()} reduce={reduce}>
-                <div className="mh-press" style={cardBase}>
+              <Reveal index={next()} reduce={reduce} style={systemRevealStyle}>
+                <div className="mh-press" style={{ ...cardBase, width: '100%' }}>
                   <span style={pillStyle('check')}>Check</span>
                   <div style={iconBox('blue')}><Wind size={18} strokeWidth={2} /></div>
                   <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1, lineHeight: 1.2 }}>Ventilation</div>
@@ -1102,8 +977,8 @@ export default function PurchaserMyHomeTab({
               </Reveal>
 
               {/* EV charger */}
-              <Reveal index={next()} reduce={reduce}>
-                <div className="mh-press" style={cardBase}>
+              <Reveal index={next()} reduce={reduce} style={systemRevealStyle}>
+                <div className="mh-press" style={{ ...cardBase, width: '100%' }}>
                   <span style={pillStyle('save')}>Saving</span>
                   <div style={iconBox('teal')}><Zap size={18} strokeWidth={2} /></div>
                   <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1, lineHeight: 1.2 }}>EV charger</div>
@@ -1124,8 +999,8 @@ export default function PurchaserMyHomeTab({
               </Reveal>
 
               {/* Solar */}
-              <Reveal index={next()} reduce={reduce}>
-                <div className="mh-press" style={cardBase}>
+              <Reveal index={next()} reduce={reduce} style={systemRevealStyle}>
+                <div className="mh-press" style={{ ...cardBase, width: '100%' }}>
                   <span style={pillStyle('ok')}>Normal</span>
                   <div style={iconBox('gold')}><Sun size={18} strokeWidth={2} /></div>
                   <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1, lineHeight: 1.2 }}>Solar</div>
@@ -1320,7 +1195,7 @@ export default function PurchaserMyHomeTab({
                 <div style={{ borderTop: `1px solid ${c.border}` }} />
                 <button
                   type="button"
-                  onClick={() => onAskAssistant('I want to upload a photo of an issue in my home. Help me describe it for the developer.')}
+                  onClick={() => onAskAssistant('I want to upload a photo from my home. Help me understand what I am looking at and what to do next.')}
                   className="mh-press"
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer' }}
                 >
@@ -1328,10 +1203,10 @@ export default function PurchaserMyHomeTab({
                     <Camera size={16} strokeWidth={2} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1 }}>Upload a photo of an issue</div>
-                    <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 2 }}>Create a clearer report with room, system and context</div>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1 }}>Upload a home photo</div>
+                    <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 2 }}>Understand what you are seeing with room, system and context</div>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.6875rem', fontWeight: 600, color: goldText, marginTop: 6 }}>
-                      Start issue note <ChevronRight size={13} strokeWidth={2} />
+                      Ask about photo <ChevronRight size={13} strokeWidth={2} />
                     </div>
                   </div>
                   <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: c.blue, whiteSpace: 'nowrap', textAlign: 'right' }}>

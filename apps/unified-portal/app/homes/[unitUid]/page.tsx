@@ -42,11 +42,6 @@ const PurchaserDocumentsTab = dynamic(
   { ssr: false, loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" /> }
 );
 
-const PurchaserIssuesTab = dynamic(
-  () => import('@/components/purchaser/PurchaserIssuesTab'),
-  { ssr: false, loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" /> }
-);
-
 interface HouseContext {
   unit_id: string;
   development_id: string;
@@ -96,23 +91,16 @@ const LANGUAGES = [
 const DEMO_TOUR_STEPS = [
   {
     tab: 'home',
-    kicker: '1 of 3 · Your home is the product',
+    kicker: '1 of 2 · Your home is the product',
     title: 'Start with the home model',
     body: 'This view turns 34 Bayly from a flat record into rooms, plans, systems and live context. Tap any room or system to ask about that part of the home.',
     cta: 'Show the assistant',
   },
   {
     tab: 'chat',
-    kicker: '2 of 3 · The assistant is the interface',
+    kicker: '2 of 2 · The assistant is the interface',
     title: 'Ask in normal language',
-    body: 'The assistant answers from the home documents, the scheme data and the issue history. It can also take a photo and turn it into a trackable aftercare item.',
-    cta: 'Show issues',
-  },
-  {
-    tab: 'issues',
-    kicker: '3 of 3 · Action becomes record',
-    title: 'Every report becomes trackable',
-    body: 'When a homeowner reports a crack, leak or defect, OpenHouse logs it here so the buyer, developer and contractor have the same source of truth.',
+    body: 'The assistant answers from the home documents, scheme data, rooms, systems, energy patterns and photos, while keeping the experience focused on useful guidance rather than forms.',
     cta: 'Start demo',
   },
 ];
@@ -800,7 +788,6 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               userId={house.user_id}
               prefillMessage={pendingQuestion}
-              onViewIssues={() => handleTabChange('issues')}
             />
           </Tabs.Content>
 
@@ -851,15 +838,6 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
-            />
-          </Tabs.Content>
-
-          <Tabs.Content value="issues" className="h-full overflow-hidden">
-            <PurchaserIssuesTab
-              unitUid={house.unit_id}
-              token={validatedToken || undefined}
-              isDarkMode={isDarkMode}
-              onAskAssistant={handleAskAssistant}
             />
           </Tabs.Content>
         </div>

@@ -180,8 +180,8 @@ function appendIssueTrackingConfirmation(message: string, issueTitle: string | n
 
   const title = issueTitle?.trim();
   const suffix = title
-    ? `\n\nI've logged this as "${title}". You can track it in the Issues tab.`
-    : `\n\nI've logged this for the site team. You can track it in the Issues tab.`;
+    ? `\n\nI've captured this for the site team as "${title}".`
+    : `\n\nI've captured this for the site team.`;
   return `${message.trimEnd()}${suffix}`;
 }
 
