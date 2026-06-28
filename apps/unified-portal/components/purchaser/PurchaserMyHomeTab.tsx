@@ -397,6 +397,39 @@ export default function PurchaserMyHomeTab({
     return () => { cancelled = true; };
   }, [unitUid, token]);
 
+  // --- Home model (rooms + floor plan) ---
+  const [homeModel, setHomeModel] = useState<{
+    rooms: Array<{ name: string; floor: string | null; length_m: number | null; width_m: number | null; area_sqm: number | null; source: string }>;
+    floor_plan_url: string | null;
+    floor_area_m2: number | null;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadModel() {
+      try {
+        const url = `/api/purchaser/home-model?unitUid=${encodeURIComponent(unitUid)}&token=${encodeURIComponent(token || '')}&_cb=${Date.now()}`;
+        const res = await fetch(url, { cache: 'no-store' });
+        if (!res.ok) { if (!cancelled) setHomeModel(null); return; }
+        const json = await res.json();
+        if (!cancelled) {
+          setHomeModel({
+            rooms: json?.rooms ?? [],
+            floor_plan_url: json?.floor_plan_url ?? null,
+            floor_area_m2: json?.floor_area_m2 ?? null,
+          });
+        }
+      } catch {
+        if (!cancelled) setHomeModel(null);
+      }
+    }
+    loadModel();
+    return () => { cancelled = true; };
+  }, [unitUid, token]);
+
+  const fmtM = (v: number | null) => v ? `${v.toFixed(1)} m` : '—';
+  const fmtSqM = (v: number | null) => v ? `${v.toFixed(1)} m²` : '—';
+
   // --- Theme tokens (the app drives dark mode through the isDarkMode prop) ---
   const GOLD = '#D4AF37';
   const GOLD_700 = '#B8934C';
@@ -869,6 +902,111 @@ export default function PurchaserMyHomeTab({
                 </div>
               </div>
             </Reveal>
+
+            {/* Visual home model */}
+            {(() => {
+              const rooms = homeModel?.rooms ?? [];
+              const hasRooms = rooms.length > 0;
+              const fp = homeModel?.floor_plan_url;
+              if (!hasRooms && !fp) return null;
+              return (
+                <>
+                  {sectionTitle('Your home', hasRooms ? `${rooms.length} rooms recorded` : 'floor plan')}
+                  <Reveal index={next()} reduce={reduce}>
+                    <div style={{ background: c.card, border: `1px solid ${c.cardBorder}`, borderRadius: 14, padding: 14, marginBottom: 12, boxShadow: c.shadow }}>
+                      {/* Floor plan thumbnail */}
+                      {fp && (
+                        <a
+                          href={fp}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hasRooms ? 12 : 0, textDecoration: 'none' }}
+                        >
+                          <div style={{
+                            width: 64, height: 48, borderRadius: 8, overflow: 'hidden',
+                            border: `1px solid ${c.border}`, background: c.soft, flexShrink: 0,
+                          }}>
+                            <div style={{
+                              width: '100%', height: '100%',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexDirection: 'column', gap: 2,
+                            }}>
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={GOLD} strokeWidth={2}>
+                                <path d="M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z" />
+                              </svg>
+                              <span style={{ fontSize: '0.5625rem', color: c.t3, fontWeight: 600 }}>Plan</span>
+                            </div>
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1 }}>Floor plan</div>
+                            <div style={{ fontSize: '0.6875rem', color: c.t3, marginTop: 1 }}>Open the full plan for this home</div>
+                          </div>
+                          <ChevronRight size={16} strokeWidth={2} style={{ color: c.t3, flexShrink: 0 }} />
+                        </a>
+                      )}
+
+                      {/* Room grid */}
+                      {hasRooms && (
+                        <>
+                          {fp && <div style={{ borderTop: `1px solid ${c.border}`, marginBottom: 12 }} />}
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            {rooms.map((room, i) => {
+                              const dims = room.length_m && room.width_m
+                                ? `${fmtM(room.length_m)} × ${fmtM(room.width_m)}`
+                                : null;
+                              return (
+                                <button
+                                  key={i}
+                                  type="button"
+                                  onClick={() => onAskAssistant(
+                                    room.source === 'unit'
+                                      ? `Tell me about the ${room.name}${room.floor ? ` on the ${room.floor}` : ''} in my home. What are its dimensions and fixtures?`
+                                      : `What is typical for the ${room.name} in a house like mine?`,
+                                  )}
+                                  style={{
+                                    background: c.soft,
+                                    border: `1px solid ${c.border}`,
+                                    borderRadius: 10,
+                                    padding: '10px 11px',
+                                    textAlign: 'left',
+                                    cursor: 'pointer',
+                                  }}
+                                >
+                                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: c.t1, lineHeight: 1.2 }}>
+                                    {room.name}
+                                    {room.floor && (
+                                      <span style={{ fontWeight: 400, color: c.t3 }}> · {room.floor}</span>
+                                    )}
+                                  </div>
+                                  {dims && (
+                                    <div style={{ fontSize: '0.6875rem', color: goldText, marginTop: 3, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
+                                      {dims}
+                                    </div>
+                                  )}
+                                  {room.area_sqm && !dims && (
+                                    <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 3, fontVariantNumeric: 'tabular-nums' }}>
+                                      {fmtSqM(room.area_sqm)}
+                                    </div>
+                                  )}
+                                  {room.source === 'house_type' && (
+                                    <div style={{ fontSize: '0.5625rem', color: c.t3, marginTop: 3, fontStyle: 'italic' }}>
+                                      typical for this type
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          <div style={{ fontSize: '0.625rem', color: c.t3, marginTop: 10, lineHeight: 1.4 }}>
+                            Tap a room to ask the assistant about it.
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </Reveal>
+                </>
+              );
+            })()}
 
             {sectionTitle("Your home's systems", systemsHint)}
 
