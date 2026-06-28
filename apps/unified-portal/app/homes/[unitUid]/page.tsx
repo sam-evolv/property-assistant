@@ -93,6 +93,30 @@ const LANGUAGES = [
   { code: 'ro', name: 'Română', flag: '🇷🇴' },
 ];
 
+const DEMO_TOUR_STEPS = [
+  {
+    tab: 'home',
+    kicker: '1 of 3 · Your home is the product',
+    title: 'Start with the home model',
+    body: 'This view turns 34 Bayly from a flat record into rooms, plans, systems and live context. Tap any room or system to ask about that part of the home.',
+    cta: 'Show the assistant',
+  },
+  {
+    tab: 'chat',
+    kicker: '2 of 3 · The assistant is the interface',
+    title: 'Ask in normal language',
+    body: 'The assistant answers from the home documents, the scheme data and the issue history. It can also take a photo and turn it into a trackable aftercare item.',
+    cta: 'Show issues',
+  },
+  {
+    tab: 'issues',
+    kicker: '3 of 3 · Action becomes record',
+    title: 'Every report becomes trackable',
+    body: 'When a homeowner reports a crack, leak or defect, OpenHouse logs it here so the buyer, developer and contractor have the same source of truth.',
+    cta: 'Start demo',
+  },
+];
+
 export default function HomeResidentPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -114,6 +138,9 @@ export default function HomeResidentPage() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showDemoTour, setShowDemoTour] = useState(false);
+  const [demoTourStep, setDemoTourStep] = useState(0);
+  const [demoTourDismissed, setDemoTourDismissed] = useState(false);
 
   // Saved answers count for header badge
   const { count: savedCount } = useHomeNotes({
@@ -328,6 +355,35 @@ export default function HomeResidentPage() {
     setPendingQuestion(question);
     setActiveTab('chat');
   }, []);
+
+  useEffect(() => {
+    if (!house || showIntro || consentRequired || showConsentModal || demoTourDismissed) return;
+    if (!house.handover_complete && !handoverOverride) return;
+
+    const key = `openhouse_demo_tour_seen_${unitUid}`;
+    const forceTour = searchParams.get('tour') === '1';
+    if (!forceTour && localStorage.getItem(key) === 'true') return;
+
+    setDemoTourStep(0);
+    setShowDemoTour(true);
+    setActiveTab(DEMO_TOUR_STEPS[0].tab);
+  }, [house, showIntro, consentRequired, showConsentModal, handoverOverride, unitUid, searchParams, demoTourDismissed]);
+
+  const completeDemoTour = useCallback(() => {
+    localStorage.setItem(`openhouse_demo_tour_seen_${unitUid}`, 'true');
+    setDemoTourDismissed(true);
+    setShowDemoTour(false);
+  }, [unitUid]);
+
+  const handleDemoTourNext = useCallback(() => {
+    const nextStep = demoTourStep + 1;
+    if (nextStep >= DEMO_TOUR_STEPS.length) {
+      completeDemoTour();
+      return;
+    }
+    setDemoTourStep(nextStep);
+    setActiveTab(DEMO_TOUR_STEPS[nextStep].tab);
+  }, [completeDemoTour, demoTourStep]);
 
   const checkImportantDocsConsent = async (houseId: string, authToken: string) => {
     try {
@@ -843,6 +899,59 @@ export default function HomeResidentPage() {
         onMarkAllAsRead={markAllNotificationsAsRead}
         isDarkMode={isDarkMode}
       />
+
+      {showDemoTour && (() => {
+        const step = DEMO_TOUR_STEPS[demoTourStep];
+        return (
+          <div className="fixed inset-x-0 bottom-0 z-[70] px-4 pb-[calc(var(--mobile-tab-bar-h,80px)+16px)] pointer-events-none">
+            <div
+              className={`pointer-events-auto mx-auto max-w-md rounded-2xl border p-4 shadow-2xl backdrop-blur-xl ${
+                isDarkMode
+                  ? 'border-gold-500/25 bg-[#141414]/95 text-white'
+                  : 'border-gold-200 bg-white/95 text-gray-900'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className={`text-[11px] font-semibold uppercase tracking-[0.12em] ${isDarkMode ? 'text-gold-300' : 'text-gold-700'}`}>
+                    {step.kicker}
+                  </div>
+                  <h2 className="mt-2 text-lg font-semibold leading-snug">{step.title}</h2>
+                </div>
+                <button
+                  type="button"
+                  onClick={completeDemoTour}
+                  className={`rounded-full px-2 py-1 text-xs font-medium ${
+                    isDarkMode ? 'text-gray-400 hover:bg-white/10 hover:text-white' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
+                  }`}
+                >
+                  Skip
+                </button>
+              </div>
+              <p className={`mt-2 text-sm leading-5 ${isDarkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                {step.body}
+              </p>
+              <div className="mt-4 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-1.5" aria-label={`Tour step ${demoTourStep + 1} of ${DEMO_TOUR_STEPS.length}`}>
+                  {DEMO_TOUR_STEPS.map((item, index) => (
+                    <span
+                      key={item.tab}
+                      className={`h-1.5 rounded-full transition-all ${index === demoTourStep ? 'w-6 bg-gold-500' : isDarkMode ? 'w-1.5 bg-white/20' : 'w-1.5 bg-gray-300'}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDemoTourNext}
+                  className="rounded-full bg-gold-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-gold-500/25 transition hover:bg-gold-600 active:scale-95"
+                >
+                  {step.cta}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </>
   );
 }
