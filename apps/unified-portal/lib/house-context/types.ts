@@ -2,9 +2,10 @@
 // that the OpenHouse Assistant reasons against.
 //
 // Loaded by ./loader.ts from the live tables (developments, units, unit_types,
-// unit_room_dimensions, scheme_profile) and serialized verbatim into the agent's
-// HOUSE CONTEXT system message. The prompt (docs/prompts/openhouse-assistant-v1.md,
-// v1.2) describes this shape field-for-field, so keep the two in step.
+// unit_room_dimensions, scheme_profile, document_sections) and serialized verbatim
+// into the agent's HOUSE CONTEXT system message. The prompt
+// (docs/prompts/openhouse-assistant-v1.md, v1.2) describes this shape
+// field-for-field, so keep the two in step.
 
 /**
  * Where a room's dimensions came from. 'unit' = recorded for this specific home;
@@ -58,6 +59,16 @@ export interface HouseContextUnit {
   unit_type_name: string | null;
 }
 
+/**
+ * A document available to this homeowner, with a title and a directly openable
+ * URL. The agent surfaces the matching one as a link when asked to find or show
+ * a document (BER cert, warranties, manuals, drawings, etc.).
+ */
+export interface HouseContextDocument {
+  title: string;
+  url: string;
+}
+
 export interface HouseContext {
   development: HouseContextDevelopment;
   scheme: HouseContextScheme | null;
@@ -73,6 +84,12 @@ export interface HouseContext {
    * unit types that have no specification recorded.
    */
   specification?: unknown;
+  /**
+   * The documents available to this home (title + openable URL), distilled from
+   * document_sections for the unit's project. Lets the agent point the homeowner
+   * to the right document when asked. Optional and may be empty.
+   */
+  documents?: HouseContextDocument[];
   /** A stored per-home energy and systems dataset, optional. */
   energy?: unknown;
 }
