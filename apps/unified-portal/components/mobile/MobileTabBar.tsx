@@ -1,7 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState, useMemo } from 'react';
-import { MessageCircle, Home, Bell, FileText } from 'lucide-react';
+import {
+  MessageCircle,
+  Home,
+  Bell,
+  FileText,
+  AlertCircle,
+} from 'lucide-react';
 import { getTranslations } from '../../lib/translations';
 
 interface MobileTabBarProps {
@@ -15,6 +21,7 @@ interface MobileTabBarProps {
 const TAB_CONFIG = [
   { id: 'chat', icon: MessageCircle },
   { id: 'home', icon: Home },
+  { id: 'issues', icon: AlertCircle },
   { id: 'noticeboard', icon: Bell },
   { id: 'documents', icon: FileText },
 ];
@@ -30,6 +37,7 @@ export function MobileTabBar({ activeTab, onTabChange, isDarkMode, selectedLangu
   const TABS = useMemo(() => [
     { id: 'chat', label: t.navigation.assistant, icon: MessageCircle },
     { id: 'home', label: t.navigation.myHome, icon: Home },
+    { id: 'issues', label: t.navigation.issues, icon: AlertCircle },
     { id: 'noticeboard', label: t.navigation.noticeboard, icon: Bell },
     { id: 'documents', label: t.navigation.documents, icon: FileText },
   ], [t]);

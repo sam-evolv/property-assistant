@@ -47,6 +47,7 @@ export interface Translations {
     noticeboard: string;
     maps: string;
     myHome: string;
+    issues: string;
   };
 
   // Chat/Assistant tab
@@ -175,6 +176,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Noticeboard',
       maps: 'Maps',
       myHome: 'My Home',
+      issues: 'Issues',
     },
     chat: {
       welcome: 'Your home assistant',
@@ -290,6 +292,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Ogłoszenia',
       maps: 'Mapy',
       myHome: 'Mój dom',
+      issues: 'Problemy',
     },
     chat: {
       welcome: 'Twój asystent domowy',
@@ -405,6 +408,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Tablón',
       maps: 'Mapas',
       myHome: 'Mi hogar',
+      issues: 'Problemas',
     },
     chat: {
       welcome: 'Tu asistente del hogar',
@@ -520,6 +524,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Объявления',
       maps: 'Карты',
       myHome: 'Мой дом',
+      issues: 'Проблемы',
     },
     chat: {
       welcome: 'Ваш домашний ассистент',
@@ -635,6 +640,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Avisos',
       maps: 'Mapas',
       myHome: 'Minha casa',
+      issues: 'Problemas',
     },
     chat: {
       welcome: 'Seu assistente residencial',
@@ -750,6 +756,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Ziņojumu dēlis',
       maps: 'Kartes',
       myHome: 'Mana māja',
+      issues: 'Problēmas',
     },
     chat: {
       welcome: 'Jūsu mājas asistents',
@@ -865,6 +872,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Skelbimų lenta',
       maps: 'Žemėlapiai',
       myHome: 'Mano namai',
+      issues: 'Problemos',
     },
     chat: {
       welcome: 'Jūsų namų asistentas',
@@ -980,6 +988,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Anunțuri',
       maps: 'Hărți',
       myHome: 'Casa mea',
+      issues: 'Probleme',
     },
     chat: {
       welcome: 'Asistentul tău pentru locuință',
@@ -1095,6 +1104,7 @@ const translations: Record<SupportedLanguage, Translations> = {
       noticeboard: 'Clár fógraí',
       maps: 'Léarscáileanna',
       myHome: 'Mo Theach',
+      issues: 'Fadhbanna',
     },
     chat: {
       welcome: 'Do chúntóir baile',

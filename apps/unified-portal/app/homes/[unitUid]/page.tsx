@@ -42,6 +42,11 @@ const PurchaserDocumentsTab = dynamic(
   { ssr: false, loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" /> }
 );
 
+const PurchaserIssuesTab = dynamic(
+  () => import('@/components/purchaser/PurchaserIssuesTab'),
+  { ssr: false, loading: () => <div className="h-64 bg-gray-100 rounded-lg animate-pulse" /> }
+);
+
 interface HouseContext {
   unit_id: string;
   development_id: string;
@@ -789,6 +794,15 @@ export default function HomeResidentPage() {
               isDarkMode={isDarkMode}
               selectedLanguage={selectedLanguage}
               token={validatedToken || undefined}
+            />
+          </Tabs.Content>
+
+          <Tabs.Content value="issues" className="h-full overflow-hidden">
+            <PurchaserIssuesTab
+              unitUid={house.unit_id}
+              token={validatedToken || undefined}
+              isDarkMode={isDarkMode}
+              onAskAssistant={handleAskAssistant}
             />
           </Tabs.Content>
         </div>
