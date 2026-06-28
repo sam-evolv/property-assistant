@@ -15,6 +15,7 @@ import {
   Building2,
   ShoppingCart,
   Bus,
+  Camera,
 } from 'lucide-react';
 
 /**
@@ -592,7 +593,7 @@ export default function PurchaserMyHomeTab({
     </div>
   );
 
-  const insightCard = (label: string, text: string, tone: 'money' | 'comfort' | 'risk') => {
+  const insightCard = (label: string, text: string, source: string, action: string, tone: 'money' | 'comfort' | 'risk') => {
     const tones = {
       money: { bg: 'rgba(212,175,55,0.10)', border: 'rgba(212,175,55,0.28)', color: goldText },
       comfort: { bg: 'rgba(59,130,246,0.09)', border: 'rgba(59,130,246,0.24)', color: c.blue },
@@ -605,6 +606,10 @@ export default function PurchaserMyHomeTab({
         </div>
         <div style={{ color: c.t2, fontSize: '0.6875rem', lineHeight: 1.4 }}>
           {text}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 9, paddingTop: 8, borderTop: `1px solid ${tones.border}` }}>
+          <span style={{ color: c.t3, fontSize: '0.625rem', lineHeight: 1.3 }}>Source: {source}</span>
+          <span style={{ color: tones.color, fontSize: '0.625rem', fontWeight: 700, whiteSpace: 'nowrap' }}>{action}</span>
         </div>
       </div>
     );
@@ -1011,9 +1016,27 @@ export default function PurchaserMyHomeTab({
 
             <Reveal index={next()} reduce={reduce}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
-                {insightCard('Money', `${fmtInt(evDayKwh)} kWh of EV charging landed on the dear day rate. Moving that to night is the clearest saving.`, 'money')}
-                {insightCard('Comfort', 'Low and constant heat-pump running should keep rooms steadier than short bursts in cold weather.', 'comfort')}
-                {insightCard('Risk', 'Short-cycling and recent ventilation downtime are worth checking before they become maintenance or warranty issues.', 'risk')}
+                {insightCard(
+                  'Money',
+                  `${fmtInt(evDayKwh)} kWh of EV charging landed on the dear day rate. Moving that to night is the clearest saving.`,
+                  'EV charger and rate-window model',
+                  'Move to night',
+                  'money'
+                )}
+                {insightCard(
+                  'Comfort',
+                  'Low and constant heat-pump running should keep rooms steadier than short bursts in cold weather.',
+                  'Heat-pump operating pattern',
+                  'Set low and constant',
+                  'comfort'
+                )}
+                {insightCard(
+                  'Risk',
+                  'Short-cycling and recent ventilation downtime are worth checking before they become maintenance or warranty issues.',
+                  'Systems status and handover docs',
+                  'Check before reporting',
+                  'risk'
+                )}
               </div>
             </Reveal>
 
@@ -1107,6 +1130,28 @@ export default function PurchaserMyHomeTab({
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: goldText, whiteSpace: 'nowrap', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                     {fmtInt(evDayKwh)} kWh
                     <small style={{ display: 'block', fontSize: '0.5625rem', fontWeight: 500, color: c.t3 }}>off the day rate</small>
+                  </div>
+                </button>
+                <div style={{ borderTop: `1px solid ${c.border}` }} />
+                <button
+                  type="button"
+                  onClick={() => onAskAssistant('I want to upload a photo of an issue in my home. Help me describe it for the developer.')}
+                  className="mh-press"
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '13px 14px', width: '100%', background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer' }}
+                >
+                  <div style={{ width: 30, height: 30, borderRadius: 9, background: 'rgba(59,130,246,0.12)', color: c.blue, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Camera size={16} strokeWidth={2} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: c.t1 }}>Upload a photo of an issue</div>
+                    <div style={{ fontSize: '0.6875rem', color: c.t2, marginTop: 2 }}>Create a clearer report with room, system and context</div>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: '0.6875rem', fontWeight: 600, color: goldText, marginTop: 6 }}>
+                      Start issue note <ChevronRight size={13} strokeWidth={2} />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: c.blue, whiteSpace: 'nowrap', textAlign: 'right' }}>
+                    Photo
+                    <small style={{ display: 'block', fontSize: '0.5625rem', fontWeight: 500, color: c.t3 }}>optional</small>
                   </div>
                 </button>
               </div>

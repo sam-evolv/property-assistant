@@ -810,7 +810,7 @@ const TRANSLATIONS: Record<string, any> = {
     ],
     placeholder: 'Ask about your home or community...',
     askButton: 'Ask',
-    powered: 'Powered by AI • Information for reference only',
+    powered: 'OpenHouse • Information for reference only',
     privacyLink: 'Privacy Policy',
     voiceNotSupported: 'Voice input is not supported in your browser. Please use Chrome, Edge, or Safari.',
     sessionExpired: 'Session expired. Please scan your QR code again.',
