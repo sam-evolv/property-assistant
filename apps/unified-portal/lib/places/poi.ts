@@ -1511,7 +1511,7 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
   
   // IRISH NORMALISATION - takeaway, food nearby → restaurant
-  if (/restaurant|takeaway|take\s*away|food\s*nearby|dining|eat/i.test(q)) return { category: 'restaurant' };
+  if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|spot|spots)\s+to\s+eat\b/i.test(q)) return { category: 'restaurant' };
   
   // Convenience store explicit match
   if (/convenience\s*store|centra|mace|costcutter|londis/i.test(q)) return { category: 'convenience_store' };

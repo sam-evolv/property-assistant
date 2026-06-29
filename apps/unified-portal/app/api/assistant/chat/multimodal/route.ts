@@ -192,6 +192,18 @@ function appendIssueTrackingConfirmation(message: string, issueTitle: string | n
   return `${message.trimEnd()}${suffix}`;
 }
 
+function isExplicitLocalAmenityQuestion(message: string): boolean {
+  const q = message.toLowerCase();
+  const hasLocalQualifier = /\b(near\s+me|nearby|near\s+(my|the|this)\s+(home|house|development|area)|close\s+by|around\s+here|around\s+(my|the|this)\s+(area|home|house|development)|local|in\s+the\s+area|in\s+my\s+area|nearest|closest)\b/i.test(q);
+  const hasPlaceRequest = /\b(where|what|which|show|find|any|nearest|closest|nearby|local|places?|amenities|facilities|services|shops?|supermarkets?|grocer(?:y|ies)|pharmac(?:y|ies)|chemist|gp|doctor|schools?|bus|train|station|parks?|playgrounds?|gyms?|cafes?|coffee|restaurants?|takeaway|pubs?|bars?|cinema|golf)\b/i.test(q);
+
+  if (!hasPlaceRequest) return false;
+  if (hasLocalQualifier) return true;
+
+  // Allow very explicit amenity questions even if the user omits "near me".
+  return /^\s*(what|which|where|show|find|any|nearest|closest)\b.*\b(shops?|supermarkets?|grocer(?:y|ies)|pharmac(?:y|ies)|chemist|gp|doctor|schools?|bus|train|station|parks?|playgrounds?|gyms?|cafes?|coffee|restaurants?|takeaway|pubs?|bars?|cinema|golf|amenities|facilities|services)\b/i.test(q);
+}
+
 // ── Conversation memory (OpenHouse agent path only) ───────────────────────
 // Turns are stored in assistant_conversation_turns (migration 065), keyed by the
 // bare conversation_id. We replay the most recent turns to the model so the
@@ -652,7 +664,7 @@ export async function POST(request: NextRequest) {
     // "I don't have access to local business directories" even though the app
     // already has a Places integration. Keep this before callAgent() so place
     // names, distance and source attribution are grounded in Google Places.
-    if (mediaIds.length === 0) {
+    if (mediaIds.length === 0 && isExplicitLocalAmenityQuestion(messageText)) {
       const poiCategoryResult = detectPOICategoryExpanded(messageText);
       const poiCategory = poiCategoryResult.category;
       if (poiCategory) {

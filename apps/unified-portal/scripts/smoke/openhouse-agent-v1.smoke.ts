@@ -23,6 +23,7 @@ import type {
   OpenhouseAgentHouseContext,
 } from '../../lib/openhouse-agent/v1/types';
 import { sendMultimodal } from '../../lib/assistant/multimodal-client';
+import { detectPOICategoryExpanded } from '../../lib/places/poi';
 
 let failures = 0;
 
@@ -433,6 +434,18 @@ async function run(): Promise<void> {
     } finally {
       (globalThis as any).fetch = originalFetch;
     }
+  }
+
+  // --- Case 10: Places detector regression ---
+  // "heat" must never match the restaurant "eat" detector. This was the root
+  // cause of a meeting-critical bug where a heat-pump question returned nearby
+  // restaurants from Google Places.
+  {
+    console.log('Case 10: Places detector — heat pump must not route to restaurants');
+    const heatPump = detectPOICategoryExpanded('What temperature should I set my heat pump to?');
+    const restaurants = detectPOICategoryExpanded('What restaurants are nearby?');
+    check('heat pump question is not classified as a POI', heatPump.category === null, String(heatPump.category));
+    check('restaurant question still classifies as restaurant', restaurants.category === 'restaurant', String(restaurants.category));
   }
 
   console.log('');
