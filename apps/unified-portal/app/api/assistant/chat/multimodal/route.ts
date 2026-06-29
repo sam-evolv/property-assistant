@@ -61,6 +61,13 @@ import type { OpenhouseAgentResult } from '@/lib/openhouse-agent/v1/types';
 import { loadHouseContext } from '@/lib/house-context';
 import { logTurn } from '@/lib/assistant-analytics/logger';
 import type { AttachedMediaItem, LogInput } from '@/lib/assistant-analytics/types';
+import {
+  detectPOICategoryExpanded,
+  formatPOIResponse,
+  formatShopsResponse,
+  getNearbyPOIs,
+  type FormatPOIOptions,
+} from '@/lib/places/poi';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -639,6 +646,74 @@ export async function POST(request: NextRequest) {
       unitId: auth.unitId!,
       supabase,
     });
+
+    // Local area questions should use Google Places deterministically, not the
+    // general home-agent model. Without this gate, the model can refuse with
+    // "I don't have access to local business directories" even though the app
+    // already has a Places integration. Keep this before callAgent() so place
+    // names, distance and source attribution are grounded in Google Places.
+    if (mediaIds.length === 0) {
+      const poiCategoryResult = detectPOICategoryExpanded(messageText);
+      const poiCategory = poiCategoryResult.category;
+      if (poiCategory) {
+        const startedAt = Date.now();
+        let poiMessage: string;
+        try {
+          const poiData = await getNearbyPOIs(auth.developmentId!, poiCategory);
+          const developmentName =
+            houseContext?.development?.name ||
+            houseContext?.development?.address ||
+            undefined;
+
+          if (poiCategoryResult.expandedIntent === 'shops') {
+            poiMessage = formatShopsResponse(poiData, developmentName);
+          } else {
+            const formatOptions: FormatPOIOptions = {
+              category: poiCategory,
+              developmentName,
+              limit: 5,
+            };
+            poiMessage = formatPOIResponse(poiData, formatOptions);
+          }
+        } catch (err) {
+          console.error(
+            '[assistant-chat-multimodal] places_lookup_failed category=%s reason=%s',
+            poiCategory,
+            err instanceof Error ? err.message : String(err),
+          );
+          poiMessage = `I couldn't pull nearby ${poiCategory.replace(/_/g, ' ')} results just now. Try again in a moment, or check Google Maps for ${houseContext?.unit?.address || houseContext?.development?.address || 'this home'}.`;
+        }
+
+        await persistConversationTurns(supabase, {
+          tenantId: auth.tenantId,
+          conversationId,
+          userId: auth.userId ?? null,
+          messageId,
+          userText: messageText,
+          userHadImage: false,
+          assistantText: poiMessage,
+        });
+
+        fireAnalytics({
+          flagPath: ANALYTICS_FLAG_OPENHOUSE_AGENT,
+          promptVersion: OPENHOUSE_AGENT_V1_PROMPT_VERSION,
+          modelUsed: 'google_places',
+          latencyMs: Date.now() - startedAt,
+          responseText: poiMessage,
+          actionReturned: 'answer_only',
+          issueCreated: false,
+          errored: false,
+        });
+
+        return NextResponse.json({
+          message: poiMessage,
+          analysis_id: null,
+          action: 'answer_only',
+          message_id: messageId,
+          source: 'google_places',
+        });
+      }
+    }
 
     // Short-term conversation memory: replay the most recent turns (token-
     // bounded, oldest trimmed, image turns reduced to a placeholder) so the
