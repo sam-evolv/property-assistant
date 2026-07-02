@@ -29,15 +29,19 @@ export async function GET(request: Request) {
 
     // Non-super callers are locked to their own tenant; super_admin may
     // scope to a specific tenant (or view all when none is supplied).
-    const effectiveTenantId =
-      session.role === 'super_admin' ? requestedTenantId : session.tenantId;
+    const isSuper = session.role === 'super_admin';
+    const effectiveTenantId = isSuper ? requestedTenantId : session.tenantId;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
+    // Fail closed: a non-super caller with no resolvable tenant must never
+    // fall through to an unscoped (all-tenants) query.
     const tenantFilter = effectiveTenantId
       ? sql`AND tenant_id = ${effectiveTenantId}::uuid`
-      : sql``;
+      : isSuper
+        ? sql``
+        : sql`AND false`;
 
     const result = await db.execute(sql`
       SELECT

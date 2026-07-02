@@ -25,14 +25,20 @@ export async function GET(request: Request) {
     // scope to a specific tenant (or view all when none is supplied). Any
     // client-supplied developmentId that belongs to another tenant is
     // naturally filtered out by the developments join + tenant filter.
-    const tenantId =
-      session.role === 'super_admin' ? requestedTenantId : session.tenantId;
+    const isSuper = session.role === 'super_admin';
+    const tenantId = isSuper ? requestedTenantId : session.tenantId;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
 
-    // Build tenant filter for queries that join with developments
-    const tenantFilter = tenantId ? sql`AND d.tenant_id = ${tenantId}::uuid` : sql``;
+    // Build tenant filter for queries that join with developments. Fail
+    // closed: a non-super caller with no resolvable tenant must never fall
+    // through to an unscoped (all-tenants) query.
+    const tenantFilter = tenantId
+      ? sql`AND d.tenant_id = ${tenantId}::uuid`
+      : isSuper
+        ? sql``
+        : sql`AND false`;
     const devFilter = developmentId ? sql`AND m.development_id = ${developmentId}::uuid` : sql``;
 
     const [topQuestions, questionsByDevelopment, questionsByTimeOfDay, avgQuestionLength] = await Promise.all([
