@@ -510,7 +510,8 @@ export function getAgentAlerts(pipeline: PipelineUnit[]): Alert[] {
     if (p.mortgageExpiryDate && p.status !== 'sold') {
       const expiry = new Date(p.mortgageExpiryDate);
       const daysUntil = Math.floor((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-      if (daysUntil <= 45 && daysUntil > 0) {
+      // Include an approval expiring TODAY (daysUntil === 0); `> 0` skipped it.
+      if (daysUntil <= 45 && daysUntil >= 0) {
         alerts.push({
           type: 'mortgage_expiry',
           pipelineId: p.id,
@@ -669,7 +670,8 @@ export function generateIntelligenceSummary(unit: UnitProfile): string {
 
   if (unit.mortgageExpiryDate) {
     const days = daysFromNow(unit.mortgageExpiryDate);
-    if (days !== null && days <= 45) {
+    // Lower bound prevents already-expired approvals reading "expires in -5 days".
+    if (days !== null && days >= 0 && days <= 45) {
       parts.push(`Mortgage expires in ${days} days`);
     }
   }

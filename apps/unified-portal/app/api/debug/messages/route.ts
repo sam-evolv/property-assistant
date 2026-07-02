@@ -11,6 +11,11 @@ export async function GET(request: NextRequest) {
     if (!adminContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    // Debug endpoint: reads cross-tenant message aggregates, so restrict to
+    // super_admin only. A tenant admin must not read platform-wide data.
+    if (adminContext.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const { searchParams } = new URL(request.url);
     const developmentId = searchParams.get('developmentId');

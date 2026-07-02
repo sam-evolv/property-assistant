@@ -215,12 +215,18 @@ export async function syncEnrichmentColumns(integration: Integration): Promise<v
     for (const unit of units) {
       // Find row index matching this unit
       let rowIndex = -1;
-      const unitMatch = unit.address_line_1?.toLowerCase() || unit.unit_number?.toLowerCase() || '';
+      const unitMatch = (unit.address_line_1?.toLowerCase().trim() || unit.unit_number?.toLowerCase().trim() || '');
+
+      // Never match on an empty identifier: previously an empty unitMatch matched
+      // the first row (cellVal.includes('') is always true) and loose substring
+      // matching let "1" match "10", so enrichment was written to the wrong unit.
+      // Require an exact, normalised equality on a non-empty identifier instead.
+      if (!unitMatch) continue;
 
       for (let i = 0; i < rows.length; i++) {
         for (const addrCol of addressColumns) {
           const cellVal = String(rows[i][addrCol] || '').toLowerCase().trim();
-          if (cellVal && (cellVal === unitMatch || cellVal.includes(unitMatch) || unitMatch.includes(cellVal))) {
+          if (cellVal && cellVal === unitMatch) {
             rowIndex = i;
             break;
           }

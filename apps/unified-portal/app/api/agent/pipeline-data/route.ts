@@ -23,31 +23,22 @@ export async function GET(request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    let agentProfile: any = null;
-
-    if (user) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      agentProfile = data;
+    // Fail closed: no authenticated user or no matching agent profile → 401.
+    // Never fall back to the first/oldest agent_profile (cross-tenant leak).
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    if (!agentProfile) {
-      const { data: fallback } = await supabase
-        .from('agent_profiles')
-        .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .single();
+    const { data: agentProfile } = await supabase
+      .from('agent_profiles')
+      .select('id, display_name, agency_name, phone, email, tenant_id, agent_type, bio, location, specialisations')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-      if (!fallback) {
-        return NextResponse.json({ error: 'No agent profile found' }, { status: 404 });
-      }
-      agentProfile = fallback;
+    if (!agentProfile) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     return buildPipelineResponse(supabase, agentProfile);

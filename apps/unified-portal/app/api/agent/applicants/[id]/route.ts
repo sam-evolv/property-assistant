@@ -20,6 +20,20 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
   try {
     const supabase = getSupabaseAdmin();
 
+    // Auth: resolve the caller's agent profile. Fail closed — no user or no
+    // profile means no access (this route returns applicant PII).
+    const cookieStore = cookies();
+    const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
+    const { data: { user } } = await supabaseAuth.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const { data: applicant, error } = await supabase
       .from('agent_applicants')
       .select('*')
@@ -28,6 +42,11 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     if (!applicant) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    // Ownership: only the owning agent may read this applicant. Return 404
+    // rather than 403 so callers cannot probe for applicant existence.
+    if (applicant.agent_id !== profile.id) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     const [
       { data: attendees },
@@ -165,6 +184,15 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
+    // Fail closed: an anonymous or profile-less caller must never write.
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
     const updates: Record<string, any> = { updated_at: new Date().toISOString() };
     for (const [k, v] of Object.entries(body || {})) {
       if (EDITABLE_FIELDS.has(k)) updates[k] = v;
@@ -177,15 +205,9 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .maybeSingle();
 
     if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (user) {
-      const { data: profile } = await supabase
-        .from('agent_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      if (profile && existing.agent_id !== profile.id) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
+    // Ownership: always enforced now — only the owning agent may update.
+    if (existing.agent_id !== profile.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { error } = await supabase

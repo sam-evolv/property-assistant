@@ -89,7 +89,7 @@ export const Card = memo(
           'rounded-xl transition-all duration-200',
           variantStyles[variant],
           paddingStyles[padding],
-          hoverable && 'hover:shadow-cardHover hover:border-neutral-300',
+          hoverable && 'hover:shadow-card-hover hover:border-neutral-300',
           clickable && 'cursor-pointer active:scale-[0.99]',
           className
         )}

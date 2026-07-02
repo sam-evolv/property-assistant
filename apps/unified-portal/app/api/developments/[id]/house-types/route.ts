@@ -20,7 +20,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const { id: developmentId } = await params;
 
     if (!developmentId) {
@@ -32,11 +32,16 @@ export async function GET(
     // Verify the project exists in Supabase
     const { data: project, error: projectError } = await supabaseAdmin
       .from('projects')
-      .select('id, name')
+      .select('id, name, tenant_id')
       .eq('id', developmentId)
       .single();
 
     if (projectError || !project) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    // SECURITY: verify the project belongs to the caller's tenant (super_admin exempt)
+    if (session.role !== 'super_admin' && project.tenant_id !== session.tenantId) {
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 

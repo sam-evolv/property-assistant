@@ -32,6 +32,10 @@ export async function GET(
       .limit(1);
 
     if (development) {
+      // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+      if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+        return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      }
       return NextResponse.json({ development });
     }
 
@@ -43,6 +47,10 @@ export async function GET(
       .single();
 
     if (project) {
+      // SECURITY: verify the project belongs to the caller's tenant (super_admin exempt)
+      if (session.role !== 'super_admin' && project.tenant_id !== session.tenantId) {
+        return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      }
       return NextResponse.json({
         development: {
           id: project.id,

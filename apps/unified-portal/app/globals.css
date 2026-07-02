@@ -67,17 +67,21 @@
   --color-accent: #C9A961;
   --color-accent-rgb: 201, 169, 97;
   
-  --gold-50: #FEFCE8;
-  --gold-100: #FEF9C3;
-  --gold-200: #FEF08A;
-  --gold-300: #FDE047;
-  --gold-400: #FACC15;
+  /* Muted-gold ramp — matches tailwind.config.ts exactly. Previously 50–400
+     were the Tailwind *yellow* palette (#FACC15 …), so var(--gold-400) rendered
+     bright yellow next to a muted `bg-gold-400`. Now consistent, and monotonic
+     in luminance so hover/press (e.g. hover:bg-gold-600) is actually visible. */
+  --gold-50: #FBF7EA;
+  --gold-100: #F5EACB;
+  --gold-200: #EAD59B;
+  --gold-300: #DFC069;
+  --gold-400: #D8B54B;
   --gold-500: #D4AF37;
-  --gold-600: #C9A961;
-  --gold-700: #B8934C;
-  --gold-800: #A67C3A;
-  --gold-900: #8B6428;
-  --gold-950: #6B4E1C;
+  --gold-600: #B8942C;
+  --gold-700: #957724;
+  --gold-800: #71591B;
+  --gold-900: #524013;
+  --gold-950: #362A0C;
   
   --brand-50: var(--gold-50);
   --brand-100: var(--gold-100);
@@ -607,12 +611,17 @@ nav,
   color: #4b5563 !important; /* gray-600 */
 }
 
-/* FORCE ALL LIGHT TEXT TO BE READABLE - DO NOT REMOVE */
-.text-gray-200, .text-gray-300, .text-gray-400, .text-gray-500,
-.text-slate-200, .text-slate-300, .text-slate-400, .text-slate-500,
-.text-neutral-200, .text-neutral-300, .text-neutral-400, .text-neutral-500,
-.text-zinc-200, .text-zinc-300, .text-zinc-400, .text-zinc-500 {
-  color: #1f2937 !important;
+/* Secondary/muted text: keep it readable (WCAG AA on white) WITHOUT flattening
+   it to near-black. The previous rule forced all of these to #1f2937, which
+   erased the visual hierarchy between headings and secondary text app-wide (and,
+   being unscoped, also darkened text on dark surfaces). #6b7280 (gray-500) is
+   4.8:1 on white — accessible — while still reading as clearly secondary. The
+   very-light 200/300 shades are bumped up to this accessible muted gray. */
+.text-gray-200, .text-gray-300, .text-gray-400,
+.text-slate-200, .text-slate-300, .text-slate-400,
+.text-neutral-200, .text-neutral-300, .text-neutral-400,
+.text-zinc-200, .text-zinc-300, .text-zinc-400 {
+  color: #6b7280 !important;
 }
 
 /* ── OpenHouse Intelligence: Force light text on dark backgrounds ── */

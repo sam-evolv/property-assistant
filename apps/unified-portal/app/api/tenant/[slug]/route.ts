@@ -3,12 +3,22 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { db, tenants, admins, developments, documents, pois, noticeboard_posts } from '@openhouse/db';
 import { eq, sql } from 'drizzle-orm';
+import { getServerSession } from '@/lib/supabase-server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { slug: string } }
 ) {
   try {
+    // SECURITY: this returns a tenant's full record plus every admin (emails,
+    // roles, ids) and development. It was previously unauthenticated, exposing
+    // cross-tenant PII to anyone who guessed a slug. Require a session and only
+    // allow a super_admin or a member of the requested tenant.
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { slug } = params;
 
     const [tenant] = await db
@@ -22,6 +32,10 @@ export async function GET(
         { error: 'Tenant not found' },
         { status: 404 }
       );
+    }
+
+    if (session.role !== 'super_admin' && session.tenantId !== tenant.id) {
+      return NextResponse.json({ error: 'Tenant not found' }, { status: 404 });
     }
 
     const [tenantAdmins, tenantDevelopments] = await Promise.all([

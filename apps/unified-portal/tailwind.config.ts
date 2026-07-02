@@ -31,31 +31,35 @@ const config: Config = {
           pure: '#000000',
           matte: '#0C0C0C',
         },
+        // Gold ramp — monotonic in luminance so hover/press states (e.g.
+        // hover:bg-gold-600) are actually visible. Previously 500 (#D4AF37) and
+        // 600 (#C9A961) had near-identical luminance, so gold buttons had no
+        // perceptible hover. 500 stays the brand gold; darker steps step down.
         gold: {
-          50: '#FDF8E8',   // Very light gold tint
-          100: '#FAF0D1',  // Light gold cream
-          200: '#F5E2AA',  // Soft gold
-          300: '#EED07C',  // Warm gold
-          400: '#E5BC4E',  // Medium gold
-          500: '#D4AF37',  // Primary premium gold
-          600: '#C9A961',  // Darker gold
-          700: '#B8934C',  // Deep gold
-          800: '#A67C3A',  // Rich gold
-          900: '#8B6428',  // Dark gold
-          950: '#6B4E1C',  // Very dark gold
+          50: '#FBF7EA',
+          100: '#F5EACB',
+          200: '#EAD59B',
+          300: '#DFC069',
+          400: '#D8B54B',
+          500: '#D4AF37',  // Primary premium gold (brand)
+          600: '#B8942C',  // Hover — clearly darker
+          700: '#957724',  // Active/press
+          800: '#71591B',
+          900: '#524013',
+          950: '#362A0C',
         },
         brand: {
-          50: '#FDF8E8',   // Very light gold tint
-          100: '#FAF0D1',  // Light gold cream
-          200: '#F5E2AA',  // Soft gold
-          300: '#EED07C',  // Warm gold
-          400: '#E5BC4E',  // Medium gold
-          500: '#D4AF37',  // Primary premium gold
-          600: '#C9A961',  // Darker gold
-          700: '#B8934C',  // Deep gold
-          800: '#A67C3A',  // Rich gold
-          900: '#8B6428',  // Dark gold
-          950: '#6B4E1C',  // Very dark gold
+          50: '#FBF7EA',
+          100: '#F5EACB',
+          200: '#EAD59B',
+          300: '#DFC069',
+          400: '#D8B54B',
+          500: '#D4AF37',  // Primary premium gold (brand)
+          600: '#B8942C',  // Hover — clearly darker
+          700: '#957724',  // Active/press
+          800: '#71591B',
+          900: '#524013',
+          950: '#362A0C',
         },
         grey: {
           50: '#F9FAFB',

@@ -2,18 +2,29 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { documents } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { getServerSession } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
+    const requestedTenantId = searchParams.get('tenantId');
     const limit = parseInt(searchParams.get('limit') || '20');
 
-    if (!tenantId) {
+    if (!requestedTenantId) {
       return NextResponse.json({ error: 'tenantId required' }, { status: 400 });
     }
+
+    // Non-super callers are locked to their own tenant; super_admin may
+    // inspect a specific tenant's document health.
+    const effectiveTenantId =
+      session.role === 'super_admin' ? requestedTenantId : session.tenantId;
 
     const documentHealth = await db.execute(sql`
       SELECT
@@ -37,6 +48,7 @@ export async function GET(request: Request) {
         END as status
       FROM documents d
       WHERE d.status = 'active'
+        AND d.tenant_id = ${effectiveTenantId}::uuid
       ORDER BY d.view_count DESC
       LIMIT ${limit}
     `).then(r => r.rows.map((row: any) => ({
@@ -61,6 +73,7 @@ export async function GET(request: Request) {
         COUNT(*)::int as count
       FROM documents
       WHERE status = 'active'
+        AND tenant_id = ${effectiveTenantId}::uuid
       GROUP BY (CASE
         WHEN view_count > 10 AND EXTRACT(DAY FROM NOW() - created_at) < 90 THEN 'healthy'
         WHEN view_count > 0 AND EXTRACT(DAY FROM NOW() - created_at) < 180 THEN 'under-used'

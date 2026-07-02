@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { maintenanceRequests } from '@openhouse/db/schema';
+import { maintenanceRequests, developments } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
 
@@ -11,12 +11,26 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
     const body = await request.json();
     const { requestId, ...updates } = body;
 
     if (!requestId) {
       return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
+    }
+
+    // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+    const [development] = await db
+      .select({ tenant_id: developments.tenant_id })
+      .from(developments)
+      .where(eq(developments.id, params.id))
+      .limit(1);
+
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     if (updates.status === 'resolved' && !updates.resolved_at) {
@@ -46,8 +60,22 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;
+
+    // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+    const [development] = await db
+      .select({ tenant_id: developments.tenant_id })
+      .from(developments)
+      .where(eq(developments.id, developmentId))
+      .limit(1);
+
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     const result = await db.execute(sql`
       SELECT m.*,
@@ -82,9 +110,23 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;
     const body = await request.json();
+
+    // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+    const [development] = await db
+      .select({ tenant_id: developments.tenant_id })
+      .from(developments)
+      .where(eq(developments.id, developmentId))
+      .limit(1);
+
+    if (!development) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+    if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
+    }
 
     const [maintenanceRequest] = await db
       .insert(maintenanceRequests)

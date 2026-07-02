@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireRole } from '@/lib/supabase-server';
 
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -25,6 +26,8 @@ function generateCode(tenantName: string): string {
 
 export async function GET(request: NextRequest) {
   try {
+    await requireRole(['super_admin']);
+
     const supabase = getSupabase();
     const { data, error } = await supabase
       .from('developer_codes')
@@ -35,13 +38,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({ codes: data });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED' || error?.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 export async function POST(request: NextRequest) {
   try {
+    await requireRole(['super_admin']);
+
     const supabase = getSupabase();
     const body = await request.json();
     const { tenantName, tenantId, notes, expiresInDays } = body;
@@ -87,7 +95,10 @@ export async function POST(request: NextRequest) {
     }
     
     return NextResponse.json({ success: true, code: data });
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.message === 'UNAUTHORIZED' || error?.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

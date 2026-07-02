@@ -5,6 +5,19 @@ import { createClient } from '@supabase/supabase-js';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// PostgREST .or() filters are a single string where `,` separates
+// conditions and `()` group logic. Escape LIKE wildcards (matching the
+// escaper in app/api/issues/list/route.ts) and strip the structural
+// characters so user input can't break out of the ilike value and inject
+// extra filter conditions.
+function escapeIlikeForOr(value: string): string {
+  return value
+    .replace(/[\\%_]/g, (m) => `\\${m}`)
+    .replace(/[(),"]/g, '');
+}
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -37,10 +50,13 @@ export async function GET(request: NextRequest) {
       .range(offset, offset + limit - 1);
 
     if (search) {
-      query = query.or(`unit_number.ilike.%${search}%,address_line_1.ilike.%${search}%,unit_code.ilike.%${search}%`);
+      const safe = escapeIlikeForOr(search);
+      query = query.or(`unit_number.ilike.%${safe}%,address_line_1.ilike.%${safe}%,unit_code.ilike.%${safe}%`);
     }
 
-    if (developmentId) {
+    // developmentId is interpolated into a .or() filter string too; only
+    // apply it when it is a well-formed UUID to avoid filter injection.
+    if (developmentId && UUID_RE.test(developmentId)) {
       query = query.or(`development_id.eq.${developmentId},project_id.eq.${developmentId}`);
     }
 

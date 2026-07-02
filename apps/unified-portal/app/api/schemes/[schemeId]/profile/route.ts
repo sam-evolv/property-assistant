@@ -3,8 +3,8 @@ export const dynamic = 'force-dynamic'
 import { NextRequest, NextResponse } from 'next/server';
 import { db, scheme_profile } from '@db/client';
 import { eq } from 'drizzle-orm';
-import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
+import { getServerSession } from '@/lib/supabase-server';
 
 function getSupabaseClient() {
   return createClient(
@@ -85,16 +85,16 @@ function sanitizePayload(body: Record<string, any>): Record<string, any> {
 }
 
 async function getAuthContext() {
-  const cookieStore = cookies();
-  const adminId = cookieStore.get('admin_id')?.value;
-  const tenantId = cookieStore.get('tenant_id')?.value;
-  const role = cookieStore.get('user_role')?.value;
-  
-  if (!adminId || !tenantId) {
+  // SECURITY: identity/tenant/role come from the server-validated Supabase
+  // session, NOT from client-supplied cookies. The previous version read
+  // admin_id/tenant_id/user_role straight off request cookies (never signed or
+  // set server-side), so anyone could forge super_admin and read/write any
+  // tenant's scheme profile.
+  const session = await getServerSession();
+  if (!session || !session.tenantId) {
     return null;
   }
-  
-  return { adminId, tenantId, role };
+  return { adminId: session.id, tenantId: session.tenantId, role: session.role };
 }
 
 export async function GET(
@@ -131,11 +131,12 @@ export async function GET(
     }
     
     const profile = profiles[0];
-    
-    if (auth.role === 'developer' && profile.developer_org_id !== auth.tenantId) {
+
+    // Only super_admin is cross-tenant; every other role is scoped to its tenant.
+    if (auth.role !== 'super_admin' && profile.developer_org_id !== auth.tenantId) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
-    
+
     return NextResponse.json({ profile });
   } catch (error) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -168,8 +169,8 @@ export async function PUT(
     
     if (existingProfiles.length > 0) {
       const existing = existingProfiles[0];
-      
-      if (auth.role === 'developer' && existing.developer_org_id !== auth.tenantId) {
+
+      if (auth.role !== 'super_admin' && existing.developer_org_id !== auth.tenantId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
       
@@ -187,7 +188,7 @@ export async function PUT(
         message: 'Profile updated successfully'
       });
     } else {
-      if (auth.role === 'developer') {
+      if (auth.role !== 'super_admin') {
         const isOwner = await verifySchemeOwnership(schemeId, auth.tenantId);
         if (!isOwner) {
           return NextResponse.json({ error: 'Forbidden: scheme does not belong to your organization' }, { status: 403 });
@@ -252,7 +253,7 @@ export async function POST(
       }, { status: 400 });
     }
     
-    if (auth.role === 'developer') {
+    if (auth.role !== 'super_admin') {
       const isOwner = await verifySchemeOwnership(schemeId, auth.tenantId);
       if (!isOwner) {
         return NextResponse.json({ error: 'Forbidden: scheme does not belong to your organization' }, { status: 403 });

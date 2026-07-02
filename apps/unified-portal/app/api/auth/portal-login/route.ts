@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
       // Verify property code exists
       const { data: unit, error: unitError } = await adminClient
         .from('units')
-        .select('id, unit_uid, address_line_1, tier')
+        .select('id, unit_uid, address_line_1, tier, purchaser_email')
         .eq('unit_code', propertyCode)
         .single();
 
@@ -47,10 +47,24 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Property code not found' }, { status: 404 });
       }
 
+      // SECURITY: bind the session to the unit's registered purchaser. Without
+      // this check, generateLink + verifyOtp below would mint a live session for
+      // ANY existing account (incl. admins/super_admins) given only a valid
+      // property code — a full account-takeover vector. The email must match the
+      // owner on record for this unit.
+      const requestedEmail = email.trim().toLowerCase();
+      const ownerEmail = (unit.purchaser_email || '').trim().toLowerCase();
+      if (!ownerEmail || ownerEmail !== requestedEmail) {
+        return NextResponse.json(
+          { error: 'That email is not registered for this property. Contact your developer.' },
+          { status: 403 }
+        );
+      }
+
       // Generate a magic link without sending email
       const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
         type: 'magiclink',
-        email: email.trim().toLowerCase(),
+        email: requestedEmail,
       });
 
       if (linkError || !linkData) {

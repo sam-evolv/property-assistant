@@ -46,7 +46,9 @@ const baseStyles = cn(
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary: cn(
-    'bg-brand-500 text-white',
+    // Near-black text on gold: white-on-gold is ~1.9:1 (fails WCAG AA); the
+    // login pages already use dark-on-gold, so this makes the shared button match.
+    'bg-brand-500 text-neutral-900',
     'hover:bg-brand-600',
     'focus-visible:ring-brand-500',
     'shadow-sm hover:shadow-md',

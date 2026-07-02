@@ -41,6 +41,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Ownership: the message must belong to a conversation owned by the
+    // caller. Verify via the message's own conversation_id (not the
+    // client-supplied one) → conversation.developer_id === user.id.
+    const { data: conversation } = await admin
+      .from('intelligence_conversations')
+      .select('id, developer_id')
+      .eq('id', message.conversation_id)
+      .maybeSingle();
+
+    if (!conversation || conversation.developer_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const draft = message.structured_data;
 
     // Log the action (actual email sending would use Resend/SendGrid in production)

@@ -77,8 +77,14 @@ export function verifyQRToken(token: string): QRTokenPayload | null {
       .createHmac('sha256', getSecret())
       .update(payloadString)
       .digest('base64url');
-    
-    if (expectedSignature !== providedSignature) {
+
+    // Constant-time comparison to avoid leaking the signature via timing.
+    const expectedBuf = Buffer.from(expectedSignature);
+    const providedBuf = Buffer.from(providedSignature || '');
+    if (
+      expectedBuf.length !== providedBuf.length ||
+      !crypto.timingSafeEqual(expectedBuf, providedBuf)
+    ) {
       return null;
     }
     
@@ -252,16 +258,28 @@ async function resolveUnitUidToId(ref: string): Promise<string | null> {
 }
 
 /**
- * Standardized token validation for purchaser API endpoints
- * Validates either:
- * 1. A proper signed QR token matching the claimed unitUid
- * 2. Showhouse mode (demo access) - when token equals unitUid OR when signed QR token fails
- *    but the token was originally issued for this unitUid
+ * Standardized token validation for purchaser API endpoints.
  *
- * Security: Access is granted if either:
- * - Valid cryptographic signature matches unitUid
- * - Token format contains unitUid (even if expired/used - allows continued session access)
- * - Token equals unitUid directly (showhouse mode)
+ * SECURITY MODEL (hardened): access requires a cryptographically valid signed
+ * QR token whose embedded unit matches the claimed unit. There are exactly two
+ * access paths:
+ *   1. A signed token that also passes DB validation (fresh, unused, unexpired).
+ *   2. A signed token whose HMAC signature + embedded expiry are still valid but
+ *      that is marked used/absent in the DB — "continued session" access after a
+ *      one-time QR link has been consumed. This still requires a real signature,
+ *      so it cannot be forged from the unit id alone.
+ *
+ * The previous implementation also granted access when `token === unitUid` or
+ * when the token merely *started with* the unit id (no signature check). Because
+ * unit_uid codes appear in URLs/QR packs and are enumerable, that made the whole
+ * purchaser API effectively unauthenticated. Those unsigned paths are removed.
+ *
+ * Showhouse / demo access (presenting the unit id as its own token, no signed
+ * QR) is now OFF by default and only honoured when `ENABLE_SHOWHOUSE_DEMO=true`
+ * is explicitly set in the environment. A `checkShowhouseEnabled` callback, when
+ * supplied, is additionally required to return true (e.g. a per-unit is_showhouse
+ * DB flag). This keeps production secure-by-default while letting demo
+ * deployments opt in.
  */
 export async function validatePurchaserToken(
   token: string,
@@ -271,41 +289,35 @@ export async function validatePurchaserToken(
   // The homeowner app passes the unit's human unit_uid, not its units.id UUID.
   // Resolve it up front so every check below runs against the canonical id and
   // the result carries that id back to the caller. UUID input resolves to
-  // itself, so existing behaviour is unchanged. A reference we cannot resolve
-  // is rejected, same as the old strict-format check.
+  // itself. A reference we cannot resolve is rejected.
   const resolvedUnitId = await resolveUnitUidToId(unitUid);
   if (!resolvedUnitId) {
     return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid unit ID format' };
   }
 
-  // Try validating as a proper QR token first
+  // Path 1: a fully valid signed token (signature + DB state: unused/unexpired).
   const payload = await validateQRToken(token);
   if (payload && payload.supabaseUnitId === resolvedUnitId) {
     return { valid: true, unitId: resolvedUnitId, isShowhouse: false };
   }
 
-  // Showhouse / continued-session capability: the caller presented the unit's
-  // own identifier, either the unit_uid they were issued or the resolved UUID.
-  if (token === unitUid || token === resolvedUnitId) {
-    if (checkShowhouseEnabled) {
-      const isShowhouse = await checkShowhouseEnabled();
-      if (isShowhouse) {
-        return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
-      }
-    }
-    // Fallback: Allow showhouse if no checker provided (backward compatibility)
-    return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
+  // Path 2: continued-session access — the signature and embedded expiry are
+  // still valid even though the one-time token was marked used in the DB. This
+  // requires a genuine HMAC signature (verifyQRToken), so it cannot be forged
+  // from the unit identifier.
+  const signedPayload = verifyQRToken(token);
+  if (signedPayload && signedPayload.supabaseUnitId === resolvedUnitId) {
+    return { valid: true, unitId: resolvedUnitId, isShowhouse: false };
   }
 
-  // Check if this is a signed QR token that was originally for this unit
-  // This allows continued access even if token is marked as used in DB
-  // The token format is: {supabaseUnitId}:{projectId}:{timestamp}:{nonce}:{signature}
-  if (token.includes(':')) {
-    const parts = token.split(':');
-    if (parts.length >= 2 && (parts[0] === unitUid || parts[0] === resolvedUnitId)) {
-      // Token was issued for this unit - allow continued session access
-      // This handles the case where a user scanned a QR code, the token was marked as used,
-      // but they should still have access to their session
+  // Showhouse / demo: caller presented the unit's own identifier as the token,
+  // with no signed QR. Secure-by-default: only honoured when explicitly enabled.
+  const showhouseAllowed = process.env.ENABLE_SHOWHOUSE_DEMO === 'true';
+  if (showhouseAllowed && (token === unitUid || token === resolvedUnitId)) {
+    // If a per-unit checker is supplied it must also approve; otherwise the
+    // env flag alone gates it.
+    const isShowhouse = checkShowhouseEnabled ? await checkShowhouseEnabled() : true;
+    if (isShowhouse) {
       return { valid: true, unitId: resolvedUnitId, isShowhouse: true };
     }
   }

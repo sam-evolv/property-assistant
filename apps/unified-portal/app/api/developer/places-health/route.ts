@@ -102,18 +102,9 @@ async function resolveAuth(request: NextRequest): Promise<ResolvedAuth> {
     }
   }
 
-  const adminId = cookieStore.get('admin_id')?.value;
-  const tenantId = cookieStore.get('tenant_id')?.value;
-  const role = cookieStore.get('user_role')?.value;
-
-  if (adminId && tenantId && role) {
-    return {
-      authenticated: true,
-      context: { adminId, tenantId, role },
-      method: 'cookie',
-    };
-  }
-
+  // SECURITY: removed the admin_id/tenant_id/user_role cookie fallback — those
+  // cookies are client-supplied and unsigned, so they were forgeable. Identity
+  // must come from the validated Supabase session resolved above.
   return {
     authenticated: false,
     context: {},

@@ -21,9 +21,14 @@ export async function GET(request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    const agentProfile = await resolveAgentProfile(supabase, user?.id);
+    // Fail closed: no authenticated user or no matching agent profile → 401.
+    // Never fall back to another agent's profile.
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const agentProfile = await resolveAgentProfile(supabase, user.id);
     if (!agentProfile) {
-      return NextResponse.json({ applicants: [], count: 0 });
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const filter = request.nextUrl.searchParams.get('filter') || 'all';
@@ -124,21 +129,12 @@ function applyFilter(items: ApplicantListItem[], filter: string): ApplicantListI
 
 async function resolveAgentProfile(
   supabase: ReturnType<typeof getSupabaseAdmin>,
-  userId: string | undefined,
+  userId: string,
 ): Promise<{ id: string; tenant_id: string } | null> {
-  if (userId) {
-    const { data } = await supabase
-      .from('agent_profiles')
-      .select('id, tenant_id')
-      .eq('user_id', userId)
-      .maybeSingle();
-    if (data) return data as any;
-  }
   const { data } = await supabase
     .from('agent_profiles')
     .select('id, tenant_id')
-    .order('created_at', { ascending: true })
-    .limit(1)
+    .eq('user_id', userId)
     .maybeSingle();
   return (data as any) || null;
 }

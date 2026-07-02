@@ -22,11 +22,19 @@ function getSupabaseClient() {
 export async function GET(request: Request) {
   try {
     // Require admin authentication to access pipeline data
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
 
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenant_id');
+    const requestedTenantId = searchParams.get('tenant_id');
     const schemeId = searchParams.get('scheme_id');
+
+    // Tenant isolation: non-super_admin callers are locked to their own
+    // tenant regardless of the query string. super_admin is cross-tenant by
+    // design and may optionally override via ?tenant_id= to inspect a tenant.
+    const tenantId =
+      session.role === 'super_admin'
+        ? requestedTenantId || session.tenantId
+        : session.tenantId;
 
     if (!tenantId) {
       return NextResponse.json({ error: 'tenant_id is required' }, { status: 400 });

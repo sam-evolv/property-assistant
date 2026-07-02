@@ -36,15 +36,19 @@ export async function getAdminFromEmail(email: string): Promise<AdminContext | n
   };
 }
 
-export async function getAdminContext(request: NextRequest): Promise<AdminContext | null> {
-  const authEmail = request.headers.get('x-admin-email');
-  
-  if (!authEmail) {
-    console.warn('[RBAC] No admin email found in request headers');
-    return null;
-  }
-
-  return getAdminFromEmail(authEmail);
+/**
+ * @deprecated SECURITY: this used to derive admin identity from the client-supplied
+ * `x-admin-email` request header, which is fully attacker-controlled (middleware
+ * never sets or strips it) — an auth-bypass / privilege-escalation hole. It is
+ * disabled and fails closed. Use the cookie/session-authoritative helpers instead:
+ * `getAdminContextFromSession()` / `getServerSession()` / `requireRole()` in the
+ * unified-portal app, which validate the Supabase session server-side.
+ */
+export async function getAdminContext(_request: NextRequest): Promise<AdminContext | null> {
+  throw new Error(
+    '[RBAC] getAdminContext is disabled: it trusted the forgeable x-admin-email header. ' +
+    'Use getAdminContextFromSession()/requireRole() (session-authoritative) instead.'
+  );
 }
 
 export function isSuperAdmin(context: AdminContext | null): boolean {

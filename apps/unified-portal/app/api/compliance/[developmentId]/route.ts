@@ -185,7 +185,8 @@ export async function POST(
         await supabaseAdmin
           .from('compliance_documents')
           .delete()
-          .eq('document_type_id', docTypeId);
+          .eq('document_type_id', docTypeId)
+          .eq('tenant_id', tenantId);
 
         const { error } = await supabaseAdmin
           .from('compliance_document_types')
@@ -216,6 +217,7 @@ export async function POST(
           .from('compliance_documents')
           .update(updates)
           .eq('id', documentId)
+          .eq('tenant_id', tenantId)
           .select()
           .single();
 

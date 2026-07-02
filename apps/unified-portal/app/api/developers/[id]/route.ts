@@ -2,9 +2,9 @@ export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
 import {
-  getAdminContext,
+  getAdminContextFromSession,
   isSuperAdmin,
-} from '@openhouse/api/rbac';
+} from '@/lib/api-auth';
 import { db } from '@openhouse/db/client';
 import { admins } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
@@ -16,7 +16,7 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const adminContext = await getAdminContext(request);
+    const adminContext = await getAdminContextFromSession();
     
     if (!adminContext || !isSuperAdmin(adminContext)) {
       return NextResponse.json(
@@ -59,7 +59,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const adminContext = await getAdminContext(request);
+    const adminContext = await getAdminContextFromSession();
     
     if (!adminContext || !isSuperAdmin(adminContext)) {
       return NextResponse.json(
@@ -102,7 +102,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const adminContext = await getAdminContext(request);
+    const adminContext = await getAdminContextFromSession();
     
     if (!adminContext || !isSuperAdmin(adminContext)) {
       return NextResponse.json(

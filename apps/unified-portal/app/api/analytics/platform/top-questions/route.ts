@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { getServerSession } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,16 @@ function formatTopicAsLabel(topic: string): string {
 
 export async function GET(request: Request) {
   try {
+    // Platform-wide endpoint that returns verbatim purchaser chat samples
+    // across all tenants. Restricted to super_admin (the platform overview).
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (session.role !== 'super_admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
     const limit = parseInt(searchParams.get('limit') || '10');

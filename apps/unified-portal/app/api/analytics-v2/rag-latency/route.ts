@@ -2,18 +2,29 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { getServerSession } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
+    const requestedTenantId = searchParams.get('tenantId');
     const days = parseInt(searchParams.get('days') || '30');
 
-    if (!tenantId) {
+    if (!requestedTenantId) {
       return NextResponse.json({ error: 'tenantId required' }, { status: 400 });
     }
+
+    // Non-super callers are locked to their own tenant; super_admin may
+    // inspect a specific tenant's RAG latency.
+    const effectiveTenantId =
+      session.role === 'super_admin' ? requestedTenantId : session.tenantId;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -27,6 +38,7 @@ export async function GET(request: Request) {
       FROM messages
       WHERE created_at >= ${startDate}
         AND latency_ms IS NOT NULL
+        AND tenant_id = ${effectiveTenantId}::uuid
       GROUP BY DATE(created_at)
       ORDER BY date DESC
       LIMIT 14

@@ -41,7 +41,7 @@ const slides: Slide[] = [
   {
     id: 'welcome',
     title: 'Welcome',
-    heading: 'Welcome to OpenHouse Ai',
+    heading: 'Welcome to OpenHouse AI',
     subtitle: 'The smarter way to manage homebuyers and handovers',
     icon: <Building2 className="w-12 h-12" strokeWidth={1.5} />,
     content: (
@@ -114,7 +114,7 @@ const slides: Slide[] = [
   {
     id: 'benefits',
     title: 'Benefits for You',
-    heading: 'Why Developers Choose OpenHouse Ai',
+    heading: 'Why Developers Choose OpenHouse AI',
     subtitle: 'Save time. Reduce risk. Look professional.',
     icon: <TrendingUp className="w-12 h-12" strokeWidth={1.5} />,
     features: [

@@ -11,17 +11,22 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
     const developmentId = params.id;
 
     const [dev] = await db
-      .select({ id: developments.id, name: developments.name, project_type: developments.project_type })
+      .select({ id: developments.id, name: developments.name, project_type: developments.project_type, tenant_id: developments.tenant_id })
       .from(developments)
       .where(eq(developments.id, developmentId))
       .limit(1);
 
     if (!dev) {
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
+    // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+    if (session.role !== 'super_admin' && dev.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
 
     const unitRows = await db.execute(sql`
@@ -90,7 +95,7 @@ export async function GET(
     }));
 
     return NextResponse.json({
-      development: dev,
+      development: { id: dev.id, name: dev.name, project_type: dev.project_type },
       stats,
       units: unitsWithAddress,
       tenancies,

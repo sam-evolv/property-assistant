@@ -16,8 +16,9 @@ interface AuditLog {
 }
 
 export async function GET(request: NextRequest) {
+  let session;
   try {
-    await requireRole(['super_admin', 'admin']);
+    session = await requireRole(['super_admin', 'admin']);
   } catch {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -25,6 +26,13 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const hours = parseInt(searchParams.get('hours') || '24', 10);
   const typeFilter = searchParams.get('type');
+
+  // Tenant isolation: a tenant admin only sees their own tenant's telemetry.
+  // super_admin keeps the platform-wide view.
+  const tenantFilter =
+    session.role !== 'super_admin'
+      ? sql` AND tenant_id = ${session.tenantId}::uuid`
+      : sql``;
 
   try {
     let query;
@@ -39,8 +47,9 @@ export async function GET(request: NextRequest) {
           session_hash as actor,
           event_data as metadata,
           created_at
-        FROM analytics_events 
+        FROM analytics_events
         WHERE created_at > now() - make_interval(hours => ${hours})
+        ${tenantFilter}
         AND (event_type ILIKE '%error%' OR event_category ILIKE '%error%')
         ORDER BY created_at DESC 
         LIMIT 500
@@ -54,8 +63,9 @@ export async function GET(request: NextRequest) {
           session_hash as actor,
           event_data as metadata,
           created_at
-        FROM analytics_events 
+        FROM analytics_events
         WHERE created_at > now() - make_interval(hours => ${hours})
+        ${tenantFilter}
         AND (event_type ILIKE '%warn%' OR event_category ILIKE '%warn%')
         ORDER BY created_at DESC 
         LIMIT 500
@@ -69,8 +79,9 @@ export async function GET(request: NextRequest) {
           session_hash as actor,
           event_data as metadata,
           created_at
-        FROM analytics_events 
+        FROM analytics_events
         WHERE created_at > now() - make_interval(hours => ${hours})
+        ${tenantFilter}
         AND event_type NOT ILIKE '%error%' 
         AND event_type NOT ILIKE '%warn%'
         AND event_category NOT ILIKE '%error%' 
@@ -87,8 +98,9 @@ export async function GET(request: NextRequest) {
           session_hash as actor,
           event_data as metadata,
           created_at
-        FROM analytics_events 
+        FROM analytics_events
         WHERE created_at > now() - make_interval(hours => ${hours})
+        ${tenantFilter}
         ORDER BY created_at DESC 
         LIMIT 500
       `;

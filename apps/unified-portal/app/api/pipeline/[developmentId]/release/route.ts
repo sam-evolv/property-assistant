@@ -60,6 +60,11 @@ export async function POST(
       return NextResponse.json({ error: 'Development not found' }, { status: 404 });
     }
 
+    // SECURITY: verify the development belongs to the caller's tenant (super_admin exempt)
+    if (auth.role !== 'super_admin' && development.tenant_id !== auth.tenantId) {
+      return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+    }
+
     const today = new Date().toISOString().split('T')[0];
     const createdUnits: any[] = [];
     const errors: string[] = [];

@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import {
   Sun, Zap, Activity, AlertTriangle,
-  Plus, Bell, Download, BarChart3,
+  Plus,
   RefreshCw, ChevronRight, CheckCircle, Clock, ArrowRight,
   Loader2, Users, TrendingUp, Send, Check,
 } from 'lucide-react';
@@ -216,9 +216,9 @@ export default function CareDashboardOverview() {
       onClick: () => window.location.href = '/care-dashboard/installations/new',
       variant: 'primary',
     },
-    { id: 'send-notification', label: 'Send Notification', icon: Bell, onClick: () => {} },
-    { id: 'export-report', label: 'Export Report', icon: Download, onClick: () => {} },
-    { id: 'view-analytics', label: 'View Analytics', icon: BarChart3, onClick: () => {} },
+    // Removed non-functional quick actions (Send Notification / Export Report /
+    // View Analytics) — they had empty onClick handlers and did nothing when
+    // clicked. Re-add them here once their destinations exist.
   ];
 
   if (loading) {

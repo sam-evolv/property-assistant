@@ -70,7 +70,7 @@ const SECTION_HEADINGS = [
 export async function GET(request: NextRequest) {
   try {
     // Require admin authentication to generate QR packs
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
 
     let baseUrl = process.env.NEXT_PUBLIC_APP_URL;
     if (!baseUrl) {
@@ -89,6 +89,22 @@ export async function GET(request: NextRequest) {
         { error: 'projectId query parameter is required' },
         { status: 400 }
       );
+    }
+
+    // Ownership: non-super_admin may only generate packs for developments in
+    // their own tenant. 404 (not 403) so callers cannot probe for ids.
+    if (session.role !== 'super_admin') {
+      const { rows: devRows } = await db.execute(sql`
+        SELECT id FROM developments
+        WHERE id = ${projectId}::uuid AND tenant_id = ${session.tenantId}::uuid
+        LIMIT 1
+      `);
+      if (!devRows || devRows.length === 0) {
+        return NextResponse.json(
+          { error: 'Development not found' },
+          { status: 404 }
+        );
+      }
     }
 
     console.log('[QR Pack] Generating for projectId:', projectId);

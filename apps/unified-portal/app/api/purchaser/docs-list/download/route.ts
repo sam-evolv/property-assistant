@@ -5,7 +5,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { documents, units } from '@openhouse/db/schema';
-import { eq, or } from 'drizzle-orm';
+import { eq, or, and } from 'drizzle-orm';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
@@ -44,36 +44,54 @@ export async function GET(request: NextRequest) {
     const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const isUuid = uuidPattern.test(unitUid);
     let resolvedDevId: string | undefined;
-    
+    // SECURITY: the caller's tenant and Supabase project scope every document
+    // lookup below so a valid unit token cannot be used to pull another unit's,
+    // development's, or tenant's document by guessing its id (IDOR).
+    let resolvedTenantId: string | undefined;
+    let resolvedProjectId: string | undefined;
+
     const unitResult = await db
-      .select({ development_id: units.development_id })
+      .select({ development_id: units.development_id, tenant_id: units.tenant_id })
       .from(units)
-      .where(isUuid 
+      .where(isUuid
         ? or(eq(units.id, unitUid), eq(units.unit_uid, unitUid))
         : eq(units.unit_uid, unitUid))
       .limit(1);
-    
+
     if (unitResult.length > 0) {
       resolvedDevId = unitResult[0].development_id;
-    } else if (isUuid) {
-      try {
-        const supabase = getSupabaseClient();
-        const { data: supabaseUnit } = await supabase
-          .from('units')
-          .select('project_id')
-          .eq('id', unitUid)
-          .single();
-        
-        if (supabaseUnit?.project_id) {
+      resolvedTenantId = unitResult[0].tenant_id;
+    }
+
+    // Resolve the unit's Supabase project_id (used to scope document_sections).
+    // Also covers units that live only in Supabase, and back-fills the Drizzle
+    // development id via the known project mapping.
+    try {
+      const supabase = getSupabaseClient();
+      const { data: supabaseUnit } = await supabase
+        .from('units')
+        .select('project_id')
+        .eq(isUuid ? 'id' : 'unit_uid', unitUid)
+        .single();
+
+      if (supabaseUnit?.project_id) {
+        resolvedProjectId = supabaseUnit.project_id;
+        if (!resolvedDevId) {
           const SUPABASE_TO_DRIZZLE: Record<string, string> = {
             '57dc3919-2725-4575-8046-9179075ac88e': '34316432-f1e8-4297-b993-d9b5c88ee2d8',
             '6d37c4a8-5319-4d7f-9cd2-4f1a8bc25e91': 'e0833c98-23a7-490c-9f67-b58e73aeb14e',
           };
           resolvedDevId = SUPABASE_TO_DRIZZLE[supabaseUnit.project_id];
         }
-      } catch (e) {
-        // Silent - just won't have development context
       }
+    } catch (e) {
+      // Silent - just won't have Supabase project context
+    }
+
+    // FAIL CLOSED: if we cannot establish which project/tenant this unit belongs
+    // to, we cannot safely authorize any document. Refuse rather than leak.
+    if (!resolvedProjectId && !resolvedDevId) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
     }
 
     // Track document download - non-blocking for marketing website counter
@@ -100,17 +118,26 @@ export async function GET(request: NextRequest) {
       
       const { data: section, error } = await supabase
         .from('document_sections')
-        .select('metadata')
+        .select('metadata, project_id')
         .eq('id', sectionId)
         .single();
-      
+
       if (error || !section) {
         return NextResponse.json(
           { error: 'Document not found' },
           { status: 404 }
         );
       }
-      
+
+      // SECURITY: the section must belong to this unit's project. Without this a
+      // valid unit token could download any section platform-wide by id.
+      if (!resolvedProjectId || section.project_id !== resolvedProjectId) {
+        return NextResponse.json(
+          { error: 'Document not found' },
+          { status: 404 }
+        );
+      }
+
       const fileUrl = section.metadata?.file_url;
       if (!fileUrl) {
         return NextResponse.json(
@@ -124,10 +151,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(fileUrl);
     }
 
+    // SECURITY: scope the document to the caller's tenant AND development so a
+    // valid unit token cannot pull another tenant's/development's document by id.
+    if (!resolvedTenantId || !resolvedDevId) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
     const doc = await db
       .select({ file_url: documents.file_url, title: documents.title })
       .from(documents)
-      .where(eq(documents.id, docId))
+      .where(and(
+        eq(documents.id, docId),
+        eq(documents.tenant_id, resolvedTenantId),
+        eq(documents.development_id, resolvedDevId),
+      ))
       .limit(1);
 
     if (!doc || doc.length === 0) {

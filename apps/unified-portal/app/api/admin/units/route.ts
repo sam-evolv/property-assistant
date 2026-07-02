@@ -9,7 +9,13 @@ import { requireRole } from '@/lib/supabase-server';
 export async function GET(request: NextRequest) {
   try {
     // Require admin authentication to access unit data
-    await requireRole(['developer', 'admin', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+
+    // Tenant isolation: non-super_admin sessions only see their own tenant's
+    // units (which carry purchaser PII). super_admin is cross-tenant.
+    const tenantFilter =
+      session.role !== 'super_admin' ? eq(units.tenant_id, session.tenantId) : undefined;
+
     const unitsData = await db
       .select({
         id: units.id,
@@ -30,6 +36,7 @@ export async function GET(request: NextRequest) {
       .from(units)
       .leftJoin(developments, eq(units.development_id, developments.id))
       .leftJoin(qr_tokens, eq(units.id, qr_tokens.unit_id))
+      .where(tenantFilter)
       .groupBy(
         units.id,
         units.unit_number,

@@ -20,25 +20,17 @@ export async function GET(_request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    let agentId: string | null = null;
-    if (user) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      agentId = data?.id || null;
-    }
-    if (!agentId) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      agentId = data?.id || null;
-    }
-    if (!agentId) return NextResponse.json({ count: 0 });
+    // Fail closed: no authenticated user or no matching agent profile → 401.
+    // Never fall back to the first/oldest agent_profile (cross-tenant leak).
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+    const agentId = profile?.id || null;
+    if (!agentId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: apps } = await supabase
       .from('agent_rental_applications')

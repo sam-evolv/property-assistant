@@ -55,8 +55,17 @@ function isQuietHours(preferences: NotificationPreferences): boolean {
     return false;
   }
 
-  const now = new Date();
-  const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+  // Compute the current time in the homeowner's local timezone. Vercel servers
+  // run in UTC, so getHours()/getMinutes() previously applied quiet hours in UTC
+  // rather than Irish local time. Default to Europe/Dublin (mirrors the pattern
+  // in app/api/cron/schedule-digest/route.ts). en-GB + hour12:false yields a
+  // 24-hour "HH:mm" string that compares correctly against the stored bounds.
+  const currentTime = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Dublin',
+    hour12: false,
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date());
   const start = preferences.quiet_hours_start;
   const end = preferences.quiet_hours_end;
 
@@ -247,15 +256,17 @@ export async function resolveTargetRecipients(
     case 'pipeline_stage': {
       const stage = targetFilter?.stage;
       if (!stage) return [];
-      // Get units at a specific pipeline stage
+      // Get units at a specific pipeline stage. The stage predicate is required:
+      // without it, every unit in the development matches and a stage-targeted
+      // broadcast reaches every homeowner regardless of their pipeline stage.
       const { data } = await supabase
         .from('unit_sales_pipeline')
         .select('unit_id')
-        .eq('development_id', developmentId);
+        .eq('development_id', developmentId)
+        .eq('status', stage);
 
       if (!data) return [];
 
-      // Filter by pipeline stage (check which date field is the most recent set)
       const unitIds = data.map((p: any) => p.unit_id).filter(Boolean);
       if (!unitIds.length) return [];
 

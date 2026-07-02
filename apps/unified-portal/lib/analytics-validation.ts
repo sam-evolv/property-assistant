@@ -66,9 +66,16 @@ export function safeAnalyticsResponse<T>(data: T, schema: z.ZodSchema<T>) {
     const validated = schema.parse(data);
     return NextResponse.json(validated);
   } catch {
+    // Response-schema validation failed -> 422, NOT 200. Every caller in this
+    // codebase (hooks/useAnalyticsV2.ts `fetchAnalyticsV2`, and the analytics-v2
+    // route handlers that return this value directly) branches on `res.ok`. A 200
+    // here was silently parsed by fetchAnalyticsV2 and returned as if it were
+    // valid, well-typed metrics, masking the failure. No consumer reads the
+    // `safeFallback` field, so surfacing a real error status is the safe fix and
+    // matches handleAnalyticsError, which already returns non-2xx for failures.
     return NextResponse.json(
-      { error: 'Invalid response data', safeFallback: true },
-      { status: 200 }
+      { error: 'Invalid response data', safeFallback: false },
+      { status: 422 }
     );
   }
 }

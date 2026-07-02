@@ -32,16 +32,7 @@ import { sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { generateRequestId, createStructuredError, logCritical, getResponseHeaders } from '@/lib/api-error-utils';
 import { logSecurityViolation } from '@/lib/api-auth';
-import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
-
-function getSupabaseAdmin() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false }, db: { schema: 'public' } }
-  );
-}
 
 const summaryQuerySchema = z.object({
   scope: z.enum(['superadmin', 'developer']),
@@ -413,43 +404,16 @@ export async function GET(request: Request) {
           activeUnitsInWindow = fallbackCount;
         }
       } catch (fallbackError) {
-
-        // FINAL FALLBACK: Try Supabase to count total units with any activity
-        // SECURITY: Always filter by tenant_id to prevent cross-tenant data leakage
-        // For developer scope, require developer_id; only allow unfiltered for superadmin
-        if (scope === 'developer' && !developer_id) {
-          // SECURITY: Fail closed - developer scope must have tenant filter
-        } else {
-          try {
-            const supabaseAdmin = getSupabaseAdmin();
-
-            // Count units that exist (as a baseline) - better than showing 0
-            let unitQuery = supabaseAdmin
-              .from('units')
-              .select('id', { count: 'exact', head: true });
-
-            if (project_id) {
-              unitQuery = unitQuery.eq('project_id', project_id);
-              // SECURITY: keep the tenant filter alongside the project filter when in force
-              if (developer_id) {
-                unitQuery = unitQuery.eq('tenant_id', developer_id);
-              }
-            } else if (developer_id) {
-              // SECURITY: Filter by tenant_id when no specific project is selected
-              unitQuery = unitQuery.eq('tenant_id', developer_id);
-            }
-            // Note: superadmin scope without filters is allowed to see cross-tenant data
-
-            const { count: unitCount } = await unitQuery;
-            // Use 50% of total units as an estimate of "active" if we can't get real data
-            // This is better than showing 0 which is clearly wrong
-            if (unitCount && unitCount > 0) {
-              activeUnitsInWindow = Math.floor(unitCount * 0.5);
-            }
-          } catch (_supabaseError) {
-              // error handled silently
-          }
-        }
+        // Do NOT fabricate active users from unit counts. The previous code
+        // estimated "active" as 50% of total units, which contradicts this
+        // file's canonical "do not fabricate / do not interpret null as zero"
+        // contract. When the real fallback query fails we record the error and
+        // leave the metric at its true value (0 here), consistent with the
+        // errors[] pattern used by every other metric in this endpoint.
+        errors.push({
+          metric: 'active_units_in_window',
+          reason: fallbackError instanceof Error ? fallbackError.message : 'active users fallback query failed',
+        });
       }
     }
 

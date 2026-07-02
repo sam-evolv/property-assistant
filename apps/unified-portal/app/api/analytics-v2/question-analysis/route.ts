@@ -2,16 +2,31 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { messages } from '@openhouse/db/schema';
 import { sql } from 'drizzle-orm';
+import { getServerSession } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    // This endpoint returns verbatim purchaser chat text. Require an
+    // authenticated session and scope to the caller's tenant.
+    const session = await getServerSession();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { searchParams } = new URL(request.url);
     const days = parseInt(searchParams.get('days') || '30');
     const limit = parseInt(searchParams.get('limit') || '20');
     const developmentId = searchParams.get('developmentId') || null;
-    const tenantId = searchParams.get('tenantId') || null;
+    const requestedTenantId = searchParams.get('tenantId') || null;
+
+    // Non-super callers are locked to their own tenant; super_admin may
+    // scope to a specific tenant (or view all when none is supplied). Any
+    // client-supplied developmentId that belongs to another tenant is
+    // naturally filtered out by the developments join + tenant filter.
+    const tenantId =
+      session.role === 'super_admin' ? requestedTenantId : session.tenantId;
 
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);

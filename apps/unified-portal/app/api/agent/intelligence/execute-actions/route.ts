@@ -60,26 +60,19 @@ export async function POST(request: NextRequest) {
     const supabaseAuth = createRouteHandlerClient({ cookies: () => cookieStore });
     const { data: { user } } = await supabaseAuth.auth.getUser();
 
-    // Resolve agent profile (mirrors the chat route's fallback for preview mode).
-    let agentProfile: any = null;
-    if (user) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id, user_id, tenant_id, timezone')
-        .eq('user_id', user.id)
-        .limit(1)
-        .maybeSingle();
-      agentProfile = data;
+    // Fail closed: these actions WRITE (viewings, applicants, drafts) under
+    // the resolved agent. No authenticated user or no matching agent profile
+    // → 401. Never fall back to the first/oldest agent_profile.
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    if (!agentProfile) {
-      const { data } = await supabase
-        .from('agent_profiles')
-        .select('id, user_id, tenant_id, timezone')
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle();
-      agentProfile = data;
-    }
+
+    const { data: agentProfile } = await supabase
+      .from('agent_profiles')
+      .select('id, user_id, tenant_id, timezone')
+      .eq('user_id', user.id)
+      .limit(1)
+      .maybeSingle();
 
     if (!agentProfile) {
       return NextResponse.json({ error: 'No agent profile found' }, { status: 401 });

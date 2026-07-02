@@ -200,6 +200,18 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Ownership: resolve the caller's agent profile so we can scope the
+    // update to their own viewings only.
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'No agent profile found' }, { status: 404 });
+    }
+
     const { searchParams } = new URL(request.url);
     const viewingId = searchParams.get('id');
     if (!viewingId) {
@@ -221,12 +233,17 @@ export async function PATCH(request: NextRequest) {
       .from('agent_viewings')
       .update(updates)
       .eq('id', viewingId)
+      .eq('agent_id', profile.id)
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error('[agent/viewings PATCH] Error:', error.message);
       return NextResponse.json({ error: 'Failed to update viewing' }, { status: 500 });
+    }
+
+    if (!viewing) {
+      return NextResponse.json({ error: 'Viewing not found' }, { status: 404 });
     }
 
     return NextResponse.json({ viewing: formatViewing(viewing) });
@@ -246,20 +263,38 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Ownership: resolve the caller's agent profile so we can scope the
+    // delete to their own viewings only.
+    const { data: profile } = await supabase
+      .from('agent_profiles')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (!profile) {
+      return NextResponse.json({ error: 'No agent profile found' }, { status: 404 });
+    }
+
     const { searchParams } = new URL(request.url);
     const viewingId = searchParams.get('id');
     if (!viewingId) {
       return NextResponse.json({ error: 'Missing viewing id' }, { status: 400 });
     }
 
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('agent_viewings')
       .delete()
-      .eq('id', viewingId);
+      .eq('id', viewingId)
+      .eq('agent_id', profile.id)
+      .select('id');
 
     if (error) {
       console.error('[agent/viewings DELETE] Error:', error.message);
       return NextResponse.json({ error: 'Failed to delete viewing' }, { status: 500 });
+    }
+
+    if (!deleted || deleted.length === 0) {
+      return NextResponse.json({ error: 'Viewing not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });

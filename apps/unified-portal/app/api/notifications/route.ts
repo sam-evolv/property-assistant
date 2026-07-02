@@ -11,6 +11,16 @@ import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 
 export const dynamic = 'force-dynamic';
 
+// PostgREST .or() filters are a single string where `,` separates
+// conditions and `()` group logic. Escape LIKE wildcards and strip the
+// structural characters so a value interpolated into the filter string
+// can't break out and inject extra conditions.
+function escapeIlikeForOr(value: string): string {
+  return value
+    .replace(/[\\%_]/g, (m) => `\\${m}`)
+    .replace(/[(),"]/g, '');
+}
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -49,11 +59,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unit not found' }, { status: 404 });
     }
 
-    // Fetch notifications for this unit/user
+    // Fetch notifications for this unit/user. unitUid is interpolated into
+    // the .or() filter string, so escape it to prevent filter injection.
+    const safeUnitUid = escapeIlikeForOr(unitUid);
     let query = supabase
       .from('notifications')
       .select('*', { count: 'exact' })
-      .or(`user_id.eq.${unitUid},and(development_id.eq.${unit.project_id},category.eq.broadcast)`)
+      .or(`user_id.eq.${safeUnitUid},and(development_id.eq.${unit.project_id},category.eq.broadcast)`)
       .order('created_at', { ascending: false })
       .range((page - 1) * limit, page * limit - 1);
 
