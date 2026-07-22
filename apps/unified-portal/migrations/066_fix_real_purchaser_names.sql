@@ -76,7 +76,7 @@ FROM (VALUES
   ('35','Ms Emma Lundy and Mr Cillian Williamson'),
   ('36','Mr Suraj Gawade and Ms Aishwarya Hanumant Kodalkar'),
   ('37','Roschelle McSweeney and Cian O''Donovan'),
-  ('38','Mr Halimah Baruwa and Ms Sherif Baruwa'),
+  ('38','Ms Halimah Baruwa and Mr Sherif Baruwa'),
   ('39','Mr Rima Urboniene and Ms Laurynas Urbonas'),
   ('40','Dr Yineng Wang and Ms Lin Lin'),
   ('41','Ms Akhila Anand and Mr Vishnu Puthenpurackal Sudarsanan'),

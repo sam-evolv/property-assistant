@@ -46,7 +46,7 @@ LV-PARK,34,LV-PARK-034,Ms Greeshma Jose and Mr Basil Kooran Varkey,"34 Longview 
 LV-PARK,35,LV-PARK-035,Ms Emma Lundy and Mr Cillian Williamson_x000D_,"35 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD05,D,HO,4 Bedroom,3 Bathroom,1815.76
 LV-PARK,36,LV-PARK-036,Mr Suraj Gawade and Ms Aishwarya Hanumant Kodalkar,"36 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,37,LV-PARK-037,Roschelle McSweeney and Cian O'Donovan,"37 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
-LV-PARK,38,LV-PARK-038,Mr Halimah Baruwa and Ms Sherif Baruwa,"38 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,3 Bathroom,1188.33
+LV-PARK,38,LV-PARK-038,Ms Halimah Baruwa and Mr Sherif Baruwa,"38 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,2 Bathroom,1188.33
 LV-PARK,39,LV-PARK-039,Mr Rima Urboniene and Ms Laurynas Urbonas,"39 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,4 Bedroom,3 Bathroom,1562.92
 LV-PARK,40,LV-PARK-040,Dr Yineng Wang and Ms Lin Lin,"40 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS03,SD,HO,4 Bedroom,3 Bathroom,1562.92
 LV-PARK,41,LV-PARK-041,Ms Akhila Anand and Mr Vishnu Puthenpurackal Sudarsanan,"41 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS03,SD,HO,3 Bedroom,3 Bathroom,1188.33
