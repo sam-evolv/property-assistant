@@ -9,7 +9,10 @@ const COMMON_VENUE_CHAINS = [
 
 const VENUE_LOCATION_PATTERN = /\b(?:in|at|on|near|beside|opposite)\s+([A-Z][A-Za-z0-9'\s-]+(?:Shopping\s*Centre|Center|Mall|Street|Road|Avenue|Park|Square|Village|Estate))\b/gi;
 const TRAVEL_TIME_CLAIM_PATTERN = /\b(\d+)\s*(?:minute|min|mins|minutes?)?\s*(?:walk|drive|walking|driving)\b/gi;
-const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:km|m|metres?|meters?|kilometres?|kilometers?)\s*(?:away|from|to)?\b/gi;
+// Bare "m" must NOT be part of "m²" / "m2" / "mm" / "min" / a longer word — otherwise
+// floor areas like "145 m²" are mistaken for a distance claim. Spelled-out units
+// (metre/metres/km/kilometres) still match, so real distance claims are unaffected.
+const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:kilometres?|kilometers?|metres?|meters?|km|m(?![²2A-Za-z]))\s*(?:away|from|to)?\b/gi;
 
 export interface AmenityHallucinationCheck {
   hasHallucination: boolean;
@@ -22,14 +25,17 @@ export function detectAmenityHallucinations(
   hasAmenityContext: boolean = false
 ): AmenityHallucinationCheck {
   const detectedIssues: string[] = [];
-  const lowerAnswer = answer.toLowerCase();
-  
+
   if (hasAmenityContext) {
     return { hasHallucination: false, detectedIssues: [] };
   }
   
   for (const chain of COMMON_VENUE_CHAINS) {
-    if (lowerAnswer.includes(chain)) {
+    // Match as a whole word so ordinary words that merely CONTAIN a chain name
+    // as a substring don't false-positive: "central" ⊃ "centra",
+    // "spare" ⊃ "spar", "grimace" ⊃ "mace", "maxed" ⊃ ... etc.
+    const chainPattern = new RegExp(`\\b${chain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (chainPattern.test(answer)) {
       detectedIssues.push(`venue_name:${chain}`);
     }
   }

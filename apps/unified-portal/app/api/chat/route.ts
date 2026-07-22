@@ -3957,9 +3957,14 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       // CRITICAL: If we're in the LLM path, we do NOT have grounded POI data - never bypass validation
       // The POI path returns early via formatPOIResponse, so if we're here, we don't have real venue data
       const hasAmenityContext = false; // LLM path never has grounded POI context
+      // Only ENFORCE the amenity guard for genuine local-area questions. For other
+      // questions its heuristics false-positive on ordinary home content — "145 m²",
+      // development names like "Longview Park", words like "central" — and would
+      // wrongly replace a correct home answer with the generic amenities message.
+      const isLocalAreaQuestion = detectPOICategoryExpanded(message).category !== null;
       const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
-      
-      if (hallucinationCheck.hasHallucination) {
+
+      if (isLocalAreaQuestion && hallucinationCheck.hasHallucination) {
         fullAnswer = hallucinationCheck.cleanedAnswer || fullAnswer;
         
         // Log the blocked hallucination
@@ -4496,10 +4501,12 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
           // The POI path returns early, so if we're here, never bypass validation
           const streamHasAmenityContext = false; // Streaming LLM path never has grounded POI context
+          // Only ENFORCE the amenity guard for genuine local-area questions (see testMode path).
+          const streamIsLocalAreaQuestion = detectPOICategoryExpanded(message).category !== null;
           const streamHallucinationCheck = detectAmenityHallucinations(fullAnswer, streamHasAmenityContext);
-          
+
           let answerToStore = fullAnswer;
-          if (streamHallucinationCheck.hasHallucination) {
+          if (streamIsLocalAreaQuestion && streamHallucinationCheck.hasHallucination) {
             answerToStore = streamHallucinationCheck.cleanedAnswer || fullAnswer;
             
             // Log the hallucination for observability
