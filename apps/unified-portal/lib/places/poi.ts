@@ -1456,13 +1456,14 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   
   // "shops" (generic) = convenience stores (Irish colloquial: "local shop", "corner shop")
   // Only match truly generic shop requests, NOT compound phrases like "coffee shop", "bike shop"
-  if (/\b(local\s+shop|corner\s+shop)\b/i.test(q)) {
+  if (/\b(local\s+shops?|corner\s+shops?)\b/i.test(q)) {
     return { category: 'convenience_store' };
   }
   
   // Generic shop requests only. Compound nouns such as "music shop" must
   // remain dynamic and then pass the bounded local-service decision.
   if (
+    /^shops?[?!.]?$/i.test(q) ||
     /\b(?:any|some|nearby|closest|nearest)\s+shops?\b/i.test(q) ||
     /\bshops?\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
     /\bwhere(?:'s|\s+is|\s+are)\s+(?:there\s+)?(?:any\s+|a\s+)?shops?\b/i.test(q) ||

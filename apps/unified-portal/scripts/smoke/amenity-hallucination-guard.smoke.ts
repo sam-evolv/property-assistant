@@ -107,7 +107,9 @@ const localCases = [
   'Where can I find a shop?',
   'Where can we find shops?',
   'local shop',
+  'local shops',
   'corner shop',
+  'corner shops',
 ];
 
 for (const question of localCases) {
@@ -122,6 +124,11 @@ assert.equal(
   shouldEnforceAmenityHallucinationGuard('restaurants', 'location_amenities'),
   true,
   'a resolved affirmative local-amenity topic must keep the guard enabled',
+);
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('shops', 'location_amenities'),
+  true,
+  'a resolved affirmative generic-shop topic must keep the guard enabled',
 );
 assert.equal(
   shouldEnforceAmenityHallucinationGuard('Yes', 'location_amenities'),
@@ -166,6 +173,7 @@ for (const target of [
   'certificates', 'certifications', 'warranties', 'guarantees', 'floor plans',
   'drawings', 'specifications', 'schedules', 'declarations', 'handover packs',
   'completion packs', 'welcome packs', 'maps', 'policies', 'forms', 'reports',
+  'maintenance log', 'maintenance logs', 'record', 'records',
 ]) {
   const question = `Where are the nearest ${target}?`;
   assert.notEqual(
