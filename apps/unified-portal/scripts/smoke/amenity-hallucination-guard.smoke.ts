@@ -136,6 +136,13 @@ assert.equal(
   false,
   'a home-system target must not become a nearby amenity',
 );
+for (const target of ['manuals', 'certificates', 'warranties', 'floor plans', 'drawings', 'specifications', 'schedules']) {
+  assert.equal(
+    shouldEnforceAmenityHallucinationGuard(`Where are the nearest ${target}?`),
+    false,
+    `plural home/document target must remain non-local: ${target}`,
+  );
+}
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
 assert.match(
