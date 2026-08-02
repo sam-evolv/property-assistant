@@ -103,6 +103,11 @@ const localCases = [
   'Where is the nearest petrol station?',
   'Where is the nearest gas station?',
   'Where are the nearest shops?',
+  "Where's a shop?",
+  'Where can I find a shop?',
+  'Where can we find shops?',
+  'local shop',
+  'corner shop',
 ];
 
 for (const question of localCases) {

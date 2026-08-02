@@ -36,7 +36,7 @@ export function shouldEnforceAmenityHallucinationGuard(
 
   const poi = detectPOICategoryExpanded(message);
   const hasExplicitLocalFraming =
-    /\bwhere\s+(?:is|are|can\s+(?:i|we))\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+    /\bwhere(?:'s|\s+(?:is|are)|\s+can\s+(?:i|we)(?:\s+find)?)\b|\b(?:local|corner)\s+shops?\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
   const hasProximityFraming =
     /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
   const hasHomeOrDocumentTarget =
