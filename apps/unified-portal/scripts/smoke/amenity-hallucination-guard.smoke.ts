@@ -6,7 +6,7 @@ import {
   detectAmenityHallucinations,
   shouldEnforceAmenityHallucinationGuard,
 } from '../../lib/assistant/amenity-answer-validator';
-import { detectPOICategoryExpanded } from '../../lib/places/poi';
+import { detectPOICategoryExpanded, getFollowUpCategories } from '../../lib/places/poi';
 import { classifyIntent } from '../../lib/assistant/os';
 
 assert.equal(
@@ -130,6 +130,13 @@ assert.equal(
   true,
   'a resolved affirmative generic-shop topic must keep the guard enabled',
 );
+for (const topic of ['shop', 'shops', 'local shop', 'local shops', 'corner shop', 'corner shops']) {
+  assert.deepEqual(
+    getFollowUpCategories(topic),
+    ['convenience_store'],
+    `generic-shop topic must resolve for affirmative follow-ups: ${topic}`,
+  );
+}
 assert.equal(
   shouldEnforceAmenityHallucinationGuard('Yes', 'location_amenities'),
   false,
