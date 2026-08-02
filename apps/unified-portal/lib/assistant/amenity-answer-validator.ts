@@ -28,7 +28,6 @@ export function shouldEnforceAmenityHallucinationGuard(
   if (resolvedIntent === 'location_amenities') return true;
 
   const inferredIntent = classifyIntent(message).intent;
-  if (inferredIntent === 'location_amenities') return true;
 
   const poi = detectPOICategoryExpanded(message);
   const hasExplicitLocalFraming =
@@ -40,8 +39,9 @@ export function shouldEnforceAmenityHallucinationGuard(
   // the generic "where can I find" document-intent pattern.
   if (poi.category !== null && hasExplicitLocalFraming) return true;
 
-  const authoritativeIntent = resolvedIntent || inferredIntent;
-  if (!['unknown', 'affirmative'].includes(authoritativeIntent)) return false;
+  if (resolvedIntent && !['unknown', 'affirmative'].includes(resolvedIntent)) return false;
+  if (inferredIntent === 'location_amenities') return true;
+  if (!['unknown', 'affirmative'].includes(inferredIntent)) return false;
 
   // Unclassified dynamic nouns are too broad for bare "where is" questions
   // (for example boiler, stopcock, bins). Require explicit proximity wording.

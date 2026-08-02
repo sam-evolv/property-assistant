@@ -30,8 +30,15 @@ export async function runMigrations(): Promise<void> {
 
   const client = new Client({ connectionString });
   await client.connect();
+  let lockAcquired = false;
 
   try {
+    // Serialize all migration runners for this database. The session lock is
+    // held through migration execution and tracking so two processes cannot
+    // both observe and run the same pending file.
+    await client.query("SELECT pg_advisory_lock(hashtext('openhouse_migrations'))");
+    lockAcquired = true;
+
     await client.query(`
       CREATE TABLE IF NOT EXISTS _migrations (
         id SERIAL PRIMARY KEY,
@@ -112,7 +119,13 @@ export async function runMigrations(): Promise<void> {
 
     console.log(`\n✨ Done: ${ran} applied, ${skipped} skipped\n`);
   } finally {
-    await client.end();
+    try {
+      if (lockAcquired) {
+        await client.query("SELECT pg_advisory_unlock(hashtext('openhouse_migrations'))");
+      }
+    } finally {
+      await client.end();
+    }
   }
 }
 

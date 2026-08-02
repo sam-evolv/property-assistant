@@ -121,12 +121,22 @@ assert.equal(
   false,
   'a resolved document intent must override generic where-can framing',
 );
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Where is the nearest boiler manual?', 'document_answer'),
+  false,
+  'a resolved document intent must override raw proximity inference',
+);
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
 assert.match(
   route,
-  /isAssistantOSEnabled\(\)\s*&&\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)/s,
-  'the Google Places branch must use the same resolved local-intent decision as the answer guard',
+  /if\s*\(\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)\s*\)/s,
+  'the Google Places branch must always use the shared resolved local-intent decision',
+);
+assert.doesNotMatch(
+  route,
+  /isAssistantOSEnabled\(\)\s*&&\s*shouldEnforceAmenityHallucinationGuard/s,
+  'the Places safety gate must not be disabled while the post-stream guard cannot retract visible output',
 );
 assert.match(route, /resolvedAmenityQuery\s*=\s*syntheticQuery/);
 assert.match(route, /detectPOICategoryExpanded\(resolvedAmenityQuery\)/);
