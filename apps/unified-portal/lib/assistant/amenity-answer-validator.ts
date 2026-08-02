@@ -25,8 +25,6 @@ export function shouldEnforceAmenityHallucinationGuard(
   message: string,
   resolvedIntent?: string | null,
 ): boolean {
-  if (resolvedIntent === 'location_amenities') return true;
-
   const inferredIntent = classifyIntent(message).intent;
 
   const poi = detectPOICategoryExpanded(message);
@@ -34,10 +32,14 @@ export function shouldEnforceAmenityHallucinationGuard(
     /\bwhere\s+(?:is|are|can\s+(?:i|we))\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
   const hasProximityFraming =
     /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+  const hasHomeOrDocumentTarget =
+    /\b(boiler|stopcock|fuse\s*box|consumer\s*unit|heat\s*pump|mvhr|thermostat|utility\s*meter|bins?|manual|document|certificate|warranty|floor\s*plan|drawing|specification|schedule)\b/i.test(message);
 
   // A known POI category plus explicit local phrasing is stronger evidence than
   // the generic "where can I find" document-intent pattern.
   if (poi.category !== null && hasExplicitLocalFraming) return true;
+  if (hasHomeOrDocumentTarget) return false;
+  if (resolvedIntent === 'location_amenities') return true;
 
   if (resolvedIntent && !['unknown', 'affirmative'].includes(resolvedIntent)) return false;
   if (inferredIntent === 'location_amenities') return true;

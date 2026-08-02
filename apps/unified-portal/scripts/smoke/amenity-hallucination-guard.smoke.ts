@@ -126,6 +126,16 @@ assert.equal(
   false,
   'a resolved document intent must override raw proximity inference',
 );
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Where is the nearest boiler manual?'),
+  false,
+  'an explicit home-document target must override raw proximity inference',
+);
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Where is the nearest boiler?'),
+  false,
+  'a home-system target must not become a nearby amenity',
+);
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
 assert.match(
