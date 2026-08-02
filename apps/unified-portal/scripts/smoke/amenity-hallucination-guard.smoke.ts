@@ -136,6 +136,13 @@ assert.equal(
   false,
   'a home-system target must not become a nearby amenity',
 );
+for (const target of ['boilers', 'stopcocks', 'fuse boxes', 'consumer units', 'heat pumps', 'thermostats', 'utility meters']) {
+  assert.equal(
+    shouldEnforceAmenityHallucinationGuard(`Where are the nearest ${target}?`),
+    false,
+    `plural home-system target must remain non-local: ${target}`,
+  );
+}
 for (const target of ['manuals', 'certificates', 'warranties', 'floor plans', 'drawings', 'specifications', 'schedules']) {
   assert.equal(
     shouldEnforceAmenityHallucinationGuard(`Where are the nearest ${target}?`),
@@ -157,6 +164,11 @@ assert.doesNotMatch(
 );
 assert.match(route, /resolvedAmenityQuery\s*=\s*syntheticQuery/);
 assert.match(route, /detectPOICategoryExpanded\(resolvedAmenityQuery\)/);
+assert.doesNotMatch(
+  route,
+  /isAssistantOSEnabled\(\)\s*&&\s*isAffirmativeMessage/,
+  'contextual affirmative target resolution must remain active when Assistant OS is disabled',
+);
 
 const matcherCases: Array<[string, boolean]> = [
   ['central heating', false],

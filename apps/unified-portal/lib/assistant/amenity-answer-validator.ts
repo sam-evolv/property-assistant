@@ -33,7 +33,7 @@ export function shouldEnforceAmenityHallucinationGuard(
   const hasProximityFraming =
     /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
   const hasHomeOrDocumentTarget =
-    /\b(boiler|stopcock|fuse\s*box|consumer\s*unit|heat\s*pump|mvhr|thermostat|utility\s*meter|bins?|manuals?|documents?|certificates?|warrant(?:y|ies)|floor\s*plans?|drawings?|specifications?|schedules?)\b/i.test(message);
+    /\b(boilers?|stopcocks?|fuse\s*boxes?|consumer\s*units?|heat\s*pumps?|mvhrs?|thermostats?|utility\s*meters?|bins?|manuals?|documents?|certificates?|warrant(?:y|ies)|floor\s*plans?|drawings?|specifications?|schedules?)\b/i.test(message);
 
   // A known POI category plus explicit local phrasing is stronger evidence than
   // the generic "where can I find" document-intent pattern.

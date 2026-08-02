@@ -2003,7 +2003,7 @@ export async function POST(request: NextRequest) {
 
     // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
     const isAffirmativeMessage = intentClassification?.intent === 'affirmative' || isYesIntent(message);
-    if (isAssistantOSEnabled() && isAffirmativeMessage) {
+    if (isAffirmativeMessage) {
       
       // Load conversation history to find the previous assistant message
       const history = await loadConversationHistory(
@@ -2062,7 +2062,7 @@ export async function POST(request: NextRequest) {
           }
         }
         
-        if (intentClassification?.intent === 'affirmative') {
+        if (intentClassification?.intent === 'affirmative' || isYesIntent(message)) {
           // Couldn't extract a follow-up topic - provide helpful response
           
           const helpfulResponse = "I can't tell what you're saying yes to without more context. Ask the specific question (for example \"what schools are nearby?\" or \"when does the kitchen get fitted?\") and I'll answer directly.";

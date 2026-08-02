@@ -18,6 +18,11 @@ for (const name of [
   assert.match(sql, /COMMIT;/i, `${name} must retain an explicit transaction`);
 }
 
+const legacyBackupMove = migration('057_move_demo_backups_out_of_public.sql');
+const legacyBackupRls = migration('058_enable_rls_demo_backups.sql');
+assert.match(legacyBackupMove, /to_regclass/i, '057 must tolerate a fresh database with no historical backup tables');
+assert.match(legacyBackupRls, /to_regclass/i, '058 must tolerate a fresh database with no historical backup tables');
+
 const cleanup = migration('073_secure_purchaser_backup_tables.sql');
 for (const table of [
   'units_purchaser_backup_2026_06_04',

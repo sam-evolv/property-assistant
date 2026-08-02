@@ -1,31 +1,37 @@
--- Move 10 _demo_backup_*_20260502 tables out of the public schema.
+-- Move historical _demo_backup_*_20260502 tables out of the public schema.
 --
--- These tables were created on 2026-05-02 as a safety snapshot during demo
--- data work. They have RLS disabled, which means anyone holding the public
--- anon key (which ships in the client bundle) can read every row of the
--- snapshotted tenant, agent, sales pipeline, units, compliance documents
--- and tenancy data. The Supabase advisor flagged this as critical.
---
--- Fix: relocate them to a non-public `demo_backups` schema. The Supabase
--- anon and authenticated roles only get table access in `public` by
--- default, so moving the schema is sufficient to revoke their reach
--- without losing the snapshots themselves.
---
--- No application code references these tables (verified by grep). Safe to
--- move without code changes.
+-- These tables were operational snapshots, not part of the canonical schema.
+-- A fresh database therefore may not contain them. Move each table only when
+-- present, and fail closed rather than overwrite an existing protected copy.
 
 CREATE SCHEMA IF NOT EXISTS demo_backups;
 
-ALTER TABLE public._demo_backup_agent_letting_properties_20260502 SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_agent_profiles_20260502           SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_agent_tenancies_20260502          SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_agent_workspaces_20260502         SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_authuser_developer_20260502       SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_compliance_documents_20260502     SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_developments_20260502             SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_tenants_20260502                  SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_unit_sales_pipeline_20260502      SET SCHEMA demo_backups;
-ALTER TABLE public._demo_backup_units_20260502                    SET SCHEMA demo_backups;
+DO $$
+DECLARE
+  backup_name text;
+BEGIN
+  FOREACH backup_name IN ARRAY ARRAY[
+    '_demo_backup_agent_letting_properties_20260502',
+    '_demo_backup_agent_profiles_20260502',
+    '_demo_backup_agent_tenancies_20260502',
+    '_demo_backup_agent_workspaces_20260502',
+    '_demo_backup_authuser_developer_20260502',
+    '_demo_backup_compliance_documents_20260502',
+    '_demo_backup_developments_20260502',
+    '_demo_backup_tenants_20260502',
+    '_demo_backup_unit_sales_pipeline_20260502',
+    '_demo_backup_units_20260502'
+  ]
+  LOOP
+    IF to_regclass(format('public.%I', backup_name)) IS NOT NULL THEN
+      IF to_regclass(format('demo_backups.%I', backup_name)) IS NOT NULL THEN
+        RAISE EXCEPTION 'Migration 057 collision: protected table demo_backups.% already exists', backup_name;
+      END IF;
+
+      EXECUTE format('ALTER TABLE public.%I SET SCHEMA demo_backups', backup_name);
+    END IF;
+  END LOOP;
+END $$;
 
 REVOKE ALL ON SCHEMA demo_backups FROM PUBLIC;
 REVOKE ALL ON SCHEMA demo_backups FROM anon, authenticated;
