@@ -30,15 +30,18 @@ export function shouldEnforceAmenityHallucinationGuard(
   const inferredIntent = classifyIntent(message).intent;
   if (inferredIntent === 'location_amenities') return true;
 
-  const authoritativeIntent = resolvedIntent || inferredIntent;
-  if (!['unknown', 'affirmative'].includes(authoritativeIntent)) return false;
-
   const poi = detectPOICategoryExpanded(message);
-  const hasPlaceTarget = poi.category !== null || Boolean(poi.dynamicKeyword);
   const hasExplicitLocalFraming =
     /\bwhere\s+(?:is|are|can\s+(?:i|we))\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
 
-  return hasPlaceTarget && hasExplicitLocalFraming;
+  // A known POI category plus explicit local phrasing is stronger evidence than
+  // the generic "where can I find" document-intent pattern.
+  if (poi.category !== null && hasExplicitLocalFraming) return true;
+
+  const authoritativeIntent = resolvedIntent || inferredIntent;
+  if (!['unknown', 'affirmative'].includes(authoritativeIntent)) return false;
+
+  return Boolean(poi.dynamicKeyword) && hasExplicitLocalFraming;
 }
 
 export function detectAmenityHallucinations(

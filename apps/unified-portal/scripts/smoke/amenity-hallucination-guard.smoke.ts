@@ -82,6 +82,7 @@ const localCases = [
   'Where is the pharmacy?',
   'What restaurants are around?',
   'Where can I eat?',
+  'Where can I find a pharmacy?',
 ];
 
 for (const question of localCases) {
