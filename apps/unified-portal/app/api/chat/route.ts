@@ -2175,9 +2175,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // AMENITY ANSWERING GATE: STRICT - location_amenities MUST use Google Places, no RAG fallback
-    // This prevents hallucinated venue names, opening hours, and travel times
-    if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
+    // AMENITY ANSWERING GATE: STRICT - every resolved local-amenity question MUST use Google Places, no RAG fallback
+    // This prevents hallucinated venue names, opening hours, and travel times.
+    // The shared decision also covers direct venue/category phrasing that the OS classifier marks unknown.
+    if (
+      isAssistantOSEnabled() &&
+      shouldEnforceAmenityHallucinationGuard(message, intentClassification?.intent)
+    ) {
+      // OS is enabled above, so classification should already exist; keep the branch type-safe and fail closed.
+      intentClassification ??= classifyIntent(message);
       const poiCategoryResult = detectPOICategoryExpanded(message);
       const poiCategory = poiCategoryResult.category;
       const expandedIntent = poiCategoryResult.expandedIntent;

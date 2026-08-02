@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 import {
   detectAmenityHallucinations,
@@ -104,6 +106,13 @@ assert.equal(
   shouldEnforceAmenityHallucinationGuard('Where can I find the boiler manual?', 'document_answer'),
   false,
   'a resolved document intent must override generic where-can framing',
+);
+
+const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
+assert.match(
+  route,
+  /isAssistantOSEnabled\(\)\s*&&\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)/s,
+  'the Google Places branch must use the same resolved local-intent decision as the answer guard',
 );
 
 const matcherCases: Array<[string, boolean]> = [
