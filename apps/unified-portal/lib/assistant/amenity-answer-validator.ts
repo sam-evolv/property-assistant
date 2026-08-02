@@ -1,4 +1,5 @@
 import type { POIResult } from '../places/poi';
+import { classifyIntent } from './os';
 
 const COMMON_VENUE_CHAINS = [
   'costa', 'starbucks', 'insomnia', 'centra', 'spar', 'mace', 'londis', 'gala',
@@ -18,6 +19,10 @@ export interface AmenityHallucinationCheck {
   hasHallucination: boolean;
   detectedIssues: string[];
   cleanedAnswer?: string;
+}
+
+export function shouldEnforceAmenityHallucinationGuard(message: string): boolean {
+  return classifyIntent(message).intent === 'location_amenities';
 }
 
 export function detectAmenityHallucinations(

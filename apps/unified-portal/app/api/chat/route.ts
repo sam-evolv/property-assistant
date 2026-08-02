@@ -124,7 +124,10 @@ import {
 import { getNearbyPOIs, formatPOIResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
-import { detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
+import {
+  detectAmenityHallucinations,
+  shouldEnforceAmenityHallucinationGuard,
+} from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
   getFirewallDiagnostics,
@@ -3961,7 +3964,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       // questions its heuristics false-positive on ordinary home content — "145 m²",
       // development names like "Longview Park", words like "central" — and would
       // wrongly replace a correct home answer with the generic amenities message.
-      const isLocalAreaQuestion = detectPOICategoryExpanded(message).category !== null;
+      const isLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(message);
       const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
 
       if (isLocalAreaQuestion && hallucinationCheck.hasHallucination) {
@@ -4502,7 +4505,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // The POI path returns early, so if we're here, never bypass validation
           const streamHasAmenityContext = false; // Streaming LLM path never has grounded POI context
           // Only ENFORCE the amenity guard for genuine local-area questions (see testMode path).
-          const streamIsLocalAreaQuestion = detectPOICategoryExpanded(message).category !== null;
+          const streamIsLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(message);
           const streamHallucinationCheck = detectAmenityHallucinations(fullAnswer, streamHasAmenityContext);
 
           let answerToStore = fullAnswer;

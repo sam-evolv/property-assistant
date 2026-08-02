@@ -39,7 +39,10 @@ async function runMigrations() {
       filename TEXT UNIQUE NOT NULL,
       applied_at TIMESTAMPTZ DEFAULT NOW()
     );`
-  }).catch(() => ({ error: null }));
+  });
+  if (createErr) {
+    throw new Error(`Unable to create migration tracking table: ${createErr.message}`);
+  }
 
   // Get list of migration files in order
   const files = fs.readdirSync(MIGRATIONS_DIR)
@@ -84,12 +87,15 @@ async function runMigrations() {
 
     if (!res.ok) {
       const err = await res.text();
-      // Many migrations use IF NOT EXISTS — log warning but don't fail
-      console.warn(`  ⚠️  ${file}: ${err.substring(0, 120)}`);
+      throw new Error(`Migration ${file} failed: ${err.substring(0, 300)}`);
     }
 
-    // Record as applied regardless (IF NOT EXISTS means re-running is safe)
-    await supabase.from('_migrations').upsert({ filename: file });
+    const { error: trackingError } = await supabase
+      .from('_migrations')
+      .upsert({ filename: file });
+    if (trackingError) {
+      throw new Error(`Migration ${file} applied but tracking failed: ${trackingError.message}`);
+    }
     ran++;
     console.log(`  ✅ ${file}`);
   }

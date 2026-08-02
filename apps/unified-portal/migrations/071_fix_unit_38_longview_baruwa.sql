@@ -34,16 +34,7 @@
 
 BEGIN;
 
--- 1) Backup the row we are about to change (drop+recreate so re-runs are safe)
-DROP TABLE IF EXISTS unit_38_longview_backup_2026_07_22;
-CREATE TABLE unit_38_longview_backup_2026_07_22 AS
-SELECT id, development_id, unit_number, purchaser_name,
-       bedrooms, bathrooms, floor_area_m2
-FROM units
-WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
-  AND unit_number = '38';
-
--- 2) Correct the swapped titles + set the real per-home specs on the units row.
+-- 1) Correct the swapped titles + set the real per-home specs on the units row.
 UPDATE units
 SET purchaser_name = 'Ms Halimah Baruwa and Mr Sherif Baruwa',
     bedrooms       = 3,
@@ -52,7 +43,7 @@ SET purchaser_name = 'Ms Halimah Baruwa and Mr Sherif Baruwa',
 WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
   AND unit_number = '38';
 
--- 3) Keep the sales pipeline name in lockstep with the units row.
+-- 2) Keep the sales pipeline name in lockstep with the units row.
 UPDATE unit_sales_pipeline usp
 SET purchaser_name = u.purchaser_name
 FROM units u
@@ -69,9 +60,3 @@ COMMIT;
 --   FROM units
 --   WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
 --     AND unit_number = '38';
---
--- Note (not fixed here — needs client-confirmed values): other 3-bed BS02
--- units (e.g. 25 and 50) also have NULL specs and will likewise render the
--- 4-bed BS02 type default. Their correct bath counts are unknown (the seed's
--- "3 Bathroom" proved wrong for unit 38), so they are intentionally left for a
--- follow-up once Sam confirms the numbers per home.

@@ -35,6 +35,7 @@ async function main() {
       return numA - numB;
     });
 
+
   console.log(`\n🗄️  OpenHouse AI — Database Migration`);
   console.log(`📦 ${files.length} migration files found\n`);
 
@@ -45,42 +46,27 @@ async function main() {
     const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
     process.stdout.write(`  ⚡ ${file} ... `);
 
-    // Split by semicolons and execute statements individually
-    const statements = sql
-      .split(';')
-      .map(s => s.trim())
-      .filter(s => s.length > 0 && !s.startsWith('--'));
+    // Submit each migration as one request so transaction boundaries and DO
+    // blocks are preserved. Never continue after an execution failure.
+    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': serviceKey,
+        'Authorization': `Bearer ${serviceKey}`,
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ sql }),
+    });
 
-    let fileOk = true;
-    for (const statement of statements) {
-      const res = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': serviceKey,
-          'Authorization': `Bearer ${serviceKey}`,
-          'Prefer': 'return=minimal',
-        },
-        body: JSON.stringify({ sql: statement + ';' }),
-      });
-
-      if (!res.ok) {
-        const err = await res.text();
-        // IF NOT EXISTS errors are fine
-        if (!err.includes('already exists') && !err.includes('does not exist')) {
-          console.log(`⚠️`);
-          console.log(`     ${err.substring(0, 200)}`);
-          fileOk = false;
-          failed++;
-          break;
-        }
-      }
+    if (!res.ok) {
+      const err = await res.text();
+      failed++;
+      throw new Error(`Migration ${file} failed: ${err.substring(0, 300)}`);
     }
 
-    if (fileOk) {
-      console.log(`✅`);
-      applied++;
-    }
+    console.log(`✅`);
+    applied++;
   }
 
   console.log(`\n${failed === 0 ? '✨' : '⚠️ '} Done — ${applied} applied${failed > 0 ? `, ${failed} had warnings` : ''}`);

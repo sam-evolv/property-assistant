@@ -22,15 +22,7 @@
 
 BEGIN;
 
--- 1) Backup the rows we are about to change (drop+recreate so re-runs are safe)
-DROP TABLE IF EXISTS units_25_50_longview_backup_2026_07_22;
-CREATE TABLE units_25_50_longview_backup_2026_07_22 AS
-SELECT id, development_id, unit_number, bedrooms, bathrooms, floor_area_m2
-FROM units
-WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
-  AND unit_number IN ('25','50');
-
--- 2) Set the real per-home specs. Names are already correct — do not touch them.
+-- Set the real per-home specs. Names are already correct — do not touch them.
 UPDATE units
 SET bedrooms      = 3,
     bathrooms     = 2,

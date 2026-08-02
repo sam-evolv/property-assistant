@@ -1487,7 +1487,7 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   }
   
   // Specific category detection
-  if (/supermarket|grocery|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) {
+  if (/\b(supermarkets?|grocer(?:y|ies)|grocers?|tesco|aldi|lidl|dunnes|spar)\b/i.test(q)) {
     return { category: 'supermarket' };
   }
   
@@ -1507,11 +1507,11 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return { category: 'playground' };
   if (/\bpark\b/i.test(q)) return { category: 'park' };
   if (/\bgym\b|fitness|workout/i.test(q)) return { category: 'gym' };
-  if (/leisure|swimming|pool|spa/i.test(q)) return { category: 'leisure' };
+  if (/\b(leisure|swimming|pool|spa)\b/i.test(q)) return { category: 'leisure' };
   if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
   
   // IRISH NORMALISATION - takeaway, food nearby → restaurant
-  if (/restaurant|takeaway|take\s*away|food\s*nearby|dining|eat/i.test(q)) return { category: 'restaurant' };
+  if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|spot|spots)\s+to\s+eat\b/i.test(q)) return { category: 'restaurant' };
   
   // Convenience store explicit match
   if (/convenience\s*store|centra|mace|costcutter|londis/i.test(q)) return { category: 'convenience_store' };
