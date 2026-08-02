@@ -42,6 +42,10 @@ export function shouldEnforceAmenityHallucinationGuard(
   const hasHomeOrDocumentTarget =
     HOME_SYSTEM_TARGET_PATTERN.test(message) || HOME_DOCUMENT_TARGET_PATTERN.test(message);
 
+  // Explicit homeowner/document targets are authoritative even if their text
+  // also contains a known place word (for example "train schedule").
+  if (hasHomeOrDocumentTarget) return false;
+
   // A known POI category plus explicit local phrasing is stronger evidence than
   // the generic "where can I find" document-intent pattern. A context-resolved
   // affirmative can carry just the category noun (for example "restaurants").
@@ -49,7 +53,6 @@ export function shouldEnforceAmenityHallucinationGuard(
     poi.category !== null &&
     (hasExplicitLocalFraming || resolvedIntent === 'location_amenities')
   ) return true;
-  if (hasHomeOrDocumentTarget) return false;
 
   if (resolvedIntent && !['unknown', 'affirmative', 'location_amenities'].includes(resolvedIntent)) return false;
   if (!['unknown', 'affirmative', 'location_amenities'].includes(inferredIntent)) return false;

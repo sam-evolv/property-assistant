@@ -204,6 +204,11 @@ for (const question of [
   'Where is the nearest fire station?',
   'Where is the nearest music shop?',
   'Where is the nearest telescope shop?',
+  'Where can I find the Longview Park map?',
+  'Where is the nearest train schedule?',
+  'Where can I find the spa handbook?',
+  'Where is the nearest bus map?',
+  'Where can I find the golf course brochure?',
 ]) {
   assert.equal(
     shouldEnforceAmenityHallucinationGuard(question),
