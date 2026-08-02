@@ -99,6 +99,10 @@ const localCases = [
   'Is there a laundrette nearby?',
   'Is there a dry cleaner nearby?',
   'Where is the nearest barber?',
+  'Where is the nearest car wash?',
+  'Where is the nearest petrol station?',
+  'Where is the nearest gas station?',
+  'Where are the nearest shops?',
 ];
 
 for (const question of localCases) {
@@ -175,6 +179,18 @@ assert.equal(
   false,
   'unclassified dynamic nouns must fail closed rather than inherit broad proximity intent',
 );
+for (const question of [
+  'Where is the nearest police station?',
+  'Where is the nearest fire station?',
+  'Where is the nearest music shop?',
+  'Where is the nearest telescope shop?',
+]) {
+  assert.equal(
+    shouldEnforceAmenityHallucinationGuard(question),
+    false,
+    `unsupported compound place must fail closed: ${question}`,
+  );
+}
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
 const qualityWorkflow = readFileSync(resolve(__dirname, '../../../../.github/workflows/unified-portal-quality.yml'), 'utf8');

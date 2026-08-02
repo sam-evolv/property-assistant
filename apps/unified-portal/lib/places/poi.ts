@@ -1460,12 +1460,15 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
     return { category: 'convenience_store' };
   }
   
-  // Generic "shops" or "shop" as standalone (without preceding noun like "coffee")
-  // Match: "any shops", "nearby shops", "where's a shop", but NOT "coffee shop"
-  if (/(?:^|\s)(shops?)\s*(?:\?|$|near|around|close|by)/i.test(q) && 
-      !/supermarket|grocery|grocer|coffee|bike|pet|book|gift|flower/i.test(q)) {
-    return { 
-      category: 'convenience_store', 
+  // Generic shop requests only. Compound nouns such as "music shop" must
+  // remain dynamic and then pass the bounded local-service decision.
+  if (
+    /\b(?:any|some|nearby|closest|nearest)\s+shops?\b/i.test(q) ||
+    /\bshops?\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
+    /\bwhere(?:'s|\s+is|\s+are)\s+(?:there\s+)?(?:any\s+|a\s+)?shops?\b/i.test(q)
+  ) {
+    return {
+      category: 'convenience_store',
       expandedIntent: 'shops',
       categories: ['supermarket', 'convenience_store']
     };
@@ -1502,7 +1505,7 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   
   if (/\b(primary\s*school|national\s*school)\b/i.test(q)) return { category: 'primary_school' };
   if (/\b(secondary\s*school|high\s*school|post.?primary|college)\b/i.test(q)) return { category: 'secondary_school' };
-  if (/\b(train|trains|rail|dart|luas|station)\b/i.test(q)) return { category: 'train_station' };
+  if (/\b(trains?|rail(?:way)?|dart|luas|train\s*station|rail\s*station)\b/i.test(q)) return { category: 'train_station' };
   if (/\b(bus|buses|bus\s*stop|transit)\b/i.test(q)) return { category: 'bus_stop' };
   if (/\b(playground|play\s*area|play\s*ground)\b/i.test(q)) return { category: 'playground' };
   if (/\bpark\b/i.test(q)) return { category: 'park' };

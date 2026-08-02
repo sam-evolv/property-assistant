@@ -20,7 +20,7 @@ const TRAVEL_TIME_CLAIM_PATTERN = /\b(\d+)\s*(?:minute|min|mins|minutes?)?\s*(?:
 const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:kilometres?|kilometers?|metres?|meters?|km|m(?![²2A-Za-z]))\s*(?:away|from|to)?\b/gi;
 
 const DYNAMIC_LOCAL_SERVICE_PATTERN =
-  /\b(laundrettes?|laundromats?|dry\s*cleaners?|hairdressers?|barbers?|beauty\s*salons?|nail\s*salons?|vets?|veterinarians?|mechanics?|car\s*washes?|petrol\s*stations?|gas\s*stations?|hardware\s*stores?|electricians?|plumbers?|locksmiths?|taxi\s*ranks?)\b/i;
+  /\b(laundrettes?|laundromats?|dry\s*cleaners?|hairdressers?|barbers?|beauty\s*salons?|nail\s*salons?|vets?|veterinarians?|mechanics?|car\s*wash(?:es)?|petrol\s*stations?|gas\s*stations?|hardware\s*stores?|electricians?|plumbers?|locksmiths?|taxi\s*ranks?)\b/i;
 
 export interface AmenityHallucinationCheck {
   hasHallucination: boolean;
