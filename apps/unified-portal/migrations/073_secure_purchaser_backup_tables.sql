@@ -19,7 +19,13 @@ BEGIN
   ]
   LOOP
     IF to_regclass(format('public.%I', table_name)) IS NOT NULL THEN
-      EXECUTE format('ALTER TABLE public.%I SET SCHEMA demo_backups', table_name);
+      IF to_regclass(format('demo_backups.%I', table_name)) IS NOT NULL THEN
+        -- A protected first snapshot already exists. Remove only the public copy
+        -- recreated by replaying an older migration.
+        EXECUTE format('DROP TABLE public.%I', table_name);
+      ELSE
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA demo_backups', table_name);
+      END IF;
     END IF;
 
     IF to_regclass(format('demo_backups.%I', table_name)) IS NOT NULL THEN

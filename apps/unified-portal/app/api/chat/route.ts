@@ -3964,7 +3964,10 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       // questions its heuristics false-positive on ordinary home content — "145 m²",
       // development names like "Longview Park", words like "central" — and would
       // wrongly replace a correct home answer with the generic amenities message.
-      const isLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(message);
+      const isLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(
+        message,
+        intentClassification?.intent,
+      );
       const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
 
       if (isLocalAreaQuestion && hallucinationCheck.hasHallucination) {
@@ -4505,7 +4508,10 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // The POI path returns early, so if we're here, never bypass validation
           const streamHasAmenityContext = false; // Streaming LLM path never has grounded POI context
           // Only ENFORCE the amenity guard for genuine local-area questions (see testMode path).
-          const streamIsLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(message);
+          const streamIsLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(
+            message,
+            intentClassification?.intent,
+          );
           const streamHallucinationCheck = detectAmenityHallucinations(fullAnswer, streamHasAmenityContext);
 
           let answerToStore = fullAnswer;

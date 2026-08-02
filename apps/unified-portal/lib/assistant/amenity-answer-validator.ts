@@ -1,4 +1,4 @@
-import type { POIResult } from '../places/poi';
+import { detectPOICategoryExpanded, type POIResult } from '../places/poi';
 import { classifyIntent } from './os';
 
 const COMMON_VENUE_CHAINS = [
@@ -21,8 +21,19 @@ export interface AmenityHallucinationCheck {
   cleanedAnswer?: string;
 }
 
-export function shouldEnforceAmenityHallucinationGuard(message: string): boolean {
-  return classifyIntent(message).intent === 'location_amenities';
+export function shouldEnforceAmenityHallucinationGuard(
+  message: string,
+  resolvedIntent?: string | null,
+): boolean {
+  if (resolvedIntent === 'location_amenities') return true;
+  if (classifyIntent(message).intent === 'location_amenities') return true;
+
+  const poi = detectPOICategoryExpanded(message);
+  const hasPlaceTarget = poi.category !== null || Boolean(poi.dynamicKeyword);
+  const hasExplicitLocalFraming =
+    /\bwhere\s+(?:is|are|can\s+(?:i|we)\s+find)\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+
+  return hasPlaceTarget && hasExplicitLocalFraming;
 }
 
 export function detectAmenityHallucinations(

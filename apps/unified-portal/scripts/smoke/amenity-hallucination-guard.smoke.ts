@@ -17,6 +17,23 @@ assert.equal(
   'spare must not match Spar supermarket intent',
 );
 
+for (const [question, expectedCategory] of [
+  ['Where can I eat?', 'restaurant'],
+  ['Where is Tesco?', 'supermarket'],
+  ['Where is the pharmacy?', 'pharmacy'],
+  ['What restaurants are around?', 'restaurant'],
+] as const) {
+  assert.equal(detectPOICategoryExpanded(question).category, expectedCategory, question);
+}
+
+for (const question of ['grimace', 'bootstrap', 'business rates', 'coffee machine warranty']) {
+  assert.equal(
+    detectPOICategoryExpanded(question).category,
+    null,
+    `home/general text must not match a POI category: ${question}`,
+  );
+}
+
 const nonLocalCases = [
   {
     question: 'How do I service my heat pump?',
@@ -59,6 +76,9 @@ const localCases = [
   'What supermarkets are nearby?',
   'Where is the closest pharmacy?',
   'What local amenities are around here?',
+  'Where is Tesco?',
+  'Where is the pharmacy?',
+  'What restaurants are around?',
 ];
 
 for (const question of localCases) {
@@ -68,6 +88,17 @@ for (const question of localCases) {
     `local question must enable the amenity guard: ${question}`,
   );
 }
+
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Yes', 'location_amenities'),
+  true,
+  'a resolved affirmative local-amenity follow-up must keep the guard enabled',
+);
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Tell me about my home at Longview Park', 'unit_fact'),
+  false,
+  'a resolved home intent must not enable the amenity guard',
+);
 
 const matcherCases: Array<[string, boolean]> = [
   ['central heating', false],

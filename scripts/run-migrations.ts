@@ -1,109 +1,113 @@
 #!/usr/bin/env tsx
 /**
- * OpenHouse AI — Unified Migration Runner
+ * OpenHouse AI migration runner.
  *
- * Applies all SQL migrations from apps/unified-portal/migrations/
- * in numeric order to a Supabase/PostgreSQL database.
+ * Applies apps/unified-portal/migrations/*.sql in numeric order using one
+ * PostgreSQL connection. Each migration and its tracking insert commit in the
+ * same transaction.
  *
- * Usage:
- *   npx tsx scripts/run-migrations.ts
- *
- * Required env vars:
- *   SUPABASE_DB_URL or DATABASE_URL
+ * Required env: SUPABASE_DB_URL or DATABASE_URL
  */
 
-import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import * as path from 'path';
+import { Client } from 'pg';
 
 const MIGRATIONS_DIR = path.join(__dirname, '../apps/unified-portal/migrations');
 
-async function runMigrations() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceKey) {
-    console.error('❌ Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-    console.error('   Set these in your .env.local file');
-    process.exit(1);
-  }
-
-  const supabase = createClient(supabaseUrl, serviceKey, {
-    auth: { persistSession: false },
-  });
-
-  // Create migrations tracking table
-  const { error: createErr } = await supabase.rpc('exec_sql', {
-    sql: `CREATE TABLE IF NOT EXISTS _migrations (
-      id SERIAL PRIMARY KEY,
-      filename TEXT UNIQUE NOT NULL,
-      applied_at TIMESTAMPTZ DEFAULT NOW()
-    );`
-  });
-  if (createErr) {
-    throw new Error(`Unable to create migration tracking table: ${createErr.message}`);
-  }
-
-  // Get list of migration files in order
-  const files = fs.readdirSync(MIGRATIONS_DIR)
-    .filter(f => f.endsWith('.sql'))
-    .sort((a, b) => {
-      const numA = parseInt(a.match(/^(\d+)/)?.[1] || '0');
-      const numB = parseInt(b.match(/^(\d+)/)?.[1] || '0');
-      return numA - numB;
-    });
-
-  console.log(`\n📦 Found ${files.length} migration files\n`);
-
-  // Check which are already applied
-  const { data: applied } = await supabase
-    .from('_migrations')
-    .select('filename');
-  const appliedSet = new Set((applied || []).map((r: any) => r.filename));
-
-  let ran = 0;
-  let skipped = 0;
-
-  for (const file of files) {
-    if (appliedSet.has(file)) {
-      console.log(`  ⏭️  ${file} (already applied)`);
-      skipped++;
-      continue;
-    }
-
-    const sql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf-8');
-    console.log(`  ⚡ Applying ${file}...`);
-
-    // Execute migration via Supabase SQL editor API
-    const res = await fetch(`${supabaseUrl}/rest/v1/rpc/exec_sql`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': serviceKey,
-        'Authorization': `Bearer ${serviceKey}`,
-      },
-      body: JSON.stringify({ sql }),
-    });
-
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(`Migration ${file} failed: ${err.substring(0, 300)}`);
-    }
-
-    const { error: trackingError } = await supabase
-      .from('_migrations')
-      .upsert({ filename: file });
-    if (trackingError) {
-      throw new Error(`Migration ${file} applied but tracking failed: ${trackingError.message}`);
-    }
-    ran++;
-    console.log(`  ✅ ${file}`);
-  }
-
-  console.log(`\n✨ Done — ${ran} applied, ${skipped} skipped\n`);
+function migrationBody(sql: string): string {
+  return sql
+    .replace(/^\s*(?:BEGIN|START\s+TRANSACTION)\s*;\s*$/gim, '')
+    .replace(/^\s*(?:COMMIT|ROLLBACK)\s*;\s*$/gim, '')
+    .trim();
 }
 
-runMigrations().catch((err) => {
-  console.error('Migration failed:', err);
-  process.exit(1);
-});
+export async function runMigrations(): Promise<void> {
+  const connectionString = process.env.SUPABASE_DB_URL || process.env.DATABASE_URL;
+  if (!connectionString) {
+    throw new Error('Missing SUPABASE_DB_URL or DATABASE_URL');
+  }
+
+  const client = new Client({ connectionString });
+  await client.connect();
+
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id SERIAL PRIMARY KEY,
+        filename TEXT UNIQUE NOT NULL,
+        applied_at TIMESTAMPTZ DEFAULT NOW()
+      )
+    `);
+
+    let appliedRows: Array<{ filename: string }>;
+    try {
+      const result = await client.query<{ filename: string }>(
+        'SELECT filename FROM _migrations'
+      );
+      appliedRows = result.rows;
+    } catch (appliedQueryError) {
+      throw new Error(
+        `Unable to read migration tracking state: ${
+          appliedQueryError instanceof Error ? appliedQueryError.message : String(appliedQueryError)
+        }`
+      );
+    }
+
+    const appliedSet = new Set(appliedRows.map(row => row.filename));
+    const files = fs.readdirSync(MIGRATIONS_DIR)
+      .filter(file => /^\d+_[a-z0-9_]+\.sql$/i.test(file))
+      .sort((a, b) => {
+        const numA = parseInt(a.match(/^(\d+)/)?.[1] || '0', 10);
+        const numB = parseInt(b.match(/^(\d+)/)?.[1] || '0', 10);
+        return numA - numB;
+      });
+
+    let ran = 0;
+    let skipped = 0;
+    console.log(`\n📦 Found ${files.length} migration files\n`);
+
+    for (const file of files) {
+      if (appliedSet.has(file)) {
+        console.log(`  ⏭️  ${file} (already applied)`);
+        skipped++;
+        continue;
+      }
+
+      const rawSql = fs.readFileSync(path.join(MIGRATIONS_DIR, file), 'utf8');
+      const sql_with_tracking = migrationBody(rawSql);
+      console.log(`  ⚡ Applying ${file}...`);
+
+      await client.query('BEGIN');
+      try {
+        await client.query(sql_with_tracking);
+        await client.query(
+          'INSERT INTO _migrations (filename) VALUES ($1) ON CONFLICT (filename) DO NOTHING',
+          [file]
+        );
+        await client.query('COMMIT');
+      } catch (migrationError) {
+        await client.query('ROLLBACK');
+        throw new Error(
+          `Migration ${file} failed: ${
+            migrationError instanceof Error ? migrationError.message : String(migrationError)
+          }`
+        );
+      }
+
+      ran++;
+      console.log(`  ✅ ${file}`);
+    }
+
+    console.log(`\n✨ Done: ${ran} applied, ${skipped} skipped\n`);
+  } finally {
+    await client.end();
+  }
+}
+
+if (require.main === module) {
+  runMigrations().catch(error => {
+    console.error('Migration failed:', error);
+    process.exit(1);
+  });
+}

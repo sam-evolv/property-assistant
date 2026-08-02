@@ -6,6 +6,7 @@ const appRoot = resolve(__dirname, '../..');
 const migration = (name: string) => readFileSync(resolve(appRoot, 'migrations', name), 'utf8');
 
 for (const name of [
+  '066_fix_real_purchaser_names.sql',
   '071_fix_unit_38_longview_baruwa.sql',
   '072_fix_units_25_50_longview_bs02_specs.sql',
 ]) {
@@ -28,14 +29,16 @@ for (const table of [
 assert.match(cleanup, /SET\s+SCHEMA\s+demo_backups/i);
 assert.match(cleanup, /REVOKE\s+ALL\s+ON\s+ALL\s+TABLES\s+IN\s+SCHEMA\s+demo_backups/i);
 assert.match(cleanup, /ENABLE\s+ROW\s+LEVEL\s+SECURITY/i);
+assert.match(cleanup, /DROP\s+TABLE\s+public\.%I/i, 'collision handling must remove only the replayed public copy');
 
 const localRunner = readFileSync(resolve(appRoot, 'scripts/run-migrations-local.ts'), 'utf8');
-assert.doesNotMatch(localRunner, /\.split\(\s*['"]\s*;\s*['"]\s*\)/, 'local runner must not split SQL transactions');
-assert.match(localRunner, /body:\s*JSON\.stringify\(\{\s*sql\s*\}\)/s);
-assert.match(localRunner, /throw new Error\(`Migration \$\{file\} failed/);
+assert.doesNotMatch(localRunner, /exec_sql|\.split\(\s*['"]\s*;\s*['"]\s*\)/, 'local runner must delegate to the atomic database runner');
+assert.match(localRunner, /runMigrations/);
 
 const rootRunner = readFileSync(resolve(appRoot, '../../scripts/run-migrations.ts'), 'utf8');
 assert.doesNotMatch(rootRunner, /Record as applied regardless/i);
-assert.match(rootRunner, /throw new Error\(`Migration \$\{file\} failed/);
+assert.match(rootRunner, /Migration \$\{file\} failed:/);
+assert.match(rootRunner, /appliedQueryError/);
+assert.match(rootRunner, /sql_with_tracking/);
 
 console.log('migration safety smoke: PASS');

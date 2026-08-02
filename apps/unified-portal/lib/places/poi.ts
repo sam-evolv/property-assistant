@@ -1492,33 +1492,33 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   }
   
   // IRISH NORMALISATION - chemist → pharmacy (already handled, but explicit)
-  if (/pharmac|chemist|boots|lloyds/i.test(q)) return { category: 'pharmacy' };
+  if (/\b(pharmacy|pharmacies|chemist|chemists|boots|lloyds)\b/i.test(q)) return { category: 'pharmacy' };
   
   if (/\bhospital\b/i.test(q)) return { category: 'hospital' };
-  if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return { category: 'gp' };
+  if (/\b(gp|doctor|doctors|surgery|clinic|medical|health\s*cent(?:re|er))\b/i.test(q)) return { category: 'gp' };
   
   // IRISH NORMALISATION - crèche, childcare
-  if (/childcare|cr[eè]che|montessori|nursery|daycare|preschool/i.test(q)) return { category: 'childcare' };
+  if (/\b(childcare|cr[eè]che|montessori|nursery|daycare|preschool)\b/i.test(q)) return { category: 'childcare' };
   
-  if (/primary\s*school|national\s*school/i.test(q)) return { category: 'primary_school' };
-  if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return { category: 'secondary_school' };
-  if (/train|rail|dart|luas|station/i.test(q)) return { category: 'train_station' };
-  if (/bus|bus\s*stop|transit/i.test(q)) return { category: 'bus_stop' };
-  if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return { category: 'playground' };
+  if (/\b(primary\s*school|national\s*school)\b/i.test(q)) return { category: 'primary_school' };
+  if (/\b(secondary\s*school|high\s*school|post.?primary|college)\b/i.test(q)) return { category: 'secondary_school' };
+  if (/\b(train|trains|rail|dart|luas|station)\b/i.test(q)) return { category: 'train_station' };
+  if (/\b(bus|buses|bus\s*stop|transit)\b/i.test(q)) return { category: 'bus_stop' };
+  if (/\b(playground|play\s*area|play\s*ground)\b/i.test(q)) return { category: 'playground' };
   if (/\bpark\b/i.test(q)) return { category: 'park' };
-  if (/\bgym\b|fitness|workout/i.test(q)) return { category: 'gym' };
+  if (/\b(gym|fitness|workout)\b/i.test(q)) return { category: 'gym' };
   if (/\b(leisure|swimming|pool|spa)\b/i.test(q)) return { category: 'leisure' };
-  if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
+  if (/\bcafes?\b|\bcoffee\s+shops?\b|\bwhere\b.*\bcoffee\b|\bcoffee\b.*\b(nearby|near\s+(?:me|us|here)|around|closest|nearest)\b/i.test(q)) return { category: 'cafe' };
   
   // IRISH NORMALISATION - takeaway, food nearby → restaurant
-  if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|spot|spots)\s+to\s+eat\b/i.test(q)) return { category: 'restaurant' };
+  if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|anywhere|spot|spots)\s+to\s+eat\b|\bwhere\s+can\s+(?:i|we)\s+eat\b/i.test(q)) return { category: 'restaurant' };
   
   // Convenience store explicit match
-  if (/convenience\s*store|centra|mace|costcutter|londis/i.test(q)) return { category: 'convenience_store' };
+  if (/\b(convenience\s*store|centra|mace|costcutter|londis)\b/i.test(q)) return { category: 'convenience_store' };
   
-  if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return { category: 'sports' };
+  if (/\bsports?\s*(facility|facilities|centre|center)\b/i.test(q)) return { category: 'sports' };
   
-  if (/near(by|est)?\s+(amenities|facilities|services)/i.test(q)) return { category: 'supermarket' };
+  if (/\bnear(by|est)?\s+(amenities|facilities|services)\b/i.test(q)) return { category: 'supermarket' };
   
   // DYNAMIC FALLBACK: Extract amenity keyword for unknown place types
   // This allows handling of any amenity query like "bowling", "laser tag", "escape room", etc.
