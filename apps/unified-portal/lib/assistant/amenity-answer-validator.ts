@@ -33,6 +33,8 @@ export function shouldEnforceAmenityHallucinationGuard(
   const poi = detectPOICategoryExpanded(message);
   const hasExplicitLocalFraming =
     /\bwhere\s+(?:is|are|can\s+(?:i|we))\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+  const hasProximityFraming =
+    /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
 
   // A known POI category plus explicit local phrasing is stronger evidence than
   // the generic "where can I find" document-intent pattern.
@@ -41,7 +43,9 @@ export function shouldEnforceAmenityHallucinationGuard(
   const authoritativeIntent = resolvedIntent || inferredIntent;
   if (!['unknown', 'affirmative'].includes(authoritativeIntent)) return false;
 
-  return Boolean(poi.dynamicKeyword) && hasExplicitLocalFraming;
+  // Unclassified dynamic nouns are too broad for bare "where is" questions
+  // (for example boiler, stopcock, bins). Require explicit proximity wording.
+  return Boolean(poi.dynamicKeyword) && hasProximityFraming;
 }
 
 export function detectAmenityHallucinations(

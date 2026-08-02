@@ -30,6 +30,23 @@ SET bedrooms      = 3,
 WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
   AND unit_number IN ('25','50');
 
+DO $$
+DECLARE
+  corrected_count integer;
+BEGIN
+  SELECT COUNT(*) INTO corrected_count
+  FROM units
+  WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+    AND unit_number IN ('25','50')
+    AND bedrooms = 3
+    AND bathrooms = 2
+    AND floor_area_m2 = 110.4;
+
+  IF corrected_count <> 2 THEN
+    RAISE EXCEPTION 'Migration 072 verification failed: expected 2 corrected units, found %', corrected_count;
+  END IF;
+END $$;
+
 COMMIT;
 
 -- ============================================================================

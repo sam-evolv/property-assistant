@@ -14,6 +14,7 @@ for (const name of [
   assert.doesNotMatch(sql, /CREATE\s+TABLE\s+\w*backup/i, `${name} must not create a public backup table`);
   assert.doesNotMatch(sql, /DROP\s+TABLE\s+IF\s+EXISTS\s+\w*backup/i, `${name} must not destroy a first snapshot on rerun`);
   assert.match(sql, /BEGIN;/i, `${name} must retain an explicit transaction`);
+  assert.match(sql, /RAISE\s+EXCEPTION/i, `${name} must fail if its data correction postconditions are not met`);
   assert.match(sql, /COMMIT;/i, `${name} must retain an explicit transaction`);
 }
 

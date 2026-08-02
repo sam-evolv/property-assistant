@@ -166,6 +166,39 @@ FROM units u
 WHERE usp.unit_id = u.id
   AND u.development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb');
 
+-- Fail closed if the intended anchor corrections or pipeline synchronization did not land.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+      AND unit_number = '1'
+      AND purchaser_name = 'Mr Herol Dsouza and Ms Janet Miranda'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164'
+      AND unit_number = '13'
+      AND purchaser_name = 'Ms Primitha Mohan & Mr Gireesh Nadesan'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb'
+      AND unit_number = '21'
+      AND purchaser_name = 'Alexandra Ioana Dogaru & Urko Ullande Reveluata'
+  ) THEN
+    RAISE EXCEPTION 'Migration 066 purchaser anchor verification failed';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM unit_sales_pipeline usp
+    JOIN units u ON u.id = usp.unit_id
+    WHERE u.development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb')
+      AND usp.purchaser_name IS DISTINCT FROM u.purchaser_name
+  ) THEN
+    RAISE EXCEPTION 'Migration 066 pipeline synchronization verification failed';
+  END IF;
+END $$;
+
 COMMIT;
 
 -- ============================================================================

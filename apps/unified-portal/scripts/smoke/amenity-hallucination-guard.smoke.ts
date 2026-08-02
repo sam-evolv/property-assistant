@@ -53,6 +53,18 @@ const nonLocalCases = [
     question: 'What is the bathroom extractor fan model?',
     answer: 'The extractor fan in your home at Longview Park is listed in the bathroom schedule.',
   },
+  {
+    question: 'Where is the boiler?',
+    answer: 'The boiler location for your home at Longview Park is shown in the home manual.',
+  },
+  {
+    question: 'Where is my stopcock?',
+    answer: 'Your stopcock location at Longview Park is listed in the plumbing guide.',
+  },
+  {
+    question: 'Where are my bins?',
+    answer: 'Your bin storage at Longview Park is beside the utility area.',
+  },
 ];
 
 for (const testCase of nonLocalCases) {
@@ -83,6 +95,7 @@ const localCases = [
   'What restaurants are around?',
   'Where can I eat?',
   'Where can I find a pharmacy?',
+  'Is there a laundrette nearby?',
 ];
 
 for (const question of localCases) {
@@ -115,6 +128,8 @@ assert.match(
   /isAssistantOSEnabled\(\)\s*&&\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)/s,
   'the Google Places branch must use the same resolved local-intent decision as the answer guard',
 );
+assert.match(route, /resolvedAmenityQuery\s*=\s*syntheticQuery/);
+assert.match(route, /detectPOICategoryExpanded\(resolvedAmenityQuery\)/);
 
 const matcherCases: Array<[string, boolean]> = [
   ['central heating', false],

@@ -51,6 +51,32 @@ WHERE usp.unit_id = u.id
   AND u.development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
   AND u.unit_number = '38';
 
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+      AND unit_number = '38'
+      AND purchaser_name = 'Ms Halimah Baruwa and Mr Sherif Baruwa'
+      AND bedrooms = 3
+      AND bathrooms = 2
+      AND floor_area_m2 = 110.4
+  ) THEN
+    RAISE EXCEPTION 'Migration 071 unit verification failed';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1
+    FROM unit_sales_pipeline usp
+    JOIN units u ON u.id = usp.unit_id
+    WHERE u.development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+      AND u.unit_number = '38'
+      AND usp.purchaser_name = u.purchaser_name
+  ) THEN
+    RAISE EXCEPTION 'Migration 071 pipeline verification failed';
+  END IF;
+END $$;
+
 COMMIT;
 
 -- ============================================================================

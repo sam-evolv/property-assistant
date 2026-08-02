@@ -1522,6 +1522,7 @@ export async function POST(request: NextRequest) {
     // ASSISTANT OS: Intent classification and tiered emergency handling
     let intentClassification: IntentClassification | null = null;
     let answerStrategy: AnswerStrategy | null = null;
+    let resolvedAmenityQuery = message;
     
     if (isAssistantOSEnabled()) {
       intentClassification = classifyIntent(message);
@@ -2054,8 +2055,9 @@ export async function POST(request: NextRequest) {
                 emergencyTier: null,
               };
               
-              // Update message to be the synthetic query for downstream processing
-              // This will be handled by the location_amenities block below
+              // Carry the resolved topic into the Places branch while preserving
+              // the user's original affirmative message for persistence.
+              resolvedAmenityQuery = syntheticQuery;
             }
           }
         }
@@ -2184,7 +2186,7 @@ export async function POST(request: NextRequest) {
     ) {
       // OS is enabled above, so classification should already exist; keep the branch type-safe and fail closed.
       intentClassification ??= classifyIntent(message);
-      const poiCategoryResult = detectPOICategoryExpanded(message);
+      const poiCategoryResult = detectPOICategoryExpanded(resolvedAmenityQuery);
       const poiCategory = poiCategoryResult.category;
       const expandedIntent = poiCategoryResult.expandedIntent;
       const expandedCategories = poiCategoryResult.categories;
