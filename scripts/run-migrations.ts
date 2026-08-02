@@ -39,13 +39,25 @@ export async function runMigrations(): Promise<void> {
     await client.query("SELECT pg_advisory_lock(hashtext('openhouse_migrations'))");
     lockAcquired = true;
 
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS _migrations (
-        id SERIAL PRIMARY KEY,
-        filename TEXT UNIQUE NOT NULL,
-        applied_at TIMESTAMPTZ DEFAULT NOW()
-      )
-    `);
+    const schemaStateResult = await client.query<{ baseline_exists: boolean; tracking_exists: boolean }>(
+      `SELECT
+         to_regclass('public.units') IS NOT NULL AS baseline_exists,
+         to_regclass('public._migrations') IS NOT NULL AS tracking_exists`
+    );
+    const schemaState = schemaStateResult.rows[0];
+    const missingBaselineSchema = schemaState?.baseline_exists !== true;
+    if (missingBaselineSchema) {
+      throw new Error(
+        'OpenHouse baseline schema is missing. This runner applies incremental migrations only; provision the canonical baseline before running it.'
+      );
+    }
+
+    const existingSchemaWithoutTracking = schemaState?.tracking_exists !== true;
+    if (existingSchemaWithoutTracking) {
+      throw new Error(
+        'Existing OpenHouse schema has no migration history. Refusing to replay all migrations; baseline _migrations explicitly before running.'
+      );
+    }
 
     let appliedRows: Array<{ filename: string }>;
     try {
@@ -61,14 +73,9 @@ export async function runMigrations(): Promise<void> {
       );
     }
 
-    const existingSchemaResult = await client.query<{ exists: boolean }>(
-      "SELECT to_regclass('public.units') IS NOT NULL AS exists"
-    );
-    const existingSchemaWithoutTracking =
-      appliedRows.length === 0 && existingSchemaResult.rows[0]?.exists === true;
-    if (existingSchemaWithoutTracking) {
+    if (appliedRows.length === 0) {
       throw new Error(
-        'Existing OpenHouse schema has no migration history. Refusing to replay all migrations; baseline _migrations explicitly before running.'
+        'Existing OpenHouse schema has an empty migration history. Refusing to replay all migrations; baseline _migrations explicitly before running.'
       );
     }
 

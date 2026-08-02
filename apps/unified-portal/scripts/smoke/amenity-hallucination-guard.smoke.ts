@@ -136,7 +136,7 @@ assert.equal(
   false,
   'a home-system target must not become a nearby amenity',
 );
-for (const target of ['boilers', 'stopcocks', 'fuse boxes', 'consumer units', 'heat pumps', 'thermostats', 'utility meters']) {
+for (const target of ['fuse box', 'boilers', 'stopcocks', 'fuse boxes', 'consumer units', 'heat pumps', 'thermostats', 'utility meters']) {
   assert.equal(
     shouldEnforceAmenityHallucinationGuard(`Where are the nearest ${target}?`),
     false,
@@ -152,6 +152,8 @@ for (const target of ['manuals', 'certificates', 'warranties', 'floor plans', 'd
 }
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
+const qualityWorkflow = readFileSync(resolve(__dirname, '../../../../.github/workflows/unified-portal-quality.yml'), 'utf8');
+assert.match(qualityWorkflow, /test:pr205/, 'the committed PR205 regressions must run in CI');
 assert.match(
   route,
   /if\s*\(\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)\s*\)/s,
@@ -168,6 +170,11 @@ assert.doesNotMatch(
   route,
   /isAssistantOSEnabled\(\)\s*&&\s*isAffirmativeMessage/,
   'contextual affirmative target resolution must remain active when Assistant OS is disabled',
+);
+assert.doesNotMatch(
+  route,
+  /if\s*\(\s*intentClassification\?\.intent\s*===\s*['"]affirmative['"]\s*\|\|\s*isYesIntent\(message\)/,
+  'a successfully resolved Yes must not be returned as an affirmative clarification',
 );
 
 const matcherCases: Array<[string, boolean]> = [

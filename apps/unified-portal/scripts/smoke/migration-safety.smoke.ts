@@ -47,6 +47,7 @@ assert.match(rootRunner, /Migration \$\{file\} failed:/);
 assert.match(rootRunner, /appliedQueryError/);
 assert.match(rootRunner, /sql_with_tracking/);
 assert.match(rootRunner, /existingSchemaWithoutTracking/);
+assert.match(rootRunner, /missingBaselineSchema/);
 assert.match(rootRunner, /pg_advisory_lock/);
 assert.match(rootRunner, /pg_advisory_unlock/);
 
