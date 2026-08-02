@@ -118,7 +118,7 @@ export const HOME_SYSTEM_TARGET_PATTERN =
   /\b(boilers?|stopcocks?|fuse\s*box(?:es)?|consumer\s*units?|heat\s*pumps?|mvhrs?|thermostats?|utility\s*meters?|bins?)\b/i;
 
 export const HOME_DOCUMENT_TARGET_PATTERN =
-  /\b(manuals?|guides?|instructions?|documentation|pdfs?|files?|documents?|certificates?|certifications?|warrant(?:y|ies)|guarantees?|floor\s*plans?|drawings?|specifications?|schedules?)\b/i;
+  /\b(manuals?|guides?|handbooks?|instructions?|documentation|pdfs?|files?|documents?|data\s*sheets?|brochures?|spec(?:ification)?\s*sheets?|certificates?|certifications?|warrant(?:y|ies)|guarantees?|floor\s*plans?|drawings?|specifications?|schedules?|declarations?|(?:handover|completion|welcome)\s*packs?|maps?|polic(?:y|ies)|forms?|reports?)\b/i;
 
 const UNIT_FACT_PATTERNS = [
   /\b(my|our)\s*(home|house|flat|apartment|unit)\b/i,

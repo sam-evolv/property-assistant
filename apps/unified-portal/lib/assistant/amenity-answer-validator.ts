@@ -19,6 +19,9 @@ const TRAVEL_TIME_CLAIM_PATTERN = /\b(\d+)\s*(?:minute|min|mins|minutes?)?\s*(?:
 // (metre/metres/km/kilometres) still match, so real distance claims are unaffected.
 const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:kilometres?|kilometers?|metres?|meters?|km|m(?![²2A-Za-z]))\s*(?:away|from|to)?\b/gi;
 
+const DYNAMIC_LOCAL_SERVICE_PATTERN =
+  /\b(laundrettes?|laundromats?|dry\s*cleaners?|hairdressers?|barbers?|beauty\s*salons?|nail\s*salons?|vets?|veterinarians?|mechanics?|car\s*washes?|petrol\s*stations?|gas\s*stations?|hardware\s*stores?|electricians?|plumbers?|locksmiths?|taxi\s*ranks?)\b/i;
+
 export interface AmenityHallucinationCheck {
   hasHallucination: boolean;
   detectedIssues: string[];
@@ -40,18 +43,23 @@ export function shouldEnforceAmenityHallucinationGuard(
     HOME_SYSTEM_TARGET_PATTERN.test(message) || HOME_DOCUMENT_TARGET_PATTERN.test(message);
 
   // A known POI category plus explicit local phrasing is stronger evidence than
-  // the generic "where can I find" document-intent pattern.
-  if (poi.category !== null && hasExplicitLocalFraming) return true;
+  // the generic "where can I find" document-intent pattern. A context-resolved
+  // affirmative can carry just the category noun (for example "restaurants").
+  if (
+    poi.category !== null &&
+    (hasExplicitLocalFraming || resolvedIntent === 'location_amenities')
+  ) return true;
   if (hasHomeOrDocumentTarget) return false;
-  if (resolvedIntent === 'location_amenities') return true;
 
-  if (resolvedIntent && !['unknown', 'affirmative'].includes(resolvedIntent)) return false;
-  if (inferredIntent === 'location_amenities') return true;
-  if (!['unknown', 'affirmative'].includes(inferredIntent)) return false;
+  if (resolvedIntent && !['unknown', 'affirmative', 'location_amenities'].includes(resolvedIntent)) return false;
+  if (!['unknown', 'affirmative', 'location_amenities'].includes(inferredIntent)) return false;
 
-  // Unclassified dynamic nouns are too broad for bare "where is" questions
-  // (for example boiler, stopcock, bins). Require explicit proximity wording.
-  return Boolean(poi.dynamicKeyword) && hasProximityFraming;
+  // The POI extractor's dynamic fallback can produce arbitrary residual nouns.
+  // Only permit an explicit set of genuine local service types; unknown nouns
+  // fail closed instead of inheriting a broad "nearest" classification.
+  return Boolean(poi.dynamicKeyword) &&
+    hasProximityFraming &&
+    DYNAMIC_LOCAL_SERVICE_PATTERN.test(message);
 }
 
 export function detectAmenityHallucinations(

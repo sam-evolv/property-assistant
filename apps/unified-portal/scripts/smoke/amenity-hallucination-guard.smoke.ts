@@ -97,6 +97,8 @@ const localCases = [
   'Where can I eat?',
   'Where can I find a pharmacy?',
   'Is there a laundrette nearby?',
+  'Is there a dry cleaner nearby?',
+  'Where is the nearest barber?',
 ];
 
 for (const question of localCases) {
@@ -108,9 +110,14 @@ for (const question of localCases) {
 }
 
 assert.equal(
-  shouldEnforceAmenityHallucinationGuard('Yes', 'location_amenities'),
+  shouldEnforceAmenityHallucinationGuard('restaurants', 'location_amenities'),
   true,
-  'a resolved affirmative local-amenity follow-up must keep the guard enabled',
+  'a resolved affirmative local-amenity topic must keep the guard enabled',
+);
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Yes', 'location_amenities'),
+  false,
+  'a raw affirmative without its resolved topic must fail closed',
 );
 assert.equal(
   shouldEnforceAmenityHallucinationGuard('Tell me about my home at Longview Park', 'unit_fact'),
@@ -146,8 +153,10 @@ for (const target of ['fuse box', 'boilers', 'stopcocks', 'fuse boxes', 'consume
 }
 for (const target of [
   'manuals', 'guides', 'instructions', 'documentation', 'PDFs', 'files',
+  'handbooks', 'datasheets', 'data sheets', 'brochures', 'spec sheets',
   'certificates', 'certifications', 'warranties', 'guarantees', 'floor plans',
-  'drawings', 'specifications', 'schedules',
+  'drawings', 'specifications', 'schedules', 'declarations', 'handover packs',
+  'completion packs', 'welcome packs', 'maps', 'policies', 'forms', 'reports',
 ]) {
   const question = `Where are the nearest ${target}?`;
   assert.notEqual(
@@ -161,13 +170,18 @@ for (const target of [
     `plural home/document target must remain non-local: ${target}`,
   );
 }
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Where is the nearest arbitrary thing?', 'location_amenities'),
+  false,
+  'unclassified dynamic nouns must fail closed rather than inherit broad proximity intent',
+);
 
 const route = readFileSync(resolve(__dirname, '../../app/api/chat/route.ts'), 'utf8');
 const qualityWorkflow = readFileSync(resolve(__dirname, '../../../../.github/workflows/unified-portal-quality.yml'), 'utf8');
 assert.match(qualityWorkflow, /test:pr205/, 'the committed PR205 regressions must run in CI');
 assert.match(
   route,
-  /if\s*\(\s*shouldEnforceAmenityHallucinationGuard\(\s*message,\s*intentClassification\?\.intent,?\s*\)\s*\)/s,
+  /if\s*\(\s*shouldEnforceAmenityHallucinationGuard\(\s*resolvedAmenityQuery,\s*intentClassification\?\.intent,?\s*\)\s*\)/s,
   'the Google Places branch must always use the shared resolved local-intent decision',
 );
 assert.doesNotMatch(

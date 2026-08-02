@@ -2184,7 +2184,7 @@ export async function POST(request: NextRequest) {
     // This prevents hallucinated venue names, opening hours, and travel times.
     // The shared decision also covers direct venue/category phrasing that the OS classifier marks unknown.
     if (
-      shouldEnforceAmenityHallucinationGuard(message, intentClassification?.intent)
+      shouldEnforceAmenityHallucinationGuard(resolvedAmenityQuery, intentClassification?.intent)
     ) {
       // Ensure classification metadata exists even when the broader Assistant OS flag is disabled.
       intentClassification ??= classifyIntent(message);
