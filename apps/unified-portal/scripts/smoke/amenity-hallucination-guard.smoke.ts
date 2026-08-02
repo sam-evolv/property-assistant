@@ -115,6 +115,9 @@ const localCases = [
   'laundrette close by',
   'pharmacy close to me',
   'laundrette close to us',
+  'shop close to me',
+  'shops close to us',
+  'shops close to here',
   "Where's a shop?",
   'Where can I find a shop?',
   'Where can we find shops?',
@@ -131,6 +134,16 @@ for (const question of localCases) {
     `local question must enable the amenity guard: ${question}`,
   );
 }
+for (const [question, expectedKeyword] of [
+  ['petrol station close to me', 'petrol station'],
+  ['laundrette close to us', 'laundrette'],
+] as const) {
+  assert.equal(
+    detectPOICategoryExpanded(question).dynamicKeyword,
+    expectedKeyword,
+    `dynamic Places keyword must exclude proximity suffix: ${question}`,
+  );
+}
 
 assert.equal(
   shouldEnforceAmenityHallucinationGuard('restaurants', 'location_amenities'),
@@ -141,6 +154,12 @@ assert.equal(
   shouldEnforceAmenityHallucinationGuard('shops', 'location_amenities'),
   true,
   'a resolved affirmative generic-shop topic must keep the guard enabled',
+);
+assert.equal(detectPOICategoryExpanded('coffee').category, 'cafe');
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('coffee', 'location_amenities'),
+  true,
+  'a resolved affirmative coffee topic must keep the guard enabled',
 );
 for (const topic of ['shop', 'shops', 'local shop', 'local shops', 'corner shop', 'corner shops']) {
   assert.deepEqual(

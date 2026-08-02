@@ -1465,8 +1465,8 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (
     /^shops?[?!.]?$/i.test(q) ||
     /\b(?:any|some|nearby|closest|nearest)\s+shops?\b/i.test(q) ||
-    /^(?:shops?)\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
-    /\b(?:are|is)\s+there\s+(?:any\s+|some\s+|a\s+)?shops?\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
+    /^(?:shops?)\s+(?:nearby|near\s+(?:me|us|here)|around|close(?:\s*by|\s+to\s+(?:me|us|here)))\b/i.test(q) ||
+    /\b(?:are|is)\s+there\s+(?:any\s+|some\s+|a\s+)?shops?\s+(?:nearby|near\s+(?:me|us|here)|around|close(?:\s*by|\s+to\s+(?:me|us|here)))\b/i.test(q) ||
     /\bwhere(?:'s|\s+is|\s+are)\s+(?:there\s+)?(?:any\s+|a\s+)?shops?\b/i.test(q) ||
     /\bwhere\s+can\s+(?:i|we)\s+find\s+(?:any\s+|a\s+|the\s+)?shops?\b/i.test(q)
   ) {
@@ -1514,7 +1514,7 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (/\bpark\b/i.test(q)) return { category: 'park' };
   if (/\b(gym|fitness|workout)\b/i.test(q)) return { category: 'gym' };
   if (/\b(leisure|swimming|pool|spa)\b/i.test(q)) return { category: 'leisure' };
-  if (/\bcafes?\b|\bcoffee\s+shops?\b|\bwhere\b.*\bcoffee\b|\bcoffee\b.*\b(nearby|near\s+(?:me|us|here)|around|closest|nearest)\b/i.test(q)) return { category: 'cafe' };
+  if (/^coffee[?!.]?$/i.test(q) || /\bcafes?\b|\bcoffee\s+shops?\b|\bwhere\b.*\bcoffee\b|\bcoffee\b.*\b(nearby|near\s+(?:me|us|here)|around|close\s+(?:by|to\s+(?:me|us|here))|closest|nearest)\b/i.test(q)) return { category: 'cafe' };
   
   // IRISH NORMALISATION - takeaway, food nearby → restaurant
   if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|anywhere|spot|spots)\s+to\s+eat\b|\bwhere\s+can\s+(?:i|we)\s+eat\b/i.test(q)) return { category: 'restaurant' };
@@ -1544,7 +1544,7 @@ function extractAmenityKeyword(query: string): string | null {
   const patterns = [
     /(?:where(?:'s| is| are)?|find|closest|nearest|any|looking for(?: a)?)\s+(?:the\s+)?(?:nearest\s+)?(.+?)(?:\s+near(?:by)?|\s+close|\s+around|\?|$)/i,
     /(?:is there|are there)\s+(?:a|an|any)\s+(.+?)\s+(?:near(?:by)?|close|around|\?|$)/i,
-    /(.+?)\s+(?:near(?:by)?|close by|around here|in the area)/i,
+    /(.+?)\s+(?:near(?:by)?|close(?:\s+by|\s+to\s+(?:me|us|here))|around here|in the area)/i,
   ];
   
   for (const pattern of patterns) {
@@ -1561,7 +1561,7 @@ function extractAmenityKeyword(query: string): string | null {
     .replace(/\?+$/g, '')
     .replace(/^(where(?:'s| is| are)?|find(?: me)?|show(?: me)?|looking for|is there|are there|any|nearest|closest)\s*/gi, '')
     .replace(/^(the|a|an|some)\s+/gi, '')
-    .replace(/\s+(near(?:by)?|close(?:\s*by)?|around(?:\s*here)?|in the area)$/gi, '')
+    .replace(/\s+(near(?:by)?|close(?:\s*by|\s+to\s+(?:me|us|here))|around(?:\s*here)?|in the area)$/gi, '')
     .replace(/\s+(please|thanks|thank you)$/gi, '')
     .trim();
   
