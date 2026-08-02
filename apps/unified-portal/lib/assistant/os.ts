@@ -114,17 +114,24 @@ const SCHEME_FACT_PATTERNS = [
   /\b(gym|pool|concierge|reception)\s*(hours?|access|location)\b/i,
 ];
 
+export const HOME_SYSTEM_TARGET_PATTERN =
+  /\b(boilers?|stopcocks?|fuse\s*box(?:es)?|consumer\s*units?|heat\s*pumps?|mvhrs?|thermostats?|utility\s*meters?|bins?)\b/i;
+
+export const HOME_DOCUMENT_TARGET_PATTERN =
+  /\b(manuals?|guides?|instructions?|documentation|pdfs?|files?|documents?|certificates?|certifications?|warrant(?:y|ies)|guarantees?|floor\s*plans?|drawings?|specifications?|schedules?)\b/i;
+
 const UNIT_FACT_PATTERNS = [
   /\b(my|our)\s*(home|house|flat|apartment|unit)\b/i,
   /\b(my|our)\s*(bedroom|bathroom|kitchen|living\s*room)\b/i,
   /\b(floor\s*plan|layout|sqft|square\s*(feet|metres|meters))\b/i,
+  HOME_SYSTEM_TARGET_PATTERN,
   /\b(my|our)\s*(boiler|thermostat|heating|ventilation)\b/i,
   /\bhow\s*(do|does)\s*(my|the)\b/i,
 ];
 
 const DOCUMENT_ANSWER_PATTERNS = [
+  HOME_DOCUMENT_TARGET_PATTERN,
   /\bwhere\s*(can|do)\s*(i|we)\s*find\b/i,
-  /\b(manual|guide|instructions?|documentation)\b/i,
   /\b(warranty|guarantee)\s*(document|certificate|details?)\b/i,
   /\b(certificate|certification)\s*(of|for)\b/i,
   /\bshow\s*me\s*(the|my)\b/i,
@@ -338,6 +345,26 @@ export function classifyIntent(message: string): IntentClassification {
   const isKnowledgeAboutArea = /\b(history|background|about|tell\s*me\s*about|describe|overview|info\s*about|information\s*about)\b.*\b(local\s*area|area|neighbourhood|neighborhood|locality|locale|community|town|village|suburb)\b/i.test(lower) ||
     /\b(local\s*area|area|neighbourhood|neighborhood)\b.*\b(history|background|heritage|culture|story)\b/i.test(lower);
 
+  // Explicit homeowner/document targets outrank generic proximity language.
+  // Known local POI categories are recovered by the shared Places decision.
+  if (matchesPatterns(message, DOCUMENT_ANSWER_PATTERNS)) {
+    return {
+      intent: 'document_answer',
+      confidence: 0.8,
+      keywords: extractMatchingKeywords(lower, ['document', 'manual', 'guide', 'warranty', 'certificate']),
+      emergencyTier: emergencyTier,
+    };
+  }
+
+  if (matchesPatterns(message, UNIT_FACT_PATTERNS)) {
+    return {
+      intent: 'unit_fact',
+      confidence: 0.85,
+      keywords: extractMatchingKeywords(lower, ['my', 'home', 'flat', 'boiler', 'heating']),
+      emergencyTier: emergencyTier,
+    };
+  }
+
   if (matchesPatterns(message, LOCATION_PATTERNS) && !isPublicTransportQuestion && !isKnowledgeAboutArea) {
     return {
       intent: 'location_amenities',
@@ -352,24 +379,6 @@ export function classifyIntent(message: string): IntentClassification {
       intent: 'scheme_fact',
       confidence: 0.85,
       keywords: extractMatchingKeywords(lower, ['development', 'scheme', 'management', 'parking']),
-      emergencyTier: emergencyTier,
-    };
-  }
-  
-  if (matchesPatterns(message, UNIT_FACT_PATTERNS)) {
-    return {
-      intent: 'unit_fact',
-      confidence: 0.85,
-      keywords: extractMatchingKeywords(lower, ['my', 'home', 'flat', 'boiler', 'heating']),
-      emergencyTier: emergencyTier,
-    };
-  }
-  
-  if (matchesPatterns(message, DOCUMENT_ANSWER_PATTERNS)) {
-    return {
-      intent: 'document_answer',
-      confidence: 0.8,
-      keywords: extractMatchingKeywords(lower, ['document', 'manual', 'guide', 'warranty', 'certificate']),
       emergencyTier: emergencyTier,
     };
   }

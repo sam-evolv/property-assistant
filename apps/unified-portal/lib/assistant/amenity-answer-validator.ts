@@ -1,5 +1,9 @@
 import { detectPOICategoryExpanded, type POIResult } from '../places/poi';
-import { classifyIntent } from './os';
+import {
+  classifyIntent,
+  HOME_DOCUMENT_TARGET_PATTERN,
+  HOME_SYSTEM_TARGET_PATTERN,
+} from './os';
 
 const COMMON_VENUE_CHAINS = [
   'costa', 'starbucks', 'insomnia', 'centra', 'spar', 'mace', 'londis', 'gala',
@@ -33,7 +37,7 @@ export function shouldEnforceAmenityHallucinationGuard(
   const hasProximityFraming =
     /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
   const hasHomeOrDocumentTarget =
-    /\b(boilers?|stopcocks?|fuse\s*box(?:es)?|consumer\s*units?|heat\s*pumps?|mvhrs?|thermostats?|utility\s*meters?|bins?|manuals?|documents?|certificates?|warrant(?:y|ies)|floor\s*plans?|drawings?|specifications?|schedules?)\b/i.test(message);
+    HOME_SYSTEM_TARGET_PATTERN.test(message) || HOME_DOCUMENT_TARGET_PATTERN.test(message);
 
   // A known POI category plus explicit local phrasing is stronger evidence than
   // the generic "where can I find" document-intent pattern.

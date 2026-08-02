@@ -7,6 +7,7 @@ import {
   shouldEnforceAmenityHallucinationGuard,
 } from '../../lib/assistant/amenity-answer-validator';
 import { detectPOICategoryExpanded } from '../../lib/places/poi';
+import { classifyIntent } from '../../lib/assistant/os';
 
 assert.equal(
   detectPOICategoryExpanded('How do I service my heat pump?').category,
@@ -143,9 +144,19 @@ for (const target of ['fuse box', 'boilers', 'stopcocks', 'fuse boxes', 'consume
     `plural home-system target must remain non-local: ${target}`,
   );
 }
-for (const target of ['manuals', 'certificates', 'warranties', 'floor plans', 'drawings', 'specifications', 'schedules']) {
+for (const target of [
+  'manuals', 'guides', 'instructions', 'documentation', 'PDFs', 'files',
+  'certificates', 'certifications', 'warranties', 'guarantees', 'floor plans',
+  'drawings', 'specifications', 'schedules',
+]) {
+  const question = `Where are the nearest ${target}?`;
+  assert.notEqual(
+    classifyIntent(question).intent,
+    'location_amenities',
+    `recognized home/document intent must outrank proximity: ${target}`,
+  );
   assert.equal(
-    shouldEnforceAmenityHallucinationGuard(`Where are the nearest ${target}?`),
+    shouldEnforceAmenityHallucinationGuard(question),
     false,
     `plural home/document target must remain non-local: ${target}`,
   );
