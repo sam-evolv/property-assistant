@@ -1465,7 +1465,8 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   if (
     /^shops?[?!.]?$/i.test(q) ||
     /\b(?:any|some|nearby|closest|nearest)\s+shops?\b/i.test(q) ||
-    /\bshops?\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
+    /^(?:shops?)\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
+    /\b(?:are|is)\s+there\s+(?:any\s+|some\s+|a\s+)?shops?\s+(?:nearby|near\s+(?:me|us|here)|around|close\s*by)\b/i.test(q) ||
     /\bwhere(?:'s|\s+is|\s+are)\s+(?:there\s+)?(?:any\s+|a\s+)?shops?\b/i.test(q) ||
     /\bwhere\s+can\s+(?:i|we)\s+find\s+(?:any\s+|a\s+|the\s+)?shops?\b/i.test(q)
   ) {
