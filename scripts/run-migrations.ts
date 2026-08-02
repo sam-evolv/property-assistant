@@ -54,6 +54,17 @@ export async function runMigrations(): Promise<void> {
       );
     }
 
+    const existingSchemaResult = await client.query<{ exists: boolean }>(
+      "SELECT to_regclass('public.units') IS NOT NULL AS exists"
+    );
+    const existingSchemaWithoutTracking =
+      appliedRows.length === 0 && existingSchemaResult.rows[0]?.exists === true;
+    if (existingSchemaWithoutTracking) {
+      throw new Error(
+        'Existing OpenHouse schema has no migration history. Refusing to replay all migrations; baseline _migrations explicitly before running.'
+      );
+    }
+
     const appliedSet = new Set(appliedRows.map(row => row.filename));
     const files = fs.readdirSync(MIGRATIONS_DIR)
       .filter(file => /^\d+_[a-z0-9_]+\.sql$/i.test(file))

@@ -26,12 +26,17 @@ export function shouldEnforceAmenityHallucinationGuard(
   resolvedIntent?: string | null,
 ): boolean {
   if (resolvedIntent === 'location_amenities') return true;
-  if (classifyIntent(message).intent === 'location_amenities') return true;
+
+  const inferredIntent = classifyIntent(message).intent;
+  if (inferredIntent === 'location_amenities') return true;
+
+  const authoritativeIntent = resolvedIntent || inferredIntent;
+  if (!['unknown', 'affirmative'].includes(authoritativeIntent)) return false;
 
   const poi = detectPOICategoryExpanded(message);
   const hasPlaceTarget = poi.category !== null || Boolean(poi.dynamicKeyword);
   const hasExplicitLocalFraming =
-    /\bwhere\s+(?:is|are|can\s+(?:i|we)\s+find)\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+    /\bwhere\s+(?:is|are|can\s+(?:i|we))\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
 
   return hasPlaceTarget && hasExplicitLocalFraming;
 }

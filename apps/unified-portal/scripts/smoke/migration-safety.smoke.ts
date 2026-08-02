@@ -40,5 +40,6 @@ assert.doesNotMatch(rootRunner, /Record as applied regardless/i);
 assert.match(rootRunner, /Migration \$\{file\} failed:/);
 assert.match(rootRunner, /appliedQueryError/);
 assert.match(rootRunner, /sql_with_tracking/);
+assert.match(rootRunner, /existingSchemaWithoutTracking/);
 
 console.log('migration safety smoke: PASS');

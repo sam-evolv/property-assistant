@@ -79,6 +79,7 @@ const localCases = [
   'Where is Tesco?',
   'Where is the pharmacy?',
   'What restaurants are around?',
+  'Where can I eat?',
 ];
 
 for (const question of localCases) {
@@ -98,6 +99,11 @@ assert.equal(
   shouldEnforceAmenityHallucinationGuard('Tell me about my home at Longview Park', 'unit_fact'),
   false,
   'a resolved home intent must not enable the amenity guard',
+);
+assert.equal(
+  shouldEnforceAmenityHallucinationGuard('Where can I find the boiler manual?', 'document_answer'),
+  false,
+  'a resolved document intent must override generic where-can framing',
 );
 
 const matcherCases: Array<[string, boolean]> = [
