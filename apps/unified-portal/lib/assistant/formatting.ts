@@ -54,9 +54,16 @@ export function removeEmDashes(text: string): string {
 }
 
 export function normalizeWhitespace(text: string): string {
+  // Leading whitespace is preserved (as spaces) because it carries list nesting
+  // depth; only runs inside the line are collapsed.
   return text
-    .replace(/\t/g, '  ')
-    .replace(/ {3,}/g, '  ')
+    .split('\n')
+    .map((line) => {
+      const indent = (/^[ \t]*/.exec(line) as RegExpExecArray)[0].replace(/\t/g, '  ');
+      const body = line.slice(line.length - line.trimStart().length).replace(/\t/g, '  ').replace(/ {3,}/g, '  ');
+      return indent + body;
+    })
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
@@ -71,6 +78,122 @@ export function cleanForDisplay(text: string): string {
 // A control char that never appears in chat text or in the markup we generate,
 // used to fence stashed inline-code contents while the other passes run.
 const CODE_SENTINEL = String.fromCharCode(0);
+
+// A list line: optional indent, a bullet ("-", "*", "•") or a number ("1." /
+// "1)"), then the item text. The indent decides nesting depth.
+const LIST_ITEM_RE = /^([ \t]*)(?:([-*•])|(\d{1,9})[.)])[ \t]+(\S.*)$/;
+
+type ListEntry = { indent: number; ordered: boolean; number: number; text: string };
+
+function indentWidth(whitespace: string): number {
+  return whitespace.replace(/\t/g, '  ').length;
+}
+
+/**
+ * Consume the run of list lines starting at `start`.
+ *
+ * The run continues across nested (indented) items and across a single blank
+ * line between items, so a list written with spacing between its points is
+ * still one list. It also absorbs indented continuation lines, which belong to
+ * the item above them. Anything else ends the run without consuming the line.
+ */
+function collectListEntries(lines: string[], start: number): { entries: ListEntry[]; next: number } {
+  const entries: ListEntry[] = [];
+  let i = start;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const match = LIST_ITEM_RE.exec(line);
+
+    if (match) {
+      const [, whitespace, bullet, digits, text] = match;
+      entries.push({
+        indent: indentWidth(whitespace),
+        ordered: !bullet,
+        number: bullet ? 1 : parseInt(digits, 10),
+        text,
+      });
+      i++;
+      continue;
+    }
+
+    // A single blank line between two items keeps the list (and its numbering)
+    // together; two or more, or a blank before non-list text, ends it.
+    if (line.trim() === '') {
+      if (i + 1 < lines.length && LIST_ITEM_RE.test(lines[i + 1])) {
+        i++;
+        continue;
+      }
+      break;
+    }
+
+    // Wrapped text under an item: fold it into that item.
+    const last = entries[entries.length - 1];
+    if (last && indentWidth((/^[ \t]*/.exec(line) as RegExpExecArray)[0]) > last.indent) {
+      last.text += ` ${line.trim()}`;
+      i++;
+      continue;
+    }
+
+    break;
+  }
+
+  return { entries, next: i };
+}
+
+/**
+ * Turn collected entries into nested <ul>/<ol> markup.
+ *
+ * Numbering comes from the <ol> itself, so a list the model wrote as "1." three
+ * times still renders 1, 2, 3. An explicit start above 1 is honoured, which is
+ * what lets a list resume its count after being interrupted by a paragraph.
+ */
+function renderListEntries(entries: ListEntry[]): string {
+  const buildList = (position: number, indent: number, depth: number): { html: string; next: number } => {
+    const ordered = entries[position].ordered;
+    const startNumber = ordered ? entries[position].number : 1;
+    const items: { text: string; children: string }[] = [];
+    let i = position;
+
+    while (i < entries.length) {
+      const entry = entries[i];
+      if (entry.indent < indent) break;
+
+      if (entry.indent === indent) {
+        // A list of the other kind at this level is a sibling, not a continuation.
+        if (entry.ordered !== ordered) break;
+        items.push({ text: entry.text, children: '' });
+        i++;
+        continue;
+      }
+
+      // Deeper indent: a sub-list belonging to the item above it.
+      const child = buildList(i, entry.indent, depth + 1);
+      if (items.length === 0) items.push({ text: '', children: '' });
+      items[items.length - 1].children += child.html;
+      i = child.next;
+    }
+
+    const tag = ordered ? 'ol' : 'ul';
+    const listClass = ordered ? 'list-decimal' : 'list-disc';
+    const spacing = depth === 0 ? 'my-2' : 'mt-1 mb-0';
+    const startAttr = ordered && startNumber > 1 ? ` start="${startNumber}"` : '';
+    const lis = items.map((item) => `<li>${item.text}${item.children}</li>`).join('');
+    return {
+      html: `<${tag}${startAttr} class="${listClass} list-outside ml-5 space-y-1 ${spacing} marker:text-gold-500">${lis}</${tag}>`,
+      next: i,
+    };
+  };
+
+  const parts: string[] = [];
+  let position = 0;
+  while (position < entries.length) {
+    const { html, next } = buildList(position, entries[position].indent, 0);
+    parts.push(html);
+    position = next > position ? next : position + 1;
+  }
+  return parts.join('');
+}
 
 /**
  * Render the supported markdown subset to HTML for a chat bubble.
@@ -121,13 +244,12 @@ export function renderChatMarkdown(
   html = html.replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)\*(?!\*)/g, '$1<em>$2</em>');
   html = html.replace(/(^|[^_\w])_(?!\s)([^_\n]+?)_(?![_\w])/g, '$1<em>$2</em>');
 
-  // 5. Block pass: headings and lists, line by line. Consecutive list lines of
-  //    the same kind collapse into one <ul>/<ol>; a blank line or a different
-  //    block ends the run.
+  // 5. Block pass: headings and lists, line by line. A run of list lines becomes
+  //    one <ul>/<ol> so an ordered list numbers 1, 2, 3 rather than restarting at
+  //    1 on every item; indented items nest inside their parent <li>, and a
+  //    single blank line between items keeps the run (and the count) going.
   const lines = html.split('\n');
   const blocks: { kind: 'block' | 'text'; value: string }[] = [];
-  const bulletRe = /^[-*•]\s+(.+)$/;
-  const numberedRe = /^\d+\.\s+(.+)$/;
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
@@ -139,29 +261,10 @@ export function renderChatMarkdown(
     } else if (h3) {
       blocks.push({ kind: 'block', value: `<h3 class="text-base font-semibold mt-3 mb-1">${h3[1]}</h3>` });
       i++;
-    } else if (bulletRe.test(line) || numberedRe.test(line)) {
-      const ordered = numberedRe.test(line);
-      const items: string[] = [];
-      while (i < lines.length) {
-        const bullet = bulletRe.exec(lines[i]);
-        const numbered = numberedRe.exec(lines[i]);
-        if (ordered && numbered) {
-          items.push(numbered[1]);
-          i++;
-        } else if (!ordered && bullet) {
-          items.push(bullet[1]);
-          i++;
-        } else {
-          break;
-        }
-      }
-      const tag = ordered ? 'ol' : 'ul';
-      const listClass = ordered ? 'list-decimal' : 'list-disc';
-      const lis = items.map((item) => `<li>${item}</li>`).join('');
-      blocks.push({
-        kind: 'block',
-        value: `<${tag} class="${listClass} list-outside ml-5 space-y-1 my-2 marker:text-gold-500">${lis}</${tag}>`,
-      });
+    } else if (LIST_ITEM_RE.test(line)) {
+      const { entries, next } = collectListEntries(lines, i);
+      blocks.push({ kind: 'block', value: renderListEntries(entries) });
+      i = next;
     } else {
       blocks.push({ kind: 'text', value: line });
       i++;
