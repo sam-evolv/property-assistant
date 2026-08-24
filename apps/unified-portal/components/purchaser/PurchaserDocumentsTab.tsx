@@ -119,62 +119,6 @@ export default function PurchaserDocumentsTab({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [sessionExpired, setSessionExpired] = useState(false);
   
-  const [debugInfo, setDebugInfo] = useState<{
-    propToken: string;
-    propTokenType: string;
-    storageToken: string;
-    sessionToken: string;
-    cookieToken: string;
-    inMemoryToken: string;
-    effectiveToken: string;
-    timestamp: string;
-    apiStatus?: number;
-    apiOk?: boolean;
-    apiError?: string;
-    apiUrl?: string;
-  } | null>(null);
-  
-  useEffect(() => {
-    let storageToken = 'NULL';
-    let sessionToken = 'NULL';
-    let cookieToken = 'NULL';
-    
-    try {
-      storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      storageToken = 'ERROR: ' + eMessage;
-    }
-    
-    try {
-      sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      sessionToken = 'ERROR: ' + eMessage;
-    }
-    
-    try {
-      const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
-      cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      cookieToken = 'ERROR: ' + eMessage;
-    }
-    
-    const effectiveToken = propToken || getEffectiveToken(unitUid);
-    
-    setDebugInfo({
-      propToken: propToken ? `${propToken.substring(0, 12)}...` : 'NULL',
-      propTokenType: typeof propToken,
-      storageToken: storageToken !== 'NULL' ? `${storageToken.substring(0, 12)}...` : 'NULL',
-      sessionToken: sessionToken !== 'NULL' ? `${sessionToken.substring(0, 12)}...` : 'NULL',
-      cookieToken: cookieToken !== 'NULL' ? `${cookieToken.substring(0, 12)}...` : 'NULL',
-      inMemoryToken: 'check getEffectiveToken',
-      effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 12)}...` : 'NULL',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }, [propToken, unitUid]);
-  
   const [videos, setVideos] = useState<VideoResource[]>([]);
   const [videosLoading, setVideosLoading] = useState(false);
   const [videosFetched, setVideosFetched] = useState(false);
@@ -189,17 +133,11 @@ export default function PurchaserDocumentsTab({
   const doFetch = useCallback(async (token: string, signal: AbortSignal): Promise<{ docs: Document[]; requestId?: string; message?: string }> => {
     const apiUrl = `/api/purchaser/docs-list?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
     const res = await fetch(apiUrl, { signal });
-    
-    setDebugInfo(prev => prev ? {
-      ...prev,
-      apiStatus: res.status,
-      apiOk: res.ok,
-      apiUrl: apiUrl.substring(0, 50) + '...'
-    } : null);
 
+    // Only a genuine auth rejection ends the session. A retryable server-side
+    // failure (e.g. the unit lookup could not reach the database) must not
+    // discard the cached documents or sign the homeowner out.
     if (res.status === 401) {
-      const errorText = await res.text().catch(() => 'Could not read error');
-      setDebugInfo(prev => prev ? { ...prev, apiError: `401: ${errorText.substring(0, 100)}` } : null);
       invalidateDocumentCache(unitUid);
       throw new Error('SESSION_EXPIRED');
     }
@@ -208,7 +146,6 @@ export default function PurchaserDocumentsTab({
 
     if (!res.ok) {
       const errorMsg = data.error || `Failed to load documents (${res.status})`;
-      setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorMsg}` } : null);
       const err = new Error(errorMsg);
       (err as any).requestId = data.requestId;
       throw err;
@@ -565,23 +502,6 @@ export default function PurchaserDocumentsTab({
   if (sessionExpired) {
     return (
       <div className={`flex flex-col h-full ${bgColor} p-4`}>
-        <div style={{ 
-          padding: 20, 
-          backgroundColor: '#1a1a2e', 
-          color: 'white',
-          margin: 10,
-          borderRadius: 10,
-          fontSize: 14
-        }}>
-          <h3 style={{ color: '#D4AF37', marginBottom: 12 }}>DEBUG: Session Expired - API Response</h3>
-          <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
-          <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
-          <p><strong>API Status:</strong> {debugInfo?.apiStatus ?? 'not called'}</p>
-          <p><strong>API OK:</strong> {debugInfo?.apiOk !== undefined ? String(debugInfo.apiOk) : 'not called'}</p>
-          <p style={{ color: '#ff6b6b' }}><strong>API Error:</strong> {debugInfo?.apiError || 'none'}</p>
-          <p><strong>API URL:</strong> {debugInfo?.apiUrl || 'not called'}</p>
-          <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
-        </div>
         <SessionExpiredModal
           isOpen={true}
           isDarkMode={isDarkMode}

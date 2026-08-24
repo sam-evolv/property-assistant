@@ -125,6 +125,22 @@ export async function GET(request: NextRequest) {
     const tokenResult = await validatePurchaserToken(token || unitUid, unitUid);
 
     if (!tokenResult.valid || !tokenResult.unitId) {
+      // A lookup that never reached the database is an outage, not a rejected
+      // credential. Answering 401 here signs the homeowner out of a session
+      // that was never actually judged invalid, so report it as retryable and
+      // keep it out of the security log.
+      if (tokenResult.errorCode === 'LOOKUP_UNAVAILABLE') {
+        return NextResponse.json(
+          {
+            error: 'Documents are temporarily unavailable. Please try again.',
+            requestId,
+            error_code: 'LOOKUP_UNAVAILABLE',
+            retryable: true,
+          },
+          { status: 503 }
+        );
+      }
+
       logSecurityViolation({
         request_id: requestId,
         unit_uid: unitUid,

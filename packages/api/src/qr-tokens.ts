@@ -227,28 +227,59 @@ export interface TokenValidationResult {
   unitId: string | null;
   isShowhouse: boolean;
   error?: string;
+  /**
+   * Distinguishes a genuine authentication failure from a transient inability
+   * to reach the database. Callers must not treat LOOKUP_UNAVAILABLE as an
+   * auth failure: the caller's credentials were never actually judged, so
+   * expiring their session (or logging a security violation) is wrong.
+   */
+  errorCode?: 'AUTH_FAILED' | 'LOOKUP_UNAVAILABLE';
 }
+
+type UnitResolution =
+  | { status: 'resolved'; unitId: string }
+  | { status: 'not_found' }
+  | { status: 'unavailable' };
 
 /**
  * Resolve a unit reference to its canonical units.id. The homeowner app
  * addresses a unit by its human unit_uid (e.g. AV-015-7CCB), not the UUID the
  * purchaser routes expect, so a non-UUID reference is looked up by unit_uid.
  * A UUID is returned unchanged with no database round trip. Mirrors the
- * either-form resolution getUnitInfo already does. Returns null if unknown.
+ * either-form resolution getUnitInfo already does.
+ *
+ * Reports 'not_found' only when the database answered and held no such unit;
+ * a lookup that could not complete reports 'unavailable' so callers never
+ * mistake an outage for a rejected credential.
  */
-async function resolveUnitUidToId(ref: string): Promise<string | null> {
+async function resolveUnitUidToId(ref: string): Promise<UnitResolution> {
   const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  if (uuidPattern.test(ref)) return ref;
-  try {
-    const rows = await db
-      .select({ id: units.id })
-      .from(units)
-      .where(eq(units.unit_uid, ref))
-      .limit(1);
-    return rows[0]?.id ?? null;
-  } catch {
-    return null;
+  if (uuidPattern.test(ref)) return { status: 'resolved', unitId: ref };
+
+  // The pool is small (DB_POOL_MAX defaults to 2) and serverless invocations
+  // cold-start often, so a first attempt can lose the race for a connection
+  // and time out even though the database is healthy. Retry once before
+  // giving up; a genuinely unknown unit_uid still resolves on the first try.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const rows = await db
+        .select({ id: units.id })
+        .from(units)
+        .where(eq(units.unit_uid, ref))
+        .limit(1);
+      const id = rows[0]?.id;
+      return id ? { status: 'resolved', unitId: id } : { status: 'not_found' };
+    } catch (err) {
+      lastError = err;
+    }
   }
+
+  // Reaching here means the lookup never ran to completion. Reporting
+  // 'not_found' would turn a database outage into a bogus auth rejection,
+  // so surface it as its own state and let the caller decide.
+  console.error('[qr-tokens] unit lookup failed for', ref, lastError);
+  return { status: 'unavailable' };
 }
 
 /**
@@ -273,10 +304,29 @@ export async function validatePurchaserToken(
   // the result carries that id back to the caller. UUID input resolves to
   // itself, so existing behaviour is unchanged. A reference we cannot resolve
   // is rejected, same as the old strict-format check.
-  const resolvedUnitId = await resolveUnitUidToId(unitUid);
-  if (!resolvedUnitId) {
-    return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid unit ID format' };
+  const resolution = await resolveUnitUidToId(unitUid);
+  if (resolution.status === 'unavailable') {
+    // The database could not be reached, so we never established whether this
+    // caller is legitimate. Fail closed (no access) but say why, so callers
+    // return a retryable error instead of expiring a valid session.
+    return {
+      valid: false,
+      unitId: null,
+      isShowhouse: false,
+      error: 'Unit lookup temporarily unavailable',
+      errorCode: 'LOOKUP_UNAVAILABLE',
+    };
   }
+  if (resolution.status === 'not_found') {
+    return {
+      valid: false,
+      unitId: null,
+      isShowhouse: false,
+      error: 'Invalid unit ID format',
+      errorCode: 'AUTH_FAILED',
+    };
+  }
+  const resolvedUnitId = resolution.unitId;
 
   // Try validating as a proper QR token first
   const payload = await validateQRToken(token);
@@ -310,5 +360,11 @@ export async function validatePurchaserToken(
     }
   }
 
-  return { valid: false, unitId: null, isShowhouse: false, error: 'Invalid or expired token' };
+  return {
+    valid: false,
+    unitId: null,
+    isShowhouse: false,
+    error: 'Invalid or expired token',
+    errorCode: 'AUTH_FAILED',
+  };
 }

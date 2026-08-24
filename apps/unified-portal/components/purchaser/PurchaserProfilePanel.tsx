@@ -123,19 +123,6 @@ export default function PurchaserProfilePanel({
     enabled: isOpen,
   });
 
-  const [debugInfo, setDebugInfo] = useState<{
-    propToken: string;
-    storageToken: string;
-    sessionToken: string;
-    cookieToken: string;
-    effectiveToken: string;
-    timestamp: string;
-    apiStatus?: number;
-    apiOk?: boolean;
-    apiError?: string;
-    apiUrl?: string;
-  } | null>(null);
-
   const [authUser, setAuthUser] = useState<any>(null);
   const [contexts, setContexts] = useState<UserContext[]>([]);
   const [linkEmail, setLinkEmail] = useState('');
@@ -143,45 +130,6 @@ export default function PurchaserProfilePanel({
   const [linkLoading, setLinkLoading] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const router = useRouter();
-
-  useEffect(() => {
-    let storageToken = 'NULL';
-    let sessionToken = 'NULL';
-    let cookieToken = 'NULL';
-    
-    try {
-      storageToken = localStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      storageToken = 'ERROR: ' + eMessage;
-    }
-    
-    try {
-      sessionToken = sessionStorage.getItem(`house_token_${unitUid}`) || 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      sessionToken = 'ERROR: ' + eMessage;
-    }
-    
-    try {
-      const match = document.cookie.split('; ').find(c => c.startsWith(`house_token_${unitUid}=`));
-      cookieToken = match ? decodeURIComponent(match.split('=')[1]) : 'NULL';
-    } catch (e: unknown) {
-      const eMessage = e instanceof Error ? e.message : 'Unknown error';
-      cookieToken = 'ERROR: ' + eMessage;
-    }
-    
-    const effectiveToken = propToken || getEffectiveToken(unitUid);
-    
-    setDebugInfo({
-      propToken: propToken ? `${propToken.substring(0, 12)}...` : 'NULL',
-      storageToken: storageToken !== 'NULL' ? `${storageToken.substring(0, 12)}...` : 'NULL',
-      sessionToken: sessionToken !== 'NULL' ? `${sessionToken.substring(0, 12)}...` : 'NULL',
-      cookieToken: cookieToken !== 'NULL' ? `${cookieToken.substring(0, 12)}...` : 'NULL',
-      effectiveToken: effectiveToken ? `${effectiveToken.substring(0, 12)}...` : 'NULL',
-      timestamp: new Date().toLocaleTimeString()
-    });
-  }, [propToken, unitUid]);
 
   const fetchProfile = async () => {
     try {
@@ -192,25 +140,14 @@ export default function PurchaserProfilePanel({
       
       const apiUrl = `/api/purchaser/profile?unitUid=${unitUid}&token=${encodeURIComponent(token)}`;
       const res = await fetch(apiUrl);
-      
-      setDebugInfo(prev => prev ? {
-        ...prev,
-        apiStatus: res.status,
-        apiOk: res.ok,
-        apiUrl: apiUrl.substring(0, 50) + '...'
-      } : null);
-      
+
       if (res.ok) {
         const data = await res.json();
         setProfile(data);
       } else {
-        const errorText = await res.text().catch(() => 'Could not read error');
-        setDebugInfo(prev => prev ? { ...prev, apiError: `${res.status}: ${errorText.substring(0, 100)}` } : null);
         setError('Failed to load profile');
       }
-    } catch (err: unknown) {
-      const errMessage = err instanceof Error ? err.message : 'Unknown error';
-      setDebugInfo(prev => prev ? { ...prev, apiError: `Catch: ${errMessage}` } : null);
+    } catch {
       setError('Failed to load profile');
     } finally {
       setLoading(false);
@@ -422,22 +359,6 @@ export default function PurchaserProfilePanel({
                 <p className={`${isDarkMode ? 'text-gray-400' : 'text-gray-600'} mb-4`}>
                   {error || 'Unable to load profile'}
                 </p>
-                <div style={{ 
-                  padding: 16, 
-                  backgroundColor: '#1a1a2e', 
-                  color: 'white',
-                  borderRadius: 10,
-                  fontSize: 12
-                }}>
-                  <p style={{ color: '#D4AF37', fontWeight: 'bold', marginBottom: 8 }}>DEBUG: Profile API Response</p>
-                  <p><strong>propToken:</strong> {debugInfo?.propToken || 'loading...'}</p>
-                  <p><strong>effectiveToken:</strong> {debugInfo?.effectiveToken || 'loading...'}</p>
-                  <p><strong>API Status:</strong> {debugInfo?.apiStatus ?? 'not called'}</p>
-                  <p><strong>API OK:</strong> {debugInfo?.apiOk !== undefined ? String(debugInfo.apiOk) : 'not called'}</p>
-                  <p style={{ color: '#ff6b6b' }}><strong>API Error:</strong> {debugInfo?.apiError || 'none'}</p>
-                  <p><strong>API URL:</strong> {debugInfo?.apiUrl || 'not called'}</p>
-                  <p><strong>Time:</strong> {debugInfo?.timestamp || 'loading...'}</p>
-                </div>
               </div>
             )}
           </div>
