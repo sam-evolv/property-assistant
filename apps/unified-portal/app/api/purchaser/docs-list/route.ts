@@ -29,6 +29,14 @@ function getSupabaseClient() {
   );
 }
 
+/**
+ * Guess a house type from a filename. The patterns below also match ordinary
+ * tokens that are not house types at all — revision numbers (Rev01), versions
+ * (v1), paper sizes (A4), quarters (Q3), product series (G2) — so a caller
+ * MUST confirm the guess against the project's real house types via
+ * `isKnownHouseType`. Trusting it blind hides general documents (datasheets,
+ * certs, brochures) from every homeowner as if they belonged to another house.
+ */
 function extractHouseTypeFromFilename(filename: string): string | null {
   // Common house type patterns: BD06, BS06, A1, B2, Type-A, House-Type-BD06, etc.
   const patterns = [
@@ -185,6 +193,24 @@ export async function GET(request: NextRequest) {
     }
 
     const projectId = supabaseUnit.project_id;
+
+    // The set of house types that actually exist on this project. A filename
+    // guess is only honoured when it appears here, so a "Rev01" or "A4" in a
+    // product datasheet's name can never masquerade as a house type.
+    const knownHouseTypes = new Set<string>();
+    {
+      const { data: projectUnits } = await supabase
+        .from('units')
+        .select('house_type_code')
+        .eq('project_id', projectId)
+        .not('house_type_code', 'is', null);
+      for (const row of projectUnits || []) {
+        const code = (row as { house_type_code: string | null }).house_type_code;
+        if (code) knownHouseTypes.add(code.toLowerCase().trim());
+      }
+    }
+    const isKnownHouseType = (code: string | null) =>
+      !!code && knownHouseTypes.has(code.toLowerCase().trim());
     // Prefer the direct house_type_code column; fall back to unit_types.name if not set
     const unitType = Array.isArray(supabaseUnit.unit_types)
       ? supabaseUnit.unit_types[0]
@@ -270,9 +296,10 @@ export async function GET(request: NextRequest) {
       
       // Check multiple locations for house type code
       const drawingClassification = metadata.drawing_classification || {};
-      const docHouseTypeCode = metadata.house_type_code || 
-                               drawingClassification.houseTypeCode || 
-                               extractHouseTypeFromFilename(source);
+      const filenameGuess = extractHouseTypeFromFilename(source);
+      const docHouseTypeCode = metadata.house_type_code ||
+                               drawingClassification.houseTypeCode ||
+                               (isKnownHouseType(filenameGuess) ? filenameGuess : null);
       const normalizedDocHouseType = (docHouseTypeCode || '').toLowerCase().trim();
       
       // Drawings: architectural discipline OR source referencing a drawing set (e.g. 281-MHL project ref)

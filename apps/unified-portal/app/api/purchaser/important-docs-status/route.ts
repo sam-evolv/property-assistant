@@ -15,6 +15,12 @@ function getSupabaseClient() {
 
 // Mirrors the extractor in docs-list/route.ts so house-type scoping is consistent
 // across the consent modal and the Documents tab.
+/**
+ * Guess a house type from a filename. These patterns also match tokens that are
+ * not house types — revision numbers (Rev01), versions (v1), paper sizes (A4) —
+ * so callers must confirm the guess against the project's real house types
+ * before scoping a document by it. See docs-list/route.ts for the same rule.
+ */
 function extractHouseTypeFromFilename(filename: string): string | null {
   const patterns = [
     /House-Type-([A-Z]{1,3}\d{1,2})/i,
@@ -118,6 +124,32 @@ export async function GET(request: NextRequest) {
     
     const sections = await response.json();
 
+    // Only house types that actually exist on this project may scope a document,
+    // so a filename containing "Rev01" or "A4" cannot hide a development-wide
+    // document from every homeowner.
+    const knownHouseTypes = new Set<string>();
+    {
+      const unitsResponse = await fetch(
+        `${supabaseUrl}/rest/v1/units?project_id=eq.${projectId}&select=house_type_code`,
+        {
+          headers: {
+            'apikey': supabaseKey,
+            'Authorization': `Bearer ${supabaseKey}`,
+          },
+          cache: 'no-store',
+        }
+      );
+      if (unitsResponse.ok) {
+        const projectUnits = await unitsResponse.json();
+        for (const row of projectUnits || []) {
+          const code = row?.house_type_code;
+          if (code) knownHouseTypes.add(String(code).toLowerCase().trim());
+        }
+      }
+    }
+    const isKnownHouseType = (code: string | null) =>
+      !!code && knownHouseTypes.has(String(code).toLowerCase().trim());
+
     // Find unique documents marked as important AND in public disciplines only
     const importantDocsMap = new Map<string, {
       id: string;
@@ -142,10 +174,11 @@ export async function GET(request: NextRequest) {
       // house type must match the homeowner's house type. Documents with no
       // house type are development-wide (e.g. Home User Guide) and shown to all.
       const drawingClassification = metadata.drawing_classification || {};
+      const filenameGuess = extractHouseTypeFromFilename(source);
       const docHouseType =
         metadata.house_type_code ||
         drawingClassification.houseTypeCode ||
-        extractHouseTypeFromFilename(source);
+        (isKnownHouseType(filenameGuess) ? filenameGuess : null);
       const normalizedDocHouseType = (docHouseType || '').toLowerCase().trim();
       if (normalizedDocHouseType && normalizedDocHouseType !== normalizedHouseType) {
         continue;
