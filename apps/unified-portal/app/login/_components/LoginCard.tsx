@@ -121,9 +121,25 @@ export default function LoginCard({ title, subtitle, children, showBack = true }
           <div className="mt-8 pt-6" style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}>
             <p className="text-center text-xs" style={{ color: '#4b5563' }}>
               By signing in, you agree to our{' '}
-              <a href="/terms" className="transition-colors" style={{ color: '#78716c' }}>Terms of Service</a>
+              <a
+                href="https://www.openhouseai.ie/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors"
+                style={{ color: '#78716c' }}
+              >
+                Terms of Service
+              </a>
               {' '}and{' '}
-              <a href="/privacy" className="transition-colors" style={{ color: '#78716c' }}>Privacy Policy</a>
+              <a
+                href="https://www.openhouseai.ie/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="transition-colors"
+                style={{ color: '#78716c' }}
+              >
+                Privacy Policy
+              </a>
             </p>
           </div>
         </div>

@@ -50,6 +50,7 @@ export default function RootLayout({
   // <Script nonce={nonce}> tags and the NonceProvider so descendant client
   // components can read it too.
   const nonce = headers().get('x-nonce') ?? undefined;
+  const googleMapsApiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
 
   return (
     <html lang="en">
@@ -70,12 +71,14 @@ export default function RootLayout({
             strategy="afterInteractive" = loads after Next.js hydration, non-blocking.
             OptimizedMapsTab checks window.google?.maps?.Map and skips its own script injection
             when this is already loaded, saving the full sequential load chain. */}
-        <Script
-          id="google-maps-preload"
-          src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places`}
-          strategy="afterInteractive"
-          nonce={nonce}
-        />
+        {googleMapsApiKey ? (
+          <Script
+            id="google-maps-preload"
+            src={`https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=places&loading=async`}
+            strategy="afterInteractive"
+            nonce={nonce}
+          />
+        ) : null}
         <NonceProvider nonce={nonce}>
           <LayoutClient>
             {children}

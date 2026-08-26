@@ -774,7 +774,9 @@ function DeveloperLoginForm() {
             <p className="text-center text-xs" style={{ color: '#4b5563' }}>
               By signing in, you agree to our{' '}
               <a
-                href="#"
+                href="https://www.openhouseai.ie/terms"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="transition-colors"
                 style={{ color: '#78716c' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
@@ -784,7 +786,9 @@ function DeveloperLoginForm() {
               </a>{' '}
               and{' '}
               <a
-                href="#"
+                href="https://www.openhouseai.ie/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="transition-colors"
                 style={{ color: '#78716c' }}
                 onMouseEnter={(e) => e.currentTarget.style.color = '#a8a29e'}
