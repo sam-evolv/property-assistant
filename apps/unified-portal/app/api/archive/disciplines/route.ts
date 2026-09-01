@@ -4,6 +4,7 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
+import { signDocumentUrlFields } from '@/lib/storage/signed-document-url';
 
 interface ArchiveDocument {
   id: string;
@@ -415,6 +416,10 @@ export async function GET(request: NextRequest) {
         pageSize,
         searchQuery,
       });
+
+      // Stored URLs use the public object path of the private development_docs
+      // bucket, which answers "Bucket not found". Sign them for the archive UI.
+      await signDocumentUrlFields(result.documents ?? [], ['file_url', 'storage_url']);
 
       return NextResponse.json(result);
     }

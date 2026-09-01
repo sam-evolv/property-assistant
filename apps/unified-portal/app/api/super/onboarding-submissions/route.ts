@@ -3,6 +3,7 @@ import { db } from '@openhouse/db/client';
 import { onboardingSubmissions, tenants } from '@openhouse/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { requireRole } from '@/lib/supabase-server';
+import { signStoragePaths } from '@/lib/storage/signed-document-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,6 +38,32 @@ export async function GET() {
       .from(onboardingSubmissions)
       .leftJoin(tenants, eq(onboardingSubmissions.tenant_id, tenants.id))
       .orderBy(desc(onboardingSubmissions.created_at));
+
+    // These columns store bare object keys in the private `onboarding-files`
+    // bucket. The page used to build a public-path URL from them, which always
+    // answered "Bucket not found"; sign them here instead.
+    const ONBOARDING_BUCKET = 'onboarding-files';
+    const supporting = submissions.flatMap((s) =>
+      Array.isArray(s.supporting_documents_urls) ? s.supporting_documents_urls : []
+    );
+    const signed = await signStoragePaths(ONBOARDING_BUCKET, [
+      ...submissions.map((s) => s.planning_pack_url),
+      ...submissions.map((s) => s.master_spreadsheet_url),
+      ...supporting,
+    ]);
+
+    const count = submissions.length;
+    let cursor = count * 2;
+    submissions.forEach((submission, index) => {
+      submission.planning_pack_url = signed[index] ?? submission.planning_pack_url;
+      submission.master_spreadsheet_url =
+        signed[count + index] ?? submission.master_spreadsheet_url;
+      if (Array.isArray(submission.supporting_documents_urls)) {
+        submission.supporting_documents_urls = submission.supporting_documents_urls.map(
+          (url) => signed[cursor++] ?? url
+        );
+      }
+    });
 
     const stats = {
       total: submissions.length,

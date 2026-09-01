@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { requireRole } from '@/lib/supabase-server';
 import OpenAI from 'openai';
 import { isFloorPlan } from '@/lib/floorplan/extractor';
+import { storageObjectUrl } from '@/lib/storage/signed-document-url';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -162,10 +163,10 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('development_docs')
-          .getPublicUrl(storagePath);
-        const fileUrl = publicUrlData?.publicUrl || null;
+        // `development_docs` is private, so getPublicUrl() would return a
+        // /object/public/... link that always answers "Bucket not found".
+        // Persist the canonical object URL; readers sign it at read time.
+        const fileUrl = storageObjectUrl('development_docs', storagePath);
 
         // Phase 2: Write document record (Drizzle first, legacy fallback)
         let docWritten = false;

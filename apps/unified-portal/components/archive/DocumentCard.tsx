@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import type { ArchiveDocument } from '@/lib/archive-constants';
 import { PdfThumbnail } from './PdfThumbnail';
+import { toast } from 'react-hot-toast';
 
 interface DocumentCardProps {
   document: ArchiveDocument;
@@ -111,22 +112,16 @@ export function DocumentCard({ document, onDelete, onUpdate, onMoveToFolder }: D
   };
 
   const handleOpen = () => {
-    if (document.file_url) {
-      window.open(document.file_url, '_blank');
+    // The API hands back short-lived signed URLs; documents live in a private
+    // bucket, so a URL cannot be reconstructed on the client. There used to be
+    // a fallback here that built one from a hardcoded development id — it
+    // pointed at the wrong development and always 404'd, so it is gone.
+    const url = document.file_url || document.storage_url;
+    if (!url) {
+      toast.error('No file is attached to this document.');
       return;
     }
-
-    if (document.storage_url) {
-      window.open(document.storage_url, '_blank');
-      return;
-    }
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-    const projectRef = supabaseUrl.replace('https://', '').replace('.supabase.co', '');
-    if (projectRef && document.file_name) {
-      const url = `https://${projectRef}.supabase.co/storage/v1/object/public/development_docs/57dc3919-2725-4575-8046-9179075ac88e/${document.file_name}`;
-      window.open(url, '_blank');
-    }
+    window.open(url, '_blank');
   };
   
   return (

@@ -1,18 +1,24 @@
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Documents live in the private `development_docs` bucket, but the URLs written
- * into `document_sections.metadata.file_url` (and `documents.file_url`) use the
- * public object path — `/storage/v1/object/public/development_docs/...`.
+ * Documents live in private Storage buckets (`development_docs`,
+ * `onboarding-files`), but the URLs written into the database use the *public*
+ * object path — `/storage/v1/object/public/development_docs/...` — or, for
+ * onboarding, a bare object key with no bucket at all.
  *
- * Supabase only resolves that path for buckets flagged public, so every one of
- * those links answers `404 {"error":"Bucket not found","code":"NoSuchBucket"}`.
- * Rather than making the bucket public — which would expose every developer's
+ * Supabase only resolves the public path for buckets flagged public, so every
+ * one of those links answers `404 {"error":"Bucket not found","code":"NoSuchBucket"}`.
+ * Rather than making the buckets public — which would expose every developer's
  * documents to anyone holding a URL — we mint a short-lived signed URL at read
  * time, after the caller has already been authorised and scoped.
  */
 
 const SIGNED_URL_TTL_SECONDS = 60 * 60;
+
+export interface SignOptions {
+  download?: boolean;
+  expiresIn?: number;
+}
 
 function getSupabaseClient() {
   return createClient(
@@ -54,18 +60,68 @@ export function parseStorageRef(fileUrl: string | null | undefined): StorageRef 
   if (rest.length < 2) return null;
 
   const [bucket, ...pathSegments] = rest;
-  const path = pathSegments
-    .map((segment) => {
-      try {
-        return decodeURIComponent(segment);
-      } catch {
-        return segment;
-      }
-    })
-    .join('/');
+  const path = pathSegments.map(decodeSegment).join('/');
 
   if (!bucket || !path) return null;
   return { bucket, path };
+}
+
+function decodeSegment(segment: string): string {
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return segment;
+  }
+}
+
+/**
+ * Canonical URL for a Storage object: `<base>/storage/v1/object/<bucket>/<key>`.
+ *
+ * Use this when persisting a pointer to an object in a PRIVATE bucket. Do not
+ * use `getPublicUrl()` there — it returns a `/object/public/...` URL that the
+ * Storage API refuses with "Bucket not found", which is how 154 documents ended
+ * up unreachable. Readers resolve either shape through {@link parseStorageRef}
+ * and sign it.
+ */
+export function storageObjectUrl(bucket: string, path: string): string {
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').replace(/\/+$/, '');
+  const key = path.replace(/^\/+/, '');
+  return `${base}/storage/v1/object/${bucket}/${key}`;
+}
+
+/**
+ * Sign a batch of object keys in one bucket. Returns a map of key -> signed
+ * URL, omitting any key Storage could not resolve so callers keep their
+ * original value rather than a broken one.
+ */
+async function signPathsInBucket(
+  bucket: string,
+  paths: string[],
+  options: SignOptions
+): Promise<Map<string, string>> {
+  const signed = new Map<string, string>();
+  if (!paths.length) return signed;
+
+  try {
+    const { data, error } = await getSupabaseClient()
+      .storage
+      .from(bucket)
+      .createSignedUrls(
+        paths,
+        options.expiresIn ?? SIGNED_URL_TTL_SECONDS,
+        options.download ? { download: true } : undefined
+      );
+
+    if (error || !data) return signed;
+
+    for (const entry of data) {
+      if (entry?.signedUrl && entry.path) signed.set(entry.path, entry.signedUrl);
+    }
+  } catch {
+    // Signing failed — callers keep the original URLs.
+  }
+
+  return signed;
 }
 
 /**
@@ -76,10 +132,9 @@ export function parseStorageRef(fileUrl: string | null | undefined): StorageRef 
  */
 export async function signDocumentUrl(
   fileUrl: string | null | undefined,
-  options: { download?: boolean; expiresIn?: number } = {}
+  options: SignOptions = {}
 ): Promise<string | null> {
   if (!fileUrl) return fileUrl ?? null;
-
   const [signed] = await signDocumentUrls([fileUrl], options);
   return signed ?? fileUrl;
 }
@@ -91,9 +146,8 @@ export async function signDocumentUrl(
  */
 export async function signDocumentUrls(
   fileUrls: (string | null | undefined)[],
-  options: { download?: boolean; expiresIn?: number } = {}
+  options: SignOptions = {}
 ): Promise<(string | null)[]> {
-  const expiresIn = options.expiresIn ?? SIGNED_URL_TTL_SECONDS;
   const resolved: (string | null)[] = fileUrls.map((url) => url ?? null);
 
   // Group the signable URLs by bucket, keeping the positions each path fills so
@@ -114,29 +168,105 @@ export async function signDocumentUrls(
 
   if (byBucket.size === 0) return resolved;
 
-  const supabase = getSupabaseClient();
-
   await Promise.all(
     Array.from(byBucket.entries()).map(async ([bucket, paths]) => {
-      const pathList = Array.from(paths.keys());
-      try {
-        const { data, error } = await supabase.storage
-          .from(bucket)
-          .createSignedUrls(pathList, expiresIn, options.download ? { download: true } : undefined);
-
-        if (error || !data) return; // keep the original URLs
-
-        for (const entry of data) {
-          if (!entry?.signedUrl || !entry.path) continue;
-          for (const index of paths.get(entry.path) ?? []) {
-            resolved[index] = entry.signedUrl;
-          }
-        }
-      } catch {
-        // Signing failed — leave the original URLs in place.
+      const signed = await signPathsInBucket(bucket, Array.from(paths.keys()), options);
+      for (const [path, positions] of paths) {
+        const url = signed.get(path);
+        if (!url) continue;
+        for (const index of positions) resolved[index] = url;
       }
     })
   );
 
   return resolved;
+}
+
+/**
+ * Sign bare object keys in a known bucket — for columns that store a Storage
+ * path rather than a URL (onboarding uploads keep `submissionId/folder/file`).
+ * Values that are already absolute URLs are passed through {@link signDocumentUrls}.
+ * The returned array is index-aligned with `paths`.
+ */
+export async function signStoragePaths(
+  bucket: string,
+  paths: (string | null | undefined)[],
+  options: SignOptions = {}
+): Promise<(string | null)[]> {
+  const resolved: (string | null)[] = paths.map((path) => path ?? null);
+
+  const keyPositions = new Map<string, number[]>();
+  const urlIndexes: number[] = [];
+
+  paths.forEach((path, index) => {
+    if (!path) return;
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      urlIndexes.push(index);
+      return;
+    }
+    const key = path.replace(/^\/+/, '');
+    if (!key) return;
+    const positions = keyPositions.get(key);
+    if (positions) positions.push(index);
+    else keyPositions.set(key, [index]);
+  });
+
+  await Promise.all([
+    (async () => {
+      const signed = await signPathsInBucket(bucket, Array.from(keyPositions.keys()), options);
+      for (const [key, positions] of keyPositions) {
+        const url = signed.get(key);
+        if (!url) continue;
+        for (const index of positions) resolved[index] = url;
+      }
+    })(),
+    (async () => {
+      if (!urlIndexes.length) return;
+      const signed = await signDocumentUrls(urlIndexes.map((i) => paths[i]), options);
+      urlIndexes.forEach((index, i) => {
+        if (signed[i]) resolved[index] = signed[i];
+      });
+    })(),
+  ]);
+
+  return resolved;
+}
+
+/**
+ * Sign the given URL-bearing fields across a list of records, in place.
+ *
+ * Archive rows carry the same stored URL under more than one key (`file_url`
+ * and `storage_url`), and every one of them needs signing or the UI falls back
+ * to whichever key is still dead. Signing runs as a single batch across all
+ * fields of all records.
+ */
+export async function signDocumentUrlFields<T extends Record<string, any>>(
+  records: T[],
+  fields: (keyof T)[],
+  options: SignOptions = {}
+): Promise<T[]> {
+  if (!records.length || !fields.length) return records;
+
+  const targets: { record: T; field: keyof T }[] = [];
+  for (const record of records) {
+    if (!record) continue;
+    for (const field of fields) {
+      if (typeof record[field] === 'string' && record[field]) {
+        targets.push({ record, field });
+      }
+    }
+  }
+  if (!targets.length) return records;
+
+  const signed = await signDocumentUrls(
+    targets.map(({ record, field }) => record[field] as string),
+    options
+  );
+
+  targets.forEach(({ record, field }, index) => {
+    const url = signed[index];
+    if (url) (record as Record<string, any>)[field as string] = url;
+  });
+
+  return records;
 }

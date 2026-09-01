@@ -7,6 +7,7 @@ import { requireRole } from '@/lib/supabase-server';
 import { db } from '@openhouse/db/client';
 import { documents } from '@openhouse/db/schema';
 import { classifyDocumentWithAI } from '@/lib/ai-classify';
+import { storageObjectUrl } from '@/lib/storage/signed-document-url';
 
 // Below this confidence an auto-filed document is queued for a human glance.
 const NEEDS_REVIEW_THRESHOLD = 0.7;
@@ -162,12 +163,10 @@ export async function POST(request: NextRequest) {
 
         result.phases.storage = 'success';
 
-        // Get the public URL
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from('development_docs')
-          .getPublicUrl(storagePath);
-
-        const fileUrl = publicUrlData?.publicUrl || null;
+        // `development_docs` is private, so getPublicUrl() would return a
+        // /object/public/... link that always answers "Bucket not found".
+        // Persist the canonical object URL; readers sign it at read time.
+        const fileUrl = storageObjectUrl('development_docs', storagePath);
 
         // Auto-file: no discipline chosen -> classify (fail-soft: keyword
         // fast-path, AI when available, keyword fallback on any error).
