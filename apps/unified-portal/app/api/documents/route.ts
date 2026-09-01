@@ -2,6 +2,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { signDocumentUrlFields } from '@/lib/storage/signed-document-url';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -105,6 +106,10 @@ export async function GET(request: NextRequest) {
       }));
 
     }
+
+    // Stored URLs use the public object path of a private bucket, which answers
+    // "Bucket not found"; hand back signed URLs instead.
+    await signDocumentUrlFields(documents, ['file_url']);
 
     return NextResponse.json({ documents, count: documents.length });
   } catch (error: unknown) {

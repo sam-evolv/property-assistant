@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { document_versions, admins } from '@openhouse/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { signDocumentUrlFields } from '@/lib/storage/signed-document-url';
 
 export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
   try {
@@ -20,6 +21,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       .leftJoin(admins, eq(document_versions.uploaded_by, admins.id))
       .where(eq(document_versions.document_id, params.id))
       .orderBy(desc(document_versions.version));
+
+    await signDocumentUrlFields(versions, ['file_url']);
 
     return NextResponse.json({ versions });
   } catch (error) {

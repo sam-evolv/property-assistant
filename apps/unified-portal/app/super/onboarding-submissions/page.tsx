@@ -102,11 +102,13 @@ function getStatusBadge(status: string) {
   }
 }
 
+// Uploads live in the private `onboarding-files` bucket, so a URL cannot be
+// built on the client — the API signs these paths and returns absolute URLs.
+// Anything still bare here is a path we could not sign; render it as no link
+// rather than a URL that is guaranteed to 404.
 function getFileUrl(path: string | undefined): string {
   if (!path) return '';
-  if (path.startsWith('http')) return path;
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-  return `${supabaseUrl}/storage/v1/object/public/${path}`;
+  return path.startsWith('http') ? path : '';
 }
 
 const SubmissionRow = memo(function SubmissionRow({
@@ -262,10 +264,12 @@ const SubmissionRow = memo(function SubmissionRow({
                   </a>
                 )}
                 {submission.supporting_documents_urls && submission.supporting_documents_urls.length > 0 && (
-                  submission.supporting_documents_urls.map((url, idx) => (
+                  submission.supporting_documents_urls.map((url, idx) => ({ url: getFileUrl(url), idx }))
+                    .filter(({ url }) => url)
+                    .map(({ url, idx }) => (
                     <a
                       key={idx}
-                      href={getFileUrl(url)}
+                      href={url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1 text-brand-600 hover:text-brand-700 font-medium"

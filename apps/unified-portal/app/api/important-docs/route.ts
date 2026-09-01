@@ -1,6 +1,7 @@
 export const dynamic = 'force-dynamic';
 
 import { NextRequest, NextResponse } from 'next/server';
+import { signDocumentUrlFields } from '@/lib/storage/signed-document-url';
 import { requireRole } from '@/lib/supabase-server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -96,6 +97,7 @@ export async function GET(request: NextRequest) {
     }
 
     const docs = Array.from(documentMap.values());
+    await signDocumentUrlFields(docs, ['file_url']);
 
     return NextResponse.json({ documents: docs });
   } catch (error) {
