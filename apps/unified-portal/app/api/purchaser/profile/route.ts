@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
+import { signDocumentUrls } from '@/lib/storage/signed-document-url';
 import { checkRateLimit } from '@/lib/security/rate-limit';
 import { globalCache } from '@/lib/cache/ttl-cache';
 import { db } from '@openhouse/db/client';
@@ -323,6 +324,13 @@ export async function GET(request: NextRequest) {
         }
 
         documents.push(...Array.from(uniqueDocs.values()));
+
+        // `metadata.file_url` uses the public object path of a private bucket,
+        // which answers "Bucket not found"; swap in short-lived signed URLs.
+        const signedUrls = await signDocumentUrls(documents.map((doc) => doc.file_url));
+        documents.forEach((doc, index) => {
+          doc.file_url = signedUrls[index] ?? doc.file_url;
+        });
 
         console.log('[profile] documents resolved', JSON.stringify({
           unit_id: supabaseUnit.id,

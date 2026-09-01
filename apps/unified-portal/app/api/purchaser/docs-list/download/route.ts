@@ -9,6 +9,7 @@ import { eq, or } from 'drizzle-orm';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
 import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
+import { signDocumentUrl } from '@/lib/storage/signed-document-url';
 
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 
@@ -121,7 +122,9 @@ export async function GET(request: NextRequest) {
       
       // Fire and forget - don't block the redirect
       trackDownload(section.metadata?.title || sectionId).catch(() => {});
-      return NextResponse.redirect(fileUrl);
+      // Stored URLs use the public object path of a private bucket, which
+      // answers "Bucket not found" — redirect to a signed URL instead.
+      return NextResponse.redirect((await signDocumentUrl(fileUrl, { download: true })) || fileUrl);
     }
 
     const doc = await db
@@ -147,7 +150,7 @@ export async function GET(request: NextRequest) {
 
     // Fire and forget - don't block the redirect
     trackDownload(doc[0].title || docId).catch(() => {});
-    return NextResponse.redirect(fileUrl);
+    return NextResponse.redirect((await signDocumentUrl(fileUrl, { download: true })) || fileUrl);
   } catch (error) {
     return NextResponse.json(
       { error: 'Failed to download document', details: error instanceof Error ? error.message : 'Unknown error' },
