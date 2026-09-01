@@ -10,6 +10,7 @@ import { logAnalyticsEvent } from '@openhouse/api/analytics-logger';
 import { createClient } from '@supabase/supabase-js';
 import { nanoid } from 'nanoid';
 import { logSecurityViolation } from '@/lib/api-auth';
+import { signDocumentUrls } from '@/lib/storage/signed-document-url';
 
 const DEFAULT_TENANT_ID = 'fdd1bd1a-97fa-4a1c-94b5-ae22dceb077d';
 
@@ -348,10 +349,15 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const formattedDocs = Array.from(documentMap.values()).map((doc) => ({
+    // `metadata.file_url` points at the public object path of a private bucket,
+    // which answers "Bucket not found". Sign them now that scoping is done.
+    const scopedDocs = Array.from(documentMap.values());
+    const signedUrls = await signDocumentUrls(scopedDocs.map((doc) => doc.file_url));
+
+    const formattedDocs = scopedDocs.map((doc, index) => ({
       id: doc.id,
       title: doc.title,
-      file_url: doc.file_url,
+      file_url: signedUrls[index] || doc.file_url,
       file_type: 'application/pdf',
       created_at: doc.created_at,
       metadata: { 

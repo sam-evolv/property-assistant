@@ -4,6 +4,7 @@ import { purchaserAgreements } from '@openhouse/db/schema';
 import { eq } from 'drizzle-orm';
 import { createClient } from '@supabase/supabase-js';
 import { validatePurchaserToken } from '@openhouse/api/qr-tokens';
+import { signDocumentUrls } from '@/lib/storage/signed-document-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -164,6 +165,14 @@ export async function GET(request: NextRequest) {
 
     const importantDocuments = Array.from(importantDocsMap.values())
       .sort((a, b) => (a.important_rank || 999) - (b.important_rank || 999));
+
+    // `metadata.file_url` points at the public object path of a private bucket,
+    // which answers "Bucket not found". Hand back signed URLs instead — the
+    // caller is already authorised and scoped to this unit by this point.
+    const signedUrls = await signDocumentUrls(importantDocuments.map((doc) => doc.file_url));
+    importantDocuments.forEach((doc, index) => {
+      doc.file_url = signedUrls[index] || doc.file_url;
+    });
     
     return NextResponse.json({
       requiresConsent: importantDocuments.length > 0,
