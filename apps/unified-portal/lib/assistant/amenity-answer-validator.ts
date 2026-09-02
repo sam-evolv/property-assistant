@@ -1,4 +1,9 @@
-import type { POIResult } from '../places/poi';
+import { detectPOICategoryExpanded, type POIResult } from '../places/poi';
+import {
+  classifyIntent,
+  HOME_DOCUMENT_TARGET_PATTERN,
+  HOME_SYSTEM_TARGET_PATTERN,
+} from './os';
 
 const COMMON_VENUE_CHAINS = [
   'costa', 'starbucks', 'insomnia', 'centra', 'spar', 'mace', 'londis', 'gala',
@@ -9,7 +14,13 @@ const COMMON_VENUE_CHAINS = [
 
 const VENUE_LOCATION_PATTERN = /\b(?:in|at|on|near|beside|opposite)\s+([A-Z][A-Za-z0-9'\s-]+(?:Shopping\s*Centre|Center|Mall|Street|Road|Avenue|Park|Square|Village|Estate))\b/gi;
 const TRAVEL_TIME_CLAIM_PATTERN = /\b(\d+)\s*(?:minute|min|mins|minutes?)?\s*(?:walk|drive|walking|driving)\b/gi;
-const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:km|m|metres?|meters?|kilometres?|kilometers?)\s*(?:away|from|to)?\b/gi;
+// Bare "m" must NOT be part of "m²" / "m2" / "mm" / "min" / a longer word — otherwise
+// floor areas like "145 m²" are mistaken for a distance claim. Spelled-out units
+// (metre/metres/km/kilometres) still match, so real distance claims are unaffected.
+const DISTANCE_CLAIM_PATTERN = /\b(\d+(?:\.\d+)?)\s*(?:kilometres?|kilometers?|metres?|meters?|km|m(?![²2A-Za-z]))\s*(?:away|from|to)?\b/gi;
+
+const DYNAMIC_LOCAL_SERVICE_PATTERN =
+  /\b(laundrettes?|laundromats?|dry\s*cleaners?|hairdressers?|barbers?|beauty\s*salons?|nail\s*salons?|vets?|veterinarians?|mechanics?|car\s*wash(?:es)?|petrol\s*stations?|gas\s*stations?|hardware\s*stores?|electricians?|plumbers?|locksmiths?|taxi\s*ranks?)\b/i;
 
 export interface AmenityHallucinationCheck {
   hasHallucination: boolean;
@@ -17,19 +28,59 @@ export interface AmenityHallucinationCheck {
   cleanedAnswer?: string;
 }
 
+export function shouldEnforceAmenityHallucinationGuard(
+  message: string,
+  resolvedIntent?: string | null,
+): boolean {
+  const inferredIntent = classifyIntent(message).intent;
+
+  const poi = detectPOICategoryExpanded(message);
+  const hasExplicitLocalFraming =
+    /\bwhere(?:'s|\s+(?:is|are)|\s+can\s+(?:i|we)(?:\s+find)?)\b|\b(?:local|corner)\s+shops?\b|\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclose\s+(?:by|to\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+  const hasProximityFraming =
+    /\baround(?:\s+here)?\b|\bnear(?:by|\s+(?:me|us|here))\b|\bclose\s+(?:by|to\s+(?:me|us|here))\b|\bclosest\b|\bnearest\b/i.test(message);
+  const hasHomeOrDocumentTarget =
+    HOME_SYSTEM_TARGET_PATTERN.test(message) || HOME_DOCUMENT_TARGET_PATTERN.test(message);
+
+  // Explicit homeowner/document targets are authoritative even if their text
+  // also contains a known place word (for example "train schedule").
+  if (hasHomeOrDocumentTarget) return false;
+
+  // A known POI category plus explicit local phrasing is stronger evidence than
+  // the generic "where can I find" document-intent pattern. A context-resolved
+  // affirmative can carry just the category noun (for example "restaurants").
+  if (
+    poi.category !== null &&
+    (hasExplicitLocalFraming || resolvedIntent === 'location_amenities')
+  ) return true;
+
+  if (resolvedIntent && !['unknown', 'affirmative', 'location_amenities'].includes(resolvedIntent)) return false;
+  if (!['unknown', 'affirmative', 'location_amenities'].includes(inferredIntent)) return false;
+
+  // The POI extractor's dynamic fallback can produce arbitrary residual nouns.
+  // Only permit an explicit set of genuine local service types; unknown nouns
+  // fail closed instead of inheriting a broad "nearest" classification.
+  return Boolean(poi.dynamicKeyword) &&
+    hasProximityFraming &&
+    DYNAMIC_LOCAL_SERVICE_PATTERN.test(message);
+}
+
 export function detectAmenityHallucinations(
   answer: string,
   hasAmenityContext: boolean = false
 ): AmenityHallucinationCheck {
   const detectedIssues: string[] = [];
-  const lowerAnswer = answer.toLowerCase();
-  
+
   if (hasAmenityContext) {
     return { hasHallucination: false, detectedIssues: [] };
   }
   
   for (const chain of COMMON_VENUE_CHAINS) {
-    if (lowerAnswer.includes(chain)) {
+    // Match as a whole word so ordinary words that merely CONTAIN a chain name
+    // as a substring don't false-positive: "central" ⊃ "centra",
+    // "spare" ⊃ "spar", "grimace" ⊃ "mace", "maxed" ⊃ ... etc.
+    const chainPattern = new RegExp(`\\b${chain.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    if (chainPattern.test(answer)) {
       detectedIssues.push(`venue_name:${chain}`);
     }
   }

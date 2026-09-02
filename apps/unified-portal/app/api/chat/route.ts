@@ -124,7 +124,10 @@ import {
 import { getNearbyPOIs, formatPOIResponse, formatShopsResponse, formatGroupedSchoolsResponse, formatLocalAmenitiesResponse, detectPOICategoryExpanded, isLocationMissingReason, dedupeAndFillAmenities, buildStaticMapUrl, type POICategory, type FormatPOIOptions, type POIResult, type GroupedSchoolsData, type GroupedAmenitiesData } from '@/lib/places/poi';
 import { getTransitRoutes, formatTransitRoutesResponse, getActiveTravelTimes, formatActiveTravelResponse } from '@/lib/transport/routes';
 import { getWeather, formatWeatherResponse } from '@/lib/weather/met-eireann';
-import { detectAmenityHallucinations } from '@/lib/assistant/amenity-answer-validator';
+import {
+  detectAmenityHallucinations,
+  shouldEnforceAmenityHallucinationGuard,
+} from '@/lib/assistant/amenity-answer-validator';
 import { 
   enforceGrounding, 
   getFirewallDiagnostics,
@@ -1519,6 +1522,7 @@ export async function POST(request: NextRequest) {
     // ASSISTANT OS: Intent classification and tiered emergency handling
     let intentClassification: IntentClassification | null = null;
     let answerStrategy: AnswerStrategy | null = null;
+    let resolvedAmenityQuery = message;
     
     if (isAssistantOSEnabled()) {
       intentClassification = classifyIntent(message);
@@ -1999,7 +2003,7 @@ export async function POST(request: NextRequest) {
 
     // AFFIRMATIVE INTENT: Handle "yes", "sure", "please" by routing to the previous follow-up suggestion
     const isAffirmativeMessage = intentClassification?.intent === 'affirmative' || isYesIntent(message);
-    if (isAssistantOSEnabled() && isAffirmativeMessage) {
+    if (isAffirmativeMessage) {
       
       // Load conversation history to find the previous assistant message
       const history = await loadConversationHistory(
@@ -2051,13 +2055,17 @@ export async function POST(request: NextRequest) {
                 emergencyTier: null,
               };
               
-              // Update message to be the synthetic query for downstream processing
-              // This will be handled by the location_amenities block below
+              // Carry the resolved topic into the Places branch while preserving
+              // the user's original affirmative message for persistence.
+              resolvedAmenityQuery = syntheticQuery;
             }
           }
         }
         
-        if (intentClassification?.intent === 'affirmative') {
+        if (
+          intentClassification?.intent === 'affirmative' ||
+          (!intentClassification && isYesIntent(message))
+        ) {
           // Couldn't extract a follow-up topic - provide helpful response
           
           const helpfulResponse = "I can't tell what you're saying yes to without more context. Ask the specific question (for example \"what schools are nearby?\" or \"when does the kitchen get fitted?\") and I'll answer directly.";
@@ -2172,10 +2180,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // AMENITY ANSWERING GATE: STRICT - location_amenities MUST use Google Places, no RAG fallback
-    // This prevents hallucinated venue names, opening hours, and travel times
-    if (isAssistantOSEnabled() && intentClassification?.intent === 'location_amenities') {
-      const poiCategoryResult = detectPOICategoryExpanded(message);
+    // AMENITY ANSWERING GATE: STRICT - every resolved local-amenity question MUST use Google Places, no RAG fallback
+    // This prevents hallucinated venue names, opening hours, and travel times.
+    // The shared decision also covers direct venue/category phrasing that the OS classifier marks unknown.
+    if (
+      shouldEnforceAmenityHallucinationGuard(resolvedAmenityQuery, intentClassification?.intent)
+    ) {
+      // Ensure classification metadata exists even when the broader Assistant OS flag is disabled.
+      intentClassification ??= classifyIntent(message);
+      const poiCategoryResult = detectPOICategoryExpanded(resolvedAmenityQuery);
       const poiCategory = poiCategoryResult.category;
       const expandedIntent = poiCategoryResult.expandedIntent;
       const expandedCategories = poiCategoryResult.categories;
@@ -3957,9 +3970,17 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       // CRITICAL: If we're in the LLM path, we do NOT have grounded POI data - never bypass validation
       // The POI path returns early via formatPOIResponse, so if we're here, we don't have real venue data
       const hasAmenityContext = false; // LLM path never has grounded POI context
+      // Only ENFORCE the amenity guard for genuine local-area questions. For other
+      // questions its heuristics false-positive on ordinary home content — "145 m²",
+      // development names like "Longview Park", words like "central" — and would
+      // wrongly replace a correct home answer with the generic amenities message.
+      const isLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(
+        message,
+        intentClassification?.intent,
+      );
       const hallucinationCheck = detectAmenityHallucinations(fullAnswer, hasAmenityContext);
-      
-      if (hallucinationCheck.hasHallucination) {
+
+      if (isLocalAreaQuestion && hallucinationCheck.hasHallucination) {
         fullAnswer = hallucinationCheck.cleanedAnswer || fullAnswer;
         
         // Log the blocked hallucination
@@ -4496,10 +4517,15 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           // CRITICAL: If we're in the streaming LLM path, we do NOT have grounded POI data
           // The POI path returns early, so if we're here, never bypass validation
           const streamHasAmenityContext = false; // Streaming LLM path never has grounded POI context
+          // Only ENFORCE the amenity guard for genuine local-area questions (see testMode path).
+          const streamIsLocalAreaQuestion = shouldEnforceAmenityHallucinationGuard(
+            message,
+            intentClassification?.intent,
+          );
           const streamHallucinationCheck = detectAmenityHallucinations(fullAnswer, streamHasAmenityContext);
-          
+
           let answerToStore = fullAnswer;
-          if (streamHallucinationCheck.hasHallucination) {
+          if (streamIsLocalAreaQuestion && streamHallucinationCheck.hasHallucination) {
             answerToStore = streamHallucinationCheck.cleanedAnswer || fullAnswer;
             
             // Log the hallucination for observability

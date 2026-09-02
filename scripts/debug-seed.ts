@@ -37,7 +37,7 @@ LV-PARK,21,LV-PARK-021,Mr Nikhil John Thekkemuriyil Regi and Ms Anijamariam Varg
 LV-PARK,22,LV-PARK-022,Mrs Dipali Kadoo and Mr Hyder Ali Sheikh,"22 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,23,LV-PARK-023,Ms Anu Mathew and Mr Joyish Kochadattu Joseph,"23 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,24,LV-PARK-024,Mr Kalvin Ruiz Agustin and Mikella Belresa V. Layug,"24 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,4 Bedroom,3 Bathroom,1562.92
-LV-PARK,25,LV-PARK-025,Mr Vinod Sebastian and Ms Marysijini Kollamparambill Joseph,"25 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,3 Bathroom,1188.33
+LV-PARK,25,LV-PARK-025,Mr Vinod Sebastian and Ms Marysijini Kollamparambill Joseph,"25 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,2 Bathroom,1188.33
 LV-PARK,26,LV-PARK-026,Mr Gopi Kommineni,"26 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,27,LV-PARK-027,Mr Naveen Kumar,"27 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,28,LV-PARK-028,Yan Zhao and Lingli Lu,"28 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD05,D,HO,4 Bedroom,3 Bathroom,1815.76
@@ -50,7 +50,7 @@ LV-PARK,34,LV-PARK-034,Ms Greeshma Jose and Mr Basil Kooran Varkey,"34 Longview 
 LV-PARK,35,LV-PARK-035,Ms Emma Lundy and Mr Cillian Williamson_x000D_,"35 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD05,D,HO,4 Bedroom,3 Bathroom,1815.76
 LV-PARK,36,LV-PARK-036,Mr Suraj Gawade and Ms Aishwarya Hanumant Kodalkar,"36 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,37,LV-PARK-037,Roschelle McSweeney and Cian O'Donovan,"37 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
-LV-PARK,38,LV-PARK-038,Mr Halimah Baruwa and Ms Sherif Baruwa,"38 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,3 Bathroom,1188.33
+LV-PARK,38,LV-PARK-038,Ms Halimah Baruwa and Mr Sherif Baruwa,"38 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,2 Bathroom,1188.33
 LV-PARK,39,LV-PARK-039,Mr Rima Urboniene and Ms Laurynas Urbonas,"39 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,4 Bedroom,3 Bathroom,1562.92
 LV-PARK,40,LV-PARK-040,Dr Yineng Wang and Ms Lin Lin,"40 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS03,SD,HO,4 Bedroom,3 Bathroom,1562.92
 LV-PARK,41,LV-PARK-041,Ms Akhila Anand and Mr Vishnu Puthenpurackal Sudarsanan,"41 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS03,SD,HO,3 Bedroom,3 Bathroom,1188.33
@@ -62,7 +62,7 @@ LV-PARK,46,LV-PARK-046,Alireza Namadmalan,"46 Longview Park, Ballyhooly Road, Ba
 LV-PARK,47,LV-PARK-047,Ms Shanza Nazir & MrFahid Idrees,"47 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,48,LV-PARK-048,Brian Goulding & Julie McGinty,"48 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BD04,D,HO,4 Bedroom,3 Bathroom,1815.76
 LV-PARK,49,LV-PARK-049,Mr Ullas Suvarna Kumar & Ms Ann Mary Joseph,"49 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,4 Bedroom,3 Bathroom,1562.92
-LV-PARK,50,LV-PARK-050,Mr Robert Corby & Ms Maeve McDonagh,"50 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,3 Bathroom,1188.33
+LV-PARK,50,LV-PARK-050,Mr Robert Corby & Ms Maeve McDonagh,"50 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS02,SD,HO,3 Bedroom,2 Bathroom,1188.33
 LV-PARK,51,LV-PARK-051,Mr Manu Jose & Ms Anumol Joseph,"51 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,52,LV-PARK-052,Mr Yeshwanth Krishnan Jayakumar  & Ms Liabhan Collins,"52 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33
 LV-PARK,53,LV-PARK-053,Mr Jaychard Ramos & Ms Sheryl Ramos,"53 Longview Park, Ballyhooly Road, Ballyvolane, Cork City",BS01,SD,HO,3 Bedroom,3 Bathroom,1188.33

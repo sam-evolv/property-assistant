@@ -1456,16 +1456,22 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   
   // "shops" (generic) = convenience stores (Irish colloquial: "local shop", "corner shop")
   // Only match truly generic shop requests, NOT compound phrases like "coffee shop", "bike shop"
-  if (/\b(local\s+shop|corner\s+shop)\b/i.test(q)) {
+  if (/\b(local\s+shops?|corner\s+shops?)\b/i.test(q)) {
     return { category: 'convenience_store' };
   }
   
-  // Generic "shops" or "shop" as standalone (without preceding noun like "coffee")
-  // Match: "any shops", "nearby shops", "where's a shop", but NOT "coffee shop"
-  if (/(?:^|\s)(shops?)\s*(?:\?|$|near|around|close|by)/i.test(q) && 
-      !/supermarket|grocery|grocer|coffee|bike|pet|book|gift|flower/i.test(q)) {
-    return { 
-      category: 'convenience_store', 
+  // Generic shop requests only. Compound nouns such as "music shop" must
+  // remain dynamic and then pass the bounded local-service decision.
+  if (
+    /^shops?[?!.]?$/i.test(q) ||
+    /\b(?:any|some|nearby|closest|nearest)\s+shops?\b/i.test(q) ||
+    /^(?:shops?)\s+(?:nearby|near\s+(?:me|us|here)|around|close(?:\s*by|\s+to\s+(?:me|us|here)))\b/i.test(q) ||
+    /\b(?:are|is)\s+there\s+(?:any\s+|some\s+|a\s+)?shops?\s+(?:nearby|near\s+(?:me|us|here)|around|close(?:\s*by|\s+to\s+(?:me|us|here)))\b/i.test(q) ||
+    /\bwhere(?:'s|\s+is|\s+are)\s+(?:there\s+)?(?:any\s+|a\s+)?shops?\b/i.test(q) ||
+    /\bwhere\s+can\s+(?:i|we)\s+find\s+(?:any\s+|a\s+|the\s+)?shops?\b/i.test(q)
+  ) {
+    return {
+      category: 'convenience_store',
       expandedIntent: 'shops',
       categories: ['supermarket', 'convenience_store']
     };
@@ -1487,38 +1493,38 @@ export function detectPOICategoryExpanded(query: string): POICategoryResult {
   }
   
   // Specific category detection
-  if (/supermarket|grocery|grocer|tesco|aldi|lidl|dunnes|spar/i.test(q)) {
+  if (/\b(supermarkets?|grocer(?:y|ies)|grocers?|tesco|aldi|lidl|dunnes|spar)\b/i.test(q)) {
     return { category: 'supermarket' };
   }
   
   // IRISH NORMALISATION - chemist → pharmacy (already handled, but explicit)
-  if (/pharmac|chemist|boots|lloyds/i.test(q)) return { category: 'pharmacy' };
+  if (/\b(pharmacy|pharmacies|chemist|chemists|boots|lloyds)\b/i.test(q)) return { category: 'pharmacy' };
   
   if (/\bhospital\b/i.test(q)) return { category: 'hospital' };
-  if (/\b(gp|doctor|surgery|clinic|medical|health\s*cent)/i.test(q)) return { category: 'gp' };
+  if (/\b(gp|doctor|doctors|surgery|clinic|medical|health\s*cent(?:re|er))\b/i.test(q)) return { category: 'gp' };
   
   // IRISH NORMALISATION - crèche, childcare
-  if (/childcare|cr[eè]che|montessori|nursery|daycare|preschool/i.test(q)) return { category: 'childcare' };
+  if (/\b(childcare|cr[eè]che|montessori|nursery|daycare|preschool)\b/i.test(q)) return { category: 'childcare' };
   
-  if (/primary\s*school|national\s*school/i.test(q)) return { category: 'primary_school' };
-  if (/secondary\s*school|high\s*school|post.?primary|college/i.test(q)) return { category: 'secondary_school' };
-  if (/train|rail|dart|luas|station/i.test(q)) return { category: 'train_station' };
-  if (/bus|bus\s*stop|transit/i.test(q)) return { category: 'bus_stop' };
-  if (/\bplayground\b|play\s*area|play\s*ground/i.test(q)) return { category: 'playground' };
+  if (/\b(primary\s*school|national\s*school)\b/i.test(q)) return { category: 'primary_school' };
+  if (/\b(secondary\s*school|high\s*school|post.?primary|college)\b/i.test(q)) return { category: 'secondary_school' };
+  if (/\b(trains?|rail(?:way)?|dart|luas|train\s*station|rail\s*station)\b/i.test(q)) return { category: 'train_station' };
+  if (/\b(bus|buses|bus\s*stop|transit)\b/i.test(q)) return { category: 'bus_stop' };
+  if (/\b(playground|play\s*area|play\s*ground)\b/i.test(q)) return { category: 'playground' };
   if (/\bpark\b/i.test(q)) return { category: 'park' };
-  if (/\bgym\b|fitness|workout/i.test(q)) return { category: 'gym' };
-  if (/leisure|swimming|pool|spa/i.test(q)) return { category: 'leisure' };
-  if (/\bcafe\b|coffee/i.test(q)) return { category: 'cafe' };
+  if (/\b(gym|fitness|workout)\b/i.test(q)) return { category: 'gym' };
+  if (/\b(leisure|swimming|pool|spa)\b/i.test(q)) return { category: 'leisure' };
+  if (/^coffee[?!.]?$/i.test(q) || /\bcafes?\b|\bcoffee\s+shops?\b|\bwhere\b.*\bcoffee\b|\bcoffee\b.*\b(nearby|near\s+(?:me|us|here)|around|close\s+(?:by|to\s+(?:me|us|here))|closest|nearest)\b/i.test(q)) return { category: 'cafe' };
   
   // IRISH NORMALISATION - takeaway, food nearby → restaurant
-  if (/restaurant|takeaway|take\s*away|food\s*nearby|dining|eat/i.test(q)) return { category: 'restaurant' };
+  if (/\b(restaurant|restaurants|takeaway|take\s*away|dining|eatery|eateries)\b|\bfood\s+nearby\b|\b(place|places|somewhere|anywhere|spot|spots)\s+to\s+eat\b|\bwhere\s+can\s+(?:i|we)\s+eat\b/i.test(q)) return { category: 'restaurant' };
   
   // Convenience store explicit match
-  if (/convenience\s*store|centra|mace|costcutter|londis/i.test(q)) return { category: 'convenience_store' };
+  if (/\b(convenience\s*store|centra|mace|costcutter|londis)\b/i.test(q)) return { category: 'convenience_store' };
   
-  if (/sports?\s*(facility|facilities|centre|center)/i.test(q)) return { category: 'sports' };
+  if (/\bsports?\s*(facility|facilities|centre|center)\b/i.test(q)) return { category: 'sports' };
   
-  if (/near(by|est)?\s+(amenities|facilities|services)/i.test(q)) return { category: 'supermarket' };
+  if (/\bnear(by|est)?\s+(amenities|facilities|services)\b/i.test(q)) return { category: 'supermarket' };
   
   // DYNAMIC FALLBACK: Extract amenity keyword for unknown place types
   // This allows handling of any amenity query like "bowling", "laser tag", "escape room", etc.
@@ -1538,7 +1544,7 @@ function extractAmenityKeyword(query: string): string | null {
   const patterns = [
     /(?:where(?:'s| is| are)?|find|closest|nearest|any|looking for(?: a)?)\s+(?:the\s+)?(?:nearest\s+)?(.+?)(?:\s+near(?:by)?|\s+close|\s+around|\?|$)/i,
     /(?:is there|are there)\s+(?:a|an|any)\s+(.+?)\s+(?:near(?:by)?|close|around|\?|$)/i,
-    /(.+?)\s+(?:near(?:by)?|close by|around here|in the area)/i,
+    /(.+?)\s+(?:near(?:by)?|close(?:\s+by|\s+to\s+(?:me|us|here))|around here|in the area)/i,
   ];
   
   for (const pattern of patterns) {
@@ -1555,7 +1561,7 @@ function extractAmenityKeyword(query: string): string | null {
     .replace(/\?+$/g, '')
     .replace(/^(where(?:'s| is| are)?|find(?: me)?|show(?: me)?|looking for|is there|are there|any|nearest|closest)\s*/gi, '')
     .replace(/^(the|a|an|some)\s+/gi, '')
-    .replace(/\s+(near(?:by)?|close(?:\s*by)?|around(?:\s*here)?|in the area)$/gi, '')
+    .replace(/\s+(near(?:by)?|close(?:\s*by|\s+to\s+(?:me|us|here))|around(?:\s*here)?|in the area)$/gi, '')
     .replace(/\s+(please|thanks|thank you)$/gi, '')
     .trim();
   
@@ -1774,7 +1780,9 @@ export const FOLLOW_UP_CAPABILITY_MAP: Record<string, POICategory[]> = {
   'convenience stores': ['convenience_store'],
   'convenience store': ['convenience_store'],
   'local shops': ['convenience_store'],
+  'local shop': ['convenience_store'],
   'shops': ['convenience_store'],
+  'corner shops': ['convenience_store'],
   'corner shop': ['convenience_store'],
   'shop': ['convenience_store'],
   'supermarkets': ['supermarket'],

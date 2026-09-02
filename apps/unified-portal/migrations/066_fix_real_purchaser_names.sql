@@ -26,20 +26,6 @@
 
 BEGIN;
 
--- 1) Backup the columns we are about to change (drop+recreate so re-runs are safe)
-DROP TABLE IF EXISTS units_purchaser_backup_2026_06_04;
-CREATE TABLE units_purchaser_backup_2026_06_04 AS
-SELECT id, development_id, unit_number, purchaser_name, purchaser_email, unit_status
-FROM units
-WHERE development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb');
-
-DROP TABLE IF EXISTS usp_purchaser_backup_2026_06_04;
-CREATE TABLE usp_purchaser_backup_2026_06_04 AS
-SELECT usp.unit_id, usp.purchaser_name, usp.sale_type, usp.housing_agency
-FROM unit_sales_pipeline usp
-JOIN units u ON u.id = usp.unit_id
-WHERE u.development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb');
-
 
 -- 2) Longview Park: real purchaser names (61 units)
 UPDATE units u SET purchaser_name = v.name
@@ -76,7 +62,7 @@ FROM (VALUES
   ('35','Ms Emma Lundy and Mr Cillian Williamson'),
   ('36','Mr Suraj Gawade and Ms Aishwarya Hanumant Kodalkar'),
   ('37','Roschelle McSweeney and Cian O''Donovan'),
-  ('38','Mr Halimah Baruwa and Ms Sherif Baruwa'),
+  ('38','Ms Halimah Baruwa and Mr Sherif Baruwa'),
   ('39','Mr Rima Urboniene and Ms Laurynas Urbonas'),
   ('40','Dr Yineng Wang and Ms Lin Lin'),
   ('41','Ms Akhila Anand and Mr Vishnu Puthenpurackal Sudarsanan'),
@@ -179,6 +165,39 @@ SET purchaser_name = u.purchaser_name,
 FROM units u
 WHERE usp.unit_id = u.id
   AND u.development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb');
+
+-- Fail closed if the intended anchor corrections or pipeline synchronization did not land.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = 'e0833063-55ac-4201-a50e-f329c090fbd6'
+      AND unit_number = '1'
+      AND purchaser_name = 'Mr Herol Dsouza and Ms Janet Miranda'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = '84a559d1-89f1-4eb6-a48b-7ca068bcc164'
+      AND unit_number = '13'
+      AND purchaser_name = 'Ms Primitha Mohan & Mr Gireesh Nadesan'
+  ) OR NOT EXISTS (
+    SELECT 1 FROM units
+    WHERE development_id = '39c49eeb-54a6-4b04-a16a-119012c531cb'
+      AND unit_number = '21'
+      AND purchaser_name = 'Alexandra Ioana Dogaru & Urko Ullande Reveluata'
+  ) THEN
+    RAISE EXCEPTION 'Migration 066 purchaser anchor verification failed';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM unit_sales_pipeline usp
+    JOIN units u ON u.id = usp.unit_id
+    WHERE u.development_id IN ('e0833063-55ac-4201-a50e-f329c090fbd6','84a559d1-89f1-4eb6-a48b-7ca068bcc164','39c49eeb-54a6-4b04-a16a-119012c531cb')
+      AND usp.purchaser_name IS DISTINCT FROM u.purchaser_name
+  ) THEN
+    RAISE EXCEPTION 'Migration 066 pipeline synchronization verification failed';
+  END IF;
+END $$;
 
 COMMIT;
 
