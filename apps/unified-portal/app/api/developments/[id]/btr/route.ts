@@ -4,14 +4,38 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
 import { developments, btrTenancies, complianceSchedule } from '@openhouse/db/schema';
 import { eq, and, sql } from 'drizzle-orm';
-import { requireRole } from '@/lib/supabase-server';
+import { requireRole, type AdminSession } from '@/lib/supabase-server';
+
+// SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+async function assertDevelopmentOwnership(
+  session: AdminSession,
+  developmentId: string
+): Promise<NextResponse | null> {
+  const [development] = await db
+    .select({ id: developments.id, tenant_id: developments.tenant_id })
+    .from(developments)
+    .where(eq(developments.id, developmentId))
+    .limit(1);
+
+  if (!development) {
+    return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+  }
+
+  if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return null;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const developmentId = params.id;
 
     const [dev] = await db

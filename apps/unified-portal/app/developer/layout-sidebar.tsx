@@ -7,7 +7,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import {
   BarChart3, Users, Lightbulb, BookOpen, Menu, X, Home, Ruler,
-  FolderArchive, MessageSquare, Shield, Sparkles,
+  FolderArchive, MessageSquare, Sparkles,
   Layers, ShieldCheck, GitBranch, Mail,
   CalendarCheck, Building2, Wrench, Dumbbell, BookOpen as Welcome,
   Plug, Megaphone, HardDrive, LogOut, UserPlus, ClipboardList, Calendar,
@@ -57,10 +57,8 @@ function buildMoreNav(opts: { isAdmin: boolean }): NavItem[] {
     { label: 'Pre-Handover Portal', href: '/developer/pre-handover-settings', icon: CalendarCheck },
     { label: 'Kitchen Selections', href: '/developer/kitchen-selections', icon: Layers },
     { label: 'Compliance', href: '/developer/compliance', icon: ShieldCheck },
-    { label: 'Communications', href: '/developer/communications', icon: Mail },
     { label: 'Broadcasts', href: '/developer/broadcasts', icon: Megaphone },
     { label: 'Noticeboard', href: '/developer/noticeboard', icon: MessageSquare },
-    { label: 'Moderation', href: '/developer/moderation', icon: Shield },
   ];
   if (isBuilderSnagAppEnabled()) {
     items.push({ label: 'Snag Team', href: '/developer/snaggers', icon: UserPlus });

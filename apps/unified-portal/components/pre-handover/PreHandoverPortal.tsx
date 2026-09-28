@@ -27,6 +27,73 @@ function formatShortDate(dateStr: string | null): string {
   return `${d.getDate()} ${months[d.getMonth()]}`;
 }
 
+// CALENDAR: all-day event on the estimated handover date (Google link + .ics for Apple Calendar)
+function toCalendarDay(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
+}
+
+function escapeIcsText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/[,;]/g, (m) => `\\${m}`).replace(/\r?\n/g, '\\n');
+}
+
+interface HandoverCalendarEvent {
+  title: string;
+  details: string;
+  start: string; // YYYYMMDD
+  end: string; // YYYYMMDD (exclusive, next day)
+}
+
+function buildHandoverEvent(dateStr: string | null, propertyName: string): HandoverCalendarEvent | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return null;
+  const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1);
+  return {
+    title: propertyName ? `Estimated handover: ${propertyName}` : 'Estimated home handover',
+    details: 'Estimated handover date for your new home. Your developer will confirm the final date.',
+    start: toCalendarDay(d),
+    end: toCalendarDay(next),
+  };
+}
+
+function googleCalendarUrl(event: HandoverCalendarEvent): string {
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${event.start}/${event.end}`,
+    details: event.details,
+  });
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+function downloadIcs(event: HandoverCalendarEvent): void {
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//OpenHouse//Pre-Handover//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:handover-${event.start}-${Date.now()}@openhouseai.ie`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART;VALUE=DATE:${event.start}`,
+    `DTEND;VALUE=DATE:${event.end}`,
+    `SUMMARY:${escapeIcsText(event.title)}`,
+    `DESCRIPTION:${escapeIcsText(event.details)}`,
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+  const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'handover.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 interface PreHandoverPortalProps {
   unit?: UnitPreHandoverData;
   unitId?: string;
@@ -84,6 +151,8 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
 
   const openSheet = useCallback((sheet: SheetType) => setActiveSheet(sheet), []);
   const closeSheet = useCallback(() => setActiveSheet(null), []);
+
+  const handoverEvent = buildHandoverEvent(unit.estHandoverDate, unit.propertyName);
 
   const handleSwitchToAssistant = useCallback(async () => {
     if (props.unitId) {
@@ -216,7 +285,7 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
           <div className="text-center">
             <h2 className="text-lg font-semibold text-gray-900">{unit.propertyName}</h2>
             <p className="text-sm text-gray-500 mt-1">
-              {unit.propertyType} · {unit.houseType}
+              {[unit.propertyType, unit.houseType].filter(Boolean).join(' · ')}
             </p>
 
             {/* Status Badge */}
@@ -225,7 +294,7 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
                 bg-emerald-50 border border-emerald-200">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-xs font-medium text-emerald-700">
-                  On Track · Est. {formatMonth(unit.estHandoverDate)}
+                  On Track{handoverEvent ? ` · Est. ${formatMonth(unit.estHandoverDate)}` : ''}
                 </span>
               </div>
             </div>
@@ -579,24 +648,35 @@ export function PreHandoverPortal(props: PreHandoverPortalProps) {
       <BottomSheet isOpen={activeSheet === 'calendar'} onClose={closeSheet}>
         <SheetHeader title="Add to Calendar" subtitle="Add key dates to your calendar" />
         <div className="px-5 py-4 space-y-2">
-          <SheetItem onClick={() => { closeSheet(); }}>
-            <div className="w-11 h-11 rounded-xl bg-white border border-gray-200 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-[#D4AF37]" />
+          {handoverEvent ? (
+            <>
+              <SheetItem onClick={() => { window.open(googleCalendarUrl(handoverEvent), '_blank', 'noopener,noreferrer'); closeSheet(); }}>
+                <div className="w-11 h-11 rounded-xl bg-white border border-gray-200 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-[#D4AF37]" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">Google Calendar</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </SheetItem>
+              <SheetItem onClick={() => { downloadIcs(handoverEvent); closeSheet(); }}>
+                <div className="w-11 h-11 rounded-xl bg-white border border-gray-200 flex items-center justify-center">
+                  <Calendar className="w-5 h-5 text-gray-700" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">Apple Calendar</p>
+                </div>
+                <ChevronRight className="w-5 h-5 text-gray-400" />
+              </SheetItem>
+            </>
+          ) : (
+            <div className="text-center py-8">
+              <div className="w-14 h-14 mx-auto mb-4 rounded-full bg-amber-50 flex items-center justify-center border border-[#D4AF37]/20">
+                <Calendar className="w-6 h-6 text-[#D4AF37]" />
+              </div>
+              <p className="text-sm text-gray-500">Your estimated handover date will appear here once confirmed</p>
             </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">Google Calendar</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          </SheetItem>
-          <SheetItem onClick={() => { closeSheet(); }}>
-            <div className="w-11 h-11 rounded-xl bg-white border border-gray-200 flex items-center justify-center">
-              <Calendar className="w-5 h-5 text-gray-700" />
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-gray-900">Apple Calendar</p>
-            </div>
-            <ChevronRight className="w-5 h-5 text-gray-400" />
-          </SheetItem>
+          )}
         </div>
       </BottomSheet>
 

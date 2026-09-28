@@ -26,7 +26,8 @@ export async function GET() {
 
     const { data: connections, error } = await supabase
       .from('storage_connections')
-      .select('*')
+      // SECURITY: never return the (encrypted) `credentials` column to the browser
+      .select('id, tenant_id, provider, display_name, status, last_sync_at, last_error, created_at, updated_at')
       .eq('tenant_id', session.tenantId)
       .neq('status', 'disconnected')
       .order('created_at', { ascending: false })

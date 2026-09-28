@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Activity, Zap, Download, FileSpreadsheet, FileText, Home, UserCheck, Eye, AlertTriangle, CheckCircle2, ArrowUpRight } from 'lucide-react';
+import { Users, MessageSquare, TrendingUp, ArrowLeft, BarChart3, Activity, Zap, Download, FileSpreadsheet, FileText, Home, UserCheck, Eye, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { useOverviewMetrics, useHomeownerMetrics } from '@/hooks/useAnalyticsV2';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -55,8 +55,6 @@ interface HomeownerEngagementData {
   activeThisWeek: number;
   activeThisMonth: number;
   neverEngaged: number;
-  highEngagers: number; // 5+ messages
-  lowEngagers: number; // 1-2 messages
   avgMessagesPerUser: number;
   documentsViewed: number;
   noticeboardViews: number;
@@ -70,14 +68,6 @@ interface ContentPerformanceData {
   noticeboardReach: number;
   faqsAnswered: number;
   escalatedQueries: number;
-}
-
-interface TrendData {
-  metric: string;
-  current: number;
-  previous: number;
-  change: number;
-  trend: 'up' | 'down' | 'stable';
 }
 
 interface AnalyticsClientProps {
@@ -144,8 +134,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     activeThisWeek: 0,
     activeThisMonth: 0,
     neverEngaged: 0,
-    highEngagers: 0,
-    lowEngagers: 0,
     avgMessagesPerUser: 0,
     documentsViewed: 0,
     noticeboardViews: 0
@@ -159,7 +147,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     faqsAnswered: 0,
     escalatedQueries: 0
   });
-  const [trends, setTrends] = useState<TrendData[]>([]);
   
   // PC Sum Revenue Impact data
   interface PcSumData {
@@ -176,7 +163,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     pcSumTotal: number;
     totalRevenue: number;
   }
-  const [pcSumData, setPcSumData] = useState<PcSumData>({
+  const EMPTY_PC_SUM: PcSumData = {
     totalUnits: 0,
     decided: 0,
     kitchenDecided: 0,
@@ -189,7 +176,8 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     pcSumWardrobes: 0,
     pcSumTotal: 0,
     totalRevenue: 0,
-  });
+  };
+  const [pcSumData, setPcSumData] = useState<PcSumData>(EMPTY_PC_SUM);
 
   // Export functions
   const generateCSVContent = useCallback(() => {
@@ -223,7 +211,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     rows.push(['Active This Week', String(homeownerEngagement.activeThisWeek)]);
     rows.push(['Active This Month', String(homeownerEngagement.activeThisMonth)]);
     rows.push(['Never Engaged', String(homeownerEngagement.neverEngaged)]);
-    rows.push(['High Engagers (5+ msgs)', String(homeownerEngagement.highEngagers)]);
     rows.push(['Avg Messages Per User', String(homeownerEngagement.avgMessagesPerUser.toFixed(1))]);
     rows.push([]);
 
@@ -379,8 +366,8 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
               <div class="card-value">${homeownerEngagement.activeThisMonth}</div>
             </div>
             <div class="card">
-              <div class="card-title">High Engagers</div>
-              <div class="card-value">${homeownerEngagement.highEngagers}</div>
+              <div class="card-title">Never Engaged</div>
+              <div class="card-value">${homeownerEngagement.neverEngaged}</div>
             </div>
             <div class="card">
               <div class="card-title">Avg Msgs/User</div>
@@ -556,8 +543,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
       activeThisWeek: activeUsers,
       activeThisMonth: activeUsers,
       neverEngaged: Math.max(0, totalHomeowners - activeUsers),
-      highEngagers: Math.round(activeUsers * 0.3),
-      lowEngagers: Math.round(activeUsers * 0.4),
       avgMessagesPerUser: avgMessages,
       documentsViewed: metrics?.totalDocuments || 0,
       noticeboardViews: 0
@@ -602,10 +587,10 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
 
         setContentPerformance({
           documentsUploaded,
-          documentsViewedCount: metrics?.totalDocuments || documentsUploaded * 3,
+          documentsViewedCount: metrics?.totalDocuments || 0,
           mostViewedDocument: 'N/A',
           noticeboardPosts,
-          noticeboardReach: noticeboardPosts * (metrics?.activeUsers || 5),
+          noticeboardReach: noticeboardPosts * (metrics?.activeUsers || 0),
           faqsAnswered,
           escalatedQueries
         });
@@ -615,43 +600,17 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
     loadContentPerformance();
   }, [tenantId, effectiveDevelopmentId, daysToQuery, metrics]);
 
-  // Calculate trends
-  useEffect(() => {
-    if (metrics && homeowners) {
-      // Simple trend calculations
-      const trendData: TrendData[] = [
-        {
-          metric: 'Messages',
-          current: metrics.totalMessages || 0,
-          previous: Math.round((metrics.totalMessages || 0) * 0.9),
-          change: 11,
-          trend: 'up'
-        },
-        {
-          metric: 'Active Users',
-          current: metrics.activeUsers || 0,
-          previous: Math.round((metrics.activeUsers || 0) * 0.85),
-          change: 18,
-          trend: 'up'
-        },
-        {
-          metric: 'Engagement',
-          current: Math.round((homeowners.engagementRate || 0) * 100),
-          previous: Math.round((homeowners.engagementRate || 0) * 100 * 0.95),
-          change: 5,
-          trend: 'up'
-        }
-      ];
-      setTrends(trendData);
-    }
-  }, [metrics, homeowners]);
-
   // Fetch PC Sum Revenue Impact data
   useEffect(() => {
     async function loadPcSumData() {
+      // PC Sum data is per-scheme only (/api/pipeline/[developmentId]); there is no all-schemes
+      // unit endpoint, so with "All schemes" selected nothing is fetched and the section stays hidden.
+      if (!effectiveDevelopmentId) {
+        setPcSumData(EMPTY_PC_SUM);
+        return;
+      }
       try {
-        const devParam = effectiveDevelopmentId ? `/${effectiveDevelopmentId}` : '';
-        const res = await fetch(`/api/pipeline${devParam || '/all'}?includePcSum=true`);
+        const res = await fetch(`/api/pipeline/${effectiveDevelopmentId}?includePcSum=true`);
         if (res.ok) {
           const data = await res.json();
           const units = data.units || [];
@@ -870,11 +829,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
             <div className={`rounded-lg border p-5 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>
               <div className="flex items-center justify-between mb-3">
                 <UserCheck className="w-5 h-5 text-green-500" />
-                {trends.find(t => t.metric === 'Active Users')?.trend === 'up' && (
-                  <span className="flex items-center text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                    <ArrowUpRight className="w-3 h-3 mr-0.5" />+{trends.find(t => t.metric === 'Active Users')?.change}%
-                  </span>
-                )}
               </div>
               <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Active This Month</p>
               <p className={`text-2xl font-bold ${textColor}`}>{homeownerEngagement.activeThisMonth}</p>
@@ -884,11 +838,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
             <div className={`rounded-lg border p-5 backdrop-blur-sm transition hover:shadow-md ${cardBg}`}>
               <div className="flex items-center justify-between mb-3">
                 <MessageSquare className="w-5 h-5 text-gold-500" />
-                {trends.find(t => t.metric === 'Messages')?.trend === 'up' && (
-                  <span className="flex items-center text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
-                    <ArrowUpRight className="w-3 h-3 mr-0.5" />+{trends.find(t => t.metric === 'Messages')?.change}%
-                  </span>
-                )}
               </div>
               <p className={`${secondaryText} text-xs uppercase tracking-wide mb-1`}>Total Messages</p>
               <p className={`text-2xl font-bold ${textColor}`}>{metrics?.totalMessages?.toLocaleString() || 0}</p>
@@ -933,7 +882,7 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
               <div className="text-center p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
                 <p className="text-3xl font-bold text-blue-600">{homeownerEngagement.totalHomeowners}</p>
                 <p className="text-xs text-blue-700 font-medium mt-1">Total Homeowners</p>
@@ -950,11 +899,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
               <div className="text-center p-4 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-lg">
                 <p className="text-3xl font-bold text-emerald-600">{homeownerEngagement.activeThisMonth}</p>
                 <p className="text-xs text-emerald-700 font-medium mt-1">Active (30d)</p>
-              </div>
-              <div className="text-center p-4 bg-gradient-to-br from-gold-50 to-gold-100 rounded-lg">
-                <p className="text-3xl font-bold text-gold-600">{homeownerEngagement.highEngagers}</p>
-                <p className="text-xs text-gold-700 font-medium mt-1">High Engagers</p>
-                <p className="text-xs text-gold-600 mt-0.5">5+ messages</p>
               </div>
               <div className="text-center p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
                 <p className="text-3xl font-bold text-purple-600">{homeownerEngagement.avgMessagesPerUser.toFixed(1)}</p>
@@ -997,16 +941,6 @@ export default function AnalyticsClient({ tenantId, serverHomeownerCount, server
                     />
                   </div>
                   <div className="w-16 text-sm font-medium text-grey-900 text-right">{homeownerEngagement.activeThisMonth}</div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-24 text-xs text-grey-600">High Engagers</div>
-                  <div className="flex-1 h-6 bg-grey-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gold-500 rounded-full"
-                      style={{ width: `${homeownerEngagement.totalHomeowners > 0 ? (homeownerEngagement.highEngagers / homeownerEngagement.totalHomeowners) * 100 : 0}%` }}
-                    />
-                  </div>
-                  <div className="w-16 text-sm font-medium text-grey-900 text-right">{homeownerEngagement.highEngagers}</div>
                 </div>
               </div>
             </div>

@@ -322,10 +322,13 @@ export async function PUT(request: NextRequest) {
     if (body.room_name !== undefined) updateData.room_name = body.room_name;
     if (body.room_key !== undefined) updateData.room_key = body.room_key;
     if (body.floor !== undefined) updateData.floor = body.floor;
-    if (body.length_m !== undefined) updateData.length_m = String(body.length_m);
-    if (body.width_m !== undefined) updateData.width_m = String(body.width_m);
-    if (body.area_sqm !== undefined) updateData.area_sqm = String(body.area_sqm);
-    if (body.ceiling_height_m !== undefined) updateData.ceiling_height_m = String(body.ceiling_height_m);
+    // Blank measurements arrive as null; String(null) would write "null" into a
+    // decimal column and fail the update.
+    const toDecimal = (x: unknown) => (x === null || x === undefined || x === '' ? null : String(x));
+    if (body.length_m !== undefined) updateData.length_m = toDecimal(body.length_m);
+    if (body.width_m !== undefined) updateData.width_m = toDecimal(body.width_m);
+    if (body.area_sqm !== undefined) updateData.area_sqm = toDecimal(body.area_sqm);
+    if (body.ceiling_height_m !== undefined) updateData.ceiling_height_m = toDecimal(body.ceiling_height_m);
     if (body.verified !== undefined) updateData.verified = body.verified;
     if (body.notes !== undefined) updateData.notes = body.notes;
     if (body.source !== undefined) updateData.source = body.source;

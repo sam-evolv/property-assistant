@@ -126,22 +126,49 @@ export function HomeownersList({
 
   // Bulk action handlers
   const handleBulkEmail = useCallback(() => {
-    const ids = Array.from(selectedIds).join(',');
-    router.push(`/developer/homeowners/email?ids=${ids}`);
-  }, [selectedIds, router]);
+    const emails = Array.from(new Set(
+      homeowners
+        .filter(u => selectedIds.has(u.id))
+        .map(u => (u.purchaser_email || '').trim())
+        .filter(Boolean)
+    ));
+    if (emails.length === 0) {
+      alert('None of the selected homes have a purchaser email on file.');
+      return;
+    }
+    // BCC so homeowners don't see each other's addresses
+    window.location.href = `mailto:?bcc=${emails.map(encodeURIComponent).join(',')}`;
+  }, [selectedIds, homeowners]);
 
   const handleBulkExport = useCallback(() => {
-    // TODO: Implement export
-  }, [selectedIds]);
-
-  const handleBulkArchive = useCallback(() => {
-    // TODO: Implement archive
-  }, [selectedIds]);
+    const rows = homeowners.filter(u => selectedIds.has(u.id));
+    if (rows.length === 0) return;
+    const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const header = ['Unit', 'Address', 'Development', 'Purchaser', 'Email', 'Phone', 'Handover Date'];
+    const lines = rows.map(u => [
+      u.unit_number,
+      u.address,
+      u.development?.name,
+      u.purchaser_name || u.resident_name || u.name,
+      u.purchaser_email,
+      u.purchaser_phone,
+      u.handover_date,
+    ].map(escape).join(','));
+    const csv = [header.map(escape).join(','), ...lines].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `homeowners-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [selectedIds, homeowners]);
 
   const bulkActions = getCommonBulkActions({
     onEmail: handleBulkEmail,
     onExport: handleBulkExport,
-    onArchive: handleBulkArchive,
   });
 
   const handleBulkQRDownload = async () => {

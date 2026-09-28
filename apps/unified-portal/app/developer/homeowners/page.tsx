@@ -88,7 +88,7 @@ export default async function HomeownersPage({
   let session;
   
   try {
-    session = await requireRole(['developer', 'super_admin']);
+    session = await requireRole(['developer', 'admin', 'super_admin']);
   } catch {
     redirect('/unauthorized');
   }

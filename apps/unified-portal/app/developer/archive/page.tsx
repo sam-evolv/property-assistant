@@ -37,6 +37,16 @@ interface EmbeddingStats {
 
 type TabType = 'archive' | 'important' | 'insights' | 'gaps' | 'videos';
 
+// Some archive maintenance endpoints (bulk-classify, reprocess-all) are not
+// deployed in every environment. Only parse a response as JSON when it really is
+// one, so a 404 page never surfaces as a parse error.
+function isJsonOk(response: Response): boolean {
+  return response.ok && (response.headers.get('content-type') || '').includes('application/json');
+}
+
+// There is no archive search API yet; keep the entry point hidden until there is.
+const ARCHIVE_SEARCH_ENABLED = false;
+
 export default function SmartArchivePage() {
   const { tenantId, archiveScope, setArchiveScope, isHydrated } = useSafeCurrentContext();
   const developmentId = getSchemeId(archiveScope);
@@ -125,7 +135,7 @@ export default function SmartArchivePage() {
       }
       
       const response = await fetch(`/developer/api/archive/bulk-classify?${params}`);
-      if (response.ok) {
+      if (isJsonOk(response)) {
         const data = await response.json();
         setUnclassifiedCount(data.unclassifiedCount || 0);
       }
@@ -144,7 +154,7 @@ export default function SmartArchivePage() {
       }
       
       const response = await fetch(`/developer/api/archive/reprocess-all?${params}`);
-      if (response.ok) {
+      if (isJsonOk(response)) {
         const data = await response.json();
         setEmbeddingStats(data);
       }
@@ -208,7 +218,7 @@ export default function SmartArchivePage() {
         })
       });
       
-      if (response.ok) {
+      if (isJsonOk(response)) {
         const data = await response.json();
         setReprocessProgress(`Processed ${data.successful} of ${data.processed} documents (${data.totalChunks} chunks created)`);
         
@@ -217,13 +227,10 @@ export default function SmartArchivePage() {
           loadEmbeddingStats();
         }, 3000);
       } else {
-        const error = await response.json();
-        setReprocessProgress(`Error: ${error.error || 'Reprocessing failed'}`);
-        setTimeout(() => setReprocessProgress(null), 5000);
+        setReprocessProgress(null);
       }
     } catch {
-      setReprocessProgress('Reprocessing failed');
-      setTimeout(() => setReprocessProgress(null), 3000);
+      setReprocessProgress(null);
     } finally {
       setIsReprocessing(false);
     }
@@ -358,7 +365,7 @@ export default function SmartArchivePage() {
         })
       });
       
-      if (response.ok) {
+      if (isJsonOk(response)) {
         const data = await response.json();
         setClassifyProgress(`Classified ${data.successCount} documents`);
         
@@ -368,12 +375,10 @@ export default function SmartArchivePage() {
           checkUnclassified();
         }, 2000);
       } else {
-        setClassifyProgress('Classification failed');
-        setTimeout(() => setClassifyProgress(null), 3000);
+        setClassifyProgress(null);
       }
     } catch {
-      setClassifyProgress('Classification failed');
-      setTimeout(() => setClassifyProgress(null), 3000);
+      setClassifyProgress(null);
     } finally {
       setIsClassifying(false);
     }
@@ -423,13 +428,15 @@ export default function SmartArchivePage() {
             />
             
             <div className="flex items-center gap-3">
-              <Link
-                href="/developer/archive/search"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors"
-              >
-                <Search className="w-5 h-5" />
-                <span>Search</span>
-              </Link>
+              {ARCHIVE_SEARCH_ENABLED && (
+                <Link
+                  href="/developer/archive/search"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-700 hover:bg-gray-200 hover:text-gray-900 transition-colors"
+                >
+                  <Search className="w-5 h-5" />
+                  <span>Search</span>
+                </Link>
+              )}
               <button
                 onClick={handleRefresh}
                 disabled={isLoading}

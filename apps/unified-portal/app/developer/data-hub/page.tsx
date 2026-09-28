@@ -6,6 +6,7 @@ import {
   ChevronDown, ChevronUp, Loader2, AlertCircle, CheckCircle2,
   Ruler, ShieldCheck, FileText, Briefcase, FolderOpen,
 } from 'lucide-react'
+import { toast } from 'react-hot-toast'
 import { FolderBrowser } from '@/components/data-hub/FolderBrowser'
 import type { StorageFolder } from '@/lib/data-hub/storage-provider'
 
@@ -149,12 +150,19 @@ export default function DataHubPage() {
     try {
       const type = provider === 'google' ? 'cloud_storage' : `cloud_storage_${subType || 'onedrive'}`
       const res = await fetch(`/api/integrations/oauth/${provider}?type=${type}`)
-      const data = await res.json()
+      const data = await res.json().catch(() => ({}))
       if (data.auth_url) {
         window.location.href = data.auth_url
+      } else {
+        const label = provider === 'google' ? 'Google Drive' : 'Microsoft'
+        toast.error(
+          res.status === 503
+            ? `${label} connection isn't configured for this workspace yet.`
+            : data.error || `Could not start the ${label} connection.`
+        )
       }
     } catch {
-      // failed to initiate OAuth
+      toast.error('Could not start the connection. Please try again.')
     } finally {
       setConnecting(null)
     }
@@ -197,8 +205,7 @@ export default function DataHubPage() {
       try {
         const res = await fetch(`/api/data-hub/connections/${connectionId}/folders`)
         const data = await res.json()
-        // We need the watched folders from DB, not the provider folders
-        // For now store an empty array - the FolderBrowser handles browsing
+        // The root listing includes this connection's watched_folders rows.
         setWatchedFolders((prev) => ({ ...prev, [connectionId]: data.watchedFolders || [] }))
       } catch {
         setWatchedFolders((prev) => ({ ...prev, [connectionId]: [] }))

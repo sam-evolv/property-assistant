@@ -2,17 +2,21 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { Search, Upload, Eye, Download, ChevronDown, Plus, X, Check, Loader2, AlertCircle, Settings, Trash2 } from 'lucide-react';
+import { toast } from 'react-hot-toast';
 import { useCurrentContext } from '@/contexts/CurrentContext';
 import { ProgrammePanel } from './programme-panel';
 
 interface ComplianceFile {
   id: string;
+  /** compliance_files row id — present when a stored file can be opened. */
+  fileId?: string;
   fileName: string;
   uploadedDate: string;
 }
 
 interface ComplianceDocument {
   id: string;
+  documentTypeId: string;
   name: string;
   category: string;
   files: ComplianceFile[];
@@ -74,6 +78,7 @@ const DocumentRow = ({
   onUpload: () => void;
 }) => {
   const hasFiles = doc.files.length > 0;
+  const fileId = doc.files[0]?.fileId;
   
   return (
     <div className="flex items-center justify-between py-4 px-6 bg-white border-b border-gray-100 last:border-b-0">
@@ -103,13 +108,26 @@ const DocumentRow = ({
       <div className="flex items-center gap-2">
         {hasFiles ? (
           <>
-            <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-              <Eye className="w-4 h-4" />
-              View
-            </button>
-            <button className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
-              <Download className="w-4 h-4" />
-            </button>
+            {fileId && (
+              <>
+                <a
+                  href={`/developer/compliance/files/${fileId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <Eye className="w-4 h-4" />
+                  View
+                </a>
+                <a
+                  href={`/developer/compliance/files/${fileId}?download=1`}
+                  aria-label="Download"
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+              </>
+            )}
             <button 
               onClick={onUpload}
               className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
@@ -360,22 +378,32 @@ export default function CompliancePage() {
       setDocumentTypes(fetchedDocTypes.map((dt: any) => ({ id: dt.id, name: dt.name, category: dt.category })));
       const documentTypes = fetchedDocTypes;
       
+      const docByKey = new Map<string, any>();
+      for (const d of documents) {
+        docByKey.set(`${d.unit_id}:${d.document_type_id}`, d);
+      }
+
       const transformedUnits: Unit[] = fetchedUnits.map((unit: any) => {
         const unitDocs: ComplianceDocument[] = documentTypes.map((docType: any) => {
-          const existingDoc = documents.find(
-            (d: any) => d.document_type_id === docType.id && d.unit_id === unit.id
-          );
+          const existingDoc = docByKey.get(`${unit.id}:${docType.id}`);
+          const latestFile = existingDoc
+            ? [...(existingDoc.files || [])].sort(
+                (a: any, b: any) => (b.version ?? 0) - (a.version ?? 0)
+              )[0]
+            : undefined;
           
-          const files: ComplianceFile[] = existingDoc ? [{
+          const files: ComplianceFile[] = existingDoc && existingDoc.status !== 'missing' ? [{
             id: existingDoc.id,
-            fileName: existingDoc.file_name || `${docType.name}.pdf`,
-            uploadedDate: existingDoc.created_at 
-              ? new Date(existingDoc.created_at).toLocaleDateString('en-GB')
+            fileId: latestFile?.id,
+            fileName: latestFile?.file_name || existingDoc.file_name || `${docType.name}.pdf`,
+            uploadedDate: (existingDoc.updated_at || existingDoc.created_at)
+              ? new Date(existingDoc.updated_at || existingDoc.created_at).toLocaleDateString('en-GB')
               : '',
           }] : [];
           
           return {
             id: `${unit.id}-${docType.id}`,
+            documentTypeId: docType.id,
             name: docType.name,
             category: docType.category,
             files,
@@ -437,11 +465,33 @@ export default function CompliancePage() {
     setUploadModal({ doc, unit });
   };
 
-  const handleFileUpload = async (_file: File) => {
-    if (!uploadModal) return;
-    
+  const handleFileUpload = async (file: File) => {
+    if (!uploadModal || !developmentId) return;
+    const { doc, unit } = uploadModal;
+    const documentTypeId = doc.documentTypeId;
+
     setUploadModal(null);
-    fetchData();
+    const toastId = toast.loading(`Uploading ${file.name}...`);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('unitId', unit.id);
+      formData.append('documentTypeId', documentTypeId);
+      const nameParam = developmentName ? `?name=${encodeURIComponent(developmentName)}` : '';
+      const res = await fetch(`/api/compliance/${developmentId}/upload${nameParam}`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || 'Upload failed');
+      }
+      toast.success(`${doc.name} uploaded`, { id: toastId });
+      fetchData();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Upload failed', { id: toastId });
+    }
   };
 
   const handleAddDocType = async () => {

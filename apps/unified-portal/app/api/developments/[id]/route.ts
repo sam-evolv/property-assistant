@@ -14,15 +14,15 @@ function getSupabaseAdmin() {
   );
 }
 
-const REAL_PROJECT_ID = '57dc3919-2725-4575-8046-9179075ac88e';
-
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await requireRole(['developer', 'super_admin']);
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const supabaseAdmin = getSupabaseAdmin();
+    const canAccess = (tenantId: string | null | undefined) =>
+      session.role === 'super_admin' || (!!tenantId && tenantId === session.tenantId);
     
     // Try to get from local DB first
     const [development] = await db
@@ -32,17 +32,20 @@ export async function GET(
       .limit(1);
 
     if (development) {
+      if (!canAccess(development.tenant_id)) {
+        return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+      }
       return NextResponse.json({ development });
     }
 
     // Fallback: try Supabase projects table
-    const { data: project, error } = await supabaseAdmin
+    const { data: project } = await supabaseAdmin
       .from('projects')
       .select('id, name, tenant_id, created_at, project_type')
       .eq('id', params.id)
       .single();
 
-    if (project) {
+    if (project && canAccess(project.tenant_id)) {
       return NextResponse.json({
         development: {
           id: project.id,
@@ -55,39 +58,16 @@ export async function GET(
       });
     }
 
-    // Try with real project ID as last resort
-    const { data: realProject } = await supabaseAdmin
-      .from('projects')
-      .select('id, name, tenant_id, created_at, project_type')
-      .eq('id', REAL_PROJECT_ID)
-      .single();
-
-    if (realProject) {
-      return NextResponse.json({
-        development: {
-          id: params.id,
-          name: realProject.name || 'Development',
-          tenant_id: realProject.tenant_id,
-          created_at: realProject.created_at,
-          system_instructions: null,
-          project_type: realProject.project_type || 'bts',
-        }
-      });
-    }
-
-    // Last fallback - return a mock development
-    return NextResponse.json({
-      development: {
-        id: params.id,
-        name: 'Development',
-        tenant_id: null,
-        created_at: new Date().toISOString(),
-        system_instructions: null,
-        project_type: 'bts',
-      }
-    });
+    return NextResponse.json({ error: 'Development not found' }, { status: 404 });
 
   } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    if (message === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json(
       { error: 'Failed to fetch development' },
       { status: 500 }

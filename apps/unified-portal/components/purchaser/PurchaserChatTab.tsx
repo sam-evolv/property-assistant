@@ -1505,13 +1505,17 @@ export default function PurchaserChatTab({
           return [...prev, { role: 'assistant', content: '', drawing: null, sources: null }];
         });
 
-        // STREAMING: Display text immediately as it arrives for perceived speed
+        // STREAMING: Display text immediately as it arrives for perceived speed.
+        // Server frames events as `data: <json>\n\n`; a network read can end mid-line,
+        // so keep the trailing partial line in a buffer until the next read completes it.
+        let sseBuffer = '';
         while (true) {
           const { done, value } = await reader.read();
-          if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+          sseBuffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          // Keep the last (possibly incomplete) line for the next read; flush everything on done
+          sseBuffer = done ? '' : (lines.pop() ?? '');
 
           for (const line of lines) {
             if (line.startsWith('data: ')) {
@@ -1604,10 +1608,12 @@ export default function PurchaserChatTab({
                   });
                 }
               } catch (e) {
-                // Ignore parse errors for incomplete chunks
+                // Ignore parse errors for malformed events
               }
             }
           }
+
+          if (done) break;
         }
       } else {
         // Handle non-streaming JSON response (liability override, clarification, errors)

@@ -606,6 +606,24 @@ export default function SchemeIntelligencePage() {
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
 
+  // A new session gets a temp id immediately and is swapped to the API id once the
+  // background POST resolves (possibly mid-stream). Track temp→real so in-flight
+  // updates addressed to the temp id still land, and so API persistence waits for
+  // the real id instead of PATCHing a temp id that doesn't exist server-side.
+  const sessionIdAliasRef = useRef<Map<string, string>>(new Map());
+  const pendingSessionCreatesRef = useRef<Map<string, Promise<string | null>>>(new Map());
+  const resolveSessionId = useCallback(
+    (id: string) => sessionIdAliasRef.current.get(id) ?? id,
+    []
+  );
+  const resolvePersistedSessionId = useCallback(
+    async (id: string): Promise<string | null> => {
+      const pending = pendingSessionCreatesRef.current.get(id);
+      return pending ? pending : id;
+    },
+    []
+  );
+
   // Load sessions from API, fallback to localStorage
   useEffect(() => {
     setSessionsLoading(true);
@@ -692,7 +710,7 @@ export default function SchemeIntelligencePage() {
       setActiveSessionId(tempId);
 
       // Persist to API in background
-      fetch('/api/scheme-intelligence/sessions', {
+      const createPromise: Promise<string | null> = fetch('/api/scheme-intelligence/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: session.title, developmentId, messages: [] }),
@@ -700,16 +718,22 @@ export default function SchemeIntelligencePage() {
         .then((res) => res.ok ? res.json() : Promise.reject())
         .then((data) => {
           if (data.session?.id) {
-            const apiId = data.session.id;
+            const apiId: string = data.session.id;
+            // Record the alias before swapping so any later update addressed to
+            // tempId (e.g. streamed tokens) resolves to apiId.
+            sessionIdAliasRef.current.set(tempId, apiId);
             setSessions((prev) => {
               const mapped = prev.map((s) => (s.id === tempId ? { ...s, id: apiId } : s));
               saveSessions(mapped);
               return mapped;
             });
             setActiveSessionId((prev) => (prev === tempId ? apiId : prev));
+            return apiId;
           }
+          return null;
         })
-        .catch(() => {});
+        .catch(() => null);
+      pendingSessionCreatesRef.current.set(tempId, createPromise);
 
       return tempId;
     },
@@ -719,14 +743,17 @@ export default function SchemeIntelligencePage() {
   const updateSessionMessages = useCallback(
     (sessionId: string, messages: ChatMessage[]) => {
       setSessions((prev) => {
+        // Resolve inside the updater so it matches whether or not the
+        // temp→real id swap has been applied yet.
+        const targetId = resolveSessionId(sessionId);
         const updated = prev.map((s) =>
-          s.id === sessionId ? { ...s, messages } : s
+          s.id === sessionId || s.id === targetId ? { ...s, messages } : s
         );
         saveSessions(updated);
         return updated;
       });
     },
-    []
+    [resolveSessionId]
   );
 
   const deleteSession = useCallback(
@@ -777,7 +804,8 @@ export default function SchemeIntelligencePage() {
         isStreaming: true,
       };
 
-      const currentSession = sessions.find((s) => s.id === sessionId);
+      const resolvedId = resolveSessionId(sessionId);
+      const currentSession = sessions.find((s) => s.id === sessionId || s.id === resolvedId);
       const prevMessages = currentSession?.messages || [];
       const newMessages = [...prevMessages, userMessage, assistantMessage];
       updateSessionMessages(sessionId, newMessages);
@@ -889,18 +917,22 @@ export default function SchemeIntelligencePage() {
               const { title } = await titleRes.json();
               if (title) {
                 setSessions((prev) => {
+                  const targetId = resolveSessionId(sessionId!);
                   const updated = prev.map((s) =>
-                    s.id === sessionId ? { ...s, title } : s
+                    s.id === sessionId || s.id === targetId ? { ...s, title } : s
                   );
                   saveSessions(updated);
                   return updated;
                 });
-                // Persist title to API
-                fetch(`/api/scheme-intelligence/sessions/${sessionId}`, {
-                  method: 'PATCH',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ title }),
-                }).catch(() => {});
+                // Persist title to API (once the real session id is known)
+                resolvePersistedSessionId(sessionId!).then((persistId) => {
+                  if (!persistId) return;
+                  fetch(`/api/scheme-intelligence/sessions/${persistId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title }),
+                  }).catch(() => {});
+                });
               }
             }
           } catch {
@@ -923,11 +955,14 @@ export default function SchemeIntelligencePage() {
             followUps,
           },
         ];
-        fetch(`/api/scheme-intelligence/sessions/${sessionId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ messages: finalMessages }),
-        }).catch(() => {});
+        resolvePersistedSessionId(sessionId!).then((persistId) => {
+          if (!persistId) return;
+          fetch(`/api/scheme-intelligence/sessions/${persistId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: finalMessages }),
+          }).catch(() => {});
+        });
       } catch {
         updateSessionMessages(sessionId!, [
           ...prevMessages,
@@ -942,7 +977,7 @@ export default function SchemeIntelligencePage() {
         setIsStreaming(false);
       }
     },
-    [activeSessionId, sessions, isStreaming, developmentId, compareWithId, createSession, updateSessionMessages]
+    [activeSessionId, sessions, isStreaming, developmentId, compareWithId, createSession, updateSessionMessages, resolveSessionId, resolvePersistedSessionId]
   );
 
   // Arriving with ?q= (e.g. from the Today ask bar) starts the conversation immediately.

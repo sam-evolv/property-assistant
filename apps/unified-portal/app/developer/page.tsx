@@ -77,7 +77,7 @@ export default function TodayPage() {
   const loadDashboard = useCallback(() => {
     setLoading(true);
     setFailed(false);
-    fetch('/api/analytics/developer/dashboard')
+    fetch(`/api/analytics/developer/dashboard${developmentId ? `?developmentId=${developmentId}` : ''}`)
       .then((res) => {
         if (!res.ok) throw new Error('dashboard failed');
         return res.json();
@@ -90,7 +90,7 @@ export default function TodayPage() {
       .then((res) => (res.ok ? res.json() : null))
       .then((payload) => setPipelineAlerts(payload))
       .catch(() => {});
-  }, []);
+  }, [developmentId]);
 
   useEffect(() => {
     loadDashboard();
@@ -131,7 +131,7 @@ export default function TodayPage() {
         title: `${snagRisk.totalOpenSnags} open snag${snagRisk.totalOpenSnags === 1 ? '' : 's'} on home${snagRisk.count === 1 ? '' : 's'} handing over soon`,
         detail: next ? `${next.label} — ${next.openSnags} open, handover in ${next.days} day${next.days === 1 ? '' : 's'}` : '',
         action: 'Clear them',
-        href: '/snag/houses',
+        href: snagsHref,
       });
     }
     const compliance = pipelineAlerts.complianceExpiring;

@@ -5,9 +5,10 @@ import { NextResponse } from 'next/server';
 import { db } from '@openhouse/db';
 import { sql } from 'drizzle-orm';
 import { z } from 'zod';
+import { requireRole } from '@/lib/supabase-server';
 
 const querySchema = z.object({
-  developer_id: z.string().uuid(),
+  developer_id: z.string().uuid().optional(),
   project_id: z.string().uuid().optional(),
   days: z.coerce.number().min(1).max(90).default(30),
 });
@@ -20,6 +21,7 @@ export interface DailyActivityData {
 
 export async function GET(request: Request) {
   try {
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
     const { searchParams } = new URL(request.url);
     
     const parseResult = querySchema.safeParse({
@@ -32,7 +34,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
 
-    const { developer_id, project_id, days } = parseResult.data;
+    const { developer_id: requestedTenantId, project_id, days } = parseResult.data;
+
+    // SECURITY: developer_id is accepted for backward compatibility but ignored for
+    // non-super sessions — always scope to the session tenant. Only super_admin may
+    // query another tenant via the param.
+    const developer_id = session.role === 'super_admin'
+      ? (requestedTenantId || session.tenantId)
+      : session.tenantId;
+    if (!developer_id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     const projectFilter = project_id 
       ? sql`AND development_id = ${project_id}::uuid` 
@@ -69,7 +81,14 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ activity: allDays });
-  } catch (error) {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to fetch daily activity' }, { status: 500 });
   }
 }

@@ -231,7 +231,12 @@ export default function RoomDimensionsPage() {
           floor: newRoom.floor || null,
           length_m: newRoom.length_m ? parseFloat(newRoom.length_m) : null,
           width_m: newRoom.width_m ? parseFloat(newRoom.width_m) : null,
-          area_sqm: newRoom.area_sqm ? parseFloat(newRoom.area_sqm) : null,
+          // The area field displays L x W when left blank, so save what is shown.
+          area_sqm: newRoom.area_sqm
+            ? parseFloat(newRoom.area_sqm)
+            : newRoom.length_m && newRoom.width_m
+              ? parseFloat((parseFloat(newRoom.length_m) * parseFloat(newRoom.width_m)).toFixed(2))
+              : null,
           ceiling_height_m: newRoom.ceiling_height_m ? parseFloat(newRoom.ceiling_height_m) : null,
           notes: newRoom.notes || null,
           source: 'manual',

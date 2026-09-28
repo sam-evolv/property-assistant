@@ -70,7 +70,7 @@ interface InsightsData {
   recommendations: AIRecommendation[];
   contentSuggestions: ContentSuggestion[];
   weeklyTrends: WeeklyTrend[];
-  topicClusters: Array<{topic: string; count: number; sentiment: 'positive' | 'neutral' | 'negative'}>;
+  topicClusters: Array<{topic: string; count: number; sentiment?: 'positive' | 'neutral' | 'negative'}>;
   peakHours: Array<{hour: number; count: number}>;
 }
 
@@ -238,38 +238,29 @@ export default function InsightsClient({ tenantId, serverHomeownerCount, serverH
           });
         }
 
-        // Generate weekly trends (simulated based on data)
-        const weeklyTrends: WeeklyTrend[] = [
-          { week: 'This Week', questions: realMetrics.totalMessages, resolved: Math.round(realMetrics.totalMessages * resolutionData.resolutionRate / 100), escalated: pendingCount },
-          { week: 'Last Week', questions: Math.round(realMetrics.totalMessages * 0.9), resolved: Math.round(realMetrics.totalMessages * 0.9 * 0.85), escalated: Math.round(pendingCount * 0.8) },
-          { week: '2 Weeks Ago', questions: Math.round(realMetrics.totalMessages * 0.85), resolved: Math.round(realMetrics.totalMessages * 0.85 * 0.8), escalated: Math.round(pendingCount * 0.6) },
-          { week: '3 Weeks Ago', questions: Math.round(realMetrics.totalMessages * 0.75), resolved: Math.round(realMetrics.totalMessages * 0.75 * 0.75), escalated: Math.round(pendingCount * 0.4) },
-        ];
+        // Weekly trends: the APIs above only return 30-day totals, not a per-week breakdown,
+        // so no weekly table is shown rather than extrapolating one.
+        const weeklyTrends: WeeklyTrend[] = [];
 
-        // Topic clusters from question categories
-        const topicClusters = (qData.categories || []).slice(0, 6).map((cat: any, idx: number) => ({
+        // Topic clusters from question categories (no sentiment data is available, so none is assigned)
+        const topicClusters = (qData.categories || []).slice(0, 6).map((cat: any) => ({
           topic: cat.category,
           count: cat.count,
-          sentiment: idx < 2 ? 'neutral' : idx < 4 ? 'positive' : 'negative' as 'positive' | 'neutral' | 'negative'
         }));
 
-        // Peak hours from question analysis
-        const peakHours = qData.questionsByTimeOfDay || Array.from({length: 24}, (_, i) => ({
-          hour: i,
-          count: Math.round(Math.random() * 10)
-        }));
+        // Peak hours from question analysis (empty when not available)
+        const peakHours = qData.questionsByTimeOfDay || [];
 
         const insights: InsightsData = {
           topRecurringQuestion: topQuestion,
           unansweredQueries: pendingCount,
           chatResolutionRate: resolutionData.resolutionRate,
           topQuestions: (qData.topQuestions || []).slice(0, 10),
-          knowledgeGaps: (qData.topQuestions || []).filter((q: Question) => q.count < 5).slice(0, 5).map((q: Question, idx: number) => ({
+          // No per-question category/status data exists, so those tags are left unset (and hidden)
+          knowledgeGaps: (qData.topQuestions || []).filter((q: Question) => q.count < 5).slice(0, 5).map((q: Question) => ({
             question: q.question,
             frequency: q.count,
-            suggestedAction: ['add_faq', 'upload_manual', 'document_process'][idx % 3] as any,
-            category: ['Timeline', 'Community', 'Amenities', 'Features', 'Documentation'][idx % 5],
-            status: ['pending', 'in_progress', 'resolved'][idx % 3] as any,
+            suggestedAction: 'add_faq' as const,
           })),
           realMetrics,
           recommendations,

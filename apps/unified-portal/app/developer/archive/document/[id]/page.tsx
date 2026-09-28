@@ -63,6 +63,10 @@ interface FPUnitType {
   name: string;
 }
 
+// The reprocess endpoint (/developer/api/archive/reprocess) is not deployed, so
+// the re-run button stays hidden until it is.
+const REPROCESS_ENABLED = false;
+
 export default function DocumentDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -123,10 +127,16 @@ export default function DocumentDetailPage() {
         setEditedTags(data.document.tags || []);
 
         if (data.document.development_id) {
-          const htRes = await fetch(`/api/house-types?tenantId=${tenantId}&developmentId=${data.document.development_id}`);
+          const htRes = await fetch(`/api/developments/${data.document.development_id}/house-types`);
           if (htRes.ok) {
             const htData = await htRes.json();
-            setHouseTypes(htData.houseTypes || []);
+            setHouseTypes(
+              (htData.houseTypes || []).map((ht: any) => ({
+                id: ht.id,
+                code: ht.house_type_code,
+                name: ht.name || ht.house_type_code,
+              }))
+            );
           }
         }
 
@@ -883,6 +893,7 @@ export default function DocumentDetailPage() {
                     Save Changes
                   </button>
 
+                  {REPROCESS_ENABLED && (
                   <button
                     onClick={handleReprocess}
                     disabled={isReprocessing}
@@ -895,6 +906,7 @@ export default function DocumentDetailPage() {
                     )}
                     Re-run AI Classification
                   </button>
+                  )}
                 </div>
               </div>
             </div>

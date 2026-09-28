@@ -427,7 +427,7 @@ export default function HomeResidentPage() {
       <PreHandoverPortal
         unitId={house.unit_id}
         propertyName={house.address || `Unit ${house.unit_id}`}
-        propertyType={`${house.bedrooms || 3} Bed`}
+        propertyType={house.bedrooms ? `${house.bedrooms} Bed` : ''}
         houseType={house.house_type || 'House'}
         purchaserName={house.purchaser_name}
         developmentName={house.development_name}

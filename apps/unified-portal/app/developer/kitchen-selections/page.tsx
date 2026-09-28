@@ -479,6 +479,8 @@ function SettingsModal({
   );
 }
 
+const SEND_REMINDERS_ENABLED = false;
+
 export default function KitchenSelectionsPage() {
   const router = useRouter();
   const { developmentId, developmentName } = useCurrentContext();
@@ -660,7 +662,8 @@ export default function KitchenSelectionsPage() {
                 <Settings className="w-4 h-4" />
                 Settings
               </button>
-              {stats.pending > 0 && (
+              {/* No bulk reminder endpoint exists yet; keep the button hidden until one does. */}
+              {SEND_REMINDERS_ENABLED && stats.pending > 0 && (
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors shadow-lg" style={{ backgroundColor: tokens.gold }}>
                   <Mail className="w-4 h-4" />
                   Send Reminders ({stats.pending})
