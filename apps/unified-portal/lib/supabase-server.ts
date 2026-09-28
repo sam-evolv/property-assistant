@@ -136,7 +136,6 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
           tenant_id: true,
         },
       }) ?? null;
-      console.log('[AUTH] Admin found via Drizzle:', !!admin);
     } catch (dbError: unknown) {
       const dbMessage = dbError instanceof Error ? dbError.message : 'Unknown error';
       console.error('[AUTH] Drizzle DB error (falling back to Supabase):', dbMessage);
@@ -154,7 +153,6 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
           console.error('[AUTH] Supabase fallback error:', supabaseError);
         }
         admin = supabaseAdminData;
-        console.log('[AUTH] Admin found via Supabase fallback:', !!admin);
       } catch (fallbackError: unknown) {
         const fallbackMessage = fallbackError instanceof Error ? fallbackError.message : 'Unknown error';
         console.error('[AUTH] Supabase fallback failed:', fallbackMessage);
@@ -163,7 +161,7 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     }
 
     if (!admin) {
-      console.log('[AUTH] User authenticated but not provisioned:', user.email);
+      console.warn('[AUTH] User authenticated but not provisioned');
       return {
         status: 'not_provisioned',
         email: user.email,
@@ -172,7 +170,6 @@ export async function getServerSessionWithStatus(): Promise<SessionResult> {
     }
 
     const displayName = user.user_metadata?.full_name || null;
-    console.log('[AUTH] Admin found:', admin.email, 'role:', admin.role, 'displayName:', displayName);
     return {
       status: 'authenticated',
       session: {
