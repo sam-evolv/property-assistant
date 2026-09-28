@@ -139,6 +139,8 @@ function TimeAgo({ date }: { date: string | null }) {
   return <span className="text-xs text-gray-500">{days}d ago</span>;
 }
 
+const MANUAL_SYNC_ENABLED = false;
+
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
@@ -486,9 +488,12 @@ export default function IntegrationsPage() {
                         >
                           {expandedSync === integration.id ? 'Hide History' : 'Sync History'}
                         </button>
-                        <button className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
-                          Sync Now
-                        </button>
+                        {/* No manual sync endpoint exists yet; hidden until one does. */}
+                        {MANUAL_SYNC_ENABLED && (
+                          <button className="text-xs text-gray-500 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100">
+                            Sync Now
+                          </button>
+                        )}
                         <button
                           onClick={() => handleDisconnect(integration.id)}
                           className="text-xs text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"

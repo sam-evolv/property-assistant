@@ -6,7 +6,6 @@ import {
   ArrowLeft,
   ChefHat,
   Download,
-  Upload,
   Search,
   Check,
   X,
@@ -175,6 +174,44 @@ export default function KitchenSelectionsPage() {
     }
   };
 
+  const handleExport = () => {
+    const header = ['Unit', 'House Type', 'Bedrooms', 'Purchaser', 'Kitchen', 'Counter Top', 'Cabinet Colour', 'Handle', 'Wardrobes', 'PC Sum (EUR)', 'Notes'];
+    const yesNo = (v: boolean | null) => (v === true ? 'Yes' : v === false ? 'No' : '');
+    const counterLabel = (code: string | null) => {
+      if (!code) return '';
+      const opt = COUNTER_OPTIONS.find(o => o.code === code);
+      return opt ? `${opt.code} - ${opt.label}` : code;
+    };
+    const rows = units.map(u => [
+      u.unitNumber,
+      u.houseType || '',
+      u.bedrooms ?? '',
+      u.purchaserName || '',
+      yesNo(u.hasKitchen),
+      counterLabel(u.counterType),
+      u.cabinetColor || '',
+      u.handleStyle || '',
+      yesNo(u.hasWardrobe),
+      u.hasKitchen === null ? '' : u.pcSumTotal || 0,
+      u.notes || '',
+    ]);
+    const escape = (value: unknown) => {
+      const str = String(value ?? '');
+      return /[",\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const csv = [header, ...rows].map(row => row.map(escape).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const slug = (development?.code || development?.name || 'development').replace(/[^a-z0-9]+/gi, '-').toLowerCase();
+    link.href = url;
+    link.download = `kitchen-selections-${slug}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredUnits = units.filter(u => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -229,11 +266,11 @@ export default function KitchenSelectionsPage() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2">
-              <Upload className="w-4 h-4" />
-              Import
-            </button>
-            <button className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2">
+            <button
+              onClick={handleExport}
+              disabled={units.length === 0}
+              className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-xl hover:border-gray-300 hover:shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
               <Download className="w-4 h-4" />
               Export
             </button>

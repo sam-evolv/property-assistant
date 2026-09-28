@@ -24,6 +24,10 @@ interface Stats {
   dismissed?: number;
 }
 
+// The developer moderation API (/developer/api/moderation) is not deployed yet.
+// Until it is, render an honest empty state instead of calling a missing route.
+const MODERATION_API_AVAILABLE = false;
+
 export default function ModerationPage() {
   const { tenantId } = useCurrentContext();
   const [reports, setReports] = useState<Report[]>([]);
@@ -34,6 +38,10 @@ export default function ModerationPage() {
 
   const fetchReports = async () => {
     if (!tenantId) return;
+    if (!MODERATION_API_AVAILABLE) {
+      setLoading(false);
+      return;
+    }
     
     setLoading(true);
     try {
@@ -55,6 +63,7 @@ export default function ModerationPage() {
   }, [tenantId, statusFilter]);
 
   const handleAction = async (reportId: string, action: 'hide' | 'dismiss', notes?: string) => {
+    if (!MODERATION_API_AVAILABLE) return;
     setActionLoading(reportId);
     try {
       const res = await fetch('/developer/api/moderation', {
@@ -98,6 +107,22 @@ export default function ModerationPage() {
         return null;
     }
   };
+
+  if (!MODERATION_API_AVAILABLE) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Community Moderation</h1>
+          <p className="text-gray-600 mt-1">Review and manage reported noticeboard content</p>
+        </div>
+        <div className="bg-white rounded-lg border p-8 text-center">
+          <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+          <p className="text-lg font-medium text-gray-900">Moderation queue not yet enabled</p>
+          <p className="text-gray-500">Reported noticeboard posts will appear here once moderation is switched on for your account.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">

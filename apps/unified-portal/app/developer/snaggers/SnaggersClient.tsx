@@ -156,12 +156,12 @@ export function SnaggersClient(_props: SnaggersClientProps) {
                       <div className="text-caption text-neutral-500 mt-0.5">
                         {roleLabel(m.role)}
                         {m.role === 'snagger_external' && Array.isArray(m.development_ids) && m.development_ids.length > 0
-                          ? ' . ' + m.development_ids.map(developmentName).join(', ')
+                          ? ' · ' + m.development_ids.map(developmentName).join(', ')
                           : null}
                       </div>
                       <div className="text-caption text-neutral-500 mt-0.5">
                         {m.accepted_at ? `Accepted ${formatDate(m.accepted_at)}` : `Invited ${formatDate(m.invited_at)}`}
-                        {m.expires_at ? ` . expires ${formatDate(m.expires_at)}` : null}
+                        {m.expires_at ? ` · expires ${formatDate(m.expires_at)}` : null}
                       </div>
                     </div>
                     <span

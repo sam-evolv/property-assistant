@@ -41,9 +41,11 @@ interface BTRData {
   recentMaintenance: MaintenanceRequest[];
 }
 
-function formatEuro(value: number): string {
-  if (value >= 1000000) return `€${(value / 1000000).toFixed(1)}M`;
-  return `€${value.toLocaleString('en-IE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+// Postgres decimals arrive as strings ("1850.00"); coerce before formatting.
+function formatEuro(value: number | string): string {
+  const amount = Number(value) || 0;
+  if (amount >= 1000000) return `€${(amount / 1000000).toFixed(1)}M`;
+  return `€${amount.toLocaleString('en-IE', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
 type FilterType = 'all' | 'occupied' | 'vacant' | 'void' | 'maintenance';

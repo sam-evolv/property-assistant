@@ -125,8 +125,10 @@ export function ScheduleClient({ role, userId, tenantId }: ScheduleClientProps) 
       setAnchor(addDays(anchor, -7));
     } else {
       const key = dublinDateKey(anchor);
-      const [y, m, d] = key.split('-').map((s) => parseInt(s, 10));
-      setAnchor(new Date(Date.UTC(y, m - 2, d, 12, 0, 0)));
+      const [y, m] = key.split('-').map((s) => parseInt(s, 10));
+      // Anchor on the 1st: stepping from the 29th-31st would otherwise roll
+      // over into the following month and skip one.
+      setAnchor(new Date(Date.UTC(y, m - 2, 1, 12, 0, 0)));
     }
   };
   const goNext = () => {
@@ -134,8 +136,8 @@ export function ScheduleClient({ role, userId, tenantId }: ScheduleClientProps) 
       setAnchor(addDays(anchor, 7));
     } else {
       const key = dublinDateKey(anchor);
-      const [y, m, d] = key.split('-').map((s) => parseInt(s, 10));
-      setAnchor(new Date(Date.UTC(y, m, d, 12, 0, 0)));
+      const [y, m] = key.split('-').map((s) => parseInt(s, 10));
+      setAnchor(new Date(Date.UTC(y, m, 1, 12, 0, 0)));
     }
   };
   const goToday = () => setAnchor(new Date());

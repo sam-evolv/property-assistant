@@ -1,8 +1,9 @@
 /**
  * Data Hub Folder Browsing + Watching API
  *
- * GET  ?folderId= — browse folders for a connection (defaults to root)
- * POST — add a watched folder
+ * GET  ?folderId= — browse folders for a connection (defaults to root). The
+ *      root listing also returns the connection's watchedFolders.
+ * POST — add a watched folder, or update the existing row for that folder
  */
 
 import { NextRequest, NextResponse } from 'next/server'
@@ -93,8 +94,15 @@ export async function GET(
       const contents = await provider.listFolderContents(folderId)
       return NextResponse.json(contents)
     } else {
+      const { data: watchedFolders } = await getSupabaseAdmin()
+        .from('watched_folders')
+        .select('id, folder_id, folder_path, folder_name, development_id')
+        .eq('connection_id', connectionId)
+        .eq('tenant_id', session.tenantId)
+        .order('folder_path', { ascending: true })
+
       const folders = await provider.listRootFolders()
-      return NextResponse.json({ folders, files: [] })
+      return NextResponse.json({ folders, files: [], watchedFolders: watchedFolders || [] })
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error'
@@ -130,6 +138,40 @@ export async function POST(
 
     if (!conn || conn.tenant_id !== session.tenantId) {
       return NextResponse.json({ error: 'Connection not found' }, { status: 404 })
+    }
+
+    // There is no unique constraint on (connection_id, folder_id), so look for
+    // an existing row first: re-watching or re-mapping a folder updates it
+    // instead of inserting a duplicate.
+    const { data: existing } = await supabase
+      .from('watched_folders')
+      .select('id')
+      .eq('connection_id', connectionId)
+      .eq('tenant_id', session.tenantId)
+      .eq('folder_id', folderId)
+      .limit(1)
+      .maybeSingle()
+
+    if (existing) {
+      const updates: Record<string, unknown> = {
+        folder_path: folderPath,
+        folder_name: folderName,
+      }
+      // Only touch the mapping when the caller sent one (null clears it).
+      if ('developmentId' in body) updates.development_id = developmentId || null
+
+      const { data: watchedFolder, error: updateError } = await supabase
+        .from('watched_folders')
+        .update(updates)
+        .eq('id', existing.id)
+        .select()
+        .single()
+
+      if (updateError) {
+        return NextResponse.json({ error: updateError.message }, { status: 500 })
+      }
+
+      return NextResponse.json({ watchedFolder })
     }
 
     // Insert watched folder

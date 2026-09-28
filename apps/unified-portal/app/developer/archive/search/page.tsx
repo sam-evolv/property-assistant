@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Search, FileText, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useCurrentContext } from '@/contexts/CurrentContext';
@@ -34,7 +34,28 @@ interface SearchFilters {
   aiOnly?: boolean;
 }
 
+// No archive search API is deployed yet (/developer/api/archive/search does not
+// exist), so this route sends people back to the archive instead of showing a
+// search box that can only fail. Flip this once the endpoint ships.
+const ARCHIVE_SEARCH_ENABLED = false;
+
 export default function ArchiveSearchPage() {
+  return ARCHIVE_SEARCH_ENABLED ? <ArchiveSearchContent /> : <RedirectToArchive />;
+}
+
+function RedirectToArchive() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace('/developer/archive');
+  }, [router]);
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <Loader2 className="h-8 w-8 animate-spin text-amber-500" />
+    </div>
+  );
+}
+
+function ArchiveSearchContent() {
   const { tenantId, developmentId } = useCurrentContext();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
@@ -64,10 +85,12 @@ export default function ArchiveSearchPage() {
 
   useEffect(() => {
     async function fetchHouseTypes() {
-      if (!tenantId) return;
-      const devId = developmentId || '';
+      if (!tenantId || !developmentId) {
+        setHouseTypes([]);
+        return;
+      }
       try {
-        const res = await fetch(`/api/house-types?tenantId=${tenantId}${devId ? `&developmentId=${devId}` : ''}`);
+        const res = await fetch(`/api/developments/${developmentId}/house-types`);
         if (res.ok) {
           const data = await res.json();
           setHouseTypes(data.houseTypes?.map((ht: any) => ({ 

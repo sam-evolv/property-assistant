@@ -70,8 +70,11 @@ export default function CustomFolderPage() {
       params.set('developmentId', developmentId);
       params.set('folderId', folderId);
       params.set('pageSize', '500');
+      // /api/archive/documents only handles PATCH/DELETE; listing a folder's
+      // documents goes through the disciplines route's documents action.
+      params.set('action', 'documents');
       
-      const response = await fetch(`/api/archive/documents?${params}`);
+      const response = await fetch(`/api/archive/disciplines?${params}`);
       if (response.ok) {
         const data = await response.json();
         setDocuments(data.documents || []);
