@@ -2,22 +2,61 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { complianceSchedule } from '@openhouse/db/schema';
+import { complianceSchedule, developments } from '@openhouse/db/schema';
 import { eq, and, desc } from 'drizzle-orm';
-import { requireRole } from '@/lib/supabase-server';
+import { requireRole, type AdminSession } from '@/lib/supabase-server';
+
+// SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+async function assertDevelopmentOwnership(
+  session: AdminSession,
+  developmentId: string
+): Promise<NextResponse | null> {
+  const [development] = await db
+    .select({ id: developments.id, tenant_id: developments.tenant_id })
+    .from(developments)
+    .where(eq(developments.id, developmentId))
+    .limit(1);
+
+  if (!development) {
+    return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+  }
+
+  if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return null;
+}
+
+function toDateOrNull(value: unknown): Date | null {
+  if (value === null || value === undefined || value === '') return null;
+  const d = new Date(value as string);
+  return isNaN(d.getTime()) ? null : d;
+}
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const body = await request.json();
-    const { itemId, ...updates } = body;
+    // The compliance page sends `id`; older callers send `itemId`.
+    const itemId = body.itemId ?? body.id;
 
     if (!itemId) {
       return NextResponse.json({ error: 'itemId is required' }, { status: 400 });
     }
+
+    // SECURITY: whitelist updatable fields — never allow id/development_id/unit_id overrides
+    const updates: Partial<typeof complianceSchedule.$inferInsert> = {};
+    if (typeof body.status === 'string') updates.status = body.status;
+    if (body.completed_date !== undefined) updates.completed_date = toDateOrNull(body.completed_date);
+    if (body.notes !== undefined) updates.notes = body.notes;
+    if (body.certificate_number !== undefined) updates.certificate_number = body.certificate_number;
+    if (body.document_url !== undefined) updates.document_url = body.document_url;
 
     if (updates.completed_date) {
       updates.status = 'completed';
@@ -60,7 +99,9 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const developmentId = params.id;
 
     const items = await db
@@ -83,7 +124,9 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const developmentId = params.id;
     const body = await request.json();
 
@@ -101,13 +144,28 @@ export async function POST(
       }
     }
 
+    const dueDate = toDateOrNull(body?.due_date);
+    if (!body?.type || !body?.title || !dueDate) {
+      return NextResponse.json({ error: 'type, title and due_date are required' }, { status: 400 });
+    }
+
+    const recurrence = Number(body.recurrence_months);
+
+    // SECURITY: whitelist fields — never allow id/development_id overrides from the body
+    const values: typeof complianceSchedule.$inferInsert = {
+      development_id: developmentId,
+      type: String(body.type),
+      title: String(body.title),
+      description: body.description ?? null,
+      due_date: dueDate,
+      recurrence_months: Number.isFinite(recurrence) && recurrence > 0 ? recurrence : null,
+      provider_name: body.provider_name ?? null,
+      status,
+    };
+
     const [item] = await db
       .insert(complianceSchedule)
-      .values({
-        ...body,
-        development_id: developmentId,
-        status: body.status || status,
-      })
+      .values(values)
       .returning();
 
     return NextResponse.json({ item }, { status: 201 });

@@ -2,16 +2,40 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { btrAmenities } from '@openhouse/db/schema';
+import { btrAmenities, developments } from '@openhouse/db/schema';
 import { eq, desc } from 'drizzle-orm';
-import { requireRole } from '@/lib/supabase-server';
+import { requireRole, type AdminSession } from '@/lib/supabase-server';
+
+// SECURITY: verify the development belongs to the session tenant (super_admin exempt)
+async function assertDevelopmentOwnership(
+  session: AdminSession,
+  developmentId: string
+): Promise<NextResponse | null> {
+  const [development] = await db
+    .select({ id: developments.id, tenant_id: developments.tenant_id })
+    .from(developments)
+    .where(eq(developments.id, developmentId))
+    .limit(1);
+
+  if (!development) {
+    return NextResponse.json({ error: 'Development not found' }, { status: 404 });
+  }
+
+  if (session.role !== 'super_admin' && development.tenant_id !== session.tenantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  return null;
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const developmentId = params.id;
 
     const amenities = await db
@@ -34,16 +58,32 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    await requireRole(['super_admin', 'admin', 'developer']);
+    const session = await requireRole(['super_admin', 'admin', 'developer']);
+    const ownershipError = await assertDevelopmentOwnership(session, params.id);
+    if (ownershipError) return ownershipError;
     const developmentId = params.id;
     const body = await request.json();
 
+    if (!body?.name || !body?.type) {
+      return NextResponse.json({ error: 'name and type are required' }, { status: 400 });
+    }
+
+    // SECURITY: whitelist fields — never allow id/development_id overrides from the body
+    const values: typeof btrAmenities.$inferInsert = {
+      development_id: developmentId,
+      name: String(body.name),
+      type: String(body.type),
+      description: body.description ?? null,
+      location: body.location ?? null,
+      capacity: body.capacity ?? null,
+      max_duration_hours: body.max_duration_hours ?? undefined,
+      max_advance_days: body.max_advance_days ?? undefined,
+      is_bookable: body.is_bookable ?? undefined,
+    };
+
     const [amenity] = await db
       .insert(btrAmenities)
-      .values({
-        ...body,
-        development_id: developmentId,
-      })
+      .values(values)
       .returning();
 
     return NextResponse.json({ amenity }, { status: 201 });

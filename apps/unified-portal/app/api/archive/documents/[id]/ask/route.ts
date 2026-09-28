@@ -2,8 +2,10 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@openhouse/db/client';
-import { sql } from 'drizzle-orm';
+import { documents } from '@openhouse/db/schema';
+import { eq, sql } from 'drizzle-orm';
 import OpenAI from 'openai';
+import { requireRole } from '@/lib/supabase-server';
 
 function getOpenAI() {
   return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -13,6 +15,23 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const documentId = params.id;
 
   try {
+    // SECURITY: middleware skips /api/* — authenticate here and scope to the session tenant
+    const session = await requireRole(['developer', 'admin', 'super_admin']);
+
+    const [doc] = await db
+      .select({ id: documents.id, tenant_id: documents.tenant_id })
+      .from(documents)
+      .where(eq(documents.id, documentId))
+      .limit(1);
+
+    if (!doc) {
+      return NextResponse.json({ error: 'Document not found' }, { status: 404 });
+    }
+
+    if (session.role !== 'super_admin' && doc.tenant_id !== session.tenantId) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const { question } = await req.json();
     if (!question?.trim()) {
       return NextResponse.json({ error: 'Question required' }, { status: 400 });
@@ -30,6 +49,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       sql`SELECT content, chunk_index
           FROM rag_chunks
           WHERE document_id = ${documentId}::uuid
+            AND tenant_id = ${doc.tenant_id}::uuid
           ORDER BY embedding <=> ${JSON.stringify(questionEmbedding)}::vector
           LIMIT 5`
     );
@@ -64,6 +84,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       chunks_used: chunks.rows.length,
     });
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    if (errorMessage === 'UNAUTHORIZED') {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    if (errorMessage === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
     return NextResponse.json({ error: 'Failed to process question' }, { status: 500 });
   }
 }
