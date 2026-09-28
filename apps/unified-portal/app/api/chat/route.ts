@@ -683,8 +683,14 @@ function formatRoomDimensionAnswer(dim: RoomDimensionResult, roomName: string, h
 }
 
 function getOpenAIClient() {
+  // SDK defaults are a 10-minute timeout and 2 retries, far beyond this route's maxDuration (60s).
+  // In openai v4 the timeout covers the request until response headers arrive (effectively the whole
+  // completion for non-streaming calls); for stream: true it is cleared once the stream opens, so long streamed
+  // answers are not cut off.
   return new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
+    timeout: 30000,
+    maxRetries: 1,
   });
 }
 
@@ -816,6 +822,32 @@ function buildOwnHomeFactsBlock(
     `When the homeowner asks "what is my house type", "how many bedrooms do I have", or "is it 3 or 4 bed", answer directly and plainly from these facts (e.g. "Your home is a ${ownTypePhrase}"). Do not deflect.`,
     "Whole-development documents — the Home User Guide, specification document and FAQs — describe EVERY house type in the development (e.g. BS01, BD01, BT01). If one of these mentions a house type code that is not the homeowner's own, that is because it is a development-wide document, not a mistake. Never tell the homeowner the document is wrong — explain it covers all house types and restate their own home's type from the facts above.",
   ].join('\n');
+}
+
+// RICH CARDS: Build BER / warranty cards only from real scheme_profile values.
+// scheme_profile is fetched with select('*'); these columns are optional and may not exist
+// for a scheme, in which case the card is omitted rather than showing a generic default.
+function buildBerCard(profile: Record<string, unknown> | null): { rating: string; label: string } | null {
+  const raw = profile?.ber_rating;
+  if (typeof raw !== 'string') return null;
+  const rating = raw.trim().toUpperCase();
+  if (!/^(A[1-3]|B[1-3]|C[1-3]|D[12]|E[12]|F|G)$/.test(rating)) return null;
+  const label = rating.startsWith('A') ? 'Near Zero Energy' : '';
+  return { rating, label };
+}
+
+function buildWarrantyCard(
+  profile: Record<string, unknown> | null,
+): { developer_years: number; structural_years: number; providers: string[] } | null {
+  if (!profile) return null;
+  const devYears = Number(profile.developer_warranty_years);
+  const structYears = Number(profile.structural_warranty_years);
+  const rawProvider = profile.warranty_provider;
+  const providers = typeof rawProvider === 'string' && rawProvider.trim() ? [rawProvider.trim()] : [];
+  if (!Number.isFinite(devYears) || !Number.isFinite(structYears) || devYears <= 0 || structYears <= devYears || providers.length === 0) {
+    return null;
+  }
+  return { developer_years: devYears, structural_years: structYears, providers };
 }
 
 // SCHEME PROFILE FACTS: Build a structured block from scheme_profile data for injection into system prompts
@@ -1053,14 +1085,20 @@ function detectHighRiskTopic(message: string): { isHighRisk: boolean; category: 
 function detectOtherUnitQuestion(message: string, userUnitAddress: string | null): { isAboutOtherUnit: boolean; mentionedUnit: string | null } {
   const messageLower = message.toLowerCase();
   
-  // Patterns that indicate asking about a specific unit/address
+  // Patterns that indicate asking about a specific unit/address.
+  // Word boundaries + exclusions keep legitimate own-home questions passing
+  // ("Do I have 2 parking spaces?", "Is my house 3 bed?", "3 way valve", "shop down the road").
   const unitPatterns = [
-    /(?:number|no\.?|#|unit|house|flat|apartment)\s*(\d+)/gi,
-    /(\d+)\s*(?:longview|park|street|road|avenue|lane|drive|close|way|court|gardens)/gi,
-    /(?:my\s+)?neighbour'?s?\s+(?:house|home|unit|place)/gi,
-    /(?:next\s+door|across\s+the\s+(?:road|street)|down\s+the\s+(?:road|street))/gi,
-    /(?:who\s+lives?\s+(?:at|in)|what'?s?\s+(?:at|in))\s+(?:number|no\.?|#)?\s*\d+/gi,
-    /(?:tell\s+me\s+about|information\s+(?:on|about))\s+(?:number|no\.?|#|unit|house)?\s*\d+/gi,
+    // "number 12", "no. 12", "#12", "unit 21", "house 14" — but not "house 3 bed" / "2 storey" / "21 degrees" / phone numbers
+    /(?:\b(?:number|no\.|unit|house|flat|apartment|apt\.?)|#)\s*(\d{1,4})[a-z]?\b(?!\s*-?\s*(?:bed|beds|bedroom|bedrooms|bath|baths|bathroom|bathrooms|storey|story|stories|floors?|sq|m2|kw|kwh|degrees?|years?|yrs?|%))/gi,
+    // Street addresses: "23 Longview Park", "5 Main Street" — a name word is required before generic
+    // suffixes (park/way/close/...) so "2 parking spaces" or "3 way valve" don't match
+    /\b(\d{1,4})[a-z]?\s+(?:longview\b|(?:(?!(?:by|to|the|a|an|on|of|from|for|mins?|minutes?|hours?|km|miles?|car|cars|way)\s)[a-z]+\s+){1,2}(?:park|street|road|avenue|lane|drive|close|way|court|gardens|crescent|grove|place)\b|(?:street|road|avenue)\b)/gi,
+    /\b(?:my\s+)?neighbour'?s?\s+(?:house|home|unit|place)\b/gi,
+    // "who lives next door", "the house across the road" — not "is there a shop down the road?"
+    /\b(?:who\s+lives|house|home|unit|flat|apartment|property)\s+(?:is\s+)?(?:next\s+door|across\s+the\s+(?:road|street)|down\s+the\s+(?:road|street))\b/gi,
+    /\b(?:who\s+lives?\s+(?:at|in)|what'?s?\s+(?:at|in))\s+(?:(?:number|no\.?|unit|house|flat|apartment)\s*|#\s*)?\d+/gi,
+    /\b(?:tell\s+me\s+about|information\s+(?:on|about))\s+(?:(?:number|no\.?|unit|house|flat|apartment)\s*|#\s*)?\d+/gi,
   ];
   
   let mentionedUnit: string | null = null;
@@ -1798,9 +1836,11 @@ export async function POST(request: NextRequest) {
       rag_project_id: userSupabaseProjectId,
     }));
 
-    // SCHEME PROFILE: Fetch structured authority data for this scheme
-    let schemeProfileData: Record<string, unknown> | null = null;
-    if (userSupabaseProjectId) {
+    // SCHEME PROFILE: Fetch structured authority data for this scheme.
+    // PERF: started here but only awaited in the RAG path (STEP 0) where it is first used,
+    // so it overlaps with the GDPR / POI checks below. Never rejects.
+    const schemeProfilePromise: Promise<Record<string, unknown> | null> = (async () => {
+      if (!userSupabaseProjectId) return null;
       try {
         const spSupabase = getSupabaseClient();
         const { data: spData } = await spSupabase
@@ -1808,11 +1848,12 @@ export async function POST(request: NextRequest) {
           .select('*')
           .eq('id', userSupabaseProjectId)
           .maybeSingle();
-        schemeProfileData = spData as Record<string, unknown> | null;
+        return spData as Record<string, unknown> | null;
       } catch {
         // scheme_profile fetch failed — continue without it
+        return null;
       }
-    }
+    })();
 
     // OWN-HOME FACTS: built once, injected into both system-prompt variants below.
     const ownHomeFacts = buildOwnHomeFactsBlock(userUnitDetails.unitInfo, userHouseTypeCode);
@@ -2725,7 +2766,29 @@ export async function POST(request: NextRequest) {
     // Use effective unit UID (validated token OR client-provided) as user identifier for session isolation
     // This ensures conversation continuity even when QR token validation fails but client unit UID exists
     const conversationUserId = effectiveUnitUid || userId || '';
-    const conversationHistory = await loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId);
+
+    // PERF: start independent lookups now so they overlap with history load / embeddings.
+    // Each is awaited where first needed below; none of them reject.
+    const questionTopicPromise = extractQuestionTopic(message);
+    // Superseded document IDs to filter out from RAG (resolved userTenantId = correct tenant)
+    const supersededDocIdsPromise: Promise<Set<string>> = (async () => {
+      try {
+        const { rows: superseded } = await db.execute(sql`
+          SELECT id FROM documents 
+          WHERE tenant_id = ${userTenantId}::uuid 
+          AND is_superseded = true
+        `);
+        return new Set((superseded as { id: string }[]).map(r => r.id));
+      } catch (_e) {
+        // error handled silently
+        return new Set<string>();
+      }
+    })();
+
+    const [conversationHistory, schemeProfileData] = await Promise.all([
+      loadConversationHistory(conversationUserId, userTenantId, userDevelopmentId),
+      schemeProfilePromise,
+    ]);
     
     // Check if this is a follow-up question that needs context expansion
     const needsContext = isFollowUpQuestion(message) && conversationHistory.length > 0;
@@ -2765,21 +2828,8 @@ export async function POST(request: NextRequest) {
     });
 
     // STEP 2: Semantic search using cosine similarity on ALL chunks
-    // First, get list of superseded document IDs to filter out from RAG
-    // Use resolved userTenantId to filter by correct tenant
-    let supersededDocIds = new Set<string>();
-    try {
-      const { rows: superseded } = await db.execute(sql`
-        SELECT id FROM documents 
-        WHERE tenant_id = ${userTenantId}::uuid 
-        AND is_superseded = true
-      `);
-      supersededDocIds = new Set((superseded as { id: string }[]).map(r => r.id));
-      if (supersededDocIds.size > 0) {
-      }
-    } catch (_e) {
-        // error handled silently
-    }
+    // Superseded document IDs (query started at STEP 0) are filtered out from RAG
+    const supersededDocIds = await supersededDocIdsPromise;
     
     // SERVER-SIDE pgvector SIMILARITY SEARCH via match_document_sections()
     // Uses HNSW index — returns top-50 pre-ranked chunks, no in-memory cosine needed.
@@ -3416,8 +3466,7 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
       }).catch(() => {});
     }
 
-    // STEP 4: Extract question topic and find drawing BEFORE streaming (parallel with RAG)
-    const questionTopicPromise = extractQuestionTopic(message);
+    // STEP 4: Extract question topic (started at STEP 0) and find drawing BEFORE streaming
     
     let drawing: ResolvedDrawing | null = null;
     let drawingExplanation = '';
@@ -4275,8 +4324,10 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
               downloadUrl: drawing.downloadUrl,
               explanation: drawingExplanation,
             } : null,
-            ber_card: berKeywords.test(message) ? { rating: 'A2', label: 'Near Zero Energy' } : null,
-            warranty_card: warrantyKeywords.test(message) ? { developer_years: 2, structural_years: 10, providers: ['HomeBond', 'Premier Guarantee'] } : null,
+            // Only emit rich cards when the scheme profile actually holds the values — never hardcode
+            // a rating/warranty that may not apply to this home. Cards are null otherwise.
+            ber_card: berKeywords.test(message) ? buildBerCard(schemeProfileData) : null,
+            warranty_card: warrantyKeywords.test(message) ? buildWarrantyCard(schemeProfileData) : null,
             attachments: floorPlanAttachments.length > 0 ? floorPlanAttachments.map(fp => ({
               id: fp.id,
               title: fp.title,
@@ -4375,7 +4426,9 @@ Do NOT say "I'll check for more information" — you cannot. Do NOT say "I'm not
           }
           
           // Contact card detection: phone/email in response
-          const contactCardPhoneMatch = fullAnswer?.match(/\+?[\d\s\-]{10,15}/);
+          // Irish landline/mobile (0XX / +353 / +353 (0) forms) or 1800/1850 freephone — not arbitrary
+          // digit runs like MPRN/meter numbers or year ranges ("2025 - 2026")
+          const contactCardPhoneMatch = fullAnswer?.match(/(?:(?:\+353|\b00353)\s?(?:\(0\)\s?)?|\b0)\d{1,2}[\s-]?\d{3}[\s-]?\d{3,4}\b|\b1[89]\d{2}[\s-]?\d{3}[\s-]?\d{3}\b/);
           const contactCardEmailMatch = fullAnswer?.match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
           const contactNameMatch = fullAnswer?.match(/(?:contact|reach|speak to|ask for|speak with)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/);
           const contactCard = (contactCardPhoneMatch || contactCardEmailMatch) ? {
