@@ -1792,19 +1792,7 @@ function QueryPanel({ unit, developmentId, onClose, onReply }: QueryPanelProps) 
         const response = await fetch(`/api/pipeline/${developmentId}/${unit.id}/notes`);
         if (response.ok) {
           const data = await response.json();
-          const notes = data.notes || [];
-          // Only show demo queries if the unit has an open query (queriesRaisedDate set but not replied)
-          // This ensures consistency between what's shown in the table and the panel
-          const hasOpenQuery = unit.queriesRaisedDate && !unit.queriesRepliedDate;
-          if (notes.length === 0 && hasOpenQuery) {
-            setQueries([
-              { id: 'demo-1', content: 'Can you confirm the completion date for the kitchen installation?', resolved: false, createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
-              { id: 'demo-2', content: 'Please provide the updated floor plan with the recent modifications.', resolved: true, createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie', resolvedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString() },
-              { id: 'demo-3', content: 'What is the status of the parking space allocation?', resolved: false, createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(), createdBy: 'demo@openhouse.ie' },
-            ]);
-          } else {
-            setQueries(notes);
-          }
+          setQueries(data.notes || []);
         }
       } catch {
         // fetch queries failed

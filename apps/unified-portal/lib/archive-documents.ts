@@ -304,6 +304,35 @@ export async function resolveAllowedProjectIds(tenantId: string): Promise<string
   return Array.from(projectIds);
 }
 
+/**
+ * Project ids whose document_sections back the archive for a tenant, or for
+ * one of its developments. Same resolution as listArchiveDocuments, so counts
+ * elsewhere (e.g. the dashboard) match what the Documents page shows.
+ */
+export async function resolveArchiveProjectIds(tenantId: string, developmentId?: string): Promise<string[]> {
+  if (!developmentId) return resolveAllowedProjectIds(tenantId);
+  if (!tenantId) return [];
+
+  const supabase = getSupabaseClient();
+  const { data: dev } = await supabase
+    .from('developments')
+    .select('id, name')
+    .eq('id', developmentId)
+    .eq('tenant_id', tenantId)
+    .maybeSingle();
+  if (!dev) return [];
+
+  if (dev.name) {
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('name', dev.name)
+      .maybeSingle();
+    if (project?.id) return [project.id];
+  }
+  return [getSupabaseProjectId(developmentId)];
+}
+
 export async function deleteDocument({
   documentId,
   fileName,

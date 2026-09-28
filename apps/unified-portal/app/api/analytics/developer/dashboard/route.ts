@@ -5,6 +5,7 @@ import { messages, homeowners, documents } from '@openhouse/db/schema';
 import { sql, gte, and, eq, count } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import { createClient } from '@supabase/supabase-js';
+import { resolveArchiveProjectIds } from '@/lib/archive-documents';
 
 function getSupabaseAdmin() {
   return createClient(
@@ -70,341 +71,354 @@ export async function GET(request: NextRequest) {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Run queries sequentially to avoid connection pool exhaustion
+    // Swallow per-query failures so one broken source never blocks the dashboard
+    // (same graceful-fallback semantics as before, now allowing independent queries to run concurrently).
+    const safe = async <T,>(fallback: T, fn: () => Promise<T>): Promise<T> => {
+      try {
+        return await fn();
+      } catch (_e) {
+        return fallback;
+      }
+    };
+
+    // SQL fragments scoping unit-keyed tables (via the units table) to this tenant / development
+    const unitScope = developmentId
+      ? sql`u.tenant_id = ${tenantId}::uuid AND u.project_id::text = ${developmentId}`
+      : sql`u.tenant_id = ${tenantId}::uuid`;
+
     // Units are stored in Supabase, use Supabase client to query them
     // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-    let totalUnits = 0;
-    let onboardedUnits = 0;
-    try {
-      let unitsQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true })
+    const countUnits = async (onlyOnboarded: boolean): Promise<number> => {
+      let q = supabaseAdmin.from('units').select('*', { count: 'exact', head: true })
         .eq('tenant_id', tenantId); // SECURITY: Always filter by tenant
+      if (onlyOnboarded) {
+        // Onboarded units - those with purchaser_name set
+        q = q.not('purchaser_name', 'is', null);
+      }
       if (developmentId) {
-        unitsQuery = unitsQuery.eq('project_id', developmentId);
+        q = q.eq('project_id', developmentId);
       }
-      const { count: unitCount, error: unitError } = await unitsQuery;
-      if (!unitError) {
-        totalUnits = unitCount || 0;
-      } else {
-      }
-      
-      // Count onboarded units - those with purchaser_name set (using correct Supabase syntax)
-      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-      let onboardedQuery = supabaseAdmin.from('units').select('*', { count: 'exact', head: true })
-        .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
-        .not('purchaser_name', 'is', null);
-      if (developmentId) {
-        onboardedQuery = onboardedQuery.eq('project_id', developmentId);
-      }
-      const { count: onboardedCount, error: onboardedError } = await onboardedQuery;
-      if (!onboardedError) {
-        onboardedUnits = onboardedCount || 0;
-      } else {
-      }
-    } catch (_unitError) {
-        // error handled silently
-    }
-    
-    // Use onboarded units as registered homeowners
-    let registeredHomeowners = onboardedUnits;
-    
-    // Active homeowners - counts ANY portal interaction in the last 7 days:
-    // 1. Chat messages (messages table - Drizzle)
-    // 2. Document acknowledgements in last 7 days (purchaser_agreements - Drizzle, same as Homeowners page)
-    // 3. Analytics events like logins, signups (analytics_events - Drizzle)
-    let activeHomeowners = 0;
-    let previousActive = 0;
-    try {
-      // Count active users from multiple sources - using purchaser_agreements (same as Homeowners page)
-      let drizzleActiveCount = 0;
-      let purchaserAgreementsActiveCount = 0;
+      const { count: c, error } = await q;
+      return error ? 0 : (c || 0);
+    };
 
-      // First try to count from purchaser_agreements (most reliable - actual portal interaction)
-      try {
-        const agreementsActiveResult = await db.execute(sql`
-          SELECT COUNT(DISTINCT unit_id)::int as count
-          FROM purchaser_agreements
-          WHERE agreed_at >= ${sevenDaysAgo}
-            AND unit_id IS NOT NULL
-        `);
-        purchaserAgreementsActiveCount = (agreementsActiveResult.rows[0] as { count: number } | undefined)?.count || 0;
-      } catch (_agreementError) {
-          // error handled silently
+    // Full unit list (paginated past the 1000-row Supabase default)
+    // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
+    type UnitRow = { id: string; project_id: string; house_type_code: string | null };
+    const fetchAllUnits = async (): Promise<UnitRow[]> => {
+      const PAGE_SIZE = 1000;
+      const rows: UnitRow[] = [];
+      for (let from = 0; ; from += PAGE_SIZE) {
+        let q = supabaseAdmin.from('units').select('id, project_id, house_type_code')
+          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
+          .order('id', { ascending: true })
+          .range(from, from + PAGE_SIZE - 1);
+        if (developmentId) {
+          q = q.eq('project_id', developmentId);
+        }
+        const { data, error } = await q;
+        if (error) throw error;
+        rows.push(...((data || []) as UnitRow[]));
+        if (!data || data.length < PAGE_SIZE) break;
       }
+      return rows;
+    };
 
-      // Then try Drizzle tables (messages + analytics_events)
-      try {
-        const activeResult = await (developmentId
+    // Active homeowners - distinct identities with a real portal interaction in [from, to):
+    // 1. Chat messages (messages) and analytics events like logins, QR scans, doc opens, signups (analytics_events)
+    // 2. Document acknowledgements (purchaser_agreements + units.important_docs_agreed_at), scoped to this tenant's units
+    const fetchActiveIds = async (from: Date, to: Date | null): Promise<Set<string>> => {
+      const msgTo = to ? sql`AND m.created_at < ${to}` : sql``;
+      const aeTo = to ? sql`AND ae.created_at < ${to}` : sql``;
+      const paTo = to ? sql`AND pa.agreed_at < ${to}` : sql``;
+      const docsTo = to ? sql`AND u.important_docs_agreed_at < ${to}` : sql``;
+
+      const [engagementIds, acknowledgementIds] = await Promise.all([
+        safe<string[]>([], async () => {
+          const result = await (developmentId
+            ? db.execute(sql`
+                SELECT DISTINCT user_id FROM (
+                  -- Users who sent chat messages
+                  SELECT m.user_id::text AS user_id FROM messages m
+                  WHERE m.development_id = ${developmentId}::uuid
+                    AND m.created_at >= ${from} ${msgTo}
+                    AND m.user_id IS NOT NULL AND m.user_id::text != 'anonymous'
+
+                  UNION
+
+                  -- Users with analytics events (logins, QR scans, doc opens, signups)
+                  SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+                  FROM analytics_events ae
+                  WHERE ae.development_id = ${developmentId}::uuid
+                    AND ae.created_at >= ${from} ${aeTo}
+                    AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                    AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+                ) all_active
+                WHERE user_id IS NOT NULL
+              `)
+            : db.execute(sql`
+                SELECT DISTINCT user_id FROM (
+                  -- Users who sent chat messages
+                  SELECT m.user_id::text AS user_id FROM messages m
+                  INNER JOIN developments d ON m.development_id = d.id
+                  WHERE d.tenant_id = ${tenantId}::uuid
+                    AND m.created_at >= ${from} ${msgTo}
+                    AND m.user_id IS NOT NULL AND m.user_id::text != 'anonymous'
+
+                  UNION
+
+                  -- Users with analytics events (logins, QR scans, doc opens, signups)
+                  SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
+                  FROM analytics_events ae
+                  WHERE ae.tenant_id = ${tenantId}::uuid
+                    AND ae.created_at >= ${from} ${aeTo}
+                    AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
+                    AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
+                ) all_active
+                WHERE user_id IS NOT NULL
+              `));
+          return (result.rows as { user_id: string }[]).map(r => String(r.user_id));
+        }),
+        safe<string[]>([], async () => {
+          const result = await db.execute(sql`
+            SELECT pa.unit_id::text AS unit_id
+            FROM purchaser_agreements pa
+            INNER JOIN units u ON pa.unit_id::text = u.id::text
+            WHERE ${unitScope}
+              AND pa.agreed_at >= ${from} ${paTo}
+
+            UNION
+
+            SELECT u.id::text AS unit_id
+            FROM units u
+            WHERE ${unitScope}
+              AND u.important_docs_agreed_at >= ${from} ${docsTo}
+          `);
+          return (result.rows as { unit_id: string }[]).map(r => String(r.unit_id));
+        }),
+      ]);
+      return new Set([...engagementIds, ...acknowledgementIds]);
+    };
+
+    const messageCount = async (from: Date, to: Date | null): Promise<number> => {
+      const msgTo = to ? sql`AND m.created_at < ${to}` : sql``;
+      const result = await (developmentId
+        ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${from} ${msgTo}`)
+        : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${from} ${msgTo}`));
+      return (result.rows[0] as { count: number } | undefined)?.count || 0;
+    };
+
+    // Independent queries run concurrently; each falls back gracefully on failure.
+    const [
+      totalUnits,
+      onboardedUnits,
+      allUnits,
+      activeIds,
+      previousActiveIds,
+      totalMessages,
+      previousMessages,
+      questionTopicsResult,
+      docStats,
+      acknowledgedUnitsMap,
+      recentQuestionsResult,
+      chatActivityResult,
+      upcomingHandovers,
+      registrationEvents,
+      acknowledgmentEvents,
+    ] = await Promise.all([
+      safe(0, () => countUnits(false)),
+      safe(0, () => countUnits(true)),
+      safe<UnitRow[] | null>(null, fetchAllUnits),
+      safe(new Set<string>(), () => fetchActiveIds(sevenDaysAgo, null)),
+      // Previous period for comparison
+      safe(new Set<string>(), () => fetchActiveIds(previousStartDate, sevenDaysAgo)),
+      // Message counts - Use JOIN through developments for tenant filtering
+      safe(0, () => messageCount(startDate, null)),
+      safe(0, () => messageCount(previousStartDate, startDate)),
+      // Question topics - Use JOIN through developments for tenant filtering
+      safe({ rows: [] as { topic: string; count: number }[] }, async () => {
+        const result = await (developmentId
           ? db.execute(sql`
-              SELECT COUNT(DISTINCT user_id)::int as count FROM (
-                -- Users who sent chat messages
-                SELECT m.user_id FROM messages m
-                WHERE m.development_id = ${developmentId}::uuid
-                  AND m.created_at >= ${sevenDaysAgo}
-                  AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
-
-                UNION
-
-                -- Users with analytics events (logins, QR scans, doc opens, signups)
-                SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-                FROM analytics_events ae
-                WHERE ae.development_id = ${developmentId}::uuid
-                  AND ae.created_at >= ${sevenDaysAgo}
-                  AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                  AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-              ) all_active
-              WHERE user_id IS NOT NULL
+              SELECT COALESCE(question_topic, 'general') as topic, COUNT(*)::int as count
+              FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+              GROUP BY COALESCE(question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
             `)
           : db.execute(sql`
-              SELECT COUNT(DISTINCT user_id)::int as count FROM (
-                -- Users who sent chat messages
-                SELECT m.user_id FROM messages m
-                INNER JOIN developments d ON m.development_id = d.id
-                WHERE d.tenant_id = ${tenantId}::uuid
-                  AND m.created_at >= ${sevenDaysAgo}
-                  AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
-
-                UNION
-
-                -- Users with analytics events (logins, QR scans, doc opens, signups)
-                SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-                FROM analytics_events ae
-                WHERE ae.tenant_id = ${tenantId}::uuid
-                  AND ae.created_at >= ${sevenDaysAgo}
-                  AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                  AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-              ) all_active
-              WHERE user_id IS NOT NULL
+              SELECT COALESCE(m.question_topic, 'general') as topic, COUNT(*)::int as count
+              FROM messages m INNER JOIN developments d ON m.development_id = d.id
+              WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
+              GROUP BY COALESCE(m.question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
             `));
-        drizzleActiveCount = (activeResult.rows[0] as { count: number } | undefined)?.count || 0;
-      } catch (_drizzleError) {
-          // error handled silently
-      }
-
-      // Also count from Supabase units table - users who acknowledged docs in last 7 days
-      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-      let supabaseActiveCount = 0;
-      try {
-        let supabaseActiveQuery = supabaseAdmin
-          .from('units')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
-          .gte('important_docs_agreed_at', sevenDaysAgo.toISOString());
-
-        if (developmentId) {
-          supabaseActiveQuery = supabaseActiveQuery.eq('project_id', developmentId);
-        }
-        const { count } = await supabaseActiveQuery;
-        supabaseActiveCount = count || 0;
-      } catch (_supabaseError) {
-          // error handled silently
-      }
-
-      // Also count recently registered units as "active" - new signups in last 7 days
-      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-      let recentlyRegisteredCount = 0;
-      try {
-        let recentlyRegisteredQuery = supabaseAdmin
-          .from('units')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
-          .not('purchaser_name', 'is', null)
-          .gte('created_at', sevenDaysAgo.toISOString());
-
-        if (developmentId) {
-          recentlyRegisteredQuery = recentlyRegisteredQuery.eq('project_id', developmentId);
-        }
-        const { count } = await recentlyRegisteredQuery;
-        recentlyRegisteredCount = count || 0;
-      } catch (_recentRegError) {
-          // error handled silently
-      }
-
-      // Also count recently updated units as "active" - units updated in last 7 days
-      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-      let recentlyUpdatedCount = 0;
-      try {
-        let recentlyUpdatedQuery = supabaseAdmin
-          .from('units')
-          .select('id', { count: 'exact', head: true })
-          .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
-          .not('purchaser_name', 'is', null)
-          .gte('updated_at', sevenDaysAgo.toISOString());
-
-        if (developmentId) {
-          recentlyUpdatedQuery = recentlyUpdatedQuery.eq('project_id', developmentId);
-        }
-        const { count } = await recentlyUpdatedQuery;
-        recentlyUpdatedCount = count || 0;
-      } catch (_recentUpdError) {
-          // error handled silently
-      }
-
-      // Combine all sources - get the maximum of all unique activity indicators
-      const allActivityCounts = [
-        drizzleActiveCount, 
-        supabaseActiveCount, 
-        purchaserAgreementsActiveCount, 
-        recentlyRegisteredCount,
-        recentlyUpdatedCount
-      ];
-      activeHomeowners = Math.max(...allActivityCounts);
-
-      // If multiple sources have activity, add them with overlap adjustment
-      const activeSources = allActivityCounts.filter(c => c > 0);
-      if (activeSources.length > 1) {
-        // Sum them but reduce for expected overlap
-        const total = activeSources.reduce((a, b) => a + b, 0);
-        activeHomeowners = Math.max(activeHomeowners, Math.floor(total * 0.7)); // 30% overlap assumed
-      }
-
-      // Fallback: If no recent activity but we have registered users, count ALL-TIME purchaser agreements as activity indicator
-      // This represents users who have ever interacted with the portal
-      if (activeHomeowners === 0 && registeredHomeowners > 0) {
-        try {
-          const allTimeActiveResult = await db.execute(sql`
-            SELECT COUNT(DISTINCT unit_id)::int as count
-            FROM purchaser_agreements
-            WHERE unit_id IS NOT NULL
-          `);
-          const allTimeActive = (allTimeActiveResult.rows[0] as { count: number } | undefined)?.count || 0;
-          if (allTimeActive > 0) {
-            // Use a percentage of all-time active as "recently engaged" estimate
-            // Industry standard: ~20-30% of users are active in any 7-day window
-            activeHomeowners = Math.max(1, Math.floor(allTimeActive * 0.25));
+        return result as unknown as { rows: { topic: string; count: number }[] };
+      }),
+      // Documents filed - distinct archive files (not RAG chunks), counted the same way as
+      // the Documents page: document_sections deduped by metadata.source / file_name.
+      safe({ total: 0, houseTypeCodes: [] as string[] }, async () => {
+        const projectIds = await resolveArchiveProjectIds(tenantId, developmentId);
+        if (projectIds.length === 0) return { total: 0, houseTypeCodes: [] as string[] };
+        const files = new Set<string>();
+        const houseTypeCodes = new Set<string>();
+        const PAGE_SIZE = 1000;
+        for (let from = 0; ; from += PAGE_SIZE) {
+          let q = supabaseAdmin.from('document_sections').select('id, metadata')
+            .order('id', { ascending: true })
+            .range(from, from + PAGE_SIZE - 1);
+          q = projectIds.length === 1 ? q.eq('project_id', projectIds[0]) : q.in('project_id', projectIds);
+          const { data, error } = await q;
+          if (error) throw error;
+          for (const row of (data || []) as { metadata: Record<string, unknown> | null }[]) {
+            const meta = row.metadata || {};
+            files.add(String(meta.source || meta.file_name || 'Unknown'));
+            if (meta.house_type_code) houseTypeCodes.add(String(meta.house_type_code));
           }
-        } catch (_fallbackError) {
-            // error handled silently
+          if (!data || data.length < PAGE_SIZE) break;
         }
-      }
-
-      // Previous period for comparison
-      const prevResult = await (developmentId
-        ? db.execute(sql`
-            SELECT COUNT(DISTINCT user_id)::int as count FROM (
-              SELECT m.user_id FROM messages m
-              WHERE m.development_id = ${developmentId}::uuid
-                AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo}
-                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
-
-              UNION
-
-              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-              FROM analytics_events ae
-              WHERE ae.development_id = ${developmentId}::uuid
-                AND ae.created_at >= ${previousStartDate} AND ae.created_at < ${sevenDaysAgo}
-                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-            ) all_active
-            WHERE user_id IS NOT NULL
-          `)
-        : db.execute(sql`
-            SELECT COUNT(DISTINCT user_id)::int as count FROM (
-              SELECT m.user_id FROM messages m
+        return { total: files.size, houseTypeCodes: [...houseTypeCodes] };
+      }),
+      // Must-read acknowledgements from purchaser_agreements (same source as Homeowners page),
+      // scoped to this tenant's units: latest agreed docs_version per unit
+      safe(new Map<string, number>(), async () => {
+        const result = await db.execute(sql`
+          SELECT DISTINCT ON (pa.unit_id) pa.unit_id::text AS unit_id, pa.docs_version
+          FROM purchaser_agreements pa
+          INNER JOIN units u ON pa.unit_id::text = u.id::text
+          WHERE ${unitScope}
+          ORDER BY pa.unit_id, pa.agreed_at DESC
+        `);
+        const map = new Map<string, number>();
+        for (const row of result.rows as { unit_id: string; docs_version: number | null }[]) {
+          map.set(row.unit_id, row.docs_version || 1);
+        }
+        return map;
+      }),
+      // Recent questions - Use JOIN through developments for tenant filtering
+      safe({ rows: [] as { user_message: string; question_topic: string; created_at: string; metadata: Record<string, unknown> | null }[] }, async () => {
+        const result = await (developmentId
+          ? db.execute(sql`
+              SELECT user_message, question_topic, created_at, metadata FROM messages m
+              WHERE m.development_id = ${developmentId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
+              ORDER BY m.created_at DESC LIMIT 20
+            `)
+          : db.execute(sql`
+              SELECT m.user_message, m.question_topic, m.created_at, m.metadata FROM messages m
               INNER JOIN developments d ON m.development_id = d.id
-              WHERE d.tenant_id = ${tenantId}::uuid
-                AND m.created_at >= ${previousStartDate} AND m.created_at < ${sevenDaysAgo}
-                AND m.user_id IS NOT NULL AND m.user_id != 'anonymous'
-
-              UNION
-
-              SELECT COALESCE(ae.event_data->>'unit_id', ae.session_hash) as user_id
-              FROM analytics_events ae
-              WHERE ae.tenant_id = ${tenantId}::uuid
-                AND ae.created_at >= ${previousStartDate} AND ae.created_at < ${sevenDaysAgo}
-                AND ae.event_type IN ('portal_visit', 'login', 'qr_scan', 'document_open', 'purchaser_signup')
-                AND (ae.event_data->>'unit_id' IS NOT NULL OR ae.session_hash IS NOT NULL)
-            ) all_active
-            WHERE user_id IS NOT NULL
-          `));
-      previousActive = (prevResult.rows[0] as { count: number } | undefined)?.count || 0;
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // Message counts - FIX: Use JOIN through developments for tenant filtering
-    let totalMessages = 0;
-    let previousMessages = 0;
-    try {
-      const msgResult = await (developmentId
-        ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}`)
-        : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}`));
-      totalMessages = (msgResult.rows[0] as { count: number } | undefined)?.count || 0;
-
-      const prevMsgResult = await (developmentId
-        ? db.execute(sql`SELECT COUNT(*)::int as count FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`)
-        : db.execute(sql`SELECT COUNT(*)::int as count FROM messages m INNER JOIN developments d ON m.development_id = d.id WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${previousStartDate} AND m.created_at < ${startDate}`));
-      previousMessages = (prevMsgResult.rows[0] as { count: number } | undefined)?.count || 0;
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // Question topics - FIX: Use JOIN through developments for tenant filtering
-    let questionTopicsResult = { rows: [] as { topic: string; count: number }[] };
-    try {
-      questionTopicsResult = await (developmentId
-        ? db.execute(sql`
-            SELECT COALESCE(question_topic, 'general') as topic, COUNT(*)::int as count
-            FROM messages m WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
-            GROUP BY COALESCE(question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
-          `)
-        : db.execute(sql`
-            SELECT COALESCE(m.question_topic, 'general') as topic, COUNT(*)::int as count
-            FROM messages m INNER JOIN developments d ON m.development_id = d.id
-            WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate} AND m.user_message IS NOT NULL
-            GROUP BY COALESCE(m.question_topic, 'general') ORDER BY COUNT(*) DESC LIMIT 8
-          `));
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // Document coverage from Supabase instead of Drizzle
-    // SECURITY: Filter by tenant's project IDs
-    let docCoverage = { total_docs: 0, covered_house_types: 0, total_house_types: 0 };
-    try {
-      // First get the project IDs for this tenant's developments
-      const { data: tenantDevs } = await supabaseAdmin
-        .from('developments')
-        .select('id')
-        .eq('tenant_id', tenantId);
-      
-      if (tenantDevs && tenantDevs.length > 0) {
-        const allowedProjectIds = tenantDevs.map(d => d.id);
-        
-        // Filter document_sections by project_id
-        let docsQuery = supabaseAdmin
-          .from('document_sections')
-          .select('metadata', { count: 'exact' })
-          .in('project_id', allowedProjectIds);
-        
+              WHERE d.tenant_id = ${tenantId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
+              ORDER BY m.created_at DESC LIMIT 20
+            `));
+        return result as unknown as { rows: { user_message: string; question_topic: string; created_at: string; metadata: Record<string, unknown> | null }[] };
+      }),
+      // Chat activity - Use JOIN through developments for tenant filtering
+      safe({ rows: [] as { date: string; count: number }[] }, async () => {
+        const result = await (developmentId
+          ? db.execute(sql`
+              SELECT DATE(created_at) as date, COUNT(*)::int as count FROM messages m
+              WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}
+              GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
+            `)
+          : db.execute(sql`
+              SELECT DATE(m.created_at) as date, COUNT(*)::int as count FROM messages m
+              INNER JOIN developments d ON m.development_id = d.id
+              WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
+              GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
+            `));
+        return result as unknown as { rows: { date: string; count: number }[] };
+      }),
+      // Upcoming handovers: units handing over in the next 60 days
+      safe<Array<{ address: string; unit_id: string | null; unit_uid: string | null; handover_date: string }>>([], async () => {
+        const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+        let handoverQuery = supabaseAdmin
+          .from('unit_sales_pipeline')
+          .select('unit_id, handover_date, units!inner(id, address, unit_uid, tenant_id, development_id)')
+          .eq('units.tenant_id', tenantId)
+          .gte('handover_date', now.toISOString().split('T')[0])
+          .lte('handover_date', in60Days.toISOString().split('T')[0])
+          .order('handover_date', { ascending: true })
+          .limit(10);
         if (developmentId) {
-          docsQuery = docsQuery.eq('project_id', developmentId);
+          handoverQuery = handoverQuery.eq('units.development_id', developmentId);
         }
-        
-        const { data: docs, count: docCount } = await docsQuery;
-        const houseTypes = new Set((docs || []).map((d: { metadata: Record<string, unknown> | null }) => (d.metadata as Record<string, unknown> | null)?.house_type_code).filter(Boolean));
-        docCoverage = { total_docs: docCount || 0, covered_house_types: houseTypes.size, total_house_types: houseTypes.size || 1 };
-      }
-      // If no developments for this tenant, docCoverage stays at 0
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // Must-read compliance - Count units that have acknowledged important docs
-    // Use the same approach as Homeowners page: query purchaser_agreements from Drizzle
-    let mustRead = { total_units: totalUnits, acknowledged: 0 };
-    try {
-      // Get unit IDs from Supabase
-      // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-      let unitsQuery = supabaseAdmin.from('units').select('id, project_id')
-        .eq('tenant_id', tenantId); // SECURITY: Always filter by tenant
-      if (developmentId) {
-        unitsQuery = unitsQuery.eq('project_id', developmentId);
-      }
-      const { data: units } = await unitsQuery;
+        const { data: handoverData, error: handoverError } = await handoverQuery;
+        if (handoverError || !handoverData) return [];
+        return (handoverData as unknown as Array<{ unit_id?: string | null; units?: { id?: string | null; address?: string; unit_uid?: string | null } | null; handover_date: string }>).map((row) => ({
+          address: row.units?.address || 'Unknown address',
+          unit_id: row.units?.id || row.unit_id || null,
+          unit_uid: row.units?.unit_uid || null,
+          handover_date: row.handover_date,
+        }));
+      }),
+      // Activity feed 1: recent unit registrations (last 30 days)
+      safe<Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>>([], async () => {
+        let regQuery = supabaseAdmin.from('units')
+          .select('purchaser_name, address, created_at')
+          .eq('tenant_id', tenantId)
+          .not('purchaser_name', 'is', null)
+          .gte('created_at', startDate.toISOString())
+          .order('created_at', { ascending: false })
+          .limit(10);
+        if (developmentId) {
+          regQuery = regQuery.eq('project_id', developmentId);
+        }
+        const { data: regData, error: regError } = await regQuery;
+        if (regError || !regData) return [];
+        return regData.map((u) => ({
+          type: 'registration',
+          label: `${u.purchaser_name} registered`,
+          sublabel: u.address || 'Unknown address',
+          date: u.created_at,
+          link: '/developer/homeowners',
+        }));
+      }),
+      // Activity feed 2: recent document acknowledgments (purchaser_agreements), scoped to tenant / development
+      safe<Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>>([], async () => {
+        const ackResult = await db.execute(sql`
+          SELECT pa.agreed_at, u.address
+          FROM purchaser_agreements pa
+          INNER JOIN units u ON pa.unit_id::text = u.id::text
+          WHERE ${unitScope}
+            AND pa.agreed_at >= ${startDate}
+          ORDER BY pa.agreed_at DESC
+          LIMIT 10
+        `);
+        return (ackResult.rows as { agreed_at: string; address: string | null }[]).map((row) => ({
+          type: 'acknowledgment',
+          label: `${row.address || 'A unit'} acknowledged documents`,
+          sublabel: 'Must-read docs confirmed',
+          date: row.agreed_at,
+          link: '/developer/homeowners',
+        }));
+      }),
+    ]);
 
-      if (units && units.length > 0) {
+    // Use onboarded units as registered homeowners
+    const registeredHomeowners = onboardedUnits;
+
+    // Active homeowners = distinct identities with real activity, never more than the units in scope
+    const activeHomeowners = Math.min(activeIds.size, totalUnits);
+    const previousActive = Math.min(previousActiveIds.size, totalUnits);
+
+    // Document coverage: house types (from this scope's units) that have at least one active document
+    const normaliseHouseType = (code: string) => code.trim().toUpperCase();
+    const unitHouseTypes = new Set(
+      (allUnits || [])
+        .map(u => u.house_type_code)
+        .filter((c): c is string => !!c && c.trim() !== '')
+        .map(normaliseHouseType)
+    );
+    const documentedHouseTypes = new Set(docStats.houseTypeCodes.map(normaliseHouseType));
+    const coveredHouseTypes = [...unitHouseTypes].filter(ht => documentedHouseTypes.has(ht)).length;
+    const docCoverage = {
+      total_docs: docStats.total,
+      covered_house_types: coveredHouseTypes,
+      total_house_types: unitHouseTypes.size,
+    };
+
+    // Must-read compliance - Count units that have acknowledged important docs
+    // Use the same approach as Homeowners page: purchaser_agreements docs_version vs project important_docs_version
+    let mustRead = { total_units: totalUnits, acknowledged: 0 };
+    if (allUnits && allUnits.length > 0) {
+      try {
         // Get development version from 'projects' table (Supabase)
-        const developmentIds = [...new Set(units.map(u => u.project_id))];
+        const developmentIds = [...new Set(allUnits.map(u => u.project_id))];
         const { data: projects } = await supabaseAdmin
           .from('projects')
           .select('id, important_docs_version')
@@ -416,26 +430,9 @@ export async function GET(request: NextRequest) {
           devVersionMap[p.id] = p.important_docs_version || 0;
         });
 
-        // Get acknowledgement status from purchaser_agreements table (Drizzle)
-        // This is the same query the Homeowners page uses
-        const acknowledgedUnitsMap = new Map<string, number>();
-        try {
-          const agreementsResult = await db.execute(sql`
-            SELECT DISTINCT ON (unit_id) unit_id, docs_version
-            FROM purchaser_agreements
-            WHERE unit_id IS NOT NULL
-            ORDER BY unit_id, agreed_at DESC
-          `);
-          for (const row of agreementsResult.rows as { unit_id: string; docs_version: number | null }[]) {
-            acknowledgedUnitsMap.set(row.unit_id, row.docs_version || 1);
-          }
-        } catch (_agreementError) {
-            // error handled silently
-        }
-
         // Count units that have acknowledged - same logic as Homeowners page
         let acknowledgedCount = 0;
-        for (const unit of units) {
+        for (const unit of allUnits) {
           const agreedVersion = acknowledgedUnitsMap.get(unit.id) || 0;
           const devVersion = devVersionMap[unit.project_id] || 0;
 
@@ -453,72 +450,23 @@ export async function GET(request: NextRequest) {
         }
 
         mustRead = { total_units: totalUnits, acknowledged: acknowledgedCount };
+      } catch (_e) {
+          // error handled silently
       }
-    } catch (_e) {
-        // error handled silently
     }
-    
-    // Recent questions - FIX: Use JOIN through developments for tenant filtering
-    let recentQuestionsResult = { rows: [] as { user_message: string; question_topic: string; created_at: string; metadata: Record<string, unknown> | null }[] };
-    try {
-      recentQuestionsResult = await (developmentId
-        ? db.execute(sql`
-            SELECT user_message, question_topic, created_at, metadata FROM messages m
-            WHERE m.development_id = ${developmentId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
-            ORDER BY m.created_at DESC LIMIT 20
-          `)
-        : db.execute(sql`
-            SELECT m.user_message, m.question_topic, m.created_at, m.metadata FROM messages m
-            INNER JOIN developments d ON m.development_id = d.id
-            WHERE d.tenant_id = ${tenantId} AND m.user_message IS NOT NULL AND m.created_at >= ${startDate}
-            ORDER BY m.created_at DESC LIMIT 20
-          `));
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // Chat activity - FIX: Use JOIN through developments for tenant filtering
-    let chatActivityResult = { rows: [] as { date: string; count: number }[] };
-    try {
-      chatActivityResult = await (developmentId
-        ? db.execute(sql`
-            SELECT DATE(created_at) as date, COUNT(*)::int as count FROM messages m
-            WHERE m.development_id = ${developmentId} AND m.created_at >= ${startDate}
-            GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
-          `)
-        : db.execute(sql`
-            SELECT DATE(m.created_at) as date, COUNT(*)::int as count FROM messages m
-            INNER JOIN developments d ON m.development_id = d.id
-            WHERE d.tenant_id = ${tenantId} AND m.created_at >= ${startDate}
-            GROUP BY DATE(m.created_at) ORDER BY DATE(m.created_at) ASC
-          `));
-    } catch (_e) {
-        // error handled silently
-    }
-    
-    // House type engagement from Supabase
-    // SECURITY: Always filter by tenant_id unconditionally (defense-in-depth)
-    let houseTypeEngagementResult = { rows: [] as { house_type_code: string; active_users: number; message_count: number }[] };
-    try {
-      let houseTypeQuery = supabaseAdmin.from('units').select('house_type_code')
-        .eq('tenant_id', tenantId) // SECURITY: Always filter by tenant
-        .not('house_type_code', 'is', null);
-      if (developmentId) {
-        houseTypeQuery = houseTypeQuery.eq('project_id', developmentId);
+
+    // House type breakdown from the (complete) unit list
+    const houseTypeCounts = (allUnits || []).reduce((acc: Record<string, number>, u) => {
+      if (u.house_type_code) {
+        acc[u.house_type_code] = (acc[u.house_type_code] || 0) + 1;
       }
-      const { data: unitsData } = await houseTypeQuery;
-      const houseTypeCounts = (unitsData || []).reduce((acc: Record<string, number>, u) => {
-        acc[u.house_type_code as string] = (acc[u.house_type_code as string] || 0) + 1;
-        return acc;
-      }, {} as Record<string, number>);
-      houseTypeEngagementResult = { 
-        rows: Object.entries(houseTypeCounts).slice(0, 10).map(([ht, count]) => ({ 
-          house_type_code: ht, active_users: 0, message_count: count as number 
-        }))
-      };
-    } catch (_e) {
-        // error handled silently
-    }
+      return acc;
+    }, {} as Record<string, number>);
+    const houseTypeEngagementResult = {
+      rows: Object.entries(houseTypeCounts).slice(0, 10).map(([ht, count]) => ({
+        house_type_code: ht, active_users: 0, message_count: count as number
+      }))
+    };
 
     // All values are now set above with graceful fallbacks
     // Debug logging
@@ -611,88 +559,13 @@ export async function GET(request: NextRequest) {
       messageCount: row.message_count,
     }));
 
-    // Upcoming handovers: units handing over in the next 60 days
-    const in60Days = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
-    let upcomingHandovers: Array<{ address: string; unit_uid: string | null; handover_date: string }> = [];
-    try {
-      let handoverQuery = supabaseAdmin
-        .from('unit_sales_pipeline')
-        .select('unit_id, handover_date, units!inner(address, unit_uid, tenant_id, development_id)')
-        .eq('units.tenant_id', tenantId)
-        .gte('handover_date', now.toISOString().split('T')[0])
-        .lte('handover_date', in60Days.toISOString().split('T')[0])
-        .order('handover_date', { ascending: true })
-        .limit(10);
-      if (developmentId) {
-        handoverQuery = handoverQuery.eq('units.development_id', developmentId);
-      }
-      const { data: handoverData, error: handoverError } = await handoverQuery;
-      if (!handoverError && handoverData) {
-        upcomingHandovers = (handoverData as unknown as Array<{ units?: { address?: string; unit_uid?: string | null } | null; handover_date: string }>).map((row) => ({
-          address: row.units?.address || 'Unknown address',
-          unit_uid: row.units?.unit_uid || null,
-          handover_date: row.handover_date,
-        }));
-      } else if (handoverError) {
-      }
-    } catch (_e) {
-        // error handled silently
-    }
 
-    // --- Issue 2: Real activity feed events ---
-    const recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }> = [];
-
-    // 1. Recent unit registrations (last 30 days)
-    try {
-      let regQuery = supabaseAdmin.from('units')
-        .select('purchaser_name, address, created_at')
-        .eq('tenant_id', tenantId)
-        .not('purchaser_name', 'is', null)
-        .gte('created_at', startDate.toISOString())
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (developmentId) {
-        regQuery = regQuery.eq('project_id', developmentId);
-      }
-      const { data: regData, error: regError } = await regQuery;
-      if (!regError && regData) {
-        for (const u of regData) {
-          recentEvents.push({
-            type: 'registration',
-            label: `${u.purchaser_name} registered`,
-            sublabel: u.address || 'Unknown address',
-            date: u.created_at,
-            link: '/developer/homeowners',
-          });
-        }
-      }
-    } catch (_e) {
-        // error handled silently
-    }
-
-    // 2. Recent document acknowledgments (from purchaser_agreements - Drizzle)
-    try {
-      const ackResult = await db.execute(sql`
-        SELECT pa.agreed_at, u.address
-        FROM purchaser_agreements pa
-        INNER JOIN units u ON pa.unit_id::text = u.id::text
-        WHERE u.tenant_id = ${tenantId}::uuid
-          AND pa.agreed_at >= ${startDate}
-        ORDER BY pa.agreed_at DESC
-        LIMIT 10
-      `);
-      for (const row of ackResult.rows as { agreed_at: string; address: string | null }[]) {
-        recentEvents.push({
-          type: 'acknowledgment',
-          label: `${row.address || 'A unit'} acknowledged documents`,
-          sublabel: 'Must-read docs confirmed',
-          date: row.agreed_at,
-          link: '/developer/homeowners',
-        });
-      }
-    } catch (e: unknown) {
-      // PGRST205 or similar - table not accessible, skip gracefully
-    }
+    // --- Real activity feed events ---
+    // 1. Recent unit registrations, 2. Recent document acknowledgments (fetched above)
+    const recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }> = [
+      ...registrationEvents,
+      ...acknowledgmentEvents,
+    ];
 
     // 3. Knowledge gap questions (reuse unansweredQueries already computed above)
     for (const q of unansweredQueries) {
@@ -731,7 +604,7 @@ export async function GET(request: NextRequest) {
           description: `${registeredHomeowners} of ${totalUnits} units onboarded`,
           suffix: '%',
           delta: onboardingDelta,
-          inactiveCount: totalUnits - registeredHomeowners,
+          inactiveCount: Math.max(0, totalUnits - registeredHomeowners),
         },
         engagementRate: {
           value: engagementRate,
@@ -740,7 +613,7 @@ export async function GET(request: NextRequest) {
           suffix: '%',
           growth: activeGrowth,
           delta: engagementDelta,
-          inactiveCount: totalUnits - activeHomeowners,
+          inactiveCount: Math.max(0, totalUnits - activeHomeowners),
         },
         documentCoverage: {
           value: documentCoverageRate,

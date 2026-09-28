@@ -259,10 +259,8 @@ export default function PipelinePage() {
           const complete = dev.stats?.handedOver || 0;
           const available = total - released; // Units not yet released
 
-          // Demo query data for developments - 20 queries per development for demo
-          const openQueries = dev.unresolvedNotesCount > 0
-            ? dev.unresolvedNotesCount
-            : (total > 0 ? 20 : 0);
+          // Open queries = real unresolved notes for this development
+          const openQueries = dev.unresolvedNotesCount || 0;
 
           return {
             id: dev.id,

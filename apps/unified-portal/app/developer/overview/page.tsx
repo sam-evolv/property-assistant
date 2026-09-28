@@ -44,6 +44,8 @@ import {
 } from '@/components/ui/Skeleton';
 import { ChartLoadingSkeleton } from '@/components/ui/ChartLoadingSkeleton';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCurrentContext } from '@/contexts/CurrentContext';
+import { isAllSchemes } from '@/lib/archive-scope';
 
 // Dynamic chart imports
 const TopQuestionsChart = dynamic(
@@ -75,7 +77,7 @@ interface DashboardData {
   onboardingFunnel: Array<{ stage: string; count: number; colour: string }>;
   unansweredQueries: Array<{ question: string; topic: string; date: string }>;
   houseTypeEngagement: Array<{ houseType: string; activeUsers: number; messageCount: number }>;
-  upcomingHandovers: Array<{ address: string; unit_uid: string | null; handover_date: string }>;
+  upcomingHandovers: Array<{ address: string; unit_id: string | null; unit_uid: string | null; handover_date: string }>;
   recentEvents: Array<{ type: string; label: string; sublabel: string; date: string; link?: string }>;
   summary: {
     totalUnits: number;
@@ -104,17 +106,12 @@ interface DashboardError {
   requestId?: string;
 }
 
-// Convert dashboard data to sparkline format
+// Convert dashboard data to sparkline format.
+// With fewer than 2 real data points there is no trend to show, so no sparkline is rendered.
 function generateSparklineData(chatActivity: Array<{ date: string; count: number }>) {
-  // Ensure we have at least 7 data points for a visible sparkline
   const data = chatActivity.slice(-7);
   if (data.length < 2) {
-    // Generate sample data if not enough real data
-    const now = new Date();
-    return Array.from({ length: 7 }, (_, i) => ({
-      value: Math.floor(Math.random() * 50) + 10,
-      date: new Date(now.getTime() - (6 - i) * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-    }));
+    return undefined;
   }
   return data.map(d => ({ value: d.count, date: d.date }));
 }
@@ -155,7 +152,7 @@ function generateAlerts(data: DashboardData): Alert[] {
         id: `handover-${i}`,
         label: u.address,
         sublabel: `Handover in ${daysUntil} day${daysUntil !== 1 ? 's' : ''} — ${date.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}`,
-        link: u.unit_uid ? `/developer/homeowners/${u.unit_uid}` : '/developer/homeowners',
+        link: u.unit_id ? `/developer/homeowners/${u.unit_id}` : '/developer/homeowners',
       };
     });
     const soonest = Math.ceil((new Date(handovers[0].handover_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
@@ -242,7 +239,8 @@ function PageHeader({ developerName }: { developerName: string }) {
 // Quick Actions for the dashboard
 function getQuickActions(
   onExport: () => void,
-  onSendEmail: () => void
+  onSendEmail: () => void,
+  canExport: boolean
 ): QuickAction[] {
   return [
     {
@@ -264,6 +262,7 @@ function getQuickActions(
       label: 'Export Report',
       icon: Download,
       onClick: onExport,
+      disabled: !canExport,
     },
     {
       id: 'analytics',
@@ -277,6 +276,8 @@ function getQuickActions(
 // Main Dashboard Component
 export default function DeveloperOverviewPage() {
   const { email, displayName: authDisplayName } = useAuth();
+  const { archiveScope, developmentId } = useCurrentContext();
+  const effectiveDevelopmentId = isAllSchemes(archiveScope) ? undefined : developmentId || undefined;
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<DashboardError | null>(null);
@@ -294,7 +295,9 @@ export default function DeveloperOverviewPage() {
     setError(null);
 
     try {
-      const response = await fetch('/api/analytics/developer/dashboard');
+      const response = await fetch(
+        `/api/analytics/developer/dashboard${effectiveDevelopmentId ? `?developmentId=${effectiveDevelopmentId}` : ''}`
+      );
       const responseData = await response.json();
 
       if (!response.ok) {
@@ -316,14 +319,44 @@ export default function DeveloperOverviewPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [effectiveDevelopmentId]);
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
 
+  // Export the figures currently shown on this page as a CSV file
   const handleExport = () => {
-    // TODO: Implement export functionality
+    if (!data) return;
+    const csvCell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
+    const rows: Array<Array<string | number>> = [
+      ['Metric', 'Value'],
+      ['Total Units', data.summary.totalUnits],
+      ['Registered', data.summary.registeredHomeowners],
+      ['Active (7d)', data.summary.activeHomeowners],
+      ['Messages (30d)', data.summary.totalMessages],
+      ['Documents', data.summary.totalDocuments],
+      [data.kpis.onboardingRate.label, `${data.kpis.onboardingRate.value}%`],
+      [data.kpis.engagementRate.label, `${data.kpis.engagementRate.value}%`],
+      [data.kpis.documentCoverage.label, `${data.kpis.documentCoverage.value}%`],
+      [data.kpis.mustReadCompliance.label, `${data.kpis.mustReadCompliance.value}%`],
+      [],
+      ['Question Topic (30d)', 'Count'],
+      ...data.questionTopics.map(t => [t.label, t.count]),
+      [],
+      ['Date', 'Chat Messages'],
+      ...data.chatActivity.map(d => [d.date, d.count]),
+    ];
+    const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `openhouse-overview-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   const handleSendEmail = () => {
@@ -399,7 +432,7 @@ export default function DeveloperOverviewPage() {
   const alerts = generateAlerts(data);
   const activities = generateActivityFeed(data);
   const sparklineData = generateSparklineData(data.chatActivity);
-  const quickActions = getQuickActions(handleExport, handleSendEmail);
+  const quickActions = getQuickActions(handleExport, handleSendEmail, !!data);
 
   // Calculate stats
   const totalMessages = data.summary.totalMessages;
@@ -470,7 +503,6 @@ export default function DeveloperOverviewPage() {
               value={data.summary.totalUnits}
               icon={Building2}
               iconColor="text-gold-500"
-              sparklineData={sparklineData}
             />
             <StatCard
               label="Registered"
