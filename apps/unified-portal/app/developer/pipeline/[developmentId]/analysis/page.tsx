@@ -226,7 +226,8 @@ export default function AnalysisPage() {
   useEffect(() => {
     const fetchDevelopment = async () => {
       try {
-        const res = await fetch(`/api/developer/development/${developmentId}`);
+        const res = await fetch(`/api/developments/${developmentId}`);
+        if (!res.ok) throw new Error('Failed to fetch development');
         const data = await res.json();
         setDevelopmentName(data.development?.name || data.project?.name || 'Development');
       } catch {
