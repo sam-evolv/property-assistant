@@ -19,6 +19,7 @@
     "hardening:recover-messages": "npx tsx scripts/hardening/recover-orphaned-messages.ts",
     "hardening:recover-messages-apply": "npx tsx scripts/hardening/recover-orphaned-messages.ts --apply",
     "hardening:create-development": "npx tsx scripts/hardening/create-development-safe.ts",
+    "test:pr205": "tsx scripts/smoke/amenity-hallucination-guard.smoke.ts && tsx scripts/smoke/migration-safety.smoke.ts",
     "db:migrate": "npx tsx scripts/run-migrations-local.ts"
   },
   "dependencies": {

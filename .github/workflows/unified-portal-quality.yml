@@ -1,0 +1,40 @@
+name: Unified Portal Quality
+
+on:
+  pull_request:
+    paths:
+      - 'apps/unified-portal/**'
+      - 'scripts/run-migrations.ts'
+      - '.github/workflows/unified-portal-quality.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'apps/unified-portal/**'
+      - 'scripts/run-migrations.ts'
+      - '.github/workflows/unified-portal-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run PR 205 regression suite
+        run: npm run test:pr205 --workspace apps/unified-portal
+
+      - name: Typecheck
+        run: npm run typecheck
