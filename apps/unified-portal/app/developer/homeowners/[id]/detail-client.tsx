@@ -44,6 +44,9 @@ import {
   Trash2,
   Check,
   FileText,
+  Wrench,
+  ClipboardCheck,
+  Sparkles,
 } from 'lucide-react';
 import { isHomeownerIssuesEnabled } from '@/lib/feature-flags';
 import { HomeownerIssuesCard } from '@/components/homeowners/HomeownerIssuesCard';
@@ -103,6 +106,9 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
   const [openIssuesCount, setOpenIssuesCount] = useState<number | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [unitFile, setUnitFile] = useState<any>(null);
+  const [guideBusy, setGuideBusy] = useState(false);
+  const [handoverBusy, setHandoverBusy] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -131,6 +137,49 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
     const open = issues.filter((i) => i.status !== 'resolved').length;
     setOpenIssuesCount(open);
   }, []);
+
+  // Unit file: a "homeowner" is a unit here, so homeownerId is the unit id.
+  const loadUnitFile = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/homeowners/${homeownerId}/unit-file`);
+      const d = await r.json();
+      if (!d.error) setUnitFile(d);
+    } catch {
+      // non-fatal: the unit-file cards just show their empty state
+    }
+  }, [homeownerId]);
+
+  useEffect(() => {
+    loadUnitFile();
+  }, [loadUnitFile]);
+
+  const generateGuide = async () => {
+    setGuideBusy(true);
+    try {
+      await fetch(`/api/homeowners/${homeownerId}/guide`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ issue: true }),
+      });
+      await loadUnitFile();
+    } finally {
+      setGuideBusy(false);
+    }
+  };
+
+  const logHandover = async (eventType: string) => {
+    setHandoverBusy(true);
+    try {
+      await fetch(`/api/homeowners/${homeownerId}/handover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_type: eventType }),
+      });
+      await loadUnitFile();
+    } finally {
+      setHandoverBusy(false);
+    }
+  };
 
   async function handleDelete() {
     setDeleting(true);
@@ -553,6 +602,149 @@ export function HomeownerDetailClient({ homeownerId }: { homeownerId: string }) 
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </CompactCard>
+        </div>
+
+        {/* Home file — installed systems, handover/HPI evidence, Home User Guide.
+            Reads /api/homeowners/[id]/unit-file (id == unit id). */}
+        <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+          <CompactCard
+            icon={<Wrench className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Building Systems"
+          >
+            {(unitFile?.systems ?? []).length === 0 ? (
+              <p className="text-neutral-400 py-2" style={{ fontSize: '12.5px' }}>
+                No systems recorded yet.
+              </p>
+            ) : (
+              (unitFile?.systems ?? []).map((s: any) => (
+                <KVRow
+                  key={s.id}
+                  label={String(s.system_type || '').replace(/_/g, ' ')}
+                  value={[s.make, s.model].filter(Boolean).join(' ') || '—'}
+                />
+              ))
+            )}
+          </CompactCard>
+
+          <CompactCard
+            icon={<ClipboardCheck className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Handover & HPI QA 8.0"
+            action={
+              <span
+                className={`inline-flex items-center font-semibold ${
+                  unitFile?.hpi_qa8_evidence?.qa8_ready
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-amber-50 text-amber-700'
+                }`}
+                style={{ fontSize: '11px', padding: '3px 9px', borderRadius: '999px' }}
+              >
+                {unitFile?.hpi_qa8_evidence?.qa8_ready ? 'Ready' : 'Incomplete'}
+              </span>
+            }
+          >
+            <KVRow
+              label="Home User Guide issued"
+              value={unitFile?.hpi_qa8_evidence?.guide_issued ? 'Yes' : 'No'}
+              valueClassName={
+                unitFile?.hpi_qa8_evidence?.guide_issued ? 'text-emerald-700' : 'text-neutral-900'
+              }
+            />
+            <KVRow
+              label="Handover demo completed"
+              value={unitFile?.hpi_qa8_evidence?.demo_completed ? 'Yes' : 'No'}
+              valueClassName={
+                unitFile?.hpi_qa8_evidence?.demo_completed ? 'text-emerald-700' : 'text-neutral-900'
+              }
+            />
+            <KVRow
+              label="Aftercare activated"
+              value={unitFile?.hpi_qa8_evidence?.aftercare_activated ? 'Yes' : 'No'}
+              valueClassName={
+                unitFile?.hpi_qa8_evidence?.aftercare_activated
+                  ? 'text-emerald-700'
+                  : 'text-neutral-900'
+              }
+            />
+            <KVRow
+              label="Systems documented"
+              value={String(unitFile?.hpi_qa8_evidence?.systems_documented ?? 0)}
+            />
+            {(!unitFile?.hpi_qa8_evidence?.demo_completed ||
+              !unitFile?.hpi_qa8_evidence?.aftercare_activated) && (
+              <div className="flex gap-2 mt-2">
+                {!unitFile?.hpi_qa8_evidence?.demo_completed && (
+                  <button
+                    type="button"
+                    onClick={() => logHandover('demo_completed')}
+                    disabled={handoverBusy}
+                    className="px-2.5 py-1.5 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    Log demo
+                  </button>
+                )}
+                {!unitFile?.hpi_qa8_evidence?.aftercare_activated && (
+                  <button
+                    type="button"
+                    onClick={() => logHandover('aftercare_activated')}
+                    disabled={handoverBusy}
+                    className="px-2.5 py-1.5 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-lg hover:bg-neutral-50 disabled:opacity-50"
+                  >
+                    Activate aftercare
+                  </button>
+                )}
+              </div>
+            )}
+          </CompactCard>
+        </div>
+
+        {/* Home User Guide (full width). */}
+        <div className="mt-3">
+          <CompactCard
+            icon={<Sparkles className="text-neutral-400" style={{ width: 13, height: 13 }} />}
+            title="Home User Guide"
+            action={
+              <button
+                type="button"
+                onClick={generateGuide}
+                disabled={guideBusy}
+                className="font-medium hover:underline disabled:opacity-50"
+                style={{ color: '#B8934C', fontSize: '11px' }}
+              >
+                {guideBusy ? 'Generating…' : unitFile?.guide ? 'Regenerate & issue' : 'Generate & issue'}
+              </button>
+            }
+          >
+            {!unitFile?.guide ? (
+              <p className="text-neutral-400 py-2" style={{ fontSize: '12.5px' }}>
+                No guide yet. Generate a system-specific guide from this home&rsquo;s recorded
+                systems.
+              </p>
+            ) : (
+              <div>
+                <p className="text-neutral-900 font-medium" style={{ fontSize: '13px' }}>
+                  {unitFile.guide.content?.title}
+                </p>
+                <p className="text-neutral-400" style={{ fontSize: '11px', marginTop: 2 }}>
+                  v{unitFile.guide.version} · {unitFile.guide.status}
+                  {unitFile.guide.content?.model ? ` · ${unitFile.guide.content.model}` : ''}
+                </p>
+                {unitFile.guide.content?.introduction && (
+                  <p className="text-neutral-600" style={{ fontSize: '12.5px', marginTop: 6 }}>
+                    {unitFile.guide.content.introduction}
+                  </p>
+                )}
+                {Array.isArray(unitFile.guide.content?.sections) && (
+                  <ul className="mt-2 space-y-1">
+                    {unitFile.guide.content.sections.slice(0, 6).map((sec: any, i: number) => (
+                      <li key={i} className="text-neutral-600" style={{ fontSize: '12px' }}>
+                        • {sec.heading}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             )}
           </CompactCard>
