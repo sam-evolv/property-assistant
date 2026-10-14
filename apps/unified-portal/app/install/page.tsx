@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 
 function sanitizeRedirectTarget(target: string | null): string {
@@ -30,12 +30,49 @@ function sanitizeRedirectTarget(target: string | null): string {
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// The home reference in a /homes/<ref> link: either the property code
+// (e.g. RP-030-0CC7) or, for older QR codes, the unit's UUID.
+function homeRefFromTarget(target: string): string | null {
+  const match = target.match(/^\/homes\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 function InstallContent() {
   const searchParams = useSearchParams();
   const rawTarget = searchParams.get('target');
   const safeTarget = sanitizeRedirectTarget(rawTarget);
   
   const appStoreUrl = 'https://apps.apple.com/app/openhouse-ai/id6504372916';
+
+  // Show the homeowner their property code so they can sign in to the app
+  // with it. Older QR links carry the unit UUID, so resolve those to the code.
+  const homeRef = homeRefFromTarget(safeTarget);
+  const [propertyCode, setPropertyCode] = useState<string | null>(
+    homeRef && !UUID_RE.test(homeRef) ? homeRef.toUpperCase() : null
+  );
+
+  useEffect(() => {
+    if (!homeRef || !UUID_RE.test(homeRef)) return;
+    let cancelled = false;
+    fetch('/api/houses/resolve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: homeRef }),
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        const code = data?.unit_id;
+        if (!cancelled && typeof code === 'string' && !UUID_RE.test(code)) {
+          setPropertyCode(code);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [homeRef]);
 
   const handleContinueWeb = () => {
     // Set cookie for 90 days (90 * 24 * 60 * 60 = 7776000 seconds)
@@ -193,9 +230,24 @@ function InstallContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <p className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
-                After installing, open the app and scan your QR code again for the best experience.
-              </p>
+              <div className="text-xs leading-relaxed" style={{ color: '#6b7280' }}>
+                {propertyCode ? (
+                  <>
+                    <p>After installing, open the app, tap &quot;My Home&quot; and enter your property code:</p>
+                    <p
+                      className="mt-2 font-mono text-base tracking-widest select-all"
+                      style={{ color: '#d4af37' }}
+                    >
+                      {propertyCode}
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    After installing, open the app, tap &quot;My Home&quot; and enter the property code from
+                    your handover pack.
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>

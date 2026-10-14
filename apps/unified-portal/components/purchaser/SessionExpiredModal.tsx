@@ -1,6 +1,6 @@
 'use client';
 
-import { QrCode, RefreshCw } from 'lucide-react';
+import { LogIn, RefreshCw } from 'lucide-react';
 
 interface SessionExpiredModalProps {
   isOpen: boolean;
@@ -12,33 +12,33 @@ interface SessionExpiredModalProps {
 const TRANSLATIONS: Record<string, { title: string; message: string; rescan: string }> = {
   en: {
     title: 'Session Expired',
-    message: 'Your session has expired. Please scan the QR code again to continue.',
-    rescan: 'Scan QR Code',
+    message: 'Your session has expired. Please sign in again with your property code to continue.',
+    rescan: 'Sign in again',
   },
   pl: {
     title: 'Sesja Wygasła',
-    message: 'Twoja sesja wygasła. Zeskanuj ponownie kod QR, aby kontynuować.',
-    rescan: 'Zeskanuj Kod QR',
+    message: 'Twoja sesja wygasła. Zaloguj się ponownie, używając kodu nieruchomości.',
+    rescan: 'Zaloguj się ponownie',
   },
   es: {
     title: 'Sesión Expirada',
-    message: 'Tu sesión ha expirado. Escanea el código QR nuevamente para continuar.',
-    rescan: 'Escanear Código QR',
+    message: 'Tu sesión ha expirado. Inicia sesión de nuevo con el código de tu vivienda.',
+    rescan: 'Iniciar sesión',
   },
   fr: {
     title: 'Session Expirée',
-    message: 'Votre session a expiré. Veuillez scanner à nouveau le code QR pour continuer.',
-    rescan: 'Scanner le Code QR',
+    message: 'Votre session a expiré. Reconnectez-vous avec le code de votre logement.',
+    rescan: 'Se reconnecter',
   },
   de: {
     title: 'Sitzung Abgelaufen',
-    message: 'Ihre Sitzung ist abgelaufen. Bitte scannen Sie den QR-Code erneut.',
-    rescan: 'QR-Code Scannen',
+    message: 'Ihre Sitzung ist abgelaufen. Bitte melden Sie sich mit Ihrem Immobiliencode erneut an.',
+    rescan: 'Erneut anmelden',
   },
   pt: {
     title: 'Sessão Expirada',
-    message: 'Sua sessão expirou. Por favor, escaneie o código QR novamente para continuar.',
-    rescan: 'Escanear Código QR',
+    message: 'A sua sessão expirou. Inicie sessão novamente com o código do seu imóvel.',
+    rescan: 'Iniciar sessão',
   },
 };
 
@@ -57,7 +57,7 @@ export default function SessionExpiredModal({
       onRescan();
     } else {
       sessionStorage.clear();
-      window.location.href = '/';
+      window.location.href = '/login/homeowner';
     }
   };
 
@@ -95,7 +95,7 @@ export default function SessionExpiredModal({
             }
           `}
         >
-          <QrCode className="w-5 h-5" />
+          <LogIn className="w-5 h-5" />
           {t.rescan}
         </button>
       </div>

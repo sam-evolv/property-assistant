@@ -188,7 +188,7 @@ export default function HomeResidentPage() {
           if (validateRes.status === 503) {
             setError('The service is temporarily busy. Please wait a moment and try again.');
           } else {
-            setError('Invalid or expired QR code. Please scan again.');
+            setError('We couldn\'t open this home. Please sign in again with your property code.');
           }
           setLoading(false);
           setIsRetrying(false);
@@ -384,6 +384,14 @@ export default function HomeResidentPage() {
             >
               Try Again
             </button>
+          )}
+          {!isTemporaryError && (
+            <a
+              href="/login/homeowner"
+              className="inline-block mb-4 px-6 py-2 bg-gold-500 text-white rounded-lg hover:bg-gold-600 transition font-medium"
+            >
+              Sign in
+            </a>
           )}
           <p className="text-sm text-gray-500">
             If you continue to have issues, please contact support.
