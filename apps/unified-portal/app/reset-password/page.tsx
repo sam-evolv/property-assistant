@@ -2,7 +2,7 @@
 
 import { Suspense, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 
 function ResetPasswordForm() {
@@ -15,7 +15,12 @@ function ResetPasswordForm() {
   const [isValidSession, setIsValidSession] = useState<boolean | null>(null);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
   const supabase = createClientComponentClient();
+
+  // Where to send the user afterwards (e.g. /login/homeowner). Same-origin paths only.
+  const nextParam = searchParams.get('next');
+  const loginPath = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : '/login';
 
   useEffect(() => {
     const checkSession = async () => {
@@ -49,7 +54,7 @@ function ResetPasswordForm() {
 
       setSuccess(true);
       setTimeout(() => {
-        router.push('/login');
+        router.push(loginPath);
       }, 3000);
     } catch (err: any) {
       setError(err.message || 'An error occurred');
@@ -94,7 +99,7 @@ function ResetPasswordForm() {
               <h1 className="text-xl font-semibold text-white mb-2">Invalid Reset Link</h1>
               <p className="text-gray-400 text-sm mb-6">This password reset link is invalid or has expired.</p>
               <a
-                href="/login"
+                href={loginPath}
                 className="inline-flex items-center gap-2 text-gold-400 hover:text-gold-300 transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

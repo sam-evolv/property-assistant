@@ -3,6 +3,16 @@ export const dynamic = 'force-dynamic';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Mask an email for display: "amiee22@hotmail.com" -> "a•••••2@hotmail.com".
+// Lets a returning homeowner see which address their account uses without
+// revealing it in full to anyone holding the property code.
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email || !email.includes('@')) return null;
+  const [local, domain] = email.split('@');
+  if (local.length <= 2) return `${local[0]}•••@${domain}`;
+  return `${local[0]}${'•'.repeat(Math.min(local.length - 2, 6))}${local[local.length - 1]}@${domain}`;
+}
+
 function getSupabaseAdmin() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,7 +49,7 @@ export async function POST(req: NextRequest) {
 
     const { data: unit, error } = await supabase
       .from('units')
-      .select('id, address_line_1, purchaser_name, user_id, development_id')
+      .select('id, address_line_1, purchaser_name, purchaser_email, user_id, development_id')
       .eq('unit_uid', code)
       .single();
 
@@ -51,8 +61,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (unit.user_id) {
-      // Already registered — tell the client to show the sign-in screen
-      return NextResponse.json({ alreadyRegistered: true });
+      // Already registered — tell the client to show the sign-in screen, with a
+      // hint of the email the account was created with (the auth user's email
+      // is authoritative; purchaser_email is the fallback).
+      const { data: authUser } = await supabase.auth.admin.getUserById(unit.user_id);
+      return NextResponse.json({
+        alreadyRegistered: true,
+        emailHint: maskEmail(authUser?.user?.email || unit.purchaser_email),
+      });
     }
 
     return NextResponse.json({

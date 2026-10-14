@@ -39,6 +39,8 @@ export default function HomeownerLogin() {
   // Screen 3 — return sign-in
   const [siEmail, setSiEmail] = useState('');
   const [siPassword, setSiPassword] = useState('');
+  const [emailHint, setEmailHint] = useState<string | null>(null);
+  const [notice, setNotice] = useState('');
 
   // Admin screen
   const [adminEmail, setAdminEmail] = useState('');
@@ -76,6 +78,8 @@ export default function HomeownerLogin() {
 
     if (data.alreadyRegistered) {
       // Unit already has an account — send them to the sign-in screen
+      setEmailHint(data.emailHint || null);
+      setNotice('');
       setStep('signin');
       return;
     }
@@ -153,6 +157,32 @@ export default function HomeownerLogin() {
     } else {
       router.push('/homes');
     }
+  }
+
+  async function handleForgotPassword() {
+    if (!supabase) {
+      setError('Authentication is temporarily unavailable.');
+      return;
+    }
+    const target = siEmail.trim().toLowerCase();
+    if (!target) {
+      setError('Enter the email address your account uses, then tap "Forgot password?" again.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setNotice('');
+
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(target, {
+      redirectTo: `${window.location.origin}/reset-password?next=/login/homeowner`,
+    });
+
+    setLoading(false);
+    if (resetError) {
+      setError(resetError.message || 'Could not send the reset email. Please try again.');
+      return;
+    }
+    setNotice(`If ${target} has an account, a password reset link is on its way. Check your inbox (and junk folder).`);
   }
 
   // ─── Admin login (unchanged from previous flow) ──────────────────────────────
@@ -441,6 +471,15 @@ export default function HomeownerLogin() {
     return (
       <LoginCard title="Welcome back" subtitle="Sign in with your email and password">
         <form onSubmit={handleSignIn} className="space-y-5">
+          {emailHint && (
+            <p
+              className="text-center text-sm -mt-2"
+              style={{ color: 'rgba(255,255,255,0.55)' }}
+            >
+              This home is registered to <strong style={{ color: 'rgba(255,255,255,0.85)' }}>{emailHint}</strong>
+            </p>
+          )}
+
           <div>
             <label htmlFor="si-email" className={labelClassName} style={labelStyle}>
               Email address
@@ -506,6 +545,28 @@ export default function HomeownerLogin() {
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
 
+          {notice && (
+            <p className="text-sm text-center" style={{ color: '#86efac' }}>
+              {notice}
+            </p>
+          )}
+
+          <button
+            type="button"
+            onClick={handleForgotPassword}
+            disabled={loading}
+            className="text-center text-sm w-full transition-colors"
+            style={{
+              color: '#a1a1aa',
+              background: 'none',
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              fontFamily: 'inherit',
+            }}
+          >
+            Forgot password?
+          </button>
+
           <div
             className="text-center mt-4"
             style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 16 }}
@@ -517,6 +578,8 @@ export default function HomeownerLogin() {
                 setError('');
                 setSiEmail('');
                 setSiPassword('');
+                setEmailHint(null);
+                setNotice('');
               }}
               className="text-sm transition-colors"
               style={{
