@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 import LoginCard from '../_components/LoginCard';
@@ -33,6 +33,7 @@ export default function HomeownerLogin() {
   // Screen 2 — confirm + register
   const [unitInfo, setUnitInfo] = useState<UnitInfo | null>(null);
   const [email, setEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -54,6 +55,32 @@ export default function HomeownerLogin() {
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
     Boolean(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   const supabase = hasSupabaseClientEnv ? createClientComponentClient() : null;
+
+  // A homeowner who is already signed in (e.g. reopening the app) goes
+  // straight to their home instead of being asked to log in again.
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session || cancelled) return;
+      const { data: ctx } = await supabase
+        .from('user_contexts')
+        .select('context_id')
+        .eq('auth_user_id', session.user.id)
+        .eq('product', 'homeowner')
+        .order('last_active_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!cancelled && ctx?.context_id) {
+        router.replace(`/homes/${ctx.context_id}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ─── Screen 1: Property code lookup ─────────────────────────────────────────
 
@@ -92,6 +119,10 @@ export default function HomeownerLogin() {
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
+    if (email.trim().toLowerCase() !== confirmEmail.trim().toLowerCase()) {
+      setError('The email addresses do not match. Please check for typos.');
+      return;
+    }
     if (password !== confirmPassword) {
       setError('Passwords do not match.');
       return;
@@ -139,7 +170,11 @@ export default function HomeownerLogin() {
     });
 
     if (authError || !data.session) {
-      setError('Incorrect email or password.');
+      setError(
+        emailHint
+          ? `Incorrect email or password. This home is registered to ${emailHint}.`
+          : 'Incorrect email or password.'
+      );
       setLoading(false);
       return;
     }
@@ -377,6 +412,26 @@ export default function HomeownerLogin() {
           </div>
 
           <div>
+            <label htmlFor="reg-confirm-email" className={labelClassName} style={labelStyle}>
+              Confirm email address
+            </label>
+            <input
+              id="reg-confirm-email"
+              type="email"
+              required
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              placeholder="Type your email again"
+              className={inputClassName}
+              style={inputStyle}
+              onFocus={handleInputFocus}
+              onBlur={handleInputBlur}
+              autoComplete="off"
+              onPaste={(e) => e.preventDefault()}
+            />
+          </div>
+
+          <div>
             <label htmlFor="reg-password" className={labelClassName} style={labelStyle}>
               Choose a password
             </label>
@@ -448,6 +503,7 @@ export default function HomeownerLogin() {
               setStep('code');
               setError('');
               setEmail('');
+              setConfirmEmail('');
               setPassword('');
               setConfirmPassword('');
             }}
